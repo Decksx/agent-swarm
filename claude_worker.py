@@ -506,6 +506,22 @@ def main() -> int:
 
     requests = ensure_requests()
 
+    # Containment invariant, checked at startup rather than assumed.
+    #
+    # Nothing below reads CHAT_IS_AUTHORITATIVE -- the reason chat cannot start
+    # work is that no code path leads from a message to execution. That is a
+    # structural property, and structural properties are exactly the kind that
+    # get reintroduced by accident. This check makes the constant load-bearing:
+    # turning chat authoritative again means deleting a refusal in three files,
+    # which is a visible act in review, rather than flipping one flag.
+    if swarm_control.CHAT_IS_AUTHORITATIVE:
+        log.error(
+            "refusing to start: swarm_control.CHAT_IS_AUTHORITATIVE is True, "
+            "but this worker has no audited path for chat-driven activation"
+        )
+        return 2
+
+
     # Resolved rather than invoked by bare name: on Windows the CLI is
     # usually a .cmd shim, which a non-shell subprocess will not find on
     # PATH without PATHEXT resolution.
