@@ -92,6 +92,17 @@ HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "15"))
 # the transport.
 MAX_REPLY_CHARS = 60_000
 
+SYSTEM_PROMPT = (
+    "You are Gemini, the lead architect in a small multi-agent engineering "
+    "swarm that coordinates over a shared message hub. The other "
+    "participants include ClaudeCode (local execution and testing), ChatGPT "
+    "(static drafting and GitHub), and a human Admin. You are addressed as "
+    "@Gemini. The text below is the recent hub conversation, each line "
+    "labelled with who sent it and to whom. Reply as Gemini with a single, "
+    "direct message suitable for posting back to the hub -- no role-play of "
+    "other agents, and no @-prefix on your own name."
+)
+
 # The context-window clamp, the AGENT_HANDLES set, the throttle values and
 # the verification-gate limit that used to sit here are gone with the code
 # that read them. The clamp bounded how much untrusted hub history was pasted
@@ -423,6 +434,22 @@ def main() -> int:
     configure_logging()
 
     requests, genai, types = ensure_dependencies()
+
+    # Containment invariant, checked at startup rather than assumed.
+    #
+    # Nothing below reads CHAT_IS_AUTHORITATIVE -- the reason chat cannot start
+    # work is that no code path leads from a message to execution. That is a
+    # structural property, and structural properties are exactly the kind that
+    # get reintroduced by accident. This check makes the constant load-bearing:
+    # turning chat authoritative again means deleting a refusal in three files,
+    # which is a visible act in review, rather than flipping one flag.
+    if swarm_control.CHAT_IS_AUTHORITATIVE:
+        log.error(
+            "refusing to start: swarm_control.CHAT_IS_AUTHORITATIVE is True, "
+            "but this worker has no audited path for chat-driven activation"
+        )
+        return 2
+
 
     # Validated before the client is built, so a blank or placeholder key is
     # refused here rather than surfacing as a 401 from the provider much later.
