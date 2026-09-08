@@ -1,55 +1,58 @@
-"""Poll an agent hub for tasks addressed to Claude Code and execute them.
-
-Bridges a message hub (default ``http://192.168.42.50:8050``) to a local
-``claude`` CLI: it long-polls ``/messages``, picks out messages targeted at
-this worker, runs each task non-interactively, and posts the result back to
-``/send``.
+"""Execute operator-issued activations for Claude Code, and narrate to the hub.
 
 TRUST BOUNDARY -- read this before running
 ------------------------------------------
 
-This daemon turns the hub into a remote-execution endpoint for this machine.
-Every message it accepts is passed to ``claude -p`` with ``Bash``, ``Read``
-and ``Edit`` pre-authorized, which is the configuration that never prompts.
-Anything able to POST to the hub can therefore run commands as the user
-running this script, unattended, for as long as it is up.
+This daemon runs ``claude -p`` with ``Bash``, ``Read`` and ``Edit``
+pre-authorized, which is the configuration that never prompts. Anything able
+to start a task here can run commands as the user running this script.
 
-That is the requested design and it is a reasonable one on a LAN you control.
-Three things narrow the blast radius without changing the protocol:
+Before Phase 0 the thing able to start a task was *the hub's chat stream*, and
+the hub was measured to answer ``GET /messages`` with ``200`` to a caller
+holding no credential, with ``sender`` a free-text field that nothing derives
+from an authenticated identity. That made this daemon an unauthenticated
+remote-execution endpoint for this machine.
 
-* ``HUB_TOKEN`` -- if set, a message must carry a matching ``token`` field or
-  it is refused and logged. Unset means no authentication, which is the
-  default and is stated here rather than left to be discovered.
-* ``WORKSPACE`` -- tasks run with this as their working directory, so a task
-  that writes relative paths cannot land in whatever directory the daemon
-  happened to be started from. It does NOT confine the task: ``Bash`` can
-  reach the whole filesystem.
-* Every accepted task is appended to ``claude_worker.log`` with its message
-  id, sender and exit code, so there is a record of what ran.
+It no longer takes work from the hub at all:
+
+* **Chat cannot start anything.** Not by ``target``, not by ``@mention``, not
+  from any sender, not with any content. Messages are fetched, recorded to the
+  local narration log and readable; they carry no authority.
+* **Work is claimed from a local control directory** (see ``swarm_control``),
+  which the hub has no route to. The boundary is this host's filesystem
+  permissions, not a secret sent over an open network.
+* **The global pause flag is checked before each claim**, so engaging it leaves
+  queued work intact rather than consuming what it declined to run.
+* **Identity is bound from local configuration.** This process speaks only as
+  ``AGENT_IDENTITY`` and never adopts a name from an inbound message.
+* Results are addressed to ``@Admin``, never to a peer worker. Posting results
+  to ``@Gemini`` is what made the swarm self-driving.
+* Every accepted activation is appended to ``claude_worker.log`` with its id,
+  issuer and exit code, so there is a record of what ran, and output is passed
+  through ``swarm_control.redact`` before it is logged or posted.
 
 The task string is passed to ``subprocess.run`` as a **list element**, never
-interpolated into a shell string. A task containing quotes, ``$(...)`` or
-``;`` is one argument to ``claude``, not shell syntax. Running this through a
-shell would add a second, entirely avoidable injection layer underneath the
-one the design already accepts.
+interpolated into a shell string, so quotes, ``$(...)`` and ``;`` in a task are
+one argument to ``claude`` rather than shell syntax.
+
+What this costs: Admin can no longer drive this worker by typing in the chat
+UI. That returns when the hub authenticates callers and derives ``sender``
+server-side -- the half of Phase 0 that lives on Tower. Until then "obey only
+Admin" is not enforceable, because anyone may claim to be Admin. See
+``docs/PHASE0_CONTAINMENT.md`` for the operator workflow.
 
 Hub schema
 ----------
 
 Confirmed against the running hub:
 
-* ``GET /messages`` returns a bare JSON **list** of message objects, each
-  with ``id``, ``sender``, ``target``, ``content`` and ``timestamp``.
+* ``GET /messages`` returns a bare JSON **list** of message objects, each with
+  ``id``, ``sender``, ``target``, ``content`` and ``timestamp``.
 * ``POST /send`` takes ``sender``, ``target`` and ``content``.
 
-Field names are matched exactly. An earlier draft tried several spellings
-per field because the host was unreachable when this was written; that
-tolerance has been removed now that the shape is known -- carrying it
-forward would only be extra ways to silently mis-read a message.
-``timestamp`` is present on responses but unused here: de-duplication is by
-``id``. A message addressed to us with empty or missing content is logged
-whole rather than dropped, because a lost task and an empty one look
-identical from the hub's side.
+Note what is absent: the hub stores no ``token`` field, so the pre-Phase-0
+inbound ``token_ok()`` check could refuse traffic but could never admit it.
+De-duplication of narration is by ``id``.
 """
 
 from __future__ import annotations
@@ -66,15 +69,24 @@ import time
 from pathlib import Path
 from typing import Any
 
+import swarm_control
+
 HUB_URL = os.environ.get("HUB_URL", "http://192.168.42.50:8050").rstrip("/")
-HUB_TOKEN = os.environ.get("HUB_TOKEN")
 
-# Targets this worker answers to, compared case-insensitively with any
-# leading '@' stripped.
-TARGETS = {"claudecode", "claude"}
+# This worker's identity is bound from its own configuration and is the only
+# name it may speak as. It is never read from an inbound message: `sender` is
+# a free-text field on an unauthenticated hub, so believing it would let any
+# writer decide who this process claims to be.
+AGENT_IDENTITY = swarm_control.bind_identity(
+    os.environ.get("AGENT_IDENTITY", "claudecode")
+)
 
-SENDER_NAME = "ClaudeCode"
-REPLY_TARGET = "@Gemini"
+# Results go to the operator, not to a peer worker. The pre-containment value
+# was "@Gemini", so every completed task posted a message that target-triggered
+# Gemini, whose reply re-triggered this worker: the loop was not an emergent
+# misuse of the design, it was wired in. Nothing this worker emits is addressed
+# to another agent any more.
+REPLY_TARGET = "@Admin"
 
 HERE = Path(__file__).resolve().parent
 WORKSPACE = Path(os.environ.get("WORKSPACE", HERE / "workspace"))
@@ -214,101 +226,31 @@ def save_last_seen_id(message_id: int) -> None:
         log.warning("could not persist last_seen_id=%s: %s", message_id, exc)
 
 
-def is_for_us(message: dict) -> bool:
-    target = message.get("target")
-
-    if not isinstance(target, str):
-        return False
-
-    return target.strip().lstrip("@").lower() in TARGETS
-
-
-def token_ok(message: dict) -> bool:
-    """Whether `message` carries the shared secret, when one is configured.
-
-    No token configured means every message is accepted; that is the default
-    and the docstring at the top says so.
-    """
-    if not HUB_TOKEN:
-        return True
-
-    return str(message.get("token", "")) == HUB_TOKEN
-
-
-# --- reply governor: a brake on the swarm's self-driving loop -------------
+# is_for_us() and token_ok() are gone rather than tightened.
 #
-# The answering workers trigger on @-mentions and address one another, so
-# left unchecked they ping-pong indefinitely -- and every turn HERE is a
-# `claude -p` run with Bash/Edit, not merely a chat message. Two limits
-# bound it, both checked BEFORE the task runs so a suppressed turn is free:
+# is_for_us() decided activation from the inbound `target` field; token_ok()
+# compared an inbound `token` field against a shared secret. Neither could be
+# repaired in place. Both read fields off an unauthenticated stream, and the
+# hub stores only sender/target/content, so an inbound message never carries a
+# `token` at all -- that check could refuse traffic but could never admit it.
+# Tightening a test on a field that cannot be trusted only moves the hole.
 #
-#   * per-sender COOLDOWN -- after acting on a message from X, ignore X
-#     again for REPLY_COOLDOWN_SECONDS. The direct brake on an A<->B loop.
-#   * rolling rate CAP -- at most MAX_REPLIES_PER_WINDOW tasks in any
-#     REPLY_WINDOW_SECONDS, across all senders. The backstop for when several
-#     peers drive this one worker at once.
+# Whether a message may start work is now answered in one place, for all three
+# workers, by swarm_control.chat_message_activates(). It returns False.
+
+
+# The reply governor that used to sit here has been removed, not disabled.
 #
-# To restore the old always-run behaviour: REPLY_COOLDOWN_SECONDS=0 and a
-# very large MAX_REPLIES_PER_WINDOW.
-REPLY_COOLDOWN_SECONDS = float(os.environ.get("REPLY_COOLDOWN_SECONDS", "45"))
-MAX_REPLIES_PER_WINDOW = int(os.environ.get("MAX_REPLIES_PER_WINDOW", "8"))
-REPLY_WINDOW_SECONDS = float(os.environ.get("REPLY_WINDOW_SECONDS", "300"))
-
-# Only automated peers are throttled. A loop needs two machines in it, and a
-# brake that could silence the human operator would be worse than the loop
-# it prevents -- the operator has to be able to say "stop" and be heard.
-# Anyone not in this set (Admin, an unknown human) is never suppressed.
-AGENT_HANDLES = {"gemini", "chatgpt", "claudecode", "claude"}
-
-# Module-level because the poll loop is single-threaded: handle() runs to
-# completion before the next message, so there is no concurrent mutation.
-_recent_actions: list[float] = []
-_last_action_by_sender: dict[str, float] = {}
-
-
-def _sender_key(sender: str) -> str:
-    return sender.strip().lstrip("@").lower()
-
-
-def suppression_reason(sender: str) -> str | None:
-    """Why this worker should stay quiet for `sender` now, or None to act.
-
-    A human operator is never throttled (see AGENT_HANDLES). Apart from
-    pruning the rolling window it records nothing, so deciding NOT to act
-    consumes no budget: call `record_action()` only after actually acting,
-    so a suppressed or failed turn does not count.
-    """
-    if _sender_key(sender) not in AGENT_HANDLES:
-        return None
-
-    now = time.monotonic()
-
-    cutoff = now - REPLY_WINDOW_SECONDS
-    while _recent_actions and _recent_actions[0] < cutoff:
-        _recent_actions.pop(0)
-
-    last = _last_action_by_sender.get(_sender_key(sender))
-    if last is not None and (now - last) < REPLY_COOLDOWN_SECONDS:
-        return (
-            f"cooling down on {sender} "
-            f"({REPLY_COOLDOWN_SECONDS - (now - last):.0f}s left)"
-        )
-
-    if len(_recent_actions) >= MAX_REPLIES_PER_WINDOW:
-        return (
-            f"rate cap reached ({MAX_REPLIES_PER_WINDOW} actions in "
-            f"{REPLY_WINDOW_SECONDS:.0f}s)"
-        )
-
-    return None
-
-
-def record_action(sender: str) -> None:
-    """Record that this worker acted for `sender`, feeding the limits above."""
-    now = time.monotonic()
-    _recent_actions.append(now)
-    _last_action_by_sender[_sender_key(sender)] = now
-
+# It existed to brake a loop where each worker triggered on the others'
+# messages: a per-sender cooldown plus a rolling rate cap, both advisory,
+# both in-memory, both cleared by a restart. That loop cannot form any more,
+# because chat cannot start work at all and results are addressed to @Admin
+# rather than to a peer. Keeping a dead brake would be worse than having
+# none: a reader would take the throttle for the thing making the swarm
+# safe, when what makes it safe is that the trigger is gone.
+#
+# The 5-hour usage guard below is NOT part of that and still applies -- it
+# bounds spend against a real external limit, which containment does not.
 
 # Set once at import, which for this daemon is process start -- there is no
 # earlier "first API call" to anchor to, since accepting a task IS the API
@@ -403,16 +345,11 @@ def post_reply(requests: Any, body: str, exit_code: int, message_id: Any) -> Non
     # The hub's request schema is exactly sender/target/content, so the
     # exit code and originating message id are folded into the content text
     # rather than sent as separate fields.
-    payload = {
-        "sender": SENDER_NAME,
-        "target": REPLY_TARGET,
-        "content": f"[task {message_id} exit={exit_code}]\n{body}",
-    }
-
-    if HUB_TOKEN:
-        # Added only when auth is configured; with HUB_TOKEN unset the
-        # payload is exactly the three fields the hub expects.
-        payload["token"] = HUB_TOKEN
+    payload = swarm_control.outbound_envelope(
+        AGENT_IDENTITY,
+        REPLY_TARGET,
+        f"[task {message_id} exit={exit_code}]\n{body}",
+    )
 
     try:
         response = requests.post(
@@ -436,10 +373,7 @@ def post_alert(requests: Any, target: str, body: str) -> None:
             + f"\n[truncated at {MAX_REPLY_CHARS} characters]"
         )
 
-    payload = {"sender": SENDER_NAME, "target": target, "content": body}
-
-    if HUB_TOKEN:
-        payload["token"] = HUB_TOKEN
+    payload = swarm_control.outbound_envelope(AGENT_IDENTITY, target, body)
 
     try:
         response = requests.post(
@@ -481,38 +415,37 @@ def fetch_messages(requests: Any, since_id: int) -> list[dict]:
     return payload
 
 
-def handle(requests: Any, claude_binary: str, message: dict) -> None:
-    message_id = message.get("id")
-    sender = message.get("sender") or "unknown"
-    task = message_content(message)
+def execute_activation(
+    requests: Any, claude_binary: str, activation: dict
+) -> None:
+    """Run one operator-issued activation and post its result.
 
-    if not token_ok(message):
-        log.warning(
-            "REFUSED message %s from %s: bad or missing token",
-            message_id,
-            sender,
-        )
-        return
+    `activation` came from the local control directory. It did not come from
+    the hub, and no field on it was supplied by a hub client, which is what
+    makes it safe to hand to a `claude -p` process holding Bash authority.
 
-    if task is None:
-        # Logged whole, because a dropped task and an empty one are
-        # indistinguishable from the outside.
-        log.error(
-            "message %s from %s has empty or missing content; raw=%s",
-            message_id,
-            sender,
-            json.dumps(message)[:2000],
-        )
+    The caller has already checked the pause flag and won the claim, so this
+    function's remaining guards are about budget and about task text, not
+    about authorization.
+    """
+    activation_id = activation.get("activation_id")
+    task = activation.get("task")
+
+    if not isinstance(task, str) or not task.strip():
+        # Claimed and then refused rather than skipped: the record is already
+        # in consumed/, so a malformed activation is recorded as having been
+        # seen instead of being re-read on every poll forever.
+        log.error("activation %s has no runnable task; dropped", activation_id)
         return
 
     if ERROR_ENVELOPE_RE.match(task.lstrip()):
-        # Dropped without a reply: replying would post another message to the
-        # hub, which is what turns one worker's outage into a loop between
-        # workers. The text is logged so the outage is still visible here.
+        # Retained from the chat era. It can no longer fire on a peer's error
+        # message, because peers cannot reach this path at all, but it still
+        # catches an operator pasting a worker's error envelope back in as a
+        # task, which is where the text would otherwise come from.
         log.warning(
-            "DROPPED message %s from %s: peer error envelope, not a task: %s",
-            message_id,
-            sender,
+            "activation %s looks like a worker error envelope, not a task: %s",
+            activation_id,
             task[:200],
         )
         return
@@ -533,30 +466,22 @@ def handle(requests: Any, claude_binary: str, message: dict) -> None:
             record_rate_limit_alert_sent()
         else:
             log.info(
-                "DROPPED message %s from %s: rate limit guard active",
-                message_id,
-                sender,
+                "DROPPED activation %s: rate limit guard active", activation_id
             )
         return
 
-    reason = suppression_reason(sender)
-    if reason is not None:
-        # Suppressed before run_task, so a throttled turn costs no execution
-        # and no reply -- the reply is what would re-trigger the peer.
-        log.info(
-            "SUPPRESSED message %s from %s: %s", message_id, sender, reason
-        )
-        return
-
     log.info(
-        "ACCEPTED message %s from %s (%d chars)", message_id, sender, len(task)
+        "ACCEPTED activation %s from %s (%d chars)",
+        activation_id,
+        activation.get("issued_by", "unknown"),
+        len(task),
     )
 
     if HANDOFF_PATH.exists():
         log.info(
-            "HANDOFF.md present (%d bytes) ahead of message %s",
+            "HANDOFF.md present (%d bytes) ahead of activation %s",
             HANDOFF_PATH.stat().st_size,
-            message_id,
+            activation_id,
         )
 
     started = time.monotonic()
@@ -564,11 +489,16 @@ def handle(requests: Any, claude_binary: str, message: dict) -> None:
     elapsed = time.monotonic() - started
 
     log.info(
-        "COMPLETED message %s exit=%s in %.1fs", message_id, exit_code, elapsed
+        "COMPLETED activation %s exit=%s in %.1fs",
+        activation_id,
+        exit_code,
+        elapsed,
     )
 
-    post_reply(requests, output, exit_code, message_id)
-    record_action(sender)
+    # Redacted before it is logged or posted. The task ran with Bash, so the
+    # output can contain anything the shell could print, including the
+    # environment this process was started with.
+    post_reply(requests, swarm_control.redact(output), exit_code, activation_id)
 
 
 def main() -> int:
@@ -590,10 +520,9 @@ def main() -> int:
     log.info("hub        : %s", HUB_URL)
     log.info("claude     : %s", claude_binary)
     log.info("workspace  : %s", WORKSPACE)
-    log.info(
-        "auth       : %s",
-        "shared token required" if HUB_TOKEN else "NONE (any sender accepted)",
-    )
+    log.info("identity   : %s (bound locally, never from a message)", AGENT_IDENTITY)
+    log.info("activations: %s", swarm_control.ACTIVATIONS_DIR)
+    log.info("chat        : narration only; it cannot start work")
     log.info("handoff    : %s", HANDOFF_PATH)
     log.info(
         "rate guard : pause new tasks after %.1fh continuous uptime",
@@ -614,8 +543,18 @@ def main() -> int:
     last_seen_id = load_last_seen_id()
     log.info("resuming from message id %s", last_seen_id)
 
+    # Logged on transition rather than every poll, so a long pause leaves a
+    # readable log instead of one line every POLL_SECONDS.
+    was_paused = None
+
     while running:
-        for message in fetch_messages(requests, last_seen_id):
+        # 1. Chat. Fetched and recorded, never obeyed. The loop below advances
+        #    the high-water mark and stores narration; there is deliberately
+        #    no branch here that can reach execute_activation(), which is the
+        #    whole of Phase 0 containment in this file.
+        messages = fetch_messages(requests, last_seen_id)
+
+        for message in messages:
             raw_id = message.get("id")
 
             try:
@@ -624,15 +563,33 @@ def main() -> int:
                 log.error("message with unusable id %r; skipping", raw_id)
                 continue
 
-            # Advanced before handling, not after: a task that crashes this
-            # worker must not be retried forever on every restart.
             if message_id > last_seen_id:
                 last_seen_id = message_id
                 save_last_seen_id(last_seen_id)
 
-            if is_for_us(message):
-                handle(requests, claude_binary, message)
+        if messages:
+            swarm_control.record_narration(messages)
 
+        # 2. Work. Claimed from the local control directory only.
+        paused = swarm_control.pause_reason()
+
+        if paused is not None:
+            if was_paused != paused:
+                log.warning("PAUSED: %s; starting no new work", paused)
+                was_paused = paused
+        else:
+            if was_paused is not None:
+                log.info("pause released; accepting activations again")
+                was_paused = None
+
+            # Checked before the claim, so a pause engaged mid-poll leaves the
+            # queue intact rather than consuming the work it declined to run.
+            activation = swarm_control.claim_activation(AGENT_IDENTITY)
+
+            if activation is not None:
+                execute_activation(requests, claude_binary, activation)
+
+        swarm_control.write_status(AGENT_IDENTITY)
         time.sleep(POLL_SECONDS)
 
     log.info("stopped at message id %s", last_seen_id)
