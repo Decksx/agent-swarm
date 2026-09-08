@@ -11,11 +11,20 @@ REM The workers inherit THIS window's environment. Keys are intentionally NOT
 REM stored in this file: a .bat is plaintext and easy to share or check in by
 REM accident. Use `setx NAME value` once to persist a key for future shells.
 REM
-REM Optional throttle overrides (otherwise the built-in defaults apply). The
-REM names are shared across all three workers, so one setting governs the swarm:
-REM     set REPLY_COOLDOWN_SECONDS=45
-REM     set MAX_REPLIES_PER_WINDOW=8
-REM     set REPLY_WINDOW_SECONDS=300
+REM Phase 0 containment: chat cannot start work. The workers narrate to the hub
+REM and are readable there, but they take activations only from the local
+REM control directory, which the hub cannot reach. To drive one:
+REM     python swarm_control.py issue claudecode "run the preflight"
+REM     python swarm_control.py status
+REM
+REM To stop the swarm starting anything, without killing the processes:
+REM     python swarm_control.py pause "reason"
+REM     python swarm_control.py resume
+REM Or set SWARM_PAUSED=1 in this window before launching.
+REM
+REM The old REPLY_COOLDOWN_SECONDS / MAX_REPLIES_PER_WINDOW / REPLY_WINDOW_SECONDS
+REM throttles are gone. They braked a chat-driven loop that can no longer form;
+REM setting them now has no effect. See docs/PHASE0_CONTAINMENT.md.
 REM
 REM To stop them: close each window, press Ctrl+C in each, or from PowerShell:
 REM     Get-Process python ^| Where-Object { $_.CommandLine -match 'claude-agent-hub' } ^| Stop-Process -Force
