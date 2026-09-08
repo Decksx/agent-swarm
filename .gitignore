@@ -1,0 +1,20 @@
+# Runtime artifacts. Never tracked.
+#
+# Worker logs contain full task text and model output, and .state files are
+# per-host resume pointers -- neither is source, and both would leak operator
+# content into history. Environment files are excluded so a credential cannot
+# reach a commit even by accident (Phase 0 requirement: credentials are loaded
+# from the environment and must not be committable).
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+*.log
+*.state
+
+.env
+.env.*
+!.env.example
+*.secret
+secrets.json
