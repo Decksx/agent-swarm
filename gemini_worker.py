@@ -1,58 +1,54 @@
-"""Poll an agent hub for messages addressed to Gemini and answer them.
+"""Answer operator-issued activations with the Gemini API, and narrate to the hub.
 
-Third sibling of ``claude_worker.py`` and ``chatgpt_worker.py``, built to
-match them: same hub (default ``http://192.168.42.50:8050``), same confirmed
-message schema, same state-file de-duplication, same resilient poll loop and
-graceful shutdown. It calls Google's Gemini API to generate each reply.
+Third sibling of ``claude_worker.py`` and ``chatgpt_worker.py``, built to match
+them: same hub (default ``http://192.168.42.50:8050``), same confirmed message
+schema, same state-file de-duplication, same poll loop and graceful shutdown,
+and the same Phase 0 containment. It calls Google's Gemini API to generate each
+reply.
 
-Trust boundary -- like the ChatGPT worker, narrower than the Claude worker's
-----------------------------------------------------------------------------
+Trust boundary
+--------------
 
-This daemon does NOT execute anything on this machine: it reads messages,
-sends conversation text to the Gemini API, and posts the model's reply back.
-Two standing caveats, the second sharper now that three answering workers
-are in play:
+This daemon does not execute anything on this machine, so it never carried the
+Claude worker's remote-code-execution surface. It carried a different one.
 
-* **Hub content leaves the LAN.** Everything in the context window is sent
-  to the Gemini API to generate each reply. Inherent to the task; stated so
-  it is not a surprise.
-* **The swarm can drive itself.** With Gemini, ChatGPT and ClaudeCode all
-  triggering on ``@``-mentions and all referencing one another, a single
-  message can set off an unbounded round of replies with no human in the
-  loop -- each one a paid API call. Three brakes now apply, in order of
-  bluntness:
+Before Phase 0, Gemini, ChatGPT and ClaudeCode all triggered on ``@``-mentions
+and all addressed one another, so a single message could set off an unbounded
+round of replies with no human in the loop -- each one a paid API call. That
+was braked by a per-sender cooldown, a swarm-wide burst cap and a stop after N
+agent-only exchanges: three advisory, in-memory limits, all cleared by a
+restart. None of them was a boundary. Any hub client could still spend this
+account's budget by posting the substring ``@gemini``, without authenticating.
 
-  1. This worker never answers its own messages (``sender == "Gemini"`` is
-     skipped). That stops a self-loop, but not a Gemini -> ChatGPT ->
-     Gemini ping-pong.
-  2. A per-sender **cooldown** (``REPLY_COOLDOWN_SECONDS``): at most one
-     reply to any given automated peer per cooldown period.
-  3. A swarm-wide **burst cap** (``MAX_REPLIES_PER_WINDOW`` per
-     ``REPLY_WINDOW_SECONDS``): once tripped, this worker stops answering
-     automated peers until the window drains.
+The loop is now prevented rather than braked:
 
-  Both new brakes apply only to senders in ``AGENT_HANDLES``. Messages from
-  a human (``@Admin``, or anyone else not listed) are always answered, so
-  throttling can never lock the operator out of their own swarm. A
-  throttled message is dropped silently rather than answered with a "rate
-  limited" notice -- posting anything at all would be another turn of the
-  same loop.
+* **Chat cannot start anything.** Not by ``target``, not by ``@mention``, not
+  from any sender. Messages are fetched and recorded to the local narration log
+  so they stay readable; they carry no authority.
+* **Prompts come from the local control directory** (see ``swarm_control``),
+  which the hub cannot reach, and from nowhere else. No hub content reaches the
+  model now that ``fetch_recent()`` is gone -- narration is written to disk for
+  a human to read, never routed back into a model.
+* **The pause flag is checked before each claim.**
+* **Identity is bound from local configuration** and never adopted from an
+  inbound message.
+* Replies are addressed to ``@Admin``, never to a peer worker. That single
+  change removes the return leg the brakes existed to slow down.
+
+**Hub content still leaves the LAN** when an operator's activation text is sent
+to the Gemini API. That is inherent to the task; it is now bounded by what the
+operator wrote rather than by whatever happened to be on the stream.
 
 The API key
 -----------
 
-``GEMINI_API_KEY`` is read from the environment and handed to the SDK
-client. It is never logged, echoed, or posted to the hub; startup logs only
-that a key is present.
-
-Hub schema (confirmed, shared across the workers)
--------------------------------------------------
-
-* ``GET /messages`` returns a bare JSON **list** of objects with ``id``,
-  ``sender``, ``target``, ``content`` and ``timestamp``.
-* ``POST /send`` takes ``sender``, ``target`` and ``content``.
-
-``timestamp`` is unused here; de-duplication is by ``id``.
+``GEMINI_API_KEY`` is read from the environment only -- there is no file
+fallback, and ``.env*`` is excluded from version control so it cannot be
+committed. It is validated at startup through ``swarm_control.load_credential``
+so a blank or placeholder value is refused here rather than surfacing as a 401
+much later, and the refusal never carries the value: a key that reaches a log
+has to be treated as exposed and rotated. Startup logs only that a key is
+present.
 """
 
 from __future__ import annotations
@@ -67,13 +63,20 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-HUB_URL = os.environ.get("HUB_URL", "http://192.168.42.50:8050").rstrip("/")
-HUB_TOKEN = os.environ.get("HUB_TOKEN")
+import swarm_control
 
-# Who this worker is and answers for.
-SENDER_NAME = "Gemini"
-# Compared case-insensitively with a leading '@' stripped, against a
-# message's target and against '@name' mentions in its content.
+HUB_URL = os.environ.get("HUB_URL", "http://192.168.42.50:8050").rstrip("/")
+
+# Bound from local configuration and never adopted from an inbound message.
+# `sender` is free text on an unauthenticated hub, so reading an identity out
+# of a message would let any writer decide who this process claims to be.
+AGENT_IDENTITY = swarm_control.bind_identity(
+    os.environ.get("AGENT_IDENTITY", "gemini")
+)
+
+# Retained only so the narration log and the operator CLI can still recognise
+# this worker's own handle. It is no longer compared against message targets
+# or against '@name' mentions, because neither can start work any more.
 SELF_HANDLES = {"gemini"}
 
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
@@ -85,65 +88,15 @@ LOG_FILE = HERE / "gemini_worker.log"
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "3"))
 HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "15"))
 
-# How many recent hub messages to send as context on each reply. Capped so
-# a long-lived hub does not grow the request without bound. The ceiling is
-# hard -- an operator raising CONTEXT_WINDOW in the environment cannot push
-# it past CONTEXT_WINDOW_CEILING, since an unbounded window is exactly the
-# runaway-usage risk this setting exists to prevent.
-CONTEXT_WINDOW_CEILING = 20
-_requested_context_window = int(os.environ.get("CONTEXT_WINDOW", "20"))
-CONTEXT_WINDOW = min(_requested_context_window, CONTEXT_WINDOW_CEILING)
-
 # Replies are truncated so a very long model answer cannot wedge the hub or
 # the transport.
 MAX_REPLY_CHARS = 60_000
 
-# Senders treated as automated peers, and so subject to the loop brakes
-# below. Compared case-insensitively with a leading '@' stripped. Anyone not
-# listed -- notably the human Admin -- is never throttled.
-AGENT_HANDLES = {
-    handle.strip().lstrip("@").lower()
-    for handle in os.environ.get(
-        "AGENT_HANDLES", "gemini,chatgpt,claudecode"
-    ).split(",")
-    if handle.strip()
-}
-
-# Minimum seconds between replies to the same automated peer. This is the
-# brake on a two-worker ping-pong: it does not stop the exchange, it slows
-# it to a rate a human can notice and interrupt.
-REPLY_COOLDOWN_SECONDS = float(os.environ.get("REPLY_COOLDOWN_SECONDS", "60"))
-
-# Ceiling on replies to automated peers within a rolling window, counted
-# across all of them. This is the brake on a multi-worker storm, where each
-# peer stays individually under its cooldown but the swarm as a whole does
-# not. Set MAX_REPLIES_PER_WINDOW to 0 to refuse automated peers entirely.
-MAX_REPLIES_PER_WINDOW = int(os.environ.get("MAX_REPLIES_PER_WINDOW", "10"))
-REPLY_WINDOW_SECONDS = float(os.environ.get("REPLY_WINDOW_SECONDS", "600"))
-
-# --- verification gate: a stop on the swarm running unattended too long ----
-#
-# The cooldown and burst cap above slow an agent-to-agent loop; they do not
-# stop it -- a swarm well under both limits can still run for hours without
-# a human ever weighing in. This counts consecutive hub messages from
-# AGENT_HANDLES senders, across every message this worker observes (not only
-# ones addressed to it, since the loop this guards against can hop between
-# any of the three workers and this worker would otherwise undercount it).
-# Any message from outside AGENT_HANDLES -- an operator, or an unknown
-# sender -- resets the count and clears a pending pause: a human turn is
-# exactly what this gate is waiting for.
-CONSECUTIVE_AGENT_LIMIT = int(os.environ.get("CONSECUTIVE_AGENT_LIMIT", "5"))
-
-SYSTEM_PROMPT = (
-    "You are Gemini, the lead architect in a small multi-agent engineering "
-    "swarm that coordinates over a shared message hub. The other "
-    "participants include ClaudeCode (local execution and testing), ChatGPT "
-    "(static drafting and GitHub), and a human Admin. You are addressed as "
-    "@Gemini. The text below is the recent hub conversation, each line "
-    "labelled with who sent it and to whom. Reply as Gemini with a single, "
-    "direct message suitable for posting back to the hub -- no role-play of "
-    "other agents, and no @-prefix on your own name."
-)
+# The context-window clamp, the AGENT_HANDLES set, the throttle values and
+# the verification-gate limit that used to sit here are gone with the code
+# that read them. The clamp bounded how much untrusted hub history was pasted
+# into each prompt, and no hub history reaches the model any more; the rest
+# configured brakes on a chat-driven loop that can no longer form.
 
 log = logging.getLogger("gemini_worker")
 
@@ -241,45 +194,19 @@ def save_last_seen_id(message_id: int) -> None:
         log.warning("could not persist last_seen_id=%s: %s", message_id, exc)
 
 
-def is_for_gemini(message: dict) -> bool:
-    """Whether this worker should answer `message`.
-
-    True when the target is @Gemini, or when the content mentions
-    ``@Gemini``. A message this worker sent itself is never a trigger --
-    the one structural brake on the content-mention rule feeding this
-    worker's own output back in.
-    """
-    sender = message.get("sender")
-    if isinstance(sender, str) and (
-        sender.strip().lstrip("@").lower() in SELF_HANDLES
-    ):
-        return False
-
-    target = message.get("target")
-    if isinstance(target, str) and (
-        target.strip().lstrip("@").lower() in SELF_HANDLES
-    ):
-        return True
-
-    content = message.get("content")
-    if isinstance(content, str):
-        lowered = content.lower()
-        if any(f"@{handle}" in lowered for handle in SELF_HANDLES):
-            return True
-
-    return False
-
-
-def token_ok(message: dict) -> bool:
-    """Whether `message` carries the shared secret, when one is configured.
-
-    No token configured means every message is accepted -- the default,
-    matching the hub's current open posture.
-    """
-    if not HUB_TOKEN:
-        return True
-
-    return str(message.get("token", "")) == HUB_TOKEN
+# is_for_gemini() and token_ok() are gone rather than tightened.
+#
+# is_for_gemini() started a model call whenever a message's target named this
+# worker OR the substring "@gemini" appeared anywhere in its content, so any
+# hub client -- including another agent quoting the handle in passing -- could
+# spend this account's budget without authenticating. token_ok() compared an
+# inbound `token` field that the hub does not store, so it could refuse traffic
+# but never admit it.
+#
+# Both read fields off an unauthenticated stream, so neither could be repaired
+# where it stood. Whether a message may start work is now answered in one
+# place, for all three workers, by swarm_control.chat_message_activates().
+# It returns False.
 
 
 def fetch_messages(requests: Any, since_id: int) -> list[dict]:
@@ -310,15 +237,11 @@ def fetch_messages(requests: Any, since_id: int) -> list[dict]:
     return payload
 
 
-def fetch_recent(requests: Any, limit: int) -> list[dict]:
-    """The tail of the hub's message log, for conversation context.
-
-    Fetched fresh from ``since_id=0`` each time a reply is built rather than
-    accumulated in memory, so a restart reconstructs context identically.
-    Only the last `limit` are kept, bounding the request size.
-    """
-    messages = fetch_messages(requests, 0)
-    return messages[-limit:] if limit > 0 else messages
+# fetch_recent() is removed. It pulled the last N hub messages into the model
+# prompt, so untrusted stream content -- written by anyone able to POST to an
+# unauthenticated hub -- was fed to the model as context on every turn. The
+# prompt now comes from the activation and nothing else. Narration is recorded
+# to disk for a human to read, not routed back into a model.
 
 
 def build_transcript(context: list[dict]) -> str:
@@ -401,14 +324,7 @@ def post_reply(requests: Any, target: str, body: str, message_id: Any) -> None:
             f"\n[truncated at {MAX_REPLY_CHARS} characters]"
         )
 
-    payload = {
-        "sender": SENDER_NAME,
-        "target": target,
-        "content": body,
-    }
-
-    if HUB_TOKEN:
-        payload["token"] = HUB_TOKEN
+    payload = swarm_control.outbound_envelope(AGENT_IDENTITY, target, body)
 
     try:
         response = requests.post(
@@ -419,205 +335,88 @@ def post_reply(requests: Any, target: str, body: str, message_id: Any) -> None:
         log.error("failed to post reply for message %s: %s", message_id, exc)
 
 
-def reply_target_for(message: dict) -> str:
-    """Address the reply back to whoever sent the triggering message.
+# reply_target_for() is removed. It addressed each reply back at whoever sent
+# the triggering message, so a message from a peer produced a reply aimed at
+# that peer -- the return leg of the loop. Replies now go to @Admin, a constant
+# at the one call site rather than a function of untrusted input.
 
-    Falls back to the hub-wide default if a sender is somehow missing, so a
-    malformed trigger still gets an answer somewhere rather than crashing.
+
+# The throttle and the verification gate that used to sit here have been
+# removed, not disabled.
+#
+# Both bounded a loop in which each worker answered the others' messages: a
+# per-sender cooldown, a swarm-wide burst cap, and a stop after N consecutive
+# agent-only exchanges. All three were advisory, in-memory and cleared by a
+# restart, and all three are now unreachable -- chat cannot start work at all,
+# and replies are addressed to @Admin rather than to a peer, so there is no
+# exchange left for them to count.
+#
+# They are deleted rather than left in place because an inert safety gate is
+# worse than none: the next reader takes it for the mechanism providing safety,
+# when the real reason the loop cannot form is that the trigger is gone. A
+# guard that fails nothing when bypassed was never load-bearing.
+#
+# workspace/throttle_check.py asserted this throttle's behaviour and is retired
+# with it; see tests/ for the assertions that replace it.
+
+
+def execute_activation(
+    requests: Any, client: Any, types: Any, activation: dict
+) -> None:
+    """Answer one operator-issued activation.
+
+    The prompt comes from the local control directory, not from the hub, so the
+    model is never invoked because another agent posted a message. The caller
+    has already checked the pause flag and won the claim.
     """
-    sender = message.get("sender")
+    activation_id = activation.get("activation_id")
+    task = activation.get("task")
 
-    if isinstance(sender, str) and sender.strip():
-        return "@" + sender.strip().lstrip("@")
+    if not isinstance(task, str) or not task.strip():
+        log.error("activation %s has no runnable prompt; dropped", activation_id)
+        return
 
-    return "@Admin"
-
-
-def normalize_handle(name: str) -> str:
-    """A sender name reduced to its comparable form."""
-    return name.strip().lstrip("@").lower()
-
-
-def is_automated(sender: str) -> bool:
-    """Whether `sender` is a peer worker rather than a human.
-
-    Only automated peers are throttled: a loop needs two machines in it, and
-    a brake that could silence the human operator would be worse than the
-    loop it prevents.
-    """
-    return normalize_handle(sender) in AGENT_HANDLES
-
-
-# Verification-gate state, in-memory like the throttle bookkeeping above: a
-# restart is an operator action and should clear it, the same way restarting
-# clears a stuck cooldown.
-_consecutive_agent_exchanges = 0
-_verification_pending = False
-
-
-def observe_sender(sender: str) -> None:
-    """Update the verification gate's counter for one observed hub message.
-
-    Call this for every message the poll returns, whether or not it is
-    addressed to this worker -- the count is meant to reflect the whole
-    hub's traffic, not just this worker's own turns.
-    """
-    global _consecutive_agent_exchanges, _verification_pending
-
-    if is_automated(sender):
-        _consecutive_agent_exchanges += 1
-    else:
-        _consecutive_agent_exchanges = 0
-        _verification_pending = False
-
-
-def verification_needed() -> bool:
-    """Whether the gate has just tripped and no alert has been sent for it.
-
-    False once `trip_verification_gate()` has been called for this run of
-    consecutive exchanges, so the alert is sent once, not on every message
-    while the swarm keeps talking to itself.
-    """
-    return (
-        _consecutive_agent_exchanges >= CONSECUTIVE_AGENT_LIMIT
-        and not _verification_pending
+    log.info(
+        "ANSWERING activation %s from %s (%d chars)",
+        activation_id,
+        activation.get("issued_by", "unknown"),
+        len(task),
     )
-
-
-def trip_verification_gate() -> None:
-    """Record that the verification alert has been sent for this run."""
-    global _verification_pending
-    _verification_pending = True
-
-
-def throttle_reason(sender: str, now: float) -> str | None:
-    """Why a message from `sender` must go unanswered, or None to answer it.
-
-    Deliberately state-in-memory rather than persisted: a restart is an
-    operator action, and an operator restarting the worker to clear a stuck
-    throttle should get exactly that.
-    """
-    if not is_automated(sender):
-        return None
-
-    handle = normalize_handle(sender)
-
-    last = _last_reply_at.get(handle)
-    if last is not None and now - last < REPLY_COOLDOWN_SECONDS:
-        return (
-            f"cooldown -- last reply to {handle} was {now - last:.0f}s ago, "
-            f"minimum is {REPLY_COOLDOWN_SECONDS:.0f}s"
-        )
-
-    while _recent_replies and now - _recent_replies[0] >= REPLY_WINDOW_SECONDS:
-        _recent_replies.popleft()
-
-    if len(_recent_replies) >= MAX_REPLIES_PER_WINDOW:
-        return (
-            f"burst cap -- {len(_recent_replies)} replies to agents in the "
-            f"last {REPLY_WINDOW_SECONDS:.0f}s, limit is "
-            f"{MAX_REPLIES_PER_WINDOW}"
-        )
-
-    return None
-
-
-def record_reply(sender: str, now: float) -> None:
-    """Book a reply to `sender` against both brakes.
-
-    Called at the moment this worker commits to answering, not after the
-    reply lands: a generation that fails or a post that the hub rejects has
-    still consumed an API call, and must still count against the cap.
-    """
-    if not is_automated(sender):
-        return
-
-    _last_reply_at[normalize_handle(sender)] = now
-    _recent_replies.append(now)
-
-
-def handle(requests: Any, client: Any, types: Any, message: dict) -> None:
-    message_id = message.get("id")
-    sender = message.get("sender") or "unknown"
-
-    if not token_ok(message):
-        log.warning(
-            "REFUSED message %s from %s: bad or missing token",
-            message_id,
-            sender,
-        )
-        return
-
-    if verification_needed():
-        log.warning(
-            "VERIFICATION GATE tripped: %d consecutive agent-only exchanges "
-            "with no human input; alerting @Admin and going quiet",
-            _consecutive_agent_exchanges,
-        )
-        post_reply(
-            requests,
-            "@Admin",
-            f"{_consecutive_agent_exchanges} consecutive agent-only "
-            "exchanges on the hub with no human input -- pausing replies "
-            "to automated peers until you weigh in.",
-            message_id,
-        )
-        trip_verification_gate()
-        return
-
-    if _verification_pending:
-        # Already alerted for this run; stay quiet rather than repeat the
-        # alert on every subsequent agent message until a human message
-        # resets the gate via observe_sender().
-        log.info(
-            "SUPPRESSED message %s from %s: verification gate pending",
-            message_id,
-            sender,
-        )
-        return
 
     started = time.monotonic()
 
-    reason = throttle_reason(str(sender), started)
-    if reason is not None:
-        # Dropped without a reply on purpose: answering "I am rate limited"
-        # would be one more turn of the loop being braked.
-        log.info(
-            "THROTTLED message %s from %s: %s", message_id, sender, reason
-        )
-        return
-
-    record_reply(str(sender), started)
-
-    log.info("ANSWERING message %s from %s", message_id, sender)
-
-    context = fetch_recent(requests, CONTEXT_WINDOW)
+    # Shaped like a hub message so the existing transcript builder is reused
+    # unchanged, but sourced from the activation rather than from the stream.
+    context = [
+        {
+            "sender": activation.get("issued_by", "admin"),
+            "target": "@" + AGENT_IDENTITY,
+            "content": task,
+        }
+    ]
 
     reply = generate_reply(client, types, context)
     elapsed = time.monotonic() - started
 
     if reply is None:
-        # generate_reply has already logged the specific cause. The reply was
-        # booked against the throttle before generation on purpose (see
-        # record_reply): a failed call still spent an API request.
+        # generate_reply has already logged the specific cause.
         log.warning(
-            "NO REPLY for message %s from %s after %.1fs; nothing posted",
-            message_id,
-            sender,
+            "NO REPLY for activation %s after %.1fs; nothing posted",
+            activation_id,
             elapsed,
         )
         return
 
-    target = reply_target_for(message)
     log.info(
-        "REPLIED to message %s -> %s (%d chars) in %.1fs",
-        message_id,
-        target,
+        "REPLIED to activation %s (%d chars) in %.1fs",
+        activation_id,
         len(reply),
         elapsed,
     )
 
-    post_reply(requests, target, reply, message_id)
+    # Addressed to the operator, never to a peer worker: a reply aimed at
+    # another agent is what made the swarm self-driving.
+    post_reply(requests, "@Admin", reply, activation_id)
 
 
 def main() -> int:
@@ -625,12 +424,14 @@ def main() -> int:
 
     requests, genai, types = ensure_dependencies()
 
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        log.error(
-            "GEMINI_API_KEY is not set; nothing can be generated. Set it in "
-            "the environment and restart."
-        )
+    # Validated before the client is built, so a blank or placeholder key is
+    # refused here rather than surfacing as a 401 from the provider much later.
+    # The exception deliberately never carries the value: a credential that
+    # reaches a log has to be treated as exposed and rotated.
+    try:
+        api_key = swarm_control.load_credential("GEMINI_API_KEY")
+    except swarm_control.ContainmentError as exc:
+        log.error("%s", exc)
         return 1
 
     # The key is passed to the client and never logged or posted.
@@ -639,27 +440,13 @@ def main() -> int:
     log.info("hub        : %s", HUB_URL)
     log.info("model      : %s", GEMINI_MODEL)
     log.info("gemini_key : present")
-    log.info(
-        "hub auth   : %s",
-        "shared token required" if HUB_TOKEN else "NONE (any sender accepted)",
-    )
-    log.info("agents     : %s", ", ".join(sorted(AGENT_HANDLES)) or "none")
-    log.info(
-        "throttle   : %.0fs cooldown per agent, max %d replies per %.0fs",
-        REPLY_COOLDOWN_SECONDS,
-        MAX_REPLIES_PER_WINDOW,
-        REPLY_WINDOW_SECONDS,
-    )
-    log.info(
-        "verify gate: pause after %d consecutive agent-only exchanges",
-        CONSECUTIVE_AGENT_LIMIT,
-    )
-    if _requested_context_window > CONTEXT_WINDOW_CEILING:
-        log.warning(
-            "CONTEXT_WINDOW=%d requested, clamped to hard ceiling %d",
-            _requested_context_window,
-            CONTEXT_WINDOW_CEILING,
-        )
+    log.info("identity   : %s (bound locally, never from a message)", AGENT_IDENTITY)
+    log.info("activations: %s", swarm_control.ACTIVATIONS_DIR)
+    log.info("chat       : narration only; it cannot start work")
+    log.info("identity   : %s (bound locally, never from a message)", AGENT_IDENTITY)
+    log.info("activations: %s", swarm_control.ACTIVATIONS_DIR)
+    log.info("chat       : narration only; it cannot start work")
+    log.info("pause      : %s", swarm_control.pause_reason() or "not paused")
 
     running = True
 
@@ -675,8 +462,16 @@ def main() -> int:
     last_seen_id = load_last_seen_id()
     log.info("resuming from message id %s", last_seen_id)
 
+    # Logged on transition rather than every poll, so a long pause leaves a
+    # readable log instead of one line every POLL_SECONDS.
+    was_paused = None
+
     while running:
-        for message in fetch_messages(requests, last_seen_id):
+        # 1. Chat. Fetched and recorded, never obeyed. There is deliberately no
+        #    branch below that can reach execute_activation().
+        messages = fetch_messages(requests, last_seen_id)
+
+        for message in messages:
             raw_id = message.get("id")
 
             try:
@@ -685,20 +480,33 @@ def main() -> int:
                 log.error("message with unusable id %r; skipping", raw_id)
                 continue
 
-            # Advanced before handling, not after: a message that crashes
-            # the worker must not be retried forever on every restart.
             if message_id > last_seen_id:
                 last_seen_id = message_id
                 save_last_seen_id(last_seen_id)
 
-            # Fed to the verification gate regardless of target: the loop it
-            # guards against can hop between any of the three workers, so a
-            # message not addressed here still counts toward it.
-            observe_sender(str(message.get("sender") or "unknown"))
+        if messages:
+            swarm_control.record_narration(messages)
 
-            if is_for_gemini(message):
-                handle(requests, client, types, message)
+        # 2. Work. Claimed from the local control directory only.
+        paused = swarm_control.pause_reason()
 
+        if paused is not None:
+            if was_paused != paused:
+                log.warning("PAUSED: %s; starting no new work", paused)
+                was_paused = paused
+        else:
+            if was_paused is not None:
+                log.info("pause released; accepting activations again")
+                was_paused = None
+
+            # Checked before the claim, so a pause engaged mid-poll leaves the
+            # queue intact rather than consuming what it declined to run.
+            activation = swarm_control.claim_activation(AGENT_IDENTITY)
+
+            if activation is not None:
+                execute_activation(requests, client, types, activation)
+
+        swarm_control.write_status(AGENT_IDENTITY)
         time.sleep(POLL_SECONDS)
 
     log.info("stopped at message id %s", last_seen_id)
