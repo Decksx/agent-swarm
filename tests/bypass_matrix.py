@@ -245,6 +245,64 @@ BYPASSES = [
         ],
         "A comment containing ';' splits into something executed as SQL.",
     ),
+    # --- State machine (Phase 1) -------------------------------------------
+    Bypass(
+        "undefined_transition_allowed",
+        "controller/states.py",
+        """        raise UndefinedTransition(
+            f"{kind!r} is not a defined transition from {from_state!r}"
+        ) from None""",
+        """        return Transition(from_state, frozenset(ROLES))  # BYPASS""",
+        [
+            "test_every_undefined_pair_is_rejected",
+            "test_a_rejected_transition_appends_no_event",
+        ],
+        "Invariant 14: an undefined (state, event) pair must be refused.",
+    ),
+    Bypass(
+        "authority_ignored",
+        "controller/states.py",
+        """    if authority not in transition.authorities:""",
+        """    if False:  # BYPASS""",
+        [
+            "test_authority_is_enforced_separately_from_the_transition",
+            "test_a_worker_cannot_declare_its_own_work_accepted",
+        ],
+        "A verifier that can emit review_requirements_satisfied accepts its own work.",
+    ),
+    Bypass(
+        "stale_seq_ignored",
+        "controller/engine.py",
+        """        if expected_state_seq is not None and expected_state_seq != task["state_seq"]:""",
+        """        if False:  # BYPASS""",
+        ["test_a_stale_state_seq_is_refused"],
+        "Applies a result computed against a state the task has since left.",
+    ),
+    Bypass(
+        "conflicting_replay_merged",
+        "controller/engine.py",
+        """            if not same:""",
+        """            if False:  # BYPASS""",
+        ["test_a_conflicting_replay_is_refused"],
+        "A different request reusing an event_id must never be merged.",
+    ),
+    Bypass(
+        "note_advances_state",
+        "controller/engine.py",
+        """            to_state = from_state
+            new_seq = task["state_seq"]""",
+        """            to_state = from_state
+            new_seq = task["state_seq"] + 1  # BYPASS""",
+        ["test_a_note_appends_an_event_without_moving_the_task"],
+        "A note that bumps state_seq invalidates every outstanding result.",
+    ),
+    # A sixth bypass sat here -- an explicit terminal-state check in
+    # apply_transition -- and the matrix scored it NOT LOAD-BEARING with zero
+    # tests caught. It was unreachable: TRANSITIONS holds no entry from a
+    # terminal state except COMPLETE -> REVERTED, so resolve() already refused
+    # all of them. The check was deleted rather than kept. That protection
+    # lives in the table, guarded by
+    # test_terminal_states_accept_nothing_except_the_one_allowed_exit.
 ]
 
 
