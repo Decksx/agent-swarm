@@ -226,6 +226,13 @@ quietly edited: unraid has no `docker compose` subcommand, and `docker restart`
 does not reload `--env-file`, so the container must be recreated rather than
 restarted.
 
-Still outstanding: the authenticated `200` path was verified by the operator,
-who holds the credential. I never held one, so I could only prove the hub
-refuses — not that it admits.
+The authenticated path was verified by the operator, who holds the credential:
+`GET /control/status` with the `admin` pair answered **200**. I never held a
+credential, so I could prove only that the hub refuses; that it admits is the
+operator's measurement, and both halves are needed. A hub that refused
+everything would have passed every check I could run on my own and been
+completely broken.
+
+**Phase 0 is complete on both planes**: the execution host (workers take work
+only from the local control directory) and the control plane (every hub route
+authenticated, sender derived server-side).
