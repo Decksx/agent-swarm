@@ -34,9 +34,24 @@ setlocal
 cd /d "%~dp0"
 
 REM Non-fatal pre-flight warnings. The claude worker needs the `claude` CLI on
-REM PATH (it checks that itself); the other two need their API keys.
+REM PATH (it checks that itself); the other two need their API keys; all three
+REM need HUB_SECRET.
+REM
+REM HUB_SECRET is listed last but fails hardest. A worker without it exits 1
+REM before it polls anything, so the symptom is three windows that open and
+REM close too fast to read -- which looks like a broken launcher rather than a
+REM missing variable. It is warned about here for that reason.
+REM
+REM Note that these three windows all inherit THIS shell's environment, so they
+REM share one HUB_SECRET between them. The hub keys credentials by component
+REM name (claudecode, chatgpt, gemini) and the Basic username is each worker's
+REM own identity, so a single shared value works only if all three components
+REM were given the same secret. If they were given different ones, launch each
+REM worker from its own shell with its own HUB_SECRET instead of using this
+REM script. See docs/DEPLOY_PHASE0_HUB.md section 5.
 if "%GEMINI_API_KEY%"=="" echo [warn] GEMINI_API_KEY not set - gemini_worker will log an error and exit.
 if "%OPENAI_API_KEY%"=="" echo [warn] OPENAI_API_KEY not set - chatgpt_worker will log an error and exit.
+if "%HUB_SECRET%"=="" echo [warn] HUB_SECRET not set - ALL THREE workers will exit 1 at startup.
 
 REM Each worker runs in its own window via "cmd /k" so a startup failure
 REM (missing key, bad model id) stays on screen instead of the window closing
