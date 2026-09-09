@@ -196,6 +196,55 @@ BYPASSES = [
         ["test_workers_refuse_to_start_if_chat_becomes_authoritative"],
         "Re-enabling chat authority must be a visible act, not a flag flip.",
     ),
+    # --- Controller storage (Phase 1) --------------------------------------
+    Bypass(
+        "foreign_keys_off",
+        "controller/db.py",
+        '''conn.execute("PRAGMA foreign_keys = ON")''',
+        '''pass  # BYPASS''',
+        ["test_foreign_keys_are_enforced"],
+        "SQLite ignores REFERENCES entirely unless this pragma is set.",
+    ),
+    Bypass(
+        "deferred_transaction",
+        "controller/db.py",
+        '''conn.execute("BEGIN IMMEDIATE")''',
+        '''conn.execute("BEGIN")''',
+        ["test_a_transaction_is_immediate_not_deferred"],
+        "Deferred lets two writers each decide from state the other has moved.",
+    ),
+    Bypass(
+        "nesting_allowed",
+        "controller/db.py",
+        """    if conn.in_transaction:""",
+        """    if False:  # BYPASS""",
+        ["test_nesting_a_transaction_is_refused"],
+        "A joined transaction turns the inner block's rollback into a no-op.",
+    ),
+    Bypass(
+        "schema_version_check_removed",
+        "controller/db.py",
+        """    if version != SCHEMA_VERSION:""",
+        """    if False:  # BYPASS""",
+        ["test_a_wrong_schema_version_refuses_to_open"],
+        "Half-matching SQL applied to real task state corrupts it quietly.",
+    ),
+    Bypass(
+        # Regression: this broke schema creation on the very first run, because
+        # a comment in schema.py contains a semicolon.
+        "splitter_keeps_comments",
+        "controller/db.py",
+        """        line.split("--", 1)[0] for line in sql.splitlines()""",
+        """        line for line in sql.splitlines()  # BYPASS""",
+        # Removing it does not merely fail an assertion -- the schema stops
+        # being creatable, so every test needing a database errors out. The
+        # named two are the ones that fail on their own assertions.
+        [
+            "test_the_splitter_survives_a_semicolon_inside_a_comment",
+            "test_the_splitter_returns_every_schema_statement",
+        ],
+        "A comment containing ';' splits into something executed as SQL.",
+    ),
 ]
 
 
@@ -211,11 +260,17 @@ def failing_tests():
 
     names = set()
     for line in proc.stdout.splitlines():
-        if line.startswith("FAILED "):
+        # ERROR counts as caught, not just FAILED. When a bypass breaks a
+        # fixture rather than an assertion, pytest reports the tests that
+        # depended on it as errors -- and a guard whose removal makes the
+        # database fail to open is about as load-bearing as a guard gets.
+        # Counting only FAILED under-reported exactly that case.
+        if line.startswith("FAILED ") or line.startswith("ERROR "):
             # "FAILED tests/test_x.py::test_name[param] - AssertionError"
             node = line.split(" ", 1)[1].split(" - ")[0]
             func = node.split("::")[-1].split("[")[0]
-            names.add(func)
+            if func:
+                names.add(func)
 
     return names, proc.returncode
 
