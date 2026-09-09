@@ -7,7 +7,12 @@ services:
       - "8050:8050"
     volumes:
       - /mnt/user/appdata/agent-swarm/data:/data
-      - /mnt/user/appdata/agent-swarm/hub.py:/app/hub.py
+      # The application DIRECTORY, not hub.py alone. hub.py imports the
+      # controller package, and a single-file mount gives the container no way
+      # to see it. Everything the hub runs lives under app/ and is mounted as
+      # one tree, so adding a module is a file copy rather than another mount
+      # and another container recreate.
+      - /mnt/user/appdata/agent-swarm/app:/app
     working_dir: /app
     command: >
       sh -c "pip install fastapi uvicorn pydantic &&
