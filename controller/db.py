@@ -88,6 +88,68 @@ def split_statements(sql: str) -> list:
     return [s.strip() for s in without_comments.split(";") if s.strip()]
 
 
+# Ordered, additive migrations keyed by the version they produce.
+#
+# Additive only, deliberately. A column added with a NULL default cannot
+# invalidate a row that already exists, so an interrupted migration leaves a
+# database that is either wholly at the old version or wholly at the new one --
+# and the version stamp is written in the same transaction as the ALTERs, so
+# there is no state where the schema has moved and the stamp has not.
+#
+# Anything that is not additive -- dropping a column, changing a type,
+# backfilling a NOT NULL -- does not belong here. It needs its own tested
+# procedure and a backup taken first, which is what section 17 means by an
+# explicit migration.
+MIGRATIONS = {
+    2: [
+        "ALTER TABLE activations ADD COLUMN expected_candidate TEXT",
+        "ALTER TABLE activations ADD COLUMN repo_location TEXT",
+    ],
+}
+
+
+def migrate(conn: sqlite3.Connection) -> int:
+    """Bring an existing database up to SCHEMA_VERSION. Returns the version.
+
+    A fresh database is created at the current version by `initialize` and
+    never passes through here. An older one is stepped forward one version at
+    a time, each step in its own transaction, so a failure at step N leaves
+    the database consistently at N-1 rather than somewhere between.
+    """
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+
+    if version == 0 or version == SCHEMA_VERSION:
+        return version
+
+    if version > SCHEMA_VERSION:
+        # Fail closed rather than guess. A newer database opened by an older
+        # build is exactly the case that produces a corruption which only
+        # shows up later.
+        raise SchemaVersionMismatch(
+            f"database is at schema version {version}, newer than this "
+            f"build's {SCHEMA_VERSION}; refusing to downgrade"
+        )
+
+    while version < SCHEMA_VERSION:
+        target = version + 1
+        statements = MIGRATIONS.get(target)
+
+        if statements is None:
+            raise SchemaVersionMismatch(
+                f"no migration to schema version {target}; refusing to run"
+            )
+
+        with transaction(conn):
+            for statement in statements:
+                conn.execute(statement)
+
+            conn.execute(f"PRAGMA user_version = {int(target)}")
+
+        version = target
+
+    return version
+
+
 def initialize(conn: sqlite3.Connection) -> None:
     """Create the schema if absent, and stamp its version.
 
@@ -159,6 +221,11 @@ def open_controller_db(path: str | Path) -> sqlite3.Connection:
     """Open, initialize if needed, and verify. The normal entry point."""
     conn = connect(path)
     initialize(conn)
+    # Between the two: initialize() creates a fresh database already stamped
+    # at the current version and leaves an existing one alone, so migrate()
+    # is what moves an older one forward, and check_schema_version() is the
+    # assertion that one of those two things actually happened.
+    migrate(conn)
     check_schema_version(conn)
 
     return conn

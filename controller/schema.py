@@ -30,7 +30,10 @@ from __future__ import annotations
 # cannot simply adopt. Startup compares this against `PRAGMA user_version` and
 # refuses to run against a database it does not understand, rather than
 # applying half-matching SQL to it (§17: startup fails closed).
-SCHEMA_VERSION = 1
+# Bumped to 2 on 2026-09-09 for the review-evidence columns. Version 1 is
+# deployed and holds real task state, so this ships with a migration rather
+# than as an edit -- see db.MIGRATIONS.
+SCHEMA_VERSION = 2
 
 SCHEMA_SQL = """
 -- One row per task. `state` and `state_seq` are the projection that the event
@@ -95,8 +98,22 @@ CREATE TABLE IF NOT EXISTS activations (
   stage               TEXT NOT NULL,
   attempt_no          INTEGER NOT NULL,
   chargeable_attempt  INTEGER NOT NULL DEFAULT 1,
+  -- What a review activation must look at. The controller has no working
+  -- copy, so these are the only way it can say what to review -- and all
+  -- three together, because a branch alone is a moving target: it names
+  -- whatever the tip happens to be when the reviewer looks, which is not
+  -- necessarily what the author submitted.
+  --
+  -- expected_parent and expected_candidate are the immutable range. The
+  -- branch only helps find the commit and is checked for reachability.
   expected_branch     TEXT,
   expected_parent     TEXT,
+  expected_candidate  TEXT,
+  -- Where the reviewer will find the repository. The controller cannot
+  -- verify a path on another host and does not pretend to; it requires one
+  -- to be named so that "which checkout was this reviewed in" is answerable
+  -- from the ledger rather than from somebody's memory.
+  repo_location       TEXT,
   issued_at           REAL NOT NULL,
   claimed_at          REAL,
   lease_expires_at    REAL NOT NULL,
