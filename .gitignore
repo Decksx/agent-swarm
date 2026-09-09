@@ -13,6 +13,12 @@ __pycache__/
 *.log
 *.state
 
+# Written before a model runs and cleared after its result is reported, so a
+# leftover one means the process died mid-task. Per-host runtime state, never
+# source -- and committing one would tell every other checkout that a task it
+# has never heard of was interrupted.
+*.inflight
+
 .env
 .env.*
 !.env.example
