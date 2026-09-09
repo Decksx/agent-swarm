@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import time
 import uuid
@@ -191,6 +192,8 @@ def issue(
     activation_id: Optional[str] = None,
     expected_branch: Optional[str] = None,
     expected_parent: Optional[str] = None,
+    expected_candidate: Optional[str] = None,
+    repo_location: Optional[str] = None,
     now: Optional[float] = None,
 ) -> dict:
     """Issue one activation and move the task to its assigned state.
@@ -198,6 +201,9 @@ def issue(
     The capacity check happens inside the same transaction as the insert.
     Checking first and inserting after would let two issues both observe a free
     slot and both take it.
+
+    A `review` activation is refused unless it carries everything a reviewer
+    needs to find and bound the change. See `_review_evidence`.
     """
     if stage not in STAGE_ROLES:
         raise ActivationError(f"unknown stage {stage!r}")
@@ -213,6 +219,16 @@ def issue(
 
         task = engine.get_task(conn, task_id)
 
+        if stage == "review":
+            expected_parent, expected_candidate = _review_evidence(
+                conn,
+                task_id=task_id,
+                expected_branch=expected_branch,
+                expected_parent=expected_parent,
+                expected_candidate=expected_candidate,
+                repo_location=repo_location,
+            )
+
         attempt = conn.execute(
             "SELECT COUNT(*) AS n FROM activations WHERE task_id = ? AND stage = ?",
             (task_id, stage),
@@ -221,13 +237,15 @@ def issue(
         conn.execute(
             "INSERT INTO activations (activation_id, task_id, task_version, "
             "agent, host, role, stage, attempt_no, chargeable_attempt, "
-            "expected_branch, expected_parent, issued_at, lease_expires_at, "
+            "expected_branch, expected_parent, expected_candidate, "
+            "repo_location, issued_at, lease_expires_at, "
             "hard_deadline_at, heartbeat_seq, status) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 activation_id, task_id, task["current_version"], agent, host,
                 role, stage, attempt, 1 if chargeable else 0,
-                expected_branch, expected_parent, now,
+                expected_branch, expected_parent, expected_candidate,
+                repo_location, now,
                 now + lease_seconds, now + hard_deadline_seconds, 0, ISSUED,
             ),
         )
@@ -244,6 +262,113 @@ def issue(
     )
 
     return {"activation_id": activation_id, "role": role, "attempt_no": attempt}
+
+
+_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+def _latest_candidate(conn: sqlite3.Connection, task_id: str) -> Optional[str]:
+    """The candidate SHA the author most recently reported, if any.
+
+    Read from the event log rather than taken from the caller. The author
+    already recorded it as a field when it submitted, and re-typing it at issue
+    time is exactly the step that goes wrong -- the first review activation
+    issued by hand on 2026-09-09 named no branch at all and had to be blocked
+    and reissued.
+    """
+    rows = conn.execute(
+        "SELECT payload_json FROM events WHERE task_id = ? AND kind = ? "
+        "ORDER BY seq DESC LIMIT 1",
+        (task_id, "candidate_submitted"),
+    ).fetchall()
+
+    for row in rows:
+        try:
+            payload = json.loads(row["payload_json"] or "{}")
+        except ValueError:
+            continue
+
+        candidate = str(payload.get("candidate_sha") or "").strip().lower()
+
+        if _SHA_RE.match(candidate):
+            return candidate
+
+    return None
+
+
+def _review_evidence(
+    conn: sqlite3.Connection,
+    *,
+    task_id: str,
+    expected_branch: Optional[str],
+    expected_parent: Optional[str],
+    expected_candidate: Optional[str],
+    repo_location: Optional[str],
+) -> tuple:
+    """Validate and complete a review activation's evidence, or refuse.
+
+    A review activation that cannot say what to review is not a review
+    activation. Refusing here rather than letting a reviewer claim it and
+    report `blocked` is the difference between a mistake caught at issue time
+    and one that costs a claim, a lease, and an operator's attention -- and on
+    a paid model, possibly a call.
+
+    Both SHAs are required and the branch is not a substitute for them. A
+    branch names whatever its tip happens to be when the reviewer looks, so a
+    branch that moves between issue and claim silently changes what gets
+    reviewed. The immutable `parent..candidate` range is the review; the branch
+    only helps find it.
+
+    `repo_location` is required and **not verified**: it names a path on
+    another host and this process cannot see it. Requiring it makes "which
+    checkout was this reviewed in" answerable from the ledger instead of from
+    somebody's memory, which is all it can honestly do.
+    """
+    missing = []
+
+    if not (expected_branch or "").strip():
+        missing.append("expected_branch")
+
+    if not (repo_location or "").strip():
+        missing.append("repo_location")
+
+    parent = (expected_parent or "").strip().lower()
+    candidate = (expected_candidate or "").strip().lower()
+
+    if not candidate:
+        candidate = _latest_candidate(conn, task_id) or ""
+
+    if not parent:
+        # The task's own base is the fallback, since that is what the work was
+        # supposed to start from.
+        row = conn.execute(
+            "SELECT base_sha FROM task_versions WHERE task_id = ? "
+            "ORDER BY version DESC LIMIT 1",
+            (task_id,),
+        ).fetchone()
+        parent = str(row["base_sha"] if row else "").strip().lower()
+
+    for name, value in (("expected_parent", parent), ("expected_candidate", candidate)):
+        if not value:
+            missing.append(name)
+        elif not _SHA_RE.match(value):
+            raise MissingReviewEvidence(
+                f"{name} is not a full 40-character sha: {value[:16]!r}"
+            )
+
+    if missing:
+        raise MissingReviewEvidence(
+            "a review activation needs " + ", ".join(sorted(missing))
+            + "; refusing to issue one a reviewer could not act on"
+        )
+
+    if parent == candidate:
+        raise MissingReviewEvidence(
+            "expected_parent and expected_candidate are the same commit; "
+            "there would be nothing to review"
+        )
+
+    return parent, candidate
 
 
 def claim(
@@ -299,6 +424,8 @@ def claim(
         # without needing one.
         "expected_branch": row["expected_branch"],
         "expected_parent": row["expected_parent"],
+        "expected_candidate": row["expected_candidate"],
+        "repo_location": row["repo_location"],
         **build_timing(fresh, now),
     }
 
@@ -631,6 +758,10 @@ REVIEW_JUDGMENTS = {
     # rewrite something that may be perfectly fine.
     "blocked": ("environment_defect", CONTROLLER),
 }
+
+
+class MissingReviewEvidence(ActivationError):
+    """A review activation was issued without enough to review."""
 
 
 class NotAReviewActivation(ActivationError):

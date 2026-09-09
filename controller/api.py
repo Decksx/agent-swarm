@@ -109,6 +109,8 @@ class IssueActivation(BaseModel):
     hard_deadline_seconds: float = 5400.0
     expected_branch: Optional[str] = None
     expected_parent: Optional[str] = None
+    expected_candidate: Optional[str] = None
+    repo_location: Optional[str] = None
 
 
 class Transition(BaseModel):
@@ -366,6 +368,8 @@ def build_router(
                 hard_deadline_seconds=body.hard_deadline_seconds,
                 expected_branch=body.expected_branch,
                 expected_parent=body.expected_parent,
+                expected_candidate=body.expected_candidate,
+                repo_location=body.repo_location,
             )
         except Exception as exc:
             raise _http(exc)
