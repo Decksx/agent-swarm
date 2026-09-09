@@ -1,11 +1,36 @@
 # Phase 0 — Immediate containment
 
+> **Resolution log - 2026-09-09.** This document is an evidence record of what
+> was measured on 2026-09-08. Its original findings are left standing; where a
+> finding has since been overtaken, the sentence is kept and an inline
+> `[RESOLVED 2026-09-09]` marker is added next to it. Four have been overtaken:
+>
+> 1. The control-plane half of Phase 0 landed and was deployed. `hub/hub.py`
+>    authenticates all five routes, derives `sender` from the credential, and
+>    removes `/docs` `/redoc` `/openapi.json`. Deployment and its verification
+>    are recorded in `docs/DEPLOY_PHASE0_HUB.md`.
+> 2. All five points of the minimal patch specification in section 5 were
+>    implemented in that same change.
+> 3. Phase 1 was subsequently started on `phase1/controller-core`. It is
+>    undeployed, unmerged, and imported by nothing.
+> 4. The suite in section 6 has grown from 76 tests to 83.
+>
+> Protocol section 19 Phase 0 item 1 - rotate exposed credentials and inspect
+> their exposure history - was *not* addressed by any of the above and had no
+> record anywhere when this was written. The operator closed it on 2026-09-09;
+> that is recorded in `docs/PHASE0_CLOSEOUT.md`, and the re-measured evidence
+> behind every other Phase 0 claim is in `docs/PHASE0_VERIFICATION.md`.
+
 Status: **host half complete, control-plane half not started.**
+[RESOLVED 2026-09-09: the control-plane half landed in `hub/hub.py` and
+was deployed to Tower the same day.]
 Branch: `phase0/containment`. Baseline: `dfba2940dec2c00206cad5658b1aa395e69baebb`.
 
 This records what Phase 0 of `SWARM_PROTOCOL_v7.md` actually closed on this
 host, what it deliberately did not, and what an operator has to do differently.
-Phase 1 has not been started.
+Phase 1 has not been started. [RESOLVED 2026-09-09: Phase 1 was started
+on `phase1/controller-core` after this was written; it is undeployed and
+unmerged.]
 
 ---
 
@@ -145,7 +170,10 @@ still narrate results to `@Admin`.
 
 ## 5. What Phase 0 did NOT close
 
-**The hub is still unauthenticated.** Requirements 4, 5, 7 and 8 of the Phase 0
+**The hub is still unauthenticated.** [RESOLVED 2026-09-09: it is not, as
+of the deployment recorded in `docs/DEPLOY_PHASE0_HUB.md`. Everything in
+the rest of this section describes the hub as it was on 2026-09-08 and is
+kept for that reason.] Requirements 4, 5, 7 and 8 of the Phase 0
 brief — authenticate every endpoint, bind actor identity server-side, a
 control-plane pause, a control status endpoint — are server-side. The hub runs
 on Tower and its source is not in this repository or anywhere on this machine.
@@ -164,6 +192,10 @@ a model budget.** They can still read the conversation, write misleading
 narration into it, and impersonate anyone in the UI.
 
 ### Minimal patch specification for the Tower hub
+
+[RESOLVED 2026-09-09: all five points below were implemented in
+`hub/hub.py` and deployed. The specification is kept as written because
+it is what the implementation was reviewed against.]
 
 Enough to satisfy the remaining four requirements, in the order they matter:
 
@@ -196,6 +228,11 @@ python -m pytest tests/ -q        # 76 passed
 python tests/bypass_matrix.py     # 10/10 guards load-bearing, exit 0
 python workspace/guard_check.py   # FAILURES: none, exit 0
 ```
+
+[RESOLVED 2026-09-09: the suite is now 83 passed, not 76 - tests were
+added after this was written. The bypass and guard-check figures are
+unchanged. Re-measured at `8bfdb63`; see `docs/PHASE0_VERIFICATION.md`
+section 3.]
 
 `bypass_matrix.py` is the important one. A green suite with the guards present
 proves nothing about the guards — it is equally consistent with unreachable
