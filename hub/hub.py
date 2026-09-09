@@ -408,11 +408,24 @@ HTML_TEMPLATE = """
           if (msg.id > lastId) lastId = msg.id;
           const el = document.createElement('div');
           el.className = 'msg';
+          // sender and target are escaped for the same reason content always
+          // was: they are stored strings that arrive from the network. Before
+          // authentication any LAN caller could choose them freely, so a
+          // sender of `<img src=x onerror=...>` ran script in the browser of
+          // anyone watching this page. Authentication narrows who can plant
+          // that; escaping is what stops it rendering.
+          const senderText = escapeHtml(String(msg.sender));
+          const targetText = escapeHtml(String(msg.target));
+          // The class name is built from a strict allowlist rather than
+          // escaped. Escaping is right for text, but a class attribute is not
+          // text, and stripping to [A-Za-z0-9_-] means nothing can terminate
+          // the attribute no matter what it contains.
+          const senderClass = String(msg.sender).replace(/[^A-Za-z0-9_-]/g, '');
           el.innerHTML = `
             <div class="meta">
-              <span class="sender-${msg.sender}">${msg.sender}</span>
-              <span class="target">&#10142; ${msg.target}</span>
-              <span style="margin-left: auto; color: #565f89;">#${msg.id}</span>
+              <span class="sender-${senderClass}">${senderText}</span>
+              <span class="target">&#10142; ${targetText}</span>
+              <span style="margin-left: auto; color: #565f89;">#${escapeHtml(String(msg.id))}</span>
             </div>
             <pre>${escapeHtml(msg.content)}</pre>
           `;
@@ -437,11 +450,13 @@ HTML_TEMPLATE = """
         target = firstToken;
       }
 
+      // No `sender` field. The server derives it from the credential this
+      // request is authenticated with and ignores anything sent here, so
+      // claiming to be Admin would be both pointless and misleading.
       await fetch('/send', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-          sender: 'Admin',
           target: target,
           content: val
         })
@@ -455,8 +470,27 @@ HTML_TEMPLATE = """
       );
     }
 
+    // Identity comes from the server, not from anything this page decided.
+    // Worth showing: now that the sender is derived from the credential, the
+    // operator needs to see which component they are posting as.
+    async function showIdentity() {
+      try {
+        const res = await fetch('/control/status');
+        const s = await res.json();
+        const el = document.getElementById('status');
+        el.textContent = s.paused
+          ? '● PAUSED — ' + s.you
+          : '● Connected as ' + s.you;
+        el.style.color = s.paused ? '#f7768e' : '#9ece6a';
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
     setInterval(fetchMessages, 2000);
+    setInterval(showIdentity, 10000);
     fetchMessages();
+    showIdentity();
   </script>
 </body>
 </html>
