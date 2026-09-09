@@ -41,7 +41,7 @@ verify that the old keys are revoked, that the new ones differ, or that the
 workers authenticated — I was told, and I am recording what I was told, with
 the fact that it is a report rather than an observation stated plainly so that
 a later reader does not mistake this table for evidence of the same kind as the
-test output in section 4.
+test output in section 5.
 
 The hub credentials are a separate matter and needed no rotation: they were
 generated on Tower on 2026-09-09 with `openssl rand -hex 24`, mode 600, and had
@@ -202,13 +202,125 @@ output. That shape has no prefix, so `swarm_control.redact()` — which keys off
 false positive and the only one that can find the credential this system
 actually issues.
 
-## 4. Re-measured after the closeout edits
+## 4. Credential isolation — verified against the live hub
 
-Run on `phase0/closeout` at `d53272c`, Python 3.11.3, Windows-10-10.0.26200-SP0.
+Deriving `sender` server-side was recorded as closing impersonation. On its own
+it does not, and the gap is worth stating precisely because everything else in
+Phase 0 rests on it.
+
+`hub.authenticate()` reads the component name from the Basic **username**, looks
+that name up in `CREDENTIALS`, and compares only the secret. The name is
+therefore chosen by the caller; the secret is the entire binding. If two
+components share a secret, either name authenticates, and the impersonation is
+total: the hub stores whichever `sender` was typed, and a worker sharing a
+secret with `admin` can pause and resume the swarm. Every individual request is
+perfectly valid, so nothing in the hub can detect it at runtime. It is a
+property of the deployed configuration, not of the code, and can only be checked
+from outside.
+
+### The matrix
+
+`hub/auth_matrix.py` tries every configured credential under every configured
+username against `GET /control/status` on the live hub, and prints component
+names and status codes only — never a secret, never a hash, never a length. Run
+on Tower on 2026-09-09 against the running container (up 5 hours), reading
+`hub.env` in place:
+
+```text
+hub        : http://127.0.0.1:8050/control/status
+components : 4 (admin, chatgpt, claudecode, gemini)
+
+rows = credential owner, columns = username presented
+
+                 admin     chatgpt  claudecode      gemini
+admin              200         401         401         401
+chatgpt            401         200         401         401
+claudecode         401         401         200         401
+gemini             401         401         401         200
+
+RESULT: isolated - each credential authenticates exactly one identity
+exit 0
+```
+
+**The deployed hub is already isolated.** Four components, four distinct
+secrets, an exact identity matrix: 4 diagonal 200s, all 12 off-diagonal cells
+401. The `chatgpt` row answers the case the review asked for by name — that
+credential authenticates as `gemini`, `claudecode` and `admin` exactly never —
+and the other three rows answer the equivalent cases. No credentials needed to
+be replaced; they were already distinct.
+
+The checker was proven to fail before it was trusted to pass. Against a hub
+started with `admin` and `gemini` deliberately sharing a secret it reports both
+off-diagonal 200s by name and exits 1; against the same hub with four distinct
+secrets it prints the identity matrix and exits 0. Both runs were then searched
+for the fixture secret values and neither printed one.
+
+### The launcher was the real exposure
+
+The configuration was sound; the way credentials reached the workers was not.
+`start_workers.bat` passed **one** `HUB_SECRET` to all three workers by
+environment inheritance. With four distinct component secrets that is also
+operationally broken — at most one worker could authenticate, and the other two
+would 401 on every poll while looking healthy, because `fetch_messages` logs a
+warning and returns an empty list. The tempting way to make it "work" is to give
+every component the same secret, which is exactly the collapse the matrix exists
+to catch.
+
+Each worker now takes its credential from its own `HUB_SECRET_<COMPONENT>`
+variable and the child clears all three, so a worker process holds exactly one
+credential and cannot read its peers'. Verified with stub workers: each reported
+`HUB_SECRET` set to its own value with no other `HUB_SECRET_*` variable present.
+
+Two details are load-bearing and both were measured rather than assumed:
+
+- The doubled percent signs pass the variable **name** to the child, which
+  expands it itself, so no secret value appears on a command line — where any
+  process on the machine could read it. Confirmed by having the child print its
+  own `CMDCMDLINE`, which came back containing `%HUB_SECRET_CLAUDECODE%` rather
+  than the value.
+- Each launch is guarded on its variable being present, because the obvious
+  version was wrong. When a variable is unset, `cmd` does not expand `%%NAME%%`
+  to nothing — it leaves the literal text. The first draft started
+  `chatgpt_worker` with `HUB_SECRET` set to the string `%HUB_SECRET_CHATGPT%`,
+  which is not empty, passes the worker's placeholder check, and 401s forever
+  while the window looks fine: the silent-degradation mode Phase 0 exists to
+  remove, reintroduced by the fix for it. A missing credential now prints
+  `[error]`, that worker is not started, and the others still are. Both paths
+  were run.
+
+### Tests
+
+Six tests added to `hub/test_hub.py` (37 to 43), asserting all twelve ordered
+cross pairs, the three `chatgpt`-as-someone-else cases by name, and that a
+worker secret cannot reach admin authority on `/control/pause` or
+`/control/resume` by renaming.
+
+The sixth asserts the hazard rather than a defence: two components sharing a
+secret **do** authenticate as each other and the stored sender is whichever name
+was typed. It is a characterization test, and it is the reason `auth_matrix.py`
+has to exist.
+
+Five of the six are load-bearing, verified by bypass rather than by assertion.
+Rewriting `authenticate()` to compare the secret against every configured
+component and then trust the supplied name — the realistic regression, since
+every request still looks valid — fails 7 tests: five of the six added, plus the
+two existing unknown-name cases. The characterization test passes under that
+bypass, correctly.
+
+### What this does not make permanent
+
+Isolation is a property of the credential set, so it is true until somebody
+edits `hub.env`. `hub/auth_matrix.py` should be re-run after any credential
+change, and its exit status is 0 only for an exact identity matrix.
+
+## 5. Re-measured after the closeout edits
+
+Run on `phase0/closeout` at `39f39a8`, after the credential-isolation work,
+Python 3.11.3, Windows-10-10.0.26200-SP0.
 
 ```text
 $ python -m pytest tests/ -q
-83 passed in 0.73s
+83 passed in 0.71s
 exit 0
 
 $ python tests/bypass_matrix.py
@@ -220,26 +332,34 @@ FAILURES: none
 exit 0
 
 $ <venv>/python -m pytest hub/test_hub.py -q
-37 passed, 2 warnings in 1.34s
+43 passed, 2 warnings in 1.33s
 exit 0
 ```
 
-Unchanged from the Phase 0 tip, which is the expected result: nothing in this
-branch changes behaviour. The bypass matrix reports the same ten guards
-load-bearing with the same expected failure counts, including the surplus on
-`replies_addressed_to_a_peer` (caught 2, expected 1) that it names rather than
-swallows.
+The worker figures are unchanged from the Phase 0 tip, which is the expected
+result: nothing on this branch changes worker behaviour. The bypass matrix
+reports the same ten guards load-bearing with the same expected failure counts,
+including the surplus on `replies_addressed_to_a_peer` (caught 2, expected 1)
+that it names rather than swallows.
 
-`POLL_SECONDS=60` is not covered by a test and is not claimed to be. It is a
-launcher default, applied only when the variable is unset, and its effect is a
-request rate rather than a behaviour.
+The hub suite moved from 37 to 43, and the delta reconciles exactly against the
+six cross-identity tests described in section 4 — one exhaustive over all twelve
+ordered pairs, three named `chatgpt` cases, one admin-authority case, one
+characterization of the shared-secret hazard.
 
-## 5. Where Phase 0 stands
+Two changes are not covered by a test and are not claimed to be.
+`POLL_SECONDS=60` is a launcher default whose effect is a request rate rather
+than a behaviour. The per-worker credential handoff is batch-file behaviour that
+pytest cannot reach; it was verified by running the launcher itself against stub
+workers, in both the all-present and missing-credential cases, with the results
+in section 4.
+
+## 6. Where Phase 0 stands
 
 | Protocol section 19, Phase 0 | State |
 | --- | --- |
 | 1. Rotate exposed credentials | **Done.** Rotation 2026-09-09, operator-attested (section 1). Exposure history scanned the same day: 1134 of 1134 text cells, 0 matches (section 3). |
-| 2. Authenticate every endpoint, bind identity server-side | Done, deployed, verified. `hub/hub.py`, byte-matched to the deployed SHA-256. |
+| 2. Authenticate every endpoint, bind identity server-side | **Done.** `hub/hub.py`, byte-matched to the deployed SHA-256. Identity separation verified against the live hub: exact identity matrix, 0 of 12 cross pairs authenticated (section 4). |
 | 3. Workers ignore agent chat for activation | Done. Proven dynamically and by call graph. |
 | 4. Visible global pause, verified | Done. Demonstrated live. |
 
@@ -251,7 +371,12 @@ recorded, and every claim above is either a measurement reproducible from the
 commands in this document and in `docs/PHASE0_VERIFICATION.md`, or is labelled
 as an operator attestation where it is one.
 
-## 6. Positions accepted from the review
+One standing obligation outlives the sign-off, and it is a re-check rather than
+an open item: identity separation is a property of the credential set rather
+than of the code, so `hub/auth_matrix.py` needs re-running after any change to
+`hub.env`. Nothing in the hub will notice if that property stops holding.
+
+## 7. Positions accepted from the review
 
 Recorded because they are decisions, and a decision that lives only in a message
 is not recorded. These came from ChatGPT's review, relayed by the operator, and
@@ -271,7 +396,7 @@ are adopted:
   Phase 0 hub was deployed earlier, on 2026-09-09, and is byte-matched to the
   tracked commit.
 
-## 7. Branch and scope
+## 8. Branch and scope
 
 `phase0/closeout` branches from `phase0/containment` and contains no controller
 code, so it can be reviewed and merged without carrying Phase 1 with it. The
@@ -279,13 +404,21 @@ branch as it stood when this document was written, newest first — this
 document's own commit is necessarily not in its own list:
 
 ```text
-d53272c  Scan the hub database without being able to read what it finds
-3d8567d  Slow the chat poll from three seconds to sixty
-10d7599  Warn about the credential that now stops every worker
-f6bda95  Stop the docstring describing a hub that no longer exists
-cd73898  Mark what this record got right on the day and wrong since
-c0d5c98  Answer the Phase 0 review with measurements instead of claims
-d14ed37  Commit the protocol the code already claims to enforce
+e443ac3 Correct the worker credential procedure this document got wrong
+39f39a8 Hand each worker only its own hub credential
+f01702e Assert a valid secret cannot borrow another component's name
+84123ec Check that a credential authenticates one identity, not several
+56036c3 Close the marker now that both halves of the item are answered
+fd72c3e Record the hub database scan, which came back clean
+688e6dc Point the open item at the record that closed half of it
+92cada3 Close Phase 0 with the rotation recorded and the last gap named
+d53272c Scan the hub database without being able to read what it finds
+3d8567d Slow the chat poll from three seconds to sixty
+10d7599 Warn about the credential that now stops every worker
+f6bda95 Stop the docstring describing a hub that no longer exists
+cd73898 Mark what this record got right on the day and wrong since
+c0d5c98 Answer the Phase 0 review with measurements instead of claims
+d14ed37 Commit the protocol the code already claims to enforce
 8bfdb63  (phase0/containment) Close the deployment record with the operator's 200
 ```
 
