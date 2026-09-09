@@ -102,6 +102,12 @@ CREATE TABLE IF NOT EXISTS activations (
   lease_expires_at    REAL NOT NULL,
   hard_deadline_at    REAL NOT NULL,
   heartbeat_at        REAL,
+  -- Monotonic per activation, returned with every claim and heartbeat. §5
+  -- requires the harness to discard a delayed response carrying a lower
+  -- sequence than one it has already seen, and it needs a number to compare.
+  -- Not in the protocol's table; adding a column preserves every constraint
+  -- shown there, which §4 permits.
+  heartbeat_seq       INTEGER NOT NULL DEFAULT 0,
   status              TEXT NOT NULL,
   result_event_id     TEXT,
   result_request_hash TEXT,
