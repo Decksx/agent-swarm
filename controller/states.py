@@ -124,9 +124,20 @@ TRANSITIONS: Dict[Tuple[str, str], Transition] = {
     ("REVIEW_ASSIGNED", "lease_expired"): _t("READY_REVIEW", CONTROLLER),
     ("REVIEW_ASSIGNED", "hard_deadline_reached"): _t("READY_REVIEW", CONTROLLER),
 
-    # Emitted by the controller only, and only when the deterministic
-    # predicates in §8 all hold. A verifier cannot satisfy a gate by declaring
-    # it satisfied; the controller computes that from evidence rows.
+    # Controller authority, deliberately: a verifier must not be able to
+    # advance a task by declaring a gate met.
+    #
+    # The protocol also requires the controller to emit this only when the
+    # deterministic completion predicates hold, computed from evidence rows.
+    # **Those predicates are not implemented.** Nothing in this controller
+    # computes them, and this table cannot enforce them -- it maps
+    # (state, event, authority) and knows nothing about evidence.
+    #
+    # For the MVP the gate is the reviewer's authenticated judgment, applied
+    # with controller authority by activations.submit_review_judgment() once it
+    # has verified the caller holds that specific live review activation. That
+    # is weaker than the protocol asks for and is recorded as such here rather
+    # than described as if the predicates existed.
     ("REVIEWING", "review_requirements_satisfied"): _t("READY_INTEGRATION", CONTROLLER),
     ("REVIEWING", "author_defect"): _t("CHANGES_REQUESTED", CONTROLLER),
     ("REVIEWING", "checkpoint_captured"): _t("REVIEW_PAUSED", CONTROLLER, OPERATOR),
