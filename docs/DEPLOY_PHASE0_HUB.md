@@ -76,19 +76,33 @@ read, which is the one combination that does stop the container.
 An earlier draft of this document claimed the container would fail here. It was
 wrong, and the correction matters because it changes the safe ordering.
 
-## 3. Deploy `hub.py`
+## 3. Deploy `hub.py` and recreate the container
 
-From this repository, with the working tree clean:
+**Unraid has no `docker compose` subcommand**, and `docker restart` does not
+pick up a new `env_file` or `--env-file`. The container has to be recreated.
 
 ```sh
-# keep the current live file as a local rollback copy first
-ssh root@tower "cp /mnt/user/appdata/agent-swarm/hub.py /mnt/user/appdata/agent-swarm/hub.py.pre-auth"
+cd /mnt/user/appdata/agent-swarm
+cp hub.py hub.py.pre-auth
+cp /path/to/hub_authenticated.py hub.py
+sha256sum hub.py          # compare against the repository copy before restarting
 
-scp hub/hub.py root@tower:/mnt/user/appdata/agent-swarm/hub.py
-ssh root@tower "docker restart agent-hub"
+if command -v docker-compose >/dev/null 2>&1; then
+  docker-compose up -d
+else
+  docker stop agent-hub && docker rm agent-hub
+  docker run -d     --name agent-hub     --restart unless-stopped     --env-file /mnt/user/appdata/agent-swarm/hub.env     -p 8050:8050     -v /mnt/user/appdata/agent-swarm/data:/data     -v /mnt/user/appdata/agent-swarm/hub.py:/app/hub.py     -w /app     python:3.11-slim     sh -c "pip install fastapi uvicorn pydantic && uvicorn hub:app --host 0.0.0.0 --port 8050"
+fi
 ```
 
-Give it ~20 seconds: the container `pip install`s FastAPI on every start.
+`docker rm` discards nothing: both volumes are bind mounts onto the array, so
+`chat.db` and `hub.py` are not in the container layer. Every flag above is taken
+from `docker inspect` of the container as it ran; the only addition is
+`--env-file`.
+
+Give it ~30 seconds — the container `pip install`s FastAPI on every start.
+`docker logs agent-hub --tail 8` should end at `Uvicorn running on
+http://0.0.0.0:8050`.
 
 ## 4. Verify before trusting it
 
@@ -108,6 +122,11 @@ curl -s -o /dev/null -w '%{http_code}\n' -u admin:<secret> \
 ```
 
 Expected: `401 401 401`, then `404`, then `200`.
+
+`GET /control/pause` answers **405**, not 401. FastAPI matches the method before
+it runs the dependency, so a wrong-method request is rejected before
+authentication. It reveals that the route exists and nothing else; a `POST`
+without a credential is a 401.
 
 **If any route answers 200 without credentials, stop and roll back.** That is
 the one outcome this whole change exists to prevent.
@@ -164,3 +183,49 @@ deliberate Phase 1 decision, not a side effect of this deployment.
 
 `gemini_lead.py` has no credential and will 401 if started. Leave it stopped;
 see `hub/PROVENANCE.md`.
+
+
+---
+
+## Deployment record — 2026-09-09
+
+Deployed and verified. Measured from OFFICEPC against the running hub, not
+inferred:
+
+```text
+GET  /                 401     GET  /openapi.json    404
+GET  /messages         401     GET  /docs            404
+GET  /control/status   401     GET  /redoc           404
+POST /send             401     www-authenticate: Basic realm="Agent Swarm Hub"
+POST /control/pause    401
+POST /control/resume   401
+
+as admin:wrong         401
+as nosuchcomponent:x   401
+as admin:<empty>       401
+```
+
+`docker ps` reported `Up 30 seconds` and the log ended at `Application startup
+complete` — which is itself evidence that `HUB_CREDENTIALS` parsed, because a
+missing or malformed value raises at import and the container would be
+restarting instead.
+
+Deployed file SHA-256, matching the repository copy at the time of deploy:
+
+```text
+de7d7db2da8a81546f2a1e22cca9172a81c589231c1c7f045408e12432db3a38
+```
+
+Credentials live in `/mnt/user/appdata/agent-swarm/hub.env`, mode 600, generated
+on Tower with `openssl rand -hex 24` and never echoed to a terminal, pasted into
+a transcript, or seen by me. Rollback copies are `hub.py.pre-auth` and
+`docker-compose.yml.pre-auth` in the same directory.
+
+**Two corrections this deployment forced**, both recorded above rather than
+quietly edited: unraid has no `docker compose` subcommand, and `docker restart`
+does not reload `--env-file`, so the container must be recreated rather than
+restarted.
+
+Still outstanding: the authenticated `200` path was verified by the operator,
+who holds the credential. I never held one, so I could only prove the hub
+refuses — not that it admits.
