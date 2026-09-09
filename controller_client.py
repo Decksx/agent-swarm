@@ -301,6 +301,11 @@ class ControllerQueue:
         return {
             **activation,
             "task": f"{title}\n\n{objective}".strip() if title else objective,
+            # The whole record, not just the rendered prompt. A reviewer needs
+            # the objective and acceptance criteria verbatim to judge against
+            # them, and re-deriving those by splitting the prompt back apart
+            # would be a second parser to keep in step with the first.
+            "task_record": task,
             "issued_by": "controller",
             "source": "controller",
         }
@@ -317,6 +322,27 @@ class ControllerQueue:
             # result submission will find out authoritatively.
             log.warning("heartbeat for %s failed: %s", activation_id, exc)
             return None
+
+    def judge(
+        self,
+        activation_id: str,
+        *,
+        judgment: str,
+        payload: Optional[dict] = None,
+    ) -> Optional[dict]:
+        """Submit a review judgment for an activation this worker holds.
+
+        A separate method from `report` and a separate route, because they are
+        separate authorities. An author reports what it did; a reviewer's
+        judgment is applied by the controller on the strength of the reviewer
+        holding that specific live review activation. Collapsing them into one
+        call would hide that difference at exactly the place it matters.
+        """
+        return self._submit(
+            f"/controller/activations/{activation_id}/review",
+            {"judgment": judgment, "payload": payload or {}},
+            activation_id,
+        )
 
     def report(
         self,
@@ -335,8 +361,20 @@ class ControllerQueue:
         retried, because retrying it unchanged would produce the same refusal
         forever.
         """
-        body = {"outcome": outcome, "payload": payload or {}}
-        path = f"/controller/activations/{activation_id}/outcome"
+        return self._submit(
+            f"/controller/activations/{activation_id}/outcome",
+            {"outcome": outcome, "payload": payload or {}},
+            activation_id,
+        )
+
+    def _submit(self, path: str, body: dict, activation_id: str) -> Optional[dict]:
+        """Deliver one terminal submission, retrying only what retrying helps.
+
+        Shared by `report` and `judge` because the delivery discipline is the
+        same for both and a second copy of it would drift: losing a result is
+        worse than sending it twice, since the controller keys idempotency on
+        the request and replays rather than reapplying.
+        """
         delay = 2.0
 
         for attempt in range(1, 6):

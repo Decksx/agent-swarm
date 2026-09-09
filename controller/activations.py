@@ -293,6 +293,12 @@ def claim(
         "task_version": row["task_version"],
         "role": row["role"],
         "stage": row["stage"],
+        # Carried to the claimant because a reviewer cannot review what it
+        # cannot find. The controller has no working copy; naming the branch
+        # and the base commit is how it points a worker at the right diff
+        # without needing one.
+        "expected_branch": row["expected_branch"],
+        "expected_parent": row["expected_parent"],
         **build_timing(fresh, now),
     }
 
@@ -618,6 +624,12 @@ REVIEW_JUDGMENTS = {
     "satisfied": ("review_requirements_satisfied", CONTROLLER),
     "changes_requested": ("author_defect", CONTROLLER),
     "decision_required": ("decision_required", CONTROLLER),
+    # "I could not review this" is not the same as "this is wrong", and
+    # collapsing them would record a verdict about the work when the reviewer
+    # never got far enough to form one. REVIEW_BLOCKED is the state an operator
+    # repairs and reissues from; CHANGES_REQUESTED sends the author back to
+    # rewrite something that may be perfectly fine.
+    "blocked": ("environment_defect", CONTROLLER),
 }
 
 
