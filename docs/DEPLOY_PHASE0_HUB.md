@@ -64,10 +64,17 @@ block:
       - HUB_CREDENTIALS=admin:<secret>,claudecode:<secret>,chatgpt:<secret>,gemini:<secret>
 ```
 
-Applying from the UI restarts the container. **It will fail to start**, because
-the current `hub.py` does not read that variable and the new one is not deployed
-yet — that is harmless and expected; step 3 fixes it. If you would rather not
-see a failed container at all, do step 3 first and step 2 second.
+Applying restarts the container, and **it starts normally**. The `hub.py`
+running today does not read `HUB_CREDENTIALS` and ignores it like any other
+unknown variable, so the hub keeps serving unauthenticated until step 3 — no
+outage, no failed container.
+
+That is why this step goes first. Doing it in this order means there is never a
+moment where the authenticated `hub.py` is deployed without a credential to
+read, which is the one combination that does stop the container.
+
+An earlier draft of this document claimed the container would fail here. It was
+wrong, and the correction matters because it changes the safe ordering.
 
 ## 3. Deploy `hub.py`
 
