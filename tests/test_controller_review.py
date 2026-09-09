@@ -77,6 +77,10 @@ def under_review(conn):
     review = activations.issue(
         conn, task_id="T-1", agent="gemini", host="OFFICEPC", stage="review",
         lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=T0 + 2,
+        # A review activation must carry what to review; see
+        # test_review_issuance.py for the refusals when it does not.
+        expected_branch="task/T-1", expected_candidate="a" * 40,
+        repo_location="/srv/checkouts/T-1",
     )
     activations.claim(
         conn, activation_id=review["activation_id"], agent="gemini", now=T0 + 2

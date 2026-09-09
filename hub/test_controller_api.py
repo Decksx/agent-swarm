@@ -25,7 +25,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from controller import api  # noqa: E402
+from controller import api, schema  # noqa: E402
 
 ADMINS = {"admin", "operator"}
 
@@ -262,6 +262,8 @@ def under_review(client, queued_task):
 
     as_(client, "admin", "post", "/controller/activations", json={
         "task_id": "T-1", "agent": "gemini", "host": "OFFICEPC", "stage": "review",
+        "expected_branch": "task/T-1", "expected_candidate": "a" * 40,
+        "repo_location": "/srv/checkouts/T-1",
     })
     review = as_(client, "gemini", "post",
                  "/controller/activations/claim").json()["activation"]
@@ -332,7 +334,7 @@ def test_status_reports_the_schema_version_and_counts(client, queued_task):
     body = as_(client, "gemini", "get", "/controller/status").json()
 
     assert body["you"] == "gemini"
-    assert body["schema_version"] == 1
+    assert body["schema_version"] == schema.SCHEMA_VERSION
     assert body["tasks"] == {"READY_AUTHOR": 1}
 
 

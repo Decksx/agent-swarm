@@ -251,8 +251,11 @@ def test_finishing_an_activation_releases_the_slot(conn, ready_task):
         kind="candidate_submitted", now=T0 + 2,
     )
 
-    # READY_REVIEW now, so a review activation is the legal next one.
-    issue(conn, ready_task, agent="claude", stage="review", now=T0 + 3)
+    # READY_REVIEW now, so a review activation is the legal next one. It has
+    # to carry its evidence; that refusal is covered in test_review_issuance.
+    issue(conn, ready_task, agent="claude", stage="review", now=T0 + 3,
+          expected_branch="task/T-1", expected_candidate="a" * 40,
+          repo_location="/srv/checkouts/T-1")
 
 
 # --- Results ----------------------------------------------------------------
