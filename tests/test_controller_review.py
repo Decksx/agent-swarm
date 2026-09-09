@@ -1,4 +1,8 @@
-"""The review gate: who may close it, and on what authority.
+"""Stage outcomes: who may report them, and on whose authority.
+
+Both stages share one mechanism and one reason for existing, so they share a
+file. The review gate is the larger half and comes first; the author outcomes
+are the same argument applied to a worker reporting failure.
 
 Section 8 makes `review_requirements_satisfied` a controller transition so a
 verifier cannot advance a task by declaring a gate met. A review activation
@@ -304,3 +308,131 @@ def test_the_task_stops_at_ready_integration(conn, under_review):
     task = engine.get_task(conn, "T-1")
     assert task["state"] == "READY_INTEGRATION"
     assert task["state"] != "COMPLETE"
+
+
+# --- Author outcomes: the same argument, on the other stage -----------------
+
+
+@pytest.fixture
+def authoring(conn):
+    """A task in AUTHORING with a live author activation held by claudecode."""
+    engine.create_task(
+        conn, task_id="T-A", title="pilot", objective="o",
+        contract_yaml="schema_version: 7\n", base_sha="0" * 40, created_by="admin",
+    )
+    for kind in ("contract_validated", "queued"):
+        engine.apply_transition(
+            conn, task_id="T-A", kind=kind, actor="c", authority=states.CONTROLLER
+        )
+
+    author = activations.issue(
+        conn, task_id="T-A", agent="claudecode", host="OFFICEPC", stage="author",
+        lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=T0,
+    )
+    activations.claim(
+        conn, activation_id=author["activation_id"], agent="claudecode", now=T0
+    )
+
+    assert engine.get_task(conn, "T-A")["state"] == "AUTHORING"
+    return author["activation_id"]
+
+
+def test_a_worker_cannot_emit_a_failure_event_itself(conn, authoring):
+    """`author_defect` is a controller transition, and must stay one.
+
+    A worker able to emit it could put its own task into CHANGES_REQUESTED,
+    which is a verdict about the work rather than a report about the run.
+    """
+    with pytest.raises(states.NotAuthorized):
+        activations.submit_result(
+            conn, activation_id=authoring, agent="claudecode",
+            kind="author_defect", now=T0 + 1,
+        )
+
+    assert engine.get_task(conn, "T-A")["state"] == "AUTHORING"
+
+
+@pytest.mark.parametrize("outcome,expected", [
+    ("candidate", "READY_REVIEW"),
+    ("failed", "CHANGES_REQUESTED"),
+    ("blocked", "AUTHOR_BLOCKED"),
+])
+def test_each_author_outcome_lands_where_it_should(conn, authoring, outcome, expected):
+    """Before this existed a worker could report success and nothing else."""
+    result = activations.submit_author_outcome(
+        conn, activation_id=authoring, agent="claudecode",
+        outcome=outcome, now=T0 + 1,
+    )
+
+    assert result["to_state"] == expected
+    assert engine.get_task(conn, "T-A")["state"] == expected
+
+
+def test_blocked_is_recoverable_and_failed_is_a_verdict(conn, authoring):
+    """The distinction is why there are two failure outcomes and not one.
+
+    AUTHOR_BLOCKED says the host could not run this; an operator repairs the
+    environment and it returns to READY_AUTHOR with nothing said about the
+    task. CHANGES_REQUESTED says the attempt was wrong.
+    """
+    activations.submit_author_outcome(
+        conn, activation_id=authoring, agent="claudecode",
+        outcome="blocked", payload={"reason": "rate limit guard"}, now=T0 + 1,
+    )
+
+    engine.apply_transition(
+        conn, task_id="T-A", kind="environment_repaired", actor="c",
+        authority=states.CONTROLLER,
+    )
+
+    assert engine.get_task(conn, "T-A")["state"] == "READY_AUTHOR"
+
+
+def test_another_agent_cannot_report_this_activation(conn, authoring):
+    with pytest.raises(activations.NotTheAssignedWorker):
+        activations.submit_author_outcome(
+            conn, activation_id=authoring, agent="chatgpt",
+            outcome="candidate", now=T0 + 1,
+        )
+
+
+def test_a_review_judgment_cannot_be_submitted_against_an_author_activation(
+    conn, authoring
+):
+    """The stage is part of the authorization, both ways round."""
+    with pytest.raises(activations.NotAReviewActivation):
+        activations.submit_review_judgment(
+            conn, activation_id=authoring, agent="claudecode",
+            judgment="satisfied", now=T0 + 1,
+        )
+
+
+def test_redelivering_an_author_outcome_replays_it(conn, authoring):
+    """A worker retrying after a dropped response must not run twice."""
+    first = activations.submit_author_outcome(
+        conn, activation_id=authoring, agent="claudecode",
+        outcome="candidate", now=T0 + 1,
+    )
+    second = activations.submit_author_outcome(
+        conn, activation_id=authoring, agent="claudecode",
+        outcome="candidate", now=T0 + 2,
+    )
+
+    assert second["replayed"] is True
+    assert second["event_id"] == first["event_id"]
+
+    kinds = [e["kind"] for e in engine.event_log(conn, "T-A")]
+    assert kinds.count("candidate_submitted") == 1
+
+
+def test_reporting_a_different_outcome_afterwards_is_refused(conn, authoring):
+    activations.submit_author_outcome(
+        conn, activation_id=authoring, agent="claudecode",
+        outcome="candidate", now=T0 + 1,
+    )
+
+    with pytest.raises(activations.ConflictingResult):
+        activations.submit_author_outcome(
+            conn, activation_id=authoring, agent="claudecode",
+            outcome="failed", now=T0 + 2,
+        )

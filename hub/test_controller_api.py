@@ -334,3 +334,72 @@ def test_status_reports_the_schema_version_and_counts(client, queued_task):
     assert body["you"] == "gemini"
     assert body["schema_version"] == 1
     assert body["tasks"] == {"READY_AUTHOR": 1}
+
+
+# --- The author outcome route -----------------------------------------------
+
+
+@pytest.fixture
+def authoring(client, queued_task):
+    as_(client, "admin", "post", "/controller/activations", json={
+        "task_id": "T-1", "agent": "claudecode", "host": "OFFICEPC",
+        "stage": "author",
+    })
+    claimed = as_(client, "claudecode", "post", "/controller/activations/claim")
+    return claimed.json()["activation"]["activation_id"]
+
+
+@pytest.mark.parametrize("outcome,expected", [
+    ("candidate", "READY_REVIEW"),
+    ("failed", "CHANGES_REQUESTED"),
+    ("blocked", "AUTHOR_BLOCKED"),
+])
+def test_a_worker_can_report_how_its_run_ended(client, authoring, outcome, expected):
+    """Including that it failed, which it previously had no way to say."""
+    response = as_(client, "claudecode", "post",
+                   f"/controller/activations/{authoring}/outcome",
+                   json={"outcome": outcome})
+
+    assert response.status_code == 200
+    assert response.json()["to_state"] == expected
+
+
+def test_only_the_holder_can_report_the_outcome(client, authoring):
+    assert as_(client, "chatgpt", "post",
+               f"/controller/activations/{authoring}/outcome",
+               json={"outcome": "candidate"}).status_code == 403
+    assert as_(client, "admin", "post",
+               f"/controller/activations/{authoring}/outcome",
+               json={"outcome": "candidate"}).status_code == 403
+
+
+def test_the_event_log_distinguishes_a_report_from_a_verdict(client, authoring):
+    """Success is the author's own; a verdict is the controller's.
+
+    Both are reported through the same route by the same worker, and the log
+    has to keep them apart -- otherwise "the controller decided this task
+    failed" and "the worker said it produced a candidate" look identical.
+    """
+    as_(client, "claudecode", "post",
+        f"/controller/activations/{authoring}/outcome",
+        json={"outcome": "failed"})
+
+    events = as_(client, "admin", "get",
+                 "/controller/tasks/T-1/events").json()["events"]
+    verdict = [e for e in events if e["kind"] == "author_defect"][0]
+
+    assert verdict["actor"] == "claudecode"
+    assert verdict["authority"] == "controller"
+
+
+def test_a_candidate_is_recorded_under_the_authors_own_authority(client, authoring):
+    as_(client, "claudecode", "post",
+        f"/controller/activations/{authoring}/outcome",
+        json={"outcome": "candidate"})
+
+    events = as_(client, "admin", "get",
+                 "/controller/tasks/T-1/events").json()["events"]
+    submitted = [e for e in events if e["kind"] == "candidate_submitted"][0]
+
+    assert submitted["actor"] == "claudecode"
+    assert submitted["authority"] == "author"
