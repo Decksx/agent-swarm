@@ -211,7 +211,7 @@ def outbound_envelope(
 
     `content` is redacted here rather than at each call site so that a new
     caller cannot forget. The `token` field the pre-Phase-0 workers attached
-    is gone: the hub stores only sender/target/content, so that field never
+    is gone: `GET /messages` never returns a `token`, so that field never
     authenticated anything inbound, and putting a shared secret into a message
     body on a stream every client can read is how a shared secret stops being
     one.
