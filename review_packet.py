@@ -14,6 +14,16 @@ task was created with, the base and candidate SHAs, the changed-file list, the
 full diff, and whatever test output is available. The author's summary is
 included, clearly labelled as a claim rather than as evidence.
 
+The range, not the branch
+-------------------------
+
+Everything is derived from the immutable range ``base..candidate``. The branch
+is a label: it is checked for agreement with the candidate and otherwise plays
+no part. A branch names whatever its tip is at the moment it is read, so
+reviewing "the branch" means a commit pushed between issue and review changes
+what was judged -- and the ledger would record an approval of a commit nobody
+looked at.
+
 Where it runs
 -------------
 
@@ -72,57 +82,84 @@ def resolve(repo: str, ref: str) -> str:
     return sha
 
 
+def is_reachable_from(repo: str, commit: str, ref: str) -> bool:
+    """Whether `commit` is `ref` or an ancestor of it."""
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", commit, ref],
+        cwd=repo, capture_output=True, check=False,
+    )
+
+    return result.returncode == 0
+
+
 def build(
     repo: str,
     *,
     task: dict,
-    branch: str,
-    base: Optional[str] = None,
+    base: str,
+    candidate: str,
+    branch: str = "",
     author_summary: str = "",
     test_output: str = "",
     diff_budget: int = DEFAULT_DIFF_BUDGET,
 ) -> dict:
-    """Assemble the review evidence for `branch` in `repo`.
+    """Assemble the review evidence for the range `base..candidate`.
 
-    `base` may be omitted, in which case the merge-base of the branch and its
-    first parent is used -- the point the work actually diverged from, which is
-    what a reviewer needs to see rather than whatever happens to be on the
-    default branch now.
+    **The range is the review, and both ends are commits.** `branch` is only a
+    label, checked for consistency and otherwise not used to decide what is
+    reviewed. That distinction is the whole point of this signature: a branch
+    names whatever its tip happens to be at the moment it is read, so a branch
+    that moves between issue and review silently changes what the reviewer
+    judged -- and the ledger would record an approval of a commit nobody
+    looked at.
+
+    When `branch` is given, the candidate must be reachable from it. A
+    candidate that is not on the branch it claims to be on means the two pieces
+    of evidence disagree, and guessing which one is right is not this
+    function's job.
     """
-    candidate = resolve(repo, branch)
+    base_sha = resolve(repo, base)
+    candidate_sha = resolve(repo, candidate)
 
-    if base:
-        base_sha = resolve(repo, base)
-    else:
-        # The commit the branch grew from. Using HEAD of some other branch
-        # would show the reviewer unrelated changes as if the author had made
-        # them.
-        base_sha = _git(repo, "rev-parse", f"{candidate}^").strip()
+    if base_sha == candidate_sha:
+        raise PacketError(
+            f"base and candidate are the same commit ({candidate_sha[:12]}); "
+            "there is nothing to review"
+        )
 
-        if len(base_sha) != 40:
+    if branch:
+        try:
+            branch_tip = resolve(repo, branch)
+        except PacketError as exc:
+            raise PacketError(f"declared branch {branch!r} not found: {exc}")
+
+        if not is_reachable_from(repo, candidate_sha, branch_tip):
             raise PacketError(
-                f"could not determine a base for {branch!r}; pass one explicitly"
+                f"candidate {candidate_sha[:12]} is not reachable from "
+                f"{branch!r} (tip {branch_tip[:12]}); the branch and the "
+                "candidate disagree about what was submitted"
             )
 
-    if base_sha == candidate:
+    if not is_reachable_from(repo, base_sha, candidate_sha):
         raise PacketError(
-            f"base and candidate are the same commit ({candidate[:12]}); "
-            "there is nothing to review"
+            f"base {base_sha[:12]} is not an ancestor of candidate "
+            f"{candidate_sha[:12]}; the range is not a straight line and the "
+            "diff would not be the author's work alone"
         )
 
     changed = [
         line for line in _git(
-            repo, "diff", "--name-status", f"{base_sha}..{candidate}"
+            repo, "diff", "--name-status", f"{base_sha}..{candidate_sha}"
         ).splitlines() if line.strip()
     ]
 
     commits = [
         line for line in _git(
-            repo, "log", "--oneline", "--no-decorate", f"{base_sha}..{candidate}"
+            repo, "log", "--oneline", "--no-decorate", f"{base_sha}..{candidate_sha}"
         ).splitlines() if line.strip()
     ]
 
-    diff = _git(repo, "diff", f"{base_sha}..{candidate}")
+    diff = _git(repo, "diff", f"{base_sha}..{candidate_sha}")
     truncated = len(diff.encode("utf-8")) > diff_budget
 
     if truncated:
@@ -134,7 +171,7 @@ def build(
         "objective": task.get("objective", ""),
         "branch": branch,
         "base_sha": base_sha,
-        "candidate_sha": candidate,
+        "candidate_sha": candidate_sha,
         "commits": commits,
         "changed_files": changed,
         "diff": diff,

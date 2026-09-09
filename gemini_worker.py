@@ -412,6 +412,21 @@ def execute_review(
     """
     activation_id = activation.get("activation_id")
     branch = activation.get("expected_branch")
+    base = activation.get("expected_parent")
+    candidate = activation.get("expected_candidate")
+
+    # REVIEW_REPO is this host's checkout. repo_location is what the controller
+    # recorded at issue time. They should agree; a mismatch is reported rather
+    # than silently reviewed in whichever one happens to be configured here,
+    # because the ledger would then name a checkout the review did not use.
+    declared = (activation.get("repo_location") or "").strip()
+
+    if declared and REVIEW_REPO and declared != REVIEW_REPO:
+        log.warning(
+            "activation %s names repo_location %r but this worker reviews in "
+            "%r; reviewing here and recording both",
+            activation_id, declared, REVIEW_REPO,
+        )
 
     if not REVIEW_REPO:
         log.error("REVIEW_REPO is not set; cannot review %s", activation_id)
@@ -419,18 +434,29 @@ def execute_review(
                     payload={"reason": "REVIEW_REPO is not configured on this host"})
         return
 
-    if not branch:
-        log.error("activation %s names no branch to review", activation_id)
-        queue.judge(activation_id, judgment="blocked",
-                    payload={"reason": "the activation carried no expected_branch"})
+    # The controller refuses to issue a review activation without these, so
+    # reaching here without them means an older activation issued before that
+    # guard existed. Blocked rather than guessed at, for the same reason.
+    if not base or not candidate:
+        log.error(
+            "activation %s carries no %s to review",
+            activation_id,
+            " and no ".join(
+                n for n, v in (("base", base), ("candidate", candidate)) if not v
+            ),
+        )
+        queue.judge(activation_id, judgment="blocked", payload={
+            "reason": "the activation carried no expected_parent/expected_candidate",
+        })
         return
 
     try:
         packet = review_packet.build(
             REVIEW_REPO,
             task=activation.get("task_record") or {},
-            branch=branch,
-            base=activation.get("expected_parent") or None,
+            base=base,
+            candidate=candidate,
+            branch=branch or "",
             author_summary=activation.get("author_summary", ""),
         )
     except review_packet.PacketError as exc:
@@ -444,7 +470,7 @@ def execute_review(
     log.info(
         "REVIEWING activation %s: %s %s..%s, %d file(s)",
         activation_id,
-        branch,
+        branch or "(no branch label)",
         packet["base_sha"][:12],
         packet["candidate_sha"][:12],
         len(packet["changed_files"]),
