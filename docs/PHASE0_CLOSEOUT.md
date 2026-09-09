@@ -49,8 +49,10 @@ no predecessor. That is recorded in `docs/DEPLOY_PHASE0_HUB.md`.
 
 ### The exposure-history half
 
-The requirement has two halves. Rotation is done. **Inspecting the exposure
-history is not, and cannot be finished from this host** — see section 3.
+The requirement has two halves. Rotation is done, and so is the other half:
+the hub's message history was scanned on Tower the same day and is clean, 0
+matches across all 1134 text-bearing cells. See section 3, which also says what
+a clean scan does and does not establish.
 
 ## 2. Documents and comments corrected
 
@@ -100,7 +102,7 @@ of the three get 401 on every call. Left as a warning rather than a fix:
 per-worker secret plumbing is a behaviour change and does not belong in a
 closeout.
 
-## 3. Hub database scan — tool delivered, scan not run
+## 3. Hub database scan — run 2026-09-09, clean
 
 `hub/scan_hub_db.py` (`d53272c`) scans the hub's SQLite database for
 credential-shaped strings and reports **table, column, pattern name and row
@@ -108,15 +110,65 @@ primary key — never the matched value, never an excerpt, never message
 content.** A scan that prints what it finds moves the secret into a terminal, a
 transcript and often a bug report, which is how a scan becomes a leak.
 
-**It has not been run against the real database, and I cannot run it.** The
-database is at `/mnt/user/appdata/agent-swarm/data/chat.db` on Tower
-(`/data/chat.db` inside the container). It is not reachable from OFFICEPC, and
-reaching it would require a credential I do not hold. This is the exposure-history
-half of section 1: those messages accumulated while the hub answered `200` to any
-LAN caller, so if a model ever printed its environment into chat, that is where
-it is.
+The database is at `/mnt/user/appdata/agent-swarm/data/chat.db` on Tower
+(`/data/chat.db` inside the container). This is the exposure-history half of
+section 1: those messages accumulated while the hub answered `200` to any LAN
+caller, so if a model ever printed its environment into chat, that is where it
+would be.
 
-To run it, on Tower:
+### Result
+
+Run on Tower on 2026-09-09, on the operator's explicit authorization, over the
+existing `tower.local` SSH route. The database was never copied anywhere; the
+scanner was staged on the media share and read `appdata` in place.
+
+```text
+database : /mnt/user/appdata/agent-swarm/data/chat.db
+columns  : 3 text-capable columns across 1 tables
+
+cells scanned : 1134
+matches       : 0
+RESULT: clean
+exit 0
+```
+
+**Zero matches across every text-bearing cell in the database.** The population
+reconciles exactly, which is the part worth checking rather than trusting:
+
+- `messages` holds **378 rows**, ids 1 to 378 with no gaps, so nothing has been
+  deleted and the whole pre-containment history is present.
+- Three TEXT columns are scanned — `sender`, `target`, `content`. 378 x 3 =
+  **1134**, the number the scanner reports.
+- The two columns it skipped are `id` (INTEGER PRIMARY KEY) and `timestamp`
+  (REAL). SQLite is dynamically typed, so "declared REAL" is not the same as
+  "contains no text": checked separately, all 378 `timestamp` values have
+  storage class `real` and all 378 `id` values `integer`. Nothing textual went
+  unscanned.
+- `sqlite_sequence` is excluded as an internal table. Its entire contents are
+  the single row `('messages', 378)`.
+- Longest `content` value is 4,428 characters, so the scan covered real message
+  bodies rather than a table of stubs.
+
+The sender distribution is an independent confirmation of the measurement this
+whole effort started from: Gemini 182, ChatGPT 148, ClaudeCode 28, Admin 20,
+summing to 378. Those are the figures quoted in
+`docs/HANDOFF_SESSION_AGENTS.md` section 1, arrived at again from the database
+rather than carried forward from the earlier count.
+
+`chat.db` was last written 2026-09-03 14:20 — before containment. The
+authenticated hub has written no messages since it was deployed on 2026-09-09,
+which is consistent with the workers having been stopped.
+
+### What this does and does not establish
+
+It establishes that no credential-shaped string is stored in the hub's message
+history, for the eight shapes the scanner knows. It does not establish that
+nothing was ever exposed: a key posted and later deleted would leave no row, and
+the contiguous id range only shows no row was removed from *this* table, not
+that nothing was read by a LAN caller while the hub was open. Rotation is what
+covers that, and it is done.
+
+To re-run it, on Tower:
 
 ```sh
 # copy hub/scan_hub_db.py from this repository to Tower first -- it is not
@@ -129,10 +181,9 @@ It uses only the standard library, so the system `python3` on Tower is
 enough; it does not need the container or its FastAPI environment.
 
 Exit status 0 means clean, 1 means matches were found. **Report the printed
-summary — the counts and row ids — not the rows themselves.** If it reports
-matches, the rows it names are the exposure history, and what to do about them
-(and whether the just-rotated keys were among them) is an operator decision made
-with the database open, not one made from a transcript.
+summary — the counts and row ids — not the rows themselves.** If it ever reports
+matches, the rows it names are the exposure history, and what to do about them is
+an operator decision made with the database open, not one made from a transcript.
 
 Verified before delivery, against fixtures rather than assumed:
 
@@ -187,7 +238,7 @@ request rate rather than a behaviour.
 
 | Protocol section 19, Phase 0 | State |
 | --- | --- |
-| 1. Rotate exposed credentials | **Rotation done** 2026-09-09, operator-attested (section 1). Exposure-history inspection **open** — scan delivered, not run (section 3). |
+| 1. Rotate exposed credentials | **Done.** Rotation 2026-09-09, operator-attested (section 1). Exposure history scanned the same day: 1134 of 1134 text cells, 0 matches (section 3). |
 | 2. Authenticate every endpoint, bind identity server-side | Done, deployed, verified. `hub/hub.py`, byte-matched to the deployed SHA-256. |
 | 3. Workers ignore agent chat for activation | Done. Proven dynamically and by call graph. |
 | 4. Visible global pause, verified | Done. Demonstrated live. |
@@ -195,8 +246,10 @@ request rate rather than a behaviour.
 Evidence for 2, 3 and 4 is in `docs/PHASE0_VERIFICATION.md`, re-measured rather
 than carried forward.
 
-**One item remains open**: running the scan in section 3. Everything else that
-Phase 0 asked for is closed and recorded.
+**Nothing in Phase 0 remains open.** All four requirements are closed and
+recorded, and every claim above is either a measurement reproducible from the
+commands in this document and in `docs/PHASE0_VERIFICATION.md`, or is labelled
+as an operator attestation where it is one.
 
 ## 6. Positions accepted from the review
 
