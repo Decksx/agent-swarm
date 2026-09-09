@@ -115,6 +115,11 @@ SYSTEM_PROMPT = (
     "own name."
 )
 
+# Set once in main() from HUB_SECRET. Module-level rather than threaded
+# through every call because HUB_URL and the timeouts already are, and a
+# worker authenticates as exactly one component for its whole life.
+_HUB_AUTH: tuple | None = None
+
 log = logging.getLogger("chatgpt_worker")
 
 
@@ -244,6 +249,7 @@ def fetch_messages(requests: Any, since_id: int) -> list[dict]:
             f"{HUB_URL}/messages",
             params={"since_id": since_id},
             timeout=HTTP_TIMEOUT,
+            auth=_HUB_AUTH,
         )
         response.raise_for_status()
         payload = response.json()
@@ -352,7 +358,10 @@ def post_reply(requests: Any, target: str, body: str, message_id: Any) -> None:
 
     try:
         response = requests.post(
-            f"{HUB_URL}/send", json=payload, timeout=HTTP_TIMEOUT
+            f"{HUB_URL}/send",
+            json=payload,
+            timeout=HTTP_TIMEOUT,
+            auth=_HUB_AUTH,
         )
         response.raise_for_status()
     except Exception as exc:
@@ -425,6 +434,18 @@ def main() -> int:
     configure_logging()
 
     requests, OpenAI = ensure_dependencies()
+
+    # Resolved before anything polls. A worker that started without a
+    # credential would poll an authenticated hub forever, logging a 401 every
+    # POLL_SECONDS and doing no work, which reads as a broken hub rather than
+    # as unconfigured credentials.
+    global _HUB_AUTH
+    try:
+        _HUB_AUTH = swarm_control.hub_auth(AGENT_IDENTITY)
+    except swarm_control.ContainmentError as exc:
+        log.error("%s", exc)
+        return 1
+
 
     # Containment invariant, checked at startup rather than assumed.
     #
