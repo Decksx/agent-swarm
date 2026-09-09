@@ -101,6 +101,9 @@ def main(argv) -> int:
     sub.add_parser("status")
     sub.add_parser("sweep")
 
+    p = sub.add_parser("repair")
+    p.add_argument("task_id")
+
     p = sub.add_parser("capacity")
     p.add_argument("host")
     p.add_argument("max_concurrent", type=int)
@@ -126,6 +129,10 @@ def main(argv) -> int:
     p.add_argument("stage", choices=["author", "review"])
     p.add_argument("--lease-seconds", type=float, default=900.0)
     p.add_argument("--hard-deadline-seconds", type=float, default=5400.0)
+    # A review activation without a branch is unreviewable: the controller has
+    # no working copy, so this is the only way it can say what to look at.
+    p.add_argument("--expected-branch", default=None)
+    p.add_argument("--expected-parent", default=None)
 
     p = sub.add_parser("show")
     p.add_argument("task_id")
@@ -164,6 +171,11 @@ def main(argv) -> int:
             url, secret, "POST", f"/controller/tasks/{args.task_id}/ready"
         ))
 
+    if args.command == "repair":
+        return show(*call(
+            url, secret, "POST", f"/controller/tasks/{args.task_id}/repair"
+        ))
+
     if args.command == "ready":
         return show(*call(
             url, secret, "POST", f"/controller/tasks/{args.task_id}/ready"
@@ -177,6 +189,8 @@ def main(argv) -> int:
             "stage": args.stage,
             "lease_seconds": args.lease_seconds,
             "hard_deadline_seconds": args.hard_deadline_seconds,
+            "expected_branch": args.expected_branch,
+            "expected_parent": args.expected_parent,
         }))
 
     if args.command == "show":

@@ -273,6 +273,35 @@ def build_router(
         except Exception as exc:
             raise _http(exc)
 
+    @router.post("/tasks/{task_id}/repair")
+    def repair(
+        task_id: str,
+        component: str = Depends(require_admin),
+        conn: sqlite3.Connection = Depends(get_conn),
+    ):
+        """Release a task from AUTHOR_BLOCKED or REVIEW_BLOCKED.
+
+        Controller authority, admin-triggered, for the same reason /ready is:
+        `environment_repaired` is a controller transition in section 8, so the
+        admin-authority route cannot emit it -- which left a blocked task with
+        no way back at all. A worker can put a task into a blocked state and
+        nobody could take it out.
+
+        The operator asserts the environment is fixed; the controller moves the
+        task. Nothing here checks that anything was actually repaired, and the
+        state machine will refuse this from anywhere but a blocked state.
+        """
+        try:
+            return engine.apply_transition(
+                conn,
+                task_id=task_id,
+                kind="environment_repaired",
+                actor=component,
+                authority=states.CONTROLLER,
+            )
+        except Exception as exc:
+            raise _http(exc)
+
     @router.post("/tasks/{task_id}/transition")
     def transition(
         task_id: str,
