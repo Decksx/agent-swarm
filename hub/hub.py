@@ -496,6 +496,41 @@ HTML_TEMPLATE = """
 </html>
 """
 
+# --- Controller ---------------------------------------------------------------
+#
+# The controller's routes are mounted onto this same app, sharing this file's
+# authentication and this process. Two reasons it is not a second service:
+# there is exactly one writer to the controller database, which is what makes
+# its transactions safe without a lock manager, and the components already
+# have credentials here.
+#
+# Imported at module scope with no try/except, deliberately. If the package is
+# not importable the container fails to start and the log names the import
+# error, which is the same fail-closed behaviour as a missing HUB_CREDENTIALS.
+# A hub that silently came up serving chat with no controller would look
+# healthy while every worker poll found nothing to do, and that is a much
+# harder failure to diagnose than one that never started.
+#
+# This import is why the container bind-mounts the application *directory*
+# rather than hub.py alone.
+from controller import api as controller_api  # noqa: E402
+
+CONTROLLER_DB = os.environ.get("CONTROLLER_DB", "/data/controller.db")
+
+# Created at import rather than on first request: a request that has to decide
+# whether to create the schema is a request that can race another one doing the
+# same.
+controller_api.ensure_database(CONTROLLER_DB)
+
+app.include_router(
+    controller_api.build_router(
+        authenticate=authenticate,
+        require_admin=require_admin,
+        db_path=CONTROLLER_DB,
+    )
+)
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(component: str = Depends(authenticate)):
     """The live terminal, behind the same credential as everything else.
