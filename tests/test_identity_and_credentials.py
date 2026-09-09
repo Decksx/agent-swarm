@@ -196,7 +196,8 @@ def test_outbound_envelope_carries_no_token_field():
     """The shared token is no longer put into message bodies.
 
     The pre-Phase-0 workers attached `token` to every outbound message. The hub
-    stores only sender/target/content, so it authenticated nothing inbound --
+    never returns a `token` on GET /messages, so it authenticated nothing
+    inbound --
     and a secret placed in a body on a stream every client can read is how a
     shared secret stops being one.
     """
