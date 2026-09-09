@@ -38,6 +38,11 @@ def control(tmp_path, monkeypatch):
     # "not paused" tests pass for the wrong reason.
     monkeypatch.delenv("SWARM_PAUSED", raising=False)
 
+    # The workers refuse to start without a hub credential, which is the point
+    # of that guard; the tests supply one so they are exercising containment
+    # rather than the missing-credential path (asserted separately).
+    monkeypatch.setenv("HUB_SECRET", "test-hub-secret")
+
     return swarm_control
 
 
@@ -117,12 +122,17 @@ class FakeRequests:
         self._batches = list(message_batches)
         self.posts = []
         self.get_count = 0
+        # Every credential presented to the hub, so a test can prove the
+        # worker authenticates on all calls rather than only the first.
+        self.auth_seen = []
 
-    def get(self, url, params=None, timeout=None):
+    def get(self, url, params=None, timeout=None, auth=None):
         self.get_count += 1
+        self.auth_seen.append(auth)
         batch = self._batches.pop(0) if self._batches else []
         return FakeResponse(batch)
 
-    def post(self, url, json=None, timeout=None):
-        self.posts.append({"url": url, "json": json})
+    def post(self, url, json=None, timeout=None, auth=None):
+        self.auth_seen.append(auth)
+        self.posts.append({"url": url, "json": json, "auth": auth})
         return FakeResponse({"ok": True})
