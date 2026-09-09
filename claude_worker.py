@@ -451,6 +451,41 @@ def fetch_messages(requests: Any, since_id: int) -> list[dict]:
     return payload
 
 
+def candidate_from_workspace() -> dict:
+    """The branch and commit the run left behind, or an empty dict.
+
+    Read from git rather than from the model's output. The author's prose is
+    the thing a reviewer is meant to check, so taking the SHA out of it would
+    make the review circular -- and a model that mistypes a SHA in its summary
+    would send the reviewer to a commit that does not exist, or worse, to one
+    that does and is not this.
+
+    Failures are swallowed: a workspace that is not a git repository is an
+    ordinary case for a task that changes no code, and refusing to report a
+    result over it would be worse than reporting one without a candidate.
+    """
+    def git(*args):
+        return subprocess.run(
+            ["git", *args], cwd=str(WORKSPACE), capture_output=True,
+            encoding="utf-8", errors="replace", check=False, timeout=30,
+        )
+
+    try:
+        head = git("rev-parse", "HEAD")
+        branch = git("rev-parse", "--abbrev-ref", "HEAD")
+
+        if head.returncode != 0 or branch.returncode != 0:
+            return {}
+
+        return {
+            "candidate_sha": head.stdout.strip(),
+            "branch": branch.stdout.strip(),
+        }
+    except Exception as exc:
+        log.warning("could not read the candidate from the workspace: %s", exc)
+        return {}
+
+
 def clear_inflight() -> None:
     """Forget the in-flight marker. Safe to call when there is none."""
     try:
@@ -575,6 +610,9 @@ def execute_activation(
             "exit_code": exit_code,
             "elapsed_seconds": round(elapsed, 1),
             "output_excerpt": swarm_control.redact(output)[:2000],
+            # Named fields, so a reviewer is pointed at a commit rather than
+            # left to find one in the author's prose.
+            **candidate_from_workspace(),
         },
     )
 
