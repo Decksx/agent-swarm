@@ -53,6 +53,21 @@ if "%GEMINI_API_KEY%"=="" echo [warn] GEMINI_API_KEY not set - gemini_worker wil
 if "%OPENAI_API_KEY%"=="" echo [warn] OPENAI_API_KEY not set - chatgpt_worker will log an error and exit.
 if "%HUB_SECRET%"=="" echo [warn] HUB_SECRET not set - ALL THREE workers will exit 1 at startup.
 
+REM Chat is narration only -- no message can start work, and nothing reads the
+REM narration log's contents for any decision; its one consumer counts rows for
+REM `swarm_control.py status`. At the 3-second default the three workers made
+REM 86,400 authenticated GET /messages per day to keep a log nobody reads
+REM automatically. Sixty seconds keeps the record and the live terminal useful
+REM while costing 1,440 requests per worker per day.
+REM
+REM Set here rather than changed in the workers, so the value is visible at the
+REM point the swarm is started. Applied only when POLL_SECONDS is unset, so an
+REM operator who exports a different value before running this script keeps it
+REM -- a default belongs in the launcher, but overriding a deliberate choice
+REM does not. Phase 1 should remove the chat poll from the workers altogether
+REM once the narration count can be asked for on demand.
+if "%POLL_SECONDS%"=="" set POLL_SECONDS=60
+
 REM Each worker runs in its own window via "cmd /k" so a startup failure
 REM (missing key, bad model id) stays on screen instead of the window closing
 REM before you can read it. "%~dp0" is this .bat's own folder, so the launch
