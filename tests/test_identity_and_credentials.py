@@ -197,9 +197,8 @@ def test_outbound_envelope_carries_no_token_field():
 
     The pre-Phase-0 workers attached `token` to every outbound message. The hub
     never returns a `token` on GET /messages, so it authenticated nothing
-    inbound --
-    and a secret placed in a body on a stream every client can read is how a
-    shared secret stops being one.
+    inbound -- and a secret placed in a body on a stream every client can read
+    is how a shared secret stops being one.
     """
     envelope = swarm_control.outbound_envelope("gemini", "@Admin", "hello")
     assert "token" not in envelope
