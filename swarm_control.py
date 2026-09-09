@@ -70,10 +70,11 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 
 # --- Layout -----------------------------------------------------------------
 #
@@ -302,6 +303,111 @@ def release_pause() -> None:
 
 
 # --- Narration --------------------------------------------------------------
+
+
+class AlreadyRunning(ContainmentError):
+    """Another process is already running as this identity."""
+
+
+class SingleInstance:
+    """Refuse to start a second worker for the same identity.
+
+    Four Gemini workers were found alive at once on 2026-09-09, left behind by
+    launchers whose supervisor was killed without killing the python child.
+    They did no damage -- an activation is claimed atomically, so duplicates
+    poll and find nothing -- but that is a guarantee about the controller, not
+    about the host. What duplicates do cost is real: every one of them polls,
+    every one authenticates, and on a per-token provider every one that claims
+    something spends money. They also make "exactly one model call" unmeasurable,
+    which is worse than the waste, because it is the measurement the whole
+    review rests on.
+
+    The lock is a file holding a pid. A stale one -- from a process that was
+    killed rather than shut down -- is detected by checking whether that pid is
+    still alive and taken over if it is not, because refusing to start after a
+    crash would turn one bad shutdown into an outage.
+    """
+
+    def __init__(self, identity: str, directory: Optional[Path] = None) -> None:
+        self.identity = identity
+        base = CONTROL_DIR if directory is None else Path(directory)
+        self.path = base / f"{identity}.pid"
+
+    def _holder(self) -> Optional[int]:
+        """The pid in the lock file, or None if there is no live holder."""
+        try:
+            raw = self.path.read_text(encoding="utf-8").strip()
+        except (OSError, ValueError):
+            return None
+
+        try:
+            pid = int(raw)
+        except ValueError:
+            # Unreadable content is treated as no holder rather than as a
+            # holder that cannot be checked: the alternative is a lock nothing
+            # can ever clear.
+            return None
+
+        return pid if pid_is_alive(pid) else None
+
+    def acquire(self) -> None:
+        holder = self._holder()
+
+        if holder is not None and holder != os.getpid():
+            raise AlreadyRunning(
+                f"another {self.identity!r} worker is already running as pid "
+                f"{holder}; refusing to start a second one. Stop it first, or "
+                f"remove {self.path} if you are certain it is gone."
+            )
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(str(os.getpid()), encoding="utf-8")
+
+    def release(self) -> None:
+        """Give up the lock, but only if it is still ours."""
+        if self._holder() == os.getpid():
+            try:
+                self.path.unlink()
+            except OSError:
+                pass
+
+
+def pid_is_alive(pid: int) -> bool:
+    """Whether `pid` names a running process, on Windows or POSIX.
+
+    Errs towards "alive" only when it genuinely cannot tell. Reporting a live
+    process as dead would let a second worker start beside it, which is the
+    thing this exists to prevent.
+    """
+    if pid <= 0:
+        return False
+
+    if os.name == "nt":
+        # No signal 0 on Windows. tasklist is present on every install and
+        # needs no extra dependency in a worker that must stay importable with
+        # the standard library alone.
+        try:
+            result = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                capture_output=True, encoding="utf-8", errors="replace",
+                timeout=15, check=False,
+            )
+        except Exception:
+            return True
+
+        return str(pid) in (result.stdout or "")
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # It exists and belongs to somebody else.
+        return True
+    except OSError:
+        return True
+
+    return True
 
 
 def record_narration(messages: Iterable[dict]) -> int:

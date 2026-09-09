@@ -644,6 +644,20 @@ def main() -> int:
     log.info("chat       : narration only; it cannot start work")
     log.info("pause      : %s", swarm_control.pause_reason() or "not paused")
 
+    # One worker per identity, per host. Duplicates are not dangerous -- an
+    # activation is claimed atomically, so a second worker polls and finds
+    # nothing -- but they authenticate, they poll, and on a per-token provider
+    # a duplicate that does claim something spends money. They also make
+    # "exactly one model call" unmeasurable, which is the measurement every
+    # live run rests on.
+    instance = swarm_control.SingleInstance(AGENT_IDENTITY)
+
+    try:
+        instance.acquire()
+    except swarm_control.AlreadyRunning as exc:
+        log.error("%s", exc)
+        return 5
+
     running = True
 
     def stop(signum, _frame):
@@ -742,6 +756,7 @@ def main() -> int:
 
         time.sleep(wait)
 
+    instance.release()
     log.info("stopped at message id %s", last_seen_id)
     return 0
 
