@@ -1,0 +1,14 @@
+services:
+  agent-hub:
+    image: python:3.11-slim
+    container_name: agent-hub
+    restart: unless-stopped
+    ports:
+      - "8050:8050"
+    volumes:
+      - /mnt/user/appdata/agent-swarm/data:/data
+      - /mnt/user/appdata/agent-swarm/hub.py:/app/hub.py
+    working_dir: /app
+    command: >
+      sh -c "pip install fastapi uvicorn pydantic &&
+             uvicorn hub:app --host 0.0.0.0 --port 8050"
