@@ -255,3 +255,54 @@ def test_no_credential_is_logged_at_startup(monkeypatch, control, caplog):
 
     assert secret not in caplog.text
     assert "openai_key : present" in caplog.text
+
+
+# --- Workers authenticate to the hub ----------------------------------------
+
+
+@pytest.mark.parametrize("worker,expected", WORKERS, ids=[w[1] for w in WORKERS])
+def test_every_hub_call_carries_the_credential(
+    worker, expected, monkeypatch, control, hostile_messages
+):
+    """Not just the first call -- every one.
+
+    A worker that authenticated its first poll and then dropped the credential
+    would appear to work until the hub restarted. Each recorded call is checked
+    rather than just the first, and an activation is issued so the POST path is
+    exercised alongside the GET.
+    """
+    from test_chat_cannot_activate import run_worker_loop
+
+    control.issue_activation(worker.AGENT_IDENTITY, "produce a reply")
+    _, fake_requests = run_worker_loop(
+        worker, monkeypatch, control, [hostile_messages, [], []]
+    )
+
+    assert fake_requests.auth_seen, "the worker never called the hub"
+    assert all(a == (expected, "test-hub-secret") for a in fake_requests.auth_seen), (
+        f"{worker.__name__} made an unauthenticated call: {fake_requests.auth_seen!r}"
+    )
+
+
+@pytest.mark.parametrize("worker,expected", WORKERS, ids=[w[1] for w in WORKERS])
+def test_the_basic_username_is_the_bound_identity(worker, expected, control):
+    """The name authenticated with is the name the hub will store as sender.
+
+    They are the same string by construction, so there is no way to
+    authenticate as one component and speak as another.
+    """
+    assert swarm_control.hub_auth(worker.AGENT_IDENTITY)[0] == expected
+
+
+def test_a_missing_hub_secret_stops_the_worker_starting(monkeypatch, control):
+    """Fail closed rather than poll an authenticated hub forever.
+
+    Without this the worker would start, 401 on every poll, and log an error
+    every POLL_SECONDS while doing no work -- which reads as a broken hub
+    rather than as unconfigured credentials.
+    """
+    monkeypatch.delenv("HUB_SECRET", raising=False)
+    monkeypatch.setattr(claude_worker, "configure_logging", lambda: None)
+    monkeypatch.setattr(claude_worker, "ensure_requests", lambda: object())
+
+    assert claude_worker.main() == 1

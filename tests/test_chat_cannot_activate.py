@@ -67,7 +67,16 @@ def run_worker_loop(worker, monkeypatch, control, message_batches, *, polls=3):
             deps = (fake_requests, lambda **kwargs: object())
 
         monkeypatch.setattr(worker, "ensure_dependencies", lambda: deps)
-        monkeypatch.setattr(worker.swarm_control, "load_credential", lambda *a, **k: "stub-key")
+        # Name-aware, not blanket. Stubbing every credential identically also
+        # replaced HUB_SECRET, so the hub-auth assertions saw the model API
+        # stub instead of the real hub credential and failed for the wrong
+        # reason. Only the provider keys are faked here.
+        real_load = worker.swarm_control.load_credential
+        monkeypatch.setattr(
+            worker.swarm_control,
+            "load_credential",
+            lambda name, **k: real_load(name) if name == "HUB_SECRET" else "stub-key",
+        )
 
         def record_generate(*args):
             invocations.append(args[-1])
