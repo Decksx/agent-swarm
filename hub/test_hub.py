@@ -220,6 +220,131 @@ def test_a_supplied_token_field_confers_nothing(client):
     ).status_code == 401
 
 
+# --- Cross-identity: a credential must authenticate exactly one name --------
+
+# Four components, all with distinct secrets, matching the deployed set. The
+# module-level CREDS has no chatgpt entry and other tests assert on the
+# component list it produces, so this is kept separate rather than widened.
+FOUR = (
+    "admin:admin-secret-1,"
+    "claudecode:claude-secret-2,"
+    "chatgpt:chatgpt-secret-3,"
+    "gemini:gemini-secret-4"
+)
+
+FOUR_SECRETS = {
+    "admin": "admin-secret-1",
+    "claudecode": "claude-secret-2",
+    "chatgpt": "chatgpt-secret-3",
+    "gemini": "gemini-secret-4",
+}
+
+
+@pytest.fixture
+def four_client(monkeypatch, tmp_path):
+    """A hub with the four deployed component names and distinct secrets."""
+    return TestClient(load_hub(monkeypatch, tmp_path, credentials=FOUR).app)
+
+
+def test_a_secret_cannot_borrow_another_components_name(four_client):
+    """Every credential authenticates its own name and no other.
+
+    authenticate() reads the component name from the Basic *username*, so the
+    name is chosen by the caller and the secret is the only thing binding it.
+    That makes "can a worker present a valid secret under a different valid
+    name" the question identity separation actually rests on -- an unknown name
+    with a valid secret (covered above) is a weaker case, because a
+    non-existent component has no authority to borrow.
+
+    All twelve ordered cross pairs are asserted rather than a sample, so a
+    future change that special-cases one component cannot pass this by luck.
+    """
+    checked = 0
+
+    for owner, secret in FOUR_SECRETS.items():
+        for name in FOUR_SECRETS:
+            response = four_client.get("/messages", headers=basic(name, secret))
+
+            if name == owner:
+                assert response.status_code == 200, f"{owner} rejected by its own name"
+            else:
+                assert response.status_code == 401, (
+                    f"{owner}'s secret authenticated as {name}"
+                )
+                checked += 1
+
+    assert checked == 12, "expected every ordered cross pair to be exercised"
+
+
+@pytest.mark.parametrize("name", ["gemini", "claudecode", "admin"])
+def test_the_chatgpt_secret_authenticates_as_nobody_else(four_client, name):
+    """Named explicitly because it is the case the review asked to see."""
+    assert four_client.get(
+        "/messages", headers=basic(name, FOUR_SECRETS["chatgpt"])
+    ).status_code == 401
+
+
+def test_a_worker_secret_cannot_reach_admin_authority_by_renaming(four_client):
+    """Control state is admin-only, and admin is a credential rather than a name.
+
+    A worker that could pause or resume the swarm by presenting its own secret
+    under the username "admin" would hold the operator's stop button. It is
+    refused at authentication, before require_admin is ever consulted.
+    """
+    for secret in (FOUR_SECRETS["gemini"], FOUR_SECRETS["chatgpt"], FOUR_SECRETS["claudecode"]):
+        assert four_client.post(
+            "/control/pause", headers=basic("admin", secret), json={"reason": "x"}
+        ).status_code == 401
+
+        assert four_client.post(
+            "/control/resume", headers=basic("admin", secret)
+        ).status_code == 401
+
+    # Still working for the component that really holds it, so the assertions
+    # above are about identity and not about the route being broken.
+    assert four_client.post(
+        "/control/pause",
+        headers=basic("admin", FOUR_SECRETS["admin"]),
+        json={"reason": "still works"},
+    ).status_code == 200
+
+
+def test_components_sharing_a_secret_authenticate_as_each_other(monkeypatch, tmp_path):
+    """The hazard, asserted, because it is a property of configuration.
+
+    This is a characterization test: it documents that the hub *cannot* enforce
+    identity separation on its own. Two components configured with the same
+    secret each authenticate as the other, and every individual request is
+    perfectly valid, so there is nothing for the server to detect or refuse.
+
+    Isolation therefore has to be checked against the deployed credential set
+    from outside, which is what `hub/auth_matrix.py` does. If this test ever
+    fails, the hub has grown a defence it did not have and auth_matrix.py's
+    reason for existing should be re-read rather than the test repaired.
+    """
+    shared = TestClient(
+        load_hub(
+            monkeypatch,
+            tmp_path,
+            credentials="admin:same-secret,gemini:same-secret",
+        ).app
+    )
+
+    assert shared.get("/messages", headers=basic("admin", "same-secret")).status_code == 200
+    assert shared.get("/messages", headers=basic("gemini", "same-secret")).status_code == 200
+
+    # And the impersonation is complete, not partial: the stored sender is
+    # whichever name was typed.
+    shared.post(
+        "/send",
+        headers=basic("admin", "same-secret"),
+        json={"target": "@x", "content": "posted by a gemini credential"},
+    )
+
+    messages = shared.get("/messages", headers=basic("admin", "same-secret")).json()
+    assert messages[0]["sender"] == "admin"
+
+
 # --- Control plane ----------------------------------------------------------
 
 
