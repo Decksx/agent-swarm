@@ -178,6 +178,23 @@ def redact(text: str) -> str:
     return _SECRET_RE.sub("[REDACTED-CREDENTIAL]", text)
 
 
+def hub_auth(bound_identity: str) -> tuple:
+    """The HTTP Basic pair this worker authenticates to the hub with.
+
+    The username is the worker's own bound identity, so the name the hub
+    derives the message `sender` from is the same name this process is
+    configured to be. There is no way to authenticate as one component and
+    speak as another, because they are the same string.
+
+    The secret comes from `HUB_SECRET` in the environment, with no file
+    fallback: a secret in a file next to the workers is one `git add` or one
+    backup away from being shared. Missing means the worker refuses to start
+    rather than polling an authenticated hub and logging a 401 every three
+    seconds forever.
+    """
+    return (bound_identity, load_credential("HUB_SECRET"))
+
+
 # --- Identity ---------------------------------------------------------------
 
 
