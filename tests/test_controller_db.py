@@ -213,10 +213,10 @@ def test_event_ids_are_unique(conn):
         ("T-1", 1, "y", "h", 7, "0" * 40, "baseline", 1.0, "admin"),
     )
 
-    row = ("E-1", "T-1", 1, "admin", "queued", "{}", 1.0)
+    row = ("E-1", "T-1", 1, "admin", "admin", "queued", "{}", 1.0)
     sql = (
-        "INSERT INTO events (event_id, task_id, task_version, actor, kind, "
-        "payload_json, created_at) VALUES (?,?,?,?,?,?,?)"
+        "INSERT INTO events (event_id, task_id, task_version, actor, authority, "
+        "kind, payload_json, created_at) VALUES (?,?,?,?,?,?,?,?)"
     )
     conn.execute(sql, row)
 

@@ -209,11 +209,11 @@ def apply_transition(
 
         conn.execute(
             "INSERT INTO events (event_id, task_id, task_version, activation_id, "
-            "source_event_id, actor, kind, from_state, to_state, payload_json, "
-            "created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "source_event_id, actor, authority, kind, from_state, to_state, "
+            "payload_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 event_id, task_id, task["current_version"], activation_id,
-                source_event_id, actor, kind, from_state, to_state,
+                source_event_id, actor, authority, kind, from_state, to_state,
                 payload_json, now,
             ),
         )

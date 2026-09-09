@@ -129,6 +129,13 @@ CREATE TABLE IF NOT EXISTS events (
   activation_id    TEXT REFERENCES activations(activation_id),
   source_event_id  TEXT REFERENCES events(event_id),
   actor            TEXT NOT NULL,
+  -- The role the transition was applied under, which is not always the
+  -- actor's own. A review judgment is applied with controller authority on
+  -- behalf of the verifier that holds the activation, so without this column
+  -- the log shows who judged but not what permitted the move -- and a replay
+  -- cannot tell an authorized transition from one that should have been
+  -- refused.
+  authority        TEXT NOT NULL,
   kind             TEXT NOT NULL,
   from_state       TEXT,
   to_state         TEXT,
