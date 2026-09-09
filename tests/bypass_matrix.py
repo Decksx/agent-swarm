@@ -7,9 +7,20 @@ out and confirm that specific, named tests fail.
 
 Each entry below is one guard, bypassed by an exact source substitution, with
 the tests that are expected to catch it. The script applies one bypass, runs
-the suite, restores the file, and reports whether the failures matched. Files
-are restored in a `finally`, so an interrupted run does not leave a sabotaged
-worker on disk -- and the restore is verified by hash afterwards.
+the suite, restores the file, and reports whether the failures matched. The
+restore happens in a `finally` and is verified by hash.
+
+**A `finally` is not enough, and this was learned the hard way.** On
+2026-09-09 a run was killed by an external timeout part-way through and left
+`claude_worker.py` sabotaged on disk -- `finally` does not run when the process
+is killed rather than interrupted. The next test run then failed for a reason
+that had nothing to do with the change being tested, which is a genuinely
+confusing way to lose an hour.
+
+So before applying anything, this script now writes a sidecar recording which
+file it is about to touch and that file's original contents, and removes it
+only after a verified restore. A later run finds the sidecar, restores from it,
+and says so. The sidecar is the recovery path a `finally` cannot provide.
 
 Run it directly:
 
@@ -20,6 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -35,6 +47,52 @@ class Bypass:
         self.new = new
         self.expect_failures = set(expect_failures)
         self.rationale = rationale
+
+
+# Where the in-progress record lives. Deliberately inside the repository and
+# deliberately not gitignored: a stray one should be visible in `git status`.
+SIDECAR = REPO / ".bypass_in_progress"
+
+
+def _write_sidecar(path: Path, original: str) -> None:
+    payload = json.dumps({"path": str(path.relative_to(REPO)), "original": original})
+    io.open(SIDECAR, "w", encoding="utf-8", newline="").write(payload)
+
+
+def _clear_sidecar() -> None:
+    try:
+        SIDECAR.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def recover_from_a_killed_run() -> None:
+    """Restore a file a previous run was killed before it could put back.
+
+    Called at startup. Silent when there is nothing to do, loud when there is,
+    because a sabotaged source file that quietly repaired itself would leave
+    somebody wondering what they had actually just measured.
+    """
+    if not SIDECAR.exists():
+        return
+
+    try:
+        record = json.loads(io.open(SIDECAR, encoding="utf-8", newline="").read())
+        target = REPO / record["path"]
+        original = record["original"]
+    except (ValueError, KeyError, OSError) as exc:
+        print(f"!! {SIDECAR.name} is unreadable ({exc}); restore by hand")
+        return
+
+    current = io.open(target, encoding="utf-8", newline="").read()
+
+    if current == original:
+        print(f"!! a previous run was killed but {record['path']} was already intact")
+    else:
+        io.open(target, "w", encoding="utf-8", newline="").write(original)
+        print(f"!! restored {record['path']} from a killed run before starting")
+
+    _clear_sidecar()
 
 
 BYPASSES = [
@@ -195,6 +253,115 @@ BYPASSES = [
         return 2""",
         ["test_workers_refuse_to_start_if_chat_becomes_authoritative"],
         "Re-enabling chat authority must be a visible act, not a flag flip.",
+    ),
+    # --- Worker conversion (Phase 1 MVP) -----------------------------------
+    Bypass(
+        "both_queue_sources",
+        "claude_worker.py",
+        """            if queue is not None:
+                try:
+                    activation = queue.claim()""",
+        """            if queue is not None:
+                swarm_control.claim_activation(AGENT_IDENTITY)  # BYPASS
+                try:
+                    activation = queue.claim()""",
+        ["test_the_controller_source_never_touches_the_local_directory"],
+        "Two queues means two activations held at once, and neither queue "
+        "knows about the other's -- host capacity would count one while a "
+        "second ran beside it.",
+    ),
+    Bypass(
+        "inflight_marker_resumed",
+        "claude_worker.py",
+        """    if INFLIGHT_PATH.exists():
+        try:""",
+        """    if False:  # BYPASS
+        try:""",
+        ["test_an_inflight_marker_is_not_resumed"],
+        "A worker that ignores the marker leaves a stale one on disk forever, "
+        "so the next crash is indistinguishable from the last.",
+    ),
+    Bypass(
+        "marker_written_after_the_run",
+        "claude_worker.py",
+        """    if activation_id:
+        try:
+            INFLIGHT_PATH.write_text(str(activation_id), encoding="utf-8")""",
+        """    if False and activation_id:  # BYPASS
+        try:
+            INFLIGHT_PATH.write_text(str(activation_id), encoding="utf-8")""",
+        ["test_the_marker_is_written_before_the_model_runs"],
+        "Without the marker a crash mid-run is invisible at restart, which is "
+        "the one case it exists to catch.",
+    ),
+    Bypass(
+        "auth_failure_backed_off_not_fatal",
+        "controller_client.py",
+        """        except Unauthenticated:
+            # Raised, not swallowed. The worker exits on this.
+            raise""",
+        """        except Unauthenticated as exc:  # BYPASS
+            self.backoff.fail(str(exc))
+            return None""",
+        [
+            "test_a_rejected_credential_is_raised_and_not_backed_off",
+            "test_a_server_error_backs_off_but_a_fatal_one_does_not",
+        ],
+        "Backing off a rejected credential produces a worker that is alive, "
+        "logging, and structurally incapable of ever doing work.",
+    ),
+    Bypass(
+        "claim_forbidden_not_fatal",
+        "controller_client.py",
+        """            if " 403 " in str(exc):
+                raise ClaimForbidden(str(exc)) from exc""",
+        """            if False:  # BYPASS
+                raise ClaimForbidden(str(exc)) from exc""",
+        ["test_a_forbidden_claim_is_fatal_too"],
+        "A component refused work entirely cannot poll its way out of it.",
+    ),
+    Bypass(
+        "retry_after_ignored",
+        "controller_client.py",
+        """            self.retry_after = exc.retry_after
+            return None""",
+        """            self.retry_after = 0.0  # BYPASS
+            return None""",
+        [
+            "test_a_429_is_honoured_rather_than_guessed_at",
+            "test_a_missing_retry_after_falls_back_to_a_sane_wait",
+        ],
+        "Ignoring a named interval means polling straight back into the "
+        "throttle that produced it.",
+    ),
+    # The worker's own handling of what the client raises. Separate rows from
+    # the client-side classification above, because the matrix showed they are
+    # separate guards: the tests that drive a stub queue directly are
+    # unaffected by anything controller_client does.
+    Bypass(
+        "fatal_auth_exit_code_erased",
+        "claude_worker.py",
+        """                    return 4""",
+        """                    return 0  # BYPASS""",
+        [
+            "test_the_worker_exits_with_a_distinct_code_on_a_rejected_credential",
+            "test_a_forbidden_claim_also_exits",
+        ],
+        "The exit code is the whole signal: a supervisor has to tell "
+        "'this credential is wrong' from a crash or a missing binary, "
+        "because only one of them is fixed by editing the launcher. "
+        "Bypassed by returning 0 rather than by swallowing the exception -- "
+        "swallowing it makes the worker poll forever, which is the real "
+        "failure but hangs the matrix instead of failing a named test.",
+    ),
+    Bypass(
+        "server_interval_not_awaited",
+        "claude_worker.py",
+        """            wait = max(wait, getattr(queue, "retry_after", 0.0), queue.backoff.current)""",
+        """            wait = wait  # BYPASS""",
+        ["test_a_throttle_paces_the_next_poll"],
+        "Polling at the ordinary cadence through a throttle walks straight "
+        "back into the throttle that produced it.",
     ),
     # --- Controller storage (Phase 1) --------------------------------------
     Bypass(
@@ -439,6 +606,11 @@ def failing_tests():
 
 
 def main() -> int:
+    # Before the baseline, not after: a file left sabotaged by a killed run
+    # would make the baseline fail and this script refuse to run, reporting a
+    # red suite that is entirely its own doing.
+    recover_from_a_killed_run()
+
     baseline, code = failing_tests()
 
     if baseline:
@@ -460,6 +632,11 @@ def main() -> int:
 
         digest = hashlib.sha256(original.encode()).hexdigest()
 
+        # Written before the file is touched, so a hard kill leaves a recovery
+        # path rather than a sabotaged worker. `finally` covers an exception;
+        # it does not cover the process being killed.
+        _write_sidecar(bypass.path, original)
+
         try:
             io.open(bypass.path, "w", encoding="utf-8", newline="").write(
                 original.replace(bypass.old, bypass.new)
@@ -471,6 +648,7 @@ def main() -> int:
                 io.open(bypass.path, encoding="utf-8", newline="").read().encode()
             ).hexdigest()
             assert restored == digest, "FAILED TO RESTORE %s" % bypass.path
+            _clear_sidecar()
 
         missed = bypass.expect_failures - caught
         extra = caught - bypass.expect_failures

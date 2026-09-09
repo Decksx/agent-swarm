@@ -542,7 +542,9 @@ def test_the_worker_exits_with_a_distinct_code_on_a_rejected_credential(
     monkeypatch.setattr(
         claude_worker.controller_client, "ControllerQueue", lambda *a, **k: queue
     )
-    monkeypatch.setattr(claude_worker.time, "sleep", lambda _s: None)
+    # Bounded rather than a no-op: if the fatal path ever regresses to a
+    # backoff, main() would poll forever and hang the suite instead of failing.
+    monkeypatch.setattr(claude_worker.time, "sleep", _refuse_to_spin())
 
     assert claude_worker.main() == 4
     assert queue.claims == 1, "it should have stopped after the first refusal"
@@ -563,9 +565,29 @@ def test_a_forbidden_claim_also_exits(monkeypatch, control):
     monkeypatch.setattr(
         claude_worker.controller_client, "ControllerQueue", lambda *a, **k: queue
     )
-    monkeypatch.setattr(claude_worker.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(claude_worker.time, "sleep", _refuse_to_spin())
 
     assert claude_worker.main() == 4
+
+
+def _refuse_to_spin(limit=5):
+    """A sleep that raises once the loop has clearly failed to exit.
+
+    A fatal-path test whose worker keeps polling should fail, not hang. The
+    bypass matrix found this the hard way: swallowing the exception turned a
+    named failure into a ten-minute timeout.
+    """
+    calls = {"n": 0}
+
+    def sleep(_seconds):
+        calls["n"] += 1
+        if calls["n"] > limit:
+            raise AssertionError(
+                f"worker polled {calls['n']} times after a fatal failure "
+                "instead of exiting"
+            )
+
+    return sleep
 
 
 def test_a_throttle_paces_the_next_poll(monkeypatch, control):
