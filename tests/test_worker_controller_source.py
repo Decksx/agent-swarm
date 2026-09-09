@@ -32,13 +32,20 @@ class StubQueue:
     answerable directly instead of by looking at what it did afterwards.
     """
 
-    def __init__(self, activations=()):
+    def __init__(self, activations=(), claim_raises=None):
         self.pending = list(activations)
         self.claims = 0
         self.reports = []
+        self.claim_raises = claim_raises
+        # The real queue carries both, and the worker reads them to pace its
+        # next poll. A stub without them would pass tests the worker fails.
+        self.retry_after = 0.0
+        self.backoff = controller_client.Backoff(5.0, 60.0)
 
     def claim(self):
         self.claims += 1
+        if self.claim_raises is not None:
+            raise self.claim_raises
         return self.pending.pop(0) if self.pending else None
 
     def report(self, activation_id, *, outcome, payload=None):
@@ -217,11 +224,13 @@ def test_pause_prevents_the_claim_being_made_at_all(monkeypatch, control):
 
 
 def test_an_inflight_marker_is_not_resumed(monkeypatch, control, caplog):
-    """A process that died mid-task must not re-run it.
+    """A process that died mid-task must not re-run it *itself*.
 
-    There is no way to know whether the run finished, whether it wrote
-    anything, or what its result was. Re-running spends a second model call and
-    may repeat a side effect, so the activation is left to expire and be swept.
+    Fail-safe, not exactly-once. What this protects is the controller's state:
+    no result is invented for a run nobody observed. It does not and cannot
+    protect the repository -- the model may have committed before the crash,
+    and once the lease expires a replacement activation runs the same task
+    again on top of that. See docs/PHASE1_MVP_LIMITS.md.
     """
     marker = control.CONTROL_DIR / "inflight"
     control.CONTROL_DIR.mkdir(parents=True, exist_ok=True)
@@ -344,6 +353,7 @@ class FailingRequests:
 
         class R:
             status_code = self.status
+            headers = {}
 
             @staticmethod
             def json():
@@ -376,16 +386,100 @@ def test_a_server_outage_backs_off_and_is_bounded():
     assert delays[-1] == 60.0, "backoff never reached the cap"
 
 
-def test_an_authentication_failure_goes_straight_to_the_cap():
-    """A rejected credential does not fix itself.
+def test_a_rejected_credential_is_raised_and_not_backed_off():
+    """Fatal, not slow.
 
-    Climbing to the cap over several minutes only adds log noise before
-    reaching the same place.
+    A credential cannot change inside a running process, so backing off
+    produces a worker that is alive, logging, and structurally incapable of
+    ever doing work -- which is harder to notice than an exit.
     """
     queue = queue_against(FailingRequests(status=401))
+
+    with pytest.raises(controller_client.Unauthenticated):
+        queue.claim()
+
+    assert queue.backoff.current == 0.0, "a fatal failure should not back off"
+
+
+def test_a_forbidden_claim_is_fatal_too():
+    """403 on the claim route names no activation, so it is about the worker."""
+    queue = queue_against(FailingRequests(status=403))
+
+    with pytest.raises(controller_client.ClaimForbidden):
+        queue.claim()
+
+
+def test_a_forbidden_result_is_not_fatal():
+    """403 when reporting is about one activation and clears on the next claim.
+
+    Killing the worker for it would turn a stale lease into an outage.
+    """
+    transport = FailingRequests(status=403)
+    queue = queue_against(transport)
+
+    assert queue.report("act-1", outcome="candidate") is None
+    assert transport.calls == 1
+
+
+def test_a_429_is_honoured_rather_than_guessed_at():
+    """The server named an interval; inventing another is worse either way."""
+
+    class Throttling:
+        calls = 0
+
+        def request(self, method, url, **kw):
+            Throttling.calls += 1
+
+            class R:
+                status_code = 429
+                headers = {"Retry-After": "45"}
+
+                @staticmethod
+                def json():
+                    return {}
+
+                text = ""
+
+            return R()
+
+    queue = queue_against(Throttling())
+
+    assert queue.claim() is None
+    assert queue.retry_after == 45.0
+    assert queue.backoff.current == 0.0, "a throttle is not an outage"
+
+
+def test_a_missing_retry_after_falls_back_to_a_sane_wait():
+    class Throttling:
+        def request(self, method, url, **kw):
+            class R:
+                status_code = 429
+                headers = {}
+
+                @staticmethod
+                def json():
+                    return {}
+
+                text = ""
+
+            return R()
+
+    queue = queue_against(Throttling())
     queue.claim()
 
-    assert queue.backoff.current == 60.0
+    assert queue.retry_after == 30.0
+
+
+def test_a_server_error_backs_off_but_a_fatal_one_does_not():
+    """5xx resolves on its own; 401 does not. They must not share a path."""
+    server = queue_against(FailingRequests(status=503))
+    assert server.claim() is None
+    assert server.backoff.current > 0
+
+    auth = queue_against(FailingRequests(status=401))
+    with pytest.raises(controller_client.Unauthenticated):
+        auth.claim()
+    assert auth.backoff.current == 0.0
 
 
 def test_a_recovered_controller_resets_the_backoff():
@@ -422,3 +516,92 @@ def test_a_controller_refusal_is_not_retried_forever():
     queue.report("act-1", outcome="candidate")
 
     assert transport.calls == 1
+
+
+def test_the_worker_exits_with_a_distinct_code_on_a_rejected_credential(
+    monkeypatch, control
+):
+    """Exit 4, not exit 1 and not a crash.
+
+    A supervisor has to be able to tell "this worker's credential is wrong"
+    from "the claude binary is missing" (127) and from "chat was made
+    authoritative" (2), because only one of them is fixed by editing the
+    launcher's environment.
+    """
+    queue = StubQueue(claim_raises=controller_client.Unauthenticated("401"))
+    fake_requests = FakeRequests([[], []])
+
+    monkeypatch.setattr(claude_worker, "ACTIVATION_SOURCE", "controller")
+    monkeypatch.setattr(claude_worker, "STATE_FILE", control.CONTROL_DIR / "s")
+    monkeypatch.setattr(claude_worker, "INFLIGHT_PATH", control.CONTROL_DIR / "i")
+    monkeypatch.setattr(claude_worker, "configure_logging", lambda: None)
+    monkeypatch.setattr(claude_worker, "load_last_seen_id", lambda: 0)
+    monkeypatch.setattr(claude_worker, "save_last_seen_id", lambda _id: None)
+    monkeypatch.setattr(claude_worker, "ensure_requests", lambda: fake_requests)
+    monkeypatch.setattr(claude_worker.shutil, "which", lambda _n: "/fake/claude")
+    monkeypatch.setattr(
+        claude_worker.controller_client, "ControllerQueue", lambda *a, **k: queue
+    )
+    monkeypatch.setattr(claude_worker.time, "sleep", lambda _s: None)
+
+    assert claude_worker.main() == 4
+    assert queue.claims == 1, "it should have stopped after the first refusal"
+
+
+def test_a_forbidden_claim_also_exits(monkeypatch, control):
+    queue = StubQueue(claim_raises=controller_client.ClaimForbidden("403"))
+    fake_requests = FakeRequests([[], []])
+
+    monkeypatch.setattr(claude_worker, "ACTIVATION_SOURCE", "controller")
+    monkeypatch.setattr(claude_worker, "STATE_FILE", control.CONTROL_DIR / "s")
+    monkeypatch.setattr(claude_worker, "INFLIGHT_PATH", control.CONTROL_DIR / "i")
+    monkeypatch.setattr(claude_worker, "configure_logging", lambda: None)
+    monkeypatch.setattr(claude_worker, "load_last_seen_id", lambda: 0)
+    monkeypatch.setattr(claude_worker, "save_last_seen_id", lambda _id: None)
+    monkeypatch.setattr(claude_worker, "ensure_requests", lambda: fake_requests)
+    monkeypatch.setattr(claude_worker.shutil, "which", lambda _n: "/fake/claude")
+    monkeypatch.setattr(
+        claude_worker.controller_client, "ControllerQueue", lambda *a, **k: queue
+    )
+    monkeypatch.setattr(claude_worker.time, "sleep", lambda _s: None)
+
+    assert claude_worker.main() == 4
+
+
+def test_a_throttle_paces_the_next_poll(monkeypatch, control):
+    """The worker waits what the server asked, not POLL_SECONDS."""
+    queue = StubQueue([])
+    queue.retry_after = 45.0
+    slept = []
+
+    monkeypatch.setattr(claude_worker, "POLL_SECONDS", 3.0)
+    run_loop_slept(monkeypatch, control, queue, slept)
+
+    assert max(slept) == 45.0
+
+
+def run_loop_slept(monkeypatch, control, queue, slept):
+    fake_requests = FakeRequests([[], [], []])
+
+    monkeypatch.setattr(claude_worker, "ACTIVATION_SOURCE", "controller")
+    monkeypatch.setattr(claude_worker, "STATE_FILE", control.CONTROL_DIR / "s")
+    monkeypatch.setattr(claude_worker, "INFLIGHT_PATH", control.CONTROL_DIR / "i")
+    monkeypatch.setattr(claude_worker, "configure_logging", lambda: None)
+    monkeypatch.setattr(claude_worker, "load_last_seen_id", lambda: 0)
+    monkeypatch.setattr(claude_worker, "save_last_seen_id", lambda _id: None)
+    monkeypatch.setattr(claude_worker, "ensure_requests", lambda: fake_requests)
+    monkeypatch.setattr(claude_worker.shutil, "which", lambda _n: "/fake/claude")
+    monkeypatch.setattr(claude_worker, "run_task", lambda b, t: ("x", 0))
+    monkeypatch.setattr(
+        claude_worker.controller_client, "ControllerQueue", lambda *a, **k: queue
+    )
+
+    def bounded_sleep(seconds):
+        slept.append(seconds)
+        if len(slept) >= 2:
+            raise LoopFinished
+
+    monkeypatch.setattr(claude_worker.time, "sleep", bounded_sleep)
+
+    with pytest.raises(LoopFinished):
+        claude_worker.main()

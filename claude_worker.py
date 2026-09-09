@@ -657,11 +657,24 @@ def main() -> int:
 
     # A marker left over from a previous process means this worker died with a
     # model running. It is NOT resumed: there is no way to know whether the run
-    # finished, whether it wrote anything, or what its result was, and
-    # re-running it would spend a second model call and could repeat a side
-    # effect. The activation is left alone so its lease expires and the
-    # controller's sweep recovers the task -- which is the one path that ends
-    # in a state everybody agrees on.
+    # finished, whether it wrote anything, or what its result was, so the
+    # activation is left alone, its lease expires, and the controller's sweep
+    # recovers the task.
+    #
+    # **This is fail-safe, not exactly-once, and the difference matters.** What
+    # it guarantees is that the *controller's* state stays consistent: no
+    # result is invented for a run nobody observed, and the task returns to a
+    # state the controller and the operator agree on. What it cannot guarantee
+    # is that the model did nothing before the crash. `claude -p` runs with
+    # Bash, so it may already have written files, committed, or pushed -- and
+    # once the lease expires, a replacement activation runs the same task
+    # again, on top of whatever the first attempt left behind.
+    #
+    # Exactly-once model execution is not achievable across process failure by
+    # any bookkeeping on this side. Making it safe requires recovery to inspect
+    # the expected branch and artifacts before reissuing, which is not built.
+    # Until it is, this path takes harmless tasks on unique per-task branches
+    # only. See docs/PHASE1_MVP_LIMITS.md.
     if INFLIGHT_PATH.exists():
         try:
             orphan = INFLIGHT_PATH.read_text(encoding="utf-8").strip()
@@ -670,7 +683,10 @@ def main() -> int:
 
         log.warning(
             "previous process died running activation %s. Not resuming it; its "
-            "lease will expire and the controller will recover the task.",
+            "lease will expire and the controller will recover the task. NOTE: "
+            "the model may already have changed the repository before the "
+            "crash, and a reissued activation will run the task again on top "
+            "of whatever it left. Check the task branch before relying on it.",
             orphan,
         )
         clear_inflight()
@@ -754,7 +770,26 @@ def main() -> int:
             # claim, so asking it while paused would consume one exactly as
             # renaming the directory record would.
             if queue is not None:
-                activation = queue.claim()
+                try:
+                    activation = queue.claim()
+                except (
+                    controller_client.Unauthenticated,
+                    controller_client.ClaimForbidden,
+                ) as exc:
+                    # Not retried and not backed off. Neither a rejected
+                    # credential nor a refusal to let this component take work
+                    # can change while this process runs, so polling on would
+                    # produce a worker that is alive, logging, and incapable of
+                    # ever doing anything -- which is harder to spot than an
+                    # exit. Distinct code so a supervisor can tell it from a
+                    # crash or a missing binary.
+                    log.error("fatal: %s", exc)
+                    log.error(
+                        "check this worker's HUB_SECRET matches the %r "
+                        "component secret on the hub",
+                        AGENT_IDENTITY,
+                    )
+                    return 4
             else:
                 activation = swarm_control.claim_activation(AGENT_IDENTITY)
 
@@ -762,7 +797,17 @@ def main() -> int:
                 execute_activation(requests, claude_binary, activation, queue)
 
         swarm_control.write_status(AGENT_IDENTITY)
-        time.sleep(POLL_SECONDS)
+
+        # The server's own interval wins when it named one, then a backoff
+        # while the controller is unreachable, then the ordinary cadence.
+        # Taking the maximum rather than a branch means a 429 during an outage
+        # still honours whichever asked for longer.
+        wait = POLL_SECONDS
+
+        if queue is not None:
+            wait = max(wait, getattr(queue, "retry_after", 0.0), queue.backoff.current)
+
+        time.sleep(wait)
 
     log.info("stopped at message id %s", last_seen_id)
     return 0

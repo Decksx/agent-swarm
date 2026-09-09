@@ -20,16 +20,23 @@ responses, authenticated with this worker's own credential.
 Failure handling
 ----------------
 
-Transport and server failures are reported and backed off, never retried
-tightly. A worker that polls a broken hub every three seconds turns one outage
-into a log nobody can read and a hub nobody can restart; a worker that gives up
-silently looks healthy while doing nothing. `Backoff` grows the interval to a
-cap and says so once per state change rather than once per attempt.
+Failures are sorted by what the worker can actually do about them, because
+"retry" is the wrong answer to most of them:
 
-An authentication failure is treated differently from a server failure, and
-loudly. A 401 does not resolve itself: the credential is wrong, and every
-subsequent poll will fail the same way. It backs off to the cap immediately
-instead of climbing there over several minutes of noise.
+* **401, or 403 on the claim route** -- fatal. Raised to the worker, which
+  exits with a distinct code. A credential cannot change inside a running
+  process, so every subsequent poll fails identically; backing off merely
+  produces a worker that is alive, logging, and structurally incapable of ever
+  doing work. That is harder to notice than a process that exited.
+* **429** -- wait exactly as long as the server asked. Inventing a backoff
+  against a server that already named an interval is either too eager or too
+  slow.
+* **Network errors and 5xx** -- bounded exponential backoff. These do resolve
+  on their own, and a worker polling a broken hub every three seconds turns one
+  outage into a log nobody can read.
+* **Any other 4xx** -- a decision, not a failure. Reported once and not
+  retried, because the same request produces the same decision.
+* **An empty queue** -- not a failure at all. Normal polling cadence.
 """
 
 from __future__ import annotations
@@ -46,7 +53,37 @@ class ControllerError(Exception):
 
 
 class Unauthenticated(ControllerError):
-    """The hub rejected this worker's credential."""
+    """The hub rejected this worker's credential.
+
+    Fatal by design. A credential cannot change inside a running process, so
+    every subsequent poll fails identically -- and a worker that keeps polling
+    on a rejected credential is alive, logging, and structurally incapable of
+    doing any work. That is harder to notice than a process that exited, and it
+    is the same failure the launcher's HUB_SECRET warning exists to prevent.
+    """
+
+
+class ClaimForbidden(ControllerError):
+    """The hub authenticated this worker but refused to let it ask for work.
+
+    Also fatal, and separated from a 403 on a *result* route on purpose. A 403
+    when reporting an outcome means "that activation is not yours", which is
+    about one activation and resolves on the next claim. A 403 on the claim
+    route itself means this component may not take work at all, which nothing
+    the worker does will change.
+    """
+
+
+class RateLimited(ControllerError):
+    """The hub asked this worker to wait a specific amount of time."""
+
+    def __init__(self, message: str, retry_after: float) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+class Refused(ControllerError):
+    """The controller declined for a reason that will not change on retry."""
 
 
 class Backoff:
@@ -124,6 +161,10 @@ class ControllerQueue:
         self.timeout = timeout
         self.backoff = Backoff(backoff_base, backoff_cap)
 
+        # How long the server last asked this worker to wait, if it did. Read
+        # by the worker to pace its next poll; zero means the ordinary cadence.
+        self.retry_after = 0.0
+
     # --- transport -----------------------------------------------------------
 
     def _call(self, method: str, path: str, payload: Optional[dict] = None) -> Any:
@@ -142,6 +183,24 @@ class ControllerQueue:
                 f"{method} {path}: 401 -- this worker's hub credential was rejected"
             )
 
+        if response.status_code == 429:
+            # Honour the interval the server asked for rather than guessing.
+            # A client that invents its own backoff against a server that
+            # already said how long to wait is either too eager or too slow,
+            # and both are worse than doing as it is told.
+            raw = ""
+            try:
+                raw = response.headers.get("Retry-After", "") or ""
+            except Exception:
+                raw = ""
+
+            try:
+                retry_after = float(raw)
+            except (TypeError, ValueError):
+                retry_after = 30.0
+
+            raise RateLimited(f"{method} {path}: 429", max(1.0, retry_after))
+
         if response.status_code >= 400:
             # The body is the controller's own message: "activation is DONE",
             # "lease has expired". Carried through rather than flattened,
@@ -153,7 +212,15 @@ class ControllerQueue:
             except Exception:
                 detail = (response.text or "")[:200]
 
-            raise ControllerError(f"{method} {path}: {response.status_code} {detail}")
+            message = f"{method} {path}: {response.status_code} {detail}"
+
+            # 5xx is the server having a bad time and is worth retrying; any
+            # other 4xx is a decision, and sending the same request again
+            # produces the same decision.
+            if response.status_code < 500:
+                raise Refused(message)
+
+            raise ControllerError(message)
 
         try:
             return response.json()
@@ -172,15 +239,29 @@ class ControllerQueue:
         """
         try:
             body = self._call("POST", "/controller/activations/claim")
-        except Unauthenticated as exc:
-            # Straight to the cap: a rejected credential does not fix itself,
-            # and climbing there over several minutes only adds noise.
-            self.backoff.fail(str(exc), straight_to_cap=True)
+        except Unauthenticated:
+            # Raised, not swallowed. The worker exits on this.
+            raise
+        except Refused as exc:
+            # A 403 here is not "that activation is not yours" -- there is no
+            # activation in the request. It means this component may not take
+            # work, which no amount of polling changes.
+            if " 403 " in str(exc):
+                raise ClaimForbidden(str(exc)) from exc
+
+            self.backoff.fail(str(exc))
+            return None
+        except RateLimited as exc:
+            log.warning(
+                "controller asked for %.0fs before the next claim", exc.retry_after
+            )
+            self.retry_after = exc.retry_after
             return None
         except ControllerError as exc:
             self.backoff.fail(str(exc))
             return None
 
+        self.retry_after = 0.0
         self.backoff.reset()
         activation = body.get("activation")
 
@@ -264,15 +345,22 @@ class ControllerQueue:
             except Unauthenticated as exc:
                 log.error("cannot report %s: %s", activation_id, exc)
                 return None
+            except Refused as exc:
+                # The controller decided: a lapsed lease, a conflicting result,
+                # an activation that is not this worker's. Retrying sends the
+                # same request and gets the same answer. Notably NOT fatal to
+                # the worker -- a 403 here is about one activation, and the
+                # next claim is unaffected.
+                log.error("controller refused the result for %s: %s",
+                          activation_id, exc)
+                return None
+            except RateLimited as exc:
+                log.warning("asked to wait %.0fs before reporting %s",
+                            exc.retry_after, activation_id)
+                time.sleep(exc.retry_after)
+                continue
             except ControllerError as exc:
                 message = str(exc)
-
-                # 4xx from the controller means it decided, not that the
-                # network dropped. Sending it again changes nothing.
-                if any(code in message for code in (" 403 ", " 404 ", " 409 ", " 400 ")):
-                    log.error("controller refused the result for %s: %s",
-                              activation_id, message)
-                    return None
 
                 if attempt == 5:
                     log.error("giving up reporting %s after %d attempts: %s",
