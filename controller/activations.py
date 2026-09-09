@@ -390,37 +390,27 @@ def _evidence_is_durable(conn: sqlite3.Connection, evidence_ids: list) -> Option
     return None
 
 
-def submit_result(
+def _result_preconditions(
     conn: sqlite3.Connection,
     *,
     activation_id: str,
     agent: str,
-    kind: str,
-    payload: Optional[dict] = None,
-    expected_state_seq: Optional[int] = None,
-    evidence_ids: Optional[list] = None,
-    now: Optional[float] = None,
-) -> dict:
-    """Submit one terminal result for an activation.
+    request_hash: str,
+    evidence_ids: list,
+    now: float,
+) -> tuple:
+    """The §5 checks every terminal submission shares, in §5's order.
 
-    Follows §5's ordering. The steps are numbered in the code because the order
-    is the specification: checking idempotency after validating liveness, for
-    instance, would reject a duplicate delivery of a result that was accepted
+    Returns ``(row, cached_response)``. A non-None cached response means this
+    exact submission was already accepted and must be returned as-is rather
+    than applied again.
+
+    The order is the specification, which is why it lives in one place instead
+    of being repeated by each caller: checking idempotency after validating
+    liveness would reject a duplicate delivery of a result that was accepted
     just before the lease lapsed -- the worker did everything right and would
     be told it failed.
     """
-    now = time.time() if now is None else now
-    payload = payload or {}
-    evidence_ids = evidence_ids or []
-
-    request = {
-        "activation_id": activation_id,
-        "kind": kind,
-        "payload": payload,
-        "evidence_ids": sorted(evidence_ids),
-    }
-    request_hash = _canonical_hash(request)
-
     with transaction(conn):
         row = conn.execute(
             "SELECT * FROM activations WHERE activation_id = ?", (activation_id,)
@@ -442,10 +432,7 @@ def submit_result(
         #      worker otherwise would make it retry something already done.
         if row["result_request_hash"] is not None:
             if row["result_request_hash"] == request_hash:
-                return {
-                    **json.loads(row["result_response"]),
-                    "replayed": True,
-                }
+                return row, {**json.loads(row["result_response"]), "replayed": True}
 
             raise ConflictingResult(
                 "a different result was already submitted for this activation"
@@ -479,6 +466,73 @@ def submit_result(
         if problem is not None:
             raise EvidenceNotDurable(problem)
 
+    return row, None
+
+
+def _finalize(
+    conn: sqlite3.Connection,
+    *,
+    activation_id: str,
+    outcome: dict,
+    request_hash: str,
+    response: dict,
+) -> None:
+    """Mark the activation DONE and record what answered it.
+
+    Recording the request hash is what makes the next identical delivery
+    return the cached response. The host slot is released by the status change
+    alone: `_capacity_blocked` counts only ISSUED and CLAIMED.
+    """
+    with transaction(conn):
+        conn.execute(
+            "UPDATE activations SET status = ?, result_event_id = ?, "
+            "result_request_hash = ?, result_response = ? WHERE activation_id = ?",
+            (DONE, outcome["event_id"], request_hash, json.dumps(response), activation_id),
+        )
+
+
+def submit_result(
+    conn: sqlite3.Connection,
+    *,
+    activation_id: str,
+    agent: str,
+    kind: str,
+    payload: Optional[dict] = None,
+    expected_state_seq: Optional[int] = None,
+    evidence_ids: Optional[list] = None,
+    now: Optional[float] = None,
+) -> dict:
+    """Submit one terminal result for an activation, under the worker's role.
+
+    The event is applied with the authority the activation was issued with, so
+    a worker can only cause transitions its own role is permitted to cause. A
+    judgment that needs controller authority goes through
+    `submit_review_judgment` instead.
+    """
+    now = time.time() if now is None else now
+    payload = payload or {}
+    evidence_ids = evidence_ids or []
+
+    request = {
+        "activation_id": activation_id,
+        "kind": kind,
+        "payload": payload,
+        "evidence_ids": sorted(evidence_ids),
+    }
+    request_hash = _canonical_hash(request)
+
+    row, cached = _result_preconditions(
+        conn,
+        activation_id=activation_id,
+        agent=agent,
+        request_hash=request_hash,
+        evidence_ids=evidence_ids,
+        now=now,
+    )
+
+    if cached is not None:
+        return cached
+
     # 7-8. The transition itself, in its own transaction. A rejection here --
     #      undefined transition, wrong authority, stale state_seq -- leaves the
     #      activation live and unresulted, so the worker can be told why and
@@ -504,16 +558,136 @@ def submit_result(
         "state_seq": outcome["state_seq"],
     }
 
-    # 9-10. Mark DONE and record the request hash, which is what makes the
-    #       next identical delivery return the cached response above. The host
-    #       slot is released by the status change: _capacity_blocked counts
-    #       only ISSUED and CLAIMED.
-    with transaction(conn):
-        conn.execute(
-            "UPDATE activations SET status = ?, result_event_id = ?, "
-            "result_request_hash = ?, result_response = ? WHERE activation_id = ?",
-            (DONE, outcome["event_id"], request_hash, json.dumps(response), activation_id),
+    _finalize(
+        conn,
+        activation_id=activation_id,
+        outcome=outcome,
+        request_hash=request_hash,
+        response=response,
+    )
+
+    return {**response, "replayed": False}
+
+
+# The judgments a review activation may return, and the event each produces.
+#
+# `satisfied` is the one that needs controller authority: section 8 makes
+# `review_requirements_satisfied` a controller transition precisely so a
+# verifier cannot advance a task by declaring a gate met. The other two are
+# already available to a verifier, and are routed through here as well so a
+# reviewer has one endpoint and one idempotency story rather than two.
+REVIEW_JUDGMENTS = {
+    "satisfied": "review_requirements_satisfied",
+    "changes_requested": "author_defect",
+    "decision_required": "decision_required",
+}
+
+
+class NotAReviewActivation(ActivationError):
+    """A review judgment was submitted against an activation of another stage."""
+
+
+def submit_review_judgment(
+    conn: sqlite3.Connection,
+    *,
+    activation_id: str,
+    agent: str,
+    judgment: str,
+    payload: Optional[dict] = None,
+    expected_state_seq: Optional[int] = None,
+    now: Optional[float] = None,
+) -> dict:
+    """Record the verifier's judgment, applied with controller authority.
+
+    Why this exists rather than a plain `submit_result`: section 8 gives
+    `review_requirements_satisfied` to the controller alone, and a review
+    activation carries the *verifier* role, so a reviewer submitting that event
+    through `submit_result` is refused as unauthorized. The gate is meant to be
+    the controller's to close, not the reviewer's to declare closed.
+
+    What closes it here is the reviewer's authenticated judgment, taken on the
+    strength of three things checked before the event is applied: the caller is
+    the agent the activation was issued to, the activation is live and
+    unexpired, and its stage is `review`. The controller remains the authority
+    that moves the task, and it moves it only because the agent holding that
+    specific live review activation said so.
+
+    **The deterministic completion predicates are not implemented and are not
+    consulted here.** For the MVP the reviewer's judgment is the whole gate. A
+    later version that computes the diff, verification and evidence predicates
+    should refuse `satisfied` when they do not hold; until that exists, nothing
+    in this controller checks them and no caller should assume otherwise.
+    """
+    if judgment not in REVIEW_JUDGMENTS:
+        raise ActivationError(
+            f"unknown review judgment {judgment!r}; "
+            f"expected one of {sorted(REVIEW_JUDGMENTS)}"
         )
+
+    now = time.time() if now is None else now
+    payload = payload or {}
+    kind = REVIEW_JUDGMENTS[judgment]
+
+    # The judgment is part of the idempotency key, so re-delivering the same
+    # judgment replays, while a reviewer that changes its mind afterwards is
+    # refused as a conflicting result rather than silently overwriting.
+    request = {
+        "activation_id": activation_id,
+        "kind": "review_judgment",
+        "judgment": judgment,
+        "payload": payload,
+        "evidence_ids": [],
+    }
+    request_hash = _canonical_hash(request)
+
+    row, cached = _result_preconditions(
+        conn,
+        activation_id=activation_id,
+        agent=agent,
+        request_hash=request_hash,
+        evidence_ids=[],
+        now=now,
+    )
+
+    if cached is not None:
+        return cached
+
+    # Checked after the caller and liveness checks, so an agent that does not
+    # hold this activation learns nothing about what stage it is.
+    if row["stage"] != "review":
+        raise NotAReviewActivation(
+            f"activation is a {row['stage']!r} activation, not a review"
+        )
+
+    outcome = engine.apply_transition(
+        conn,
+        task_id=row["task_id"],
+        kind=kind,
+        actor=agent,
+        authority=CONTROLLER,
+        expected_state_seq=expected_state_seq,
+        activation_id=activation_id,
+        payload={**payload, "judgment": judgment, "judged_by": agent},
+        now=now,
+    )
+
+    response = {
+        "activation_id": activation_id,
+        "event_id": outcome["event_id"],
+        "task_id": row["task_id"],
+        "judgment": judgment,
+        "from_state": outcome["from_state"],
+        "to_state": outcome["to_state"],
+        "state_seq": outcome["state_seq"],
+    }
+
+    _finalize(
+        conn,
+        activation_id=activation_id,
+        outcome=outcome,
+        request_hash=request_hash,
+        response=response,
+    )
 
     return {**response, "replayed": False}
 
