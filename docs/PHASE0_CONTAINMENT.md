@@ -71,9 +71,9 @@ The chat stream was an unauthenticated remote-execution channel.
   emergent.**
 - The brakes — per-sender cooldowns, a burst cap, a verification gate — were
   advisory, in-memory, and cleared by a restart. None was a boundary.
-- `token_ok()` compared an inbound `token` field. The hub stores only
-  sender/target/content, so that check could refuse traffic but never admit it:
-  setting `HUB_TOKEN` would have stopped the worker dead.
+- `token_ok()` compared an inbound `token` field. `GET /messages` never returns
+  one, so that check could refuse traffic but never admit it: setting
+  `HUB_TOKEN` would have stopped the worker dead.
 
 ## 3. What Phase 0 changed here
 
