@@ -297,6 +297,44 @@ def claim(
     }
 
 
+def claim_next(
+    conn: sqlite3.Connection,
+    *,
+    agent: str,
+    now: Optional[float] = None,
+) -> Optional[dict]:
+    """Claim this agent's oldest live issued activation, or None.
+
+    Selection and claim happen inside `claim()`'s own transaction rather than
+    being chosen here and claimed after. Two polls from the same restarted
+    worker can otherwise both read the same ISSUED row and both try to take it;
+    the loser gets ActivationNotLive and is treated as having found nothing,
+    which is the truth from its point of view.
+
+    Expired-but-unswept rows are skipped rather than handed out. The sweep is
+    what recovers them for the task, and returning one here would give a worker
+    a lease that was already dead.
+    """
+    now = time.time() if now is None else now
+
+    rows = conn.execute(
+        "SELECT activation_id FROM activations WHERE agent = ? AND status = ? "
+        "AND lease_expires_at > ? AND hard_deadline_at > ? "
+        "ORDER BY issued_at ASC, activation_id ASC",
+        (agent, ISSUED, now, now),
+    ).fetchall()
+
+    for row in rows:
+        try:
+            return claim(conn, activation_id=row["activation_id"], agent=agent, now=now)
+        except (ActivationNotLive, LeaseExpired, DeadlineExceeded):
+            # Taken or timed out between the select and the claim. Try the next
+            # one rather than failing the poll.
+            continue
+
+    return None
+
+
 def heartbeat(
     conn: sqlite3.Connection,
     *,
