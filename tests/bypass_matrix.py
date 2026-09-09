@@ -303,6 +303,111 @@ BYPASSES = [
     # all of them. The check was deleted rather than kept. That protection
     # lives in the table, guarded by
     # test_terminal_states_accept_nothing_except_the_one_allowed_exit.
+    # --- Activation lifecycle (Phase 1) ------------------------------------
+    Bypass(
+        "deadline_extended_by_heartbeat",
+        "controller/activations.py",
+        """            "UPDATE activations SET heartbeat_at = ?, lease_expires_at = ?, "
+            "heartbeat_seq = heartbeat_seq + 1 WHERE activation_id = ?",
+            (now, now + lease_seconds, activation_id),""",
+        """            "UPDATE activations SET heartbeat_at = ?, lease_expires_at = ?, "
+            "heartbeat_seq = heartbeat_seq + 1, hard_deadline_at = ? "
+            "WHERE activation_id = ?",
+            (now, now + lease_seconds, now + 99999, activation_id),  # BYPASS""",
+        ["test_a_heartbeat_renews_the_lease_but_never_the_deadline"],
+        "Invariant 10: a looping worker would keep itself alive forever.",
+    ),
+    Bypass(
+        "wrong_worker_accepted",
+        "controller/activations.py",
+        """        if row["agent"] != agent:
+            raise NotTheAssignedWorker(
+                f"activation is assigned to another agent, not {agent!r}"
+            )
+
+        # 2-3. Idempotency, before liveness.""",
+        """        if False:  # BYPASS
+            raise NotTheAssignedWorker("")
+
+        # 2-3. Idempotency, before liveness.""",
+        ["test_only_the_assigned_worker_may_act", "test_identity_is_checked_before_expiry"],
+        "Any worker could submit any other worker's result.",
+    ),
+    Bypass(
+        "capacity_ignored",
+        "controller/activations.py",
+        """        blocked = _capacity_blocked(conn, host)
+        if blocked is not None:""",
+        """        blocked = _capacity_blocked(conn, host)
+        if False:  # BYPASS""",
+        [
+            "test_capacity_prevents_a_second_activation",
+            "test_an_undeclared_host_is_refused_rather_than_treated_as_unlimited",
+            "test_a_draining_host_takes_no_new_activations",
+            "test_an_exclusive_holder_excludes_everything_else",
+        ],
+        "Without a cap the system retries directly into its own contention.",
+    ),
+    Bypass(
+        "result_deadline_ignored",
+        "controller/activations.py",
+        """        if now >= row["hard_deadline_at"]:
+            raise DeadlineExceeded("hard deadline has passed")
+
+        if now >= row["lease_expires_at"]:
+            raise LeaseExpired("lease has expired")
+
+        # 5. The activation must still be for the task version""",
+        """        if False:  # BYPASS
+            raise DeadlineExceeded("")
+
+        if False:
+            raise LeaseExpired("")
+
+        # 5. The activation must still be for the task version""",
+        [
+            "test_the_controller_is_authoritative_regardless_of_harness_belief",
+            "test_a_late_result_after_lease_expiry_is_refused",
+        ],
+        "The controller is authoritative regardless of harness arithmetic.",
+    ),
+    Bypass(
+        "stale_task_version_accepted",
+        "controller/activations.py",
+        """        if task["current_version"] != row["task_version"]:""",
+        """        if False:  # BYPASS""",
+        ["test_a_result_for_a_superseded_task_version_is_refused"],
+        "A refreshed contract invalidates work done under the old one.",
+    ),
+    Bypass(
+        "evidence_durability_skipped",
+        "controller/activations.py",
+        """        problem = _evidence_is_durable(conn, evidence_ids)
+        if problem is not None:""",
+        """        problem = _evidence_is_durable(conn, evidence_ids)
+        if False:  # BYPASS""",
+        [
+            "test_a_result_citing_missing_evidence_is_refused",
+            "test_a_result_citing_evidence_without_blobs_is_refused",
+            "test_a_rejected_result_leaves_the_activation_claimable_again",
+        ],
+        "A COMPLETE whose proof is a reaped temp directory is not proof.",
+    ),
+    Bypass(
+        "sweep_does_not_recover",
+        "controller/activations.py",
+        """    for item in reclaimed:
+        task = engine.get_task(conn, item["task_id"])""",
+        """    for item in []:  # BYPASS
+        task = engine.get_task(conn, item["task_id"])""",
+        [
+            "test_the_sweep_recovers_the_task_not_just_the_activation",
+            "test_a_deadline_during_work_uses_the_without_checkpoint_branch",
+            "test_an_unclaimed_activation_recovers_from_the_assigned_state",
+            "test_sweeping_frees_the_host_slot",
+        ],
+        "Reclaiming without recovering leaves a permanently stuck task.",
+    ),
 ]
 
 
