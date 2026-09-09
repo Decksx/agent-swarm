@@ -153,6 +153,11 @@ MAX_REPLY_CHARS = 60_000
 # worker: ...] keeps appearing" is a real task and still runs.
 ERROR_ENVELOPE_RE = re.compile(r"^\[[^\]\n]{0,80}\bworker\s*:", re.IGNORECASE)
 
+# Set once in main() from HUB_SECRET. Module-level rather than threaded
+# through every call because HUB_URL and the timeouts already are, and a
+# worker authenticates as exactly one component for its whole life.
+_HUB_AUTH: tuple | None = None
+
 log = logging.getLogger("claude_worker")
 
 
@@ -357,7 +362,10 @@ def post_reply(requests: Any, body: str, exit_code: int, message_id: Any) -> Non
 
     try:
         response = requests.post(
-            f"{HUB_URL}/send", json=payload, timeout=HTTP_TIMEOUT
+            f"{HUB_URL}/send",
+            json=payload,
+            timeout=HTTP_TIMEOUT,
+            auth=_HUB_AUTH,
         )
         response.raise_for_status()
     except Exception as exc:
@@ -381,7 +389,10 @@ def post_alert(requests: Any, target: str, body: str) -> None:
 
     try:
         response = requests.post(
-            f"{HUB_URL}/send", json=payload, timeout=HTTP_TIMEOUT
+            f"{HUB_URL}/send",
+            json=payload,
+            timeout=HTTP_TIMEOUT,
+            auth=_HUB_AUTH,
         )
         response.raise_for_status()
     except Exception as exc:
@@ -399,6 +410,7 @@ def fetch_messages(requests: Any, since_id: int) -> list[dict]:
             f"{HUB_URL}/messages",
             params={"since_id": since_id},
             timeout=HTTP_TIMEOUT,
+            auth=_HUB_AUTH,
         )
         response.raise_for_status()
         payload = response.json()
@@ -509,6 +521,18 @@ def main() -> int:
     configure_logging()
 
     requests = ensure_requests()
+
+    # Resolved before anything polls. A worker that started without a
+    # credential would poll an authenticated hub forever, logging a 401 every
+    # POLL_SECONDS and doing no work, which reads as a broken hub rather than
+    # as unconfigured credentials.
+    global _HUB_AUTH
+    try:
+        _HUB_AUTH = swarm_control.hub_auth(AGENT_IDENTITY)
+    except swarm_control.ContainmentError as exc:
+        log.error("%s", exc)
+        return 1
+
 
     # Containment invariant, checked at startup rather than assumed.
     #
