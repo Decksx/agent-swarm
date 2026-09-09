@@ -9,15 +9,21 @@ pre-authorized whenever a message arrived whose ``target`` named it, and the
 other two called their model APIs whenever ``target`` named them *or* the
 substring ``@chatgpt`` / ``@gemini`` appeared anywhere in a message's text.
 
-Three properties of the hub make that unsafe, and all three were measured
-against the running service rather than assumed:
+Three properties of the hub made that unsafe, and all three were measured
+against the running service on 2026-09-08 rather than assumed:
 
-* ``GET /messages`` answers ``200`` with the full backlog to a caller holding
+* ``GET /messages`` answered ``200`` with the full backlog to a caller holding
   no credential at all.
-* ``sender`` is a free-text field in the ``POST /send`` body. Nothing derives
-  it from an authenticated identity, so any writer may claim to be ``Admin``.
+* ``sender`` was a free-text field in the ``POST /send`` body. Nothing derived
+  it from an authenticated identity, so any writer could claim to be ``Admin``.
 * Workers post their own results back into the same stream, so one worker's
-  output is another worker's trigger.
+  output was another worker's trigger.
+
+The first two were closed on 2026-09-09: ``hub/hub.py`` authenticates every
+route and derives ``sender`` from the credential. They are written in the past
+tense here because they are the reason this module exists, not because they are
+still true. The third is closed on this side -- results are addressed to
+``@Admin``, and no inbound message reaches a model at all.
 
 Together those mean the chat stream is an unauthenticated remote-execution
 channel, and that an agent -- or anything else on the network -- can start a
@@ -38,19 +44,25 @@ That distinction is the whole point: a secret transmitted through the hub is
 readable by every hub client, whereas a directory on OFFICEPC is writable only
 by whoever already has an account on OFFICEPC.
 
-This is deliberately stronger than "authenticate the chat stream". Until the
-hub itself binds identity server-side (the half of Phase 0 that lives on Tower
-and is not in this repository), *no* inbound chat field can be trusted, so
-none of them are consulted for an authorization decision.
+This is deliberately stronger than "authenticate the chat stream", and it
+stays that way now that the hub does authenticate. ``hub/hub.py`` is in this
+repository and was deployed to Tower on 2026-09-09, so ``sender`` is finally
+evidence of something -- but a chat field being trustworthy is not a reason to
+let it start work, and the containment rule above is unchanged by it. What the
+authenticated hub buys is the *option* of restoring Admin-over-chat, not its
+restoration.
 
 What this costs
 ---------------
 
-Admin can no longer drive a worker by typing in the chat UI. That capability
-returns when the hub authenticates callers and derives ``sender`` from the
-credential; until then it is not recoverable, because "only obey Admin" is not
-enforceable when anybody may claim to be Admin. Admin drives workers through
-the control directory in the meantime -- see ``docs/PHASE0_CONTAINMENT.md``.
+Admin can no longer drive a worker by typing in the chat UI, and still cannot
+as of 2026-09-09. The precondition for restoring it has been met -- the hub
+authenticates callers and derives ``sender`` from the credential, so "only obey
+Admin" is now enforceable where it previously was not -- but the capability was
+deliberately not restored with it. Activation is moving to the controller
+(``SWARM_PROTOCOL_v7.md`` section 13), and re-opening a second, chat-shaped path
+to it would give back exactly the property Phase 0 removed. Admin drives workers
+through the control directory -- see ``docs/PHASE0_CONTAINMENT.md``.
 """
 
 from __future__ import annotations
