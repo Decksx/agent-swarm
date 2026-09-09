@@ -1,13 +1,184 @@
+"""Agent Swarm Hub -- the control plane.
+
+Phase 0 authentication
+----------------------
+
+Every route requires an authenticated component, and the server derives the
+message `sender` from that credential. A client-supplied `sender` is accepted
+by the schema for compatibility and then **ignored**, because it was never
+evidence of anything: before this change the browser UI hardcoded
+`sender: "Admin"` on every send, so anyone who opened the page posted as Admin,
+and any LAN client could claim any identity it liked.
+
+HTTP Basic is used deliberately. The browser prompts and caches on its own, so
+the UI needs no login page or cookie handling, and a worker authenticates with
+one `auth=` argument. The Basic *username* is the component name, which makes
+identity binding literal: the name the server trusts is the one whose secret
+just verified.
+
+Fail-closed startup
+-------------------
+
+`HUB_CREDENTIALS` is required. If it is missing or malformed the module raises
+at import and uvicorn exits, so the hub does not come back up unauthenticated.
+That direction matters: a hub that silently restarted open would look identical
+to a healthy one in the UI, and the whole point of this change is that it is no
+longer possible to reach it without a credential.
+
+Dependencies
+------------
+
+The container installs exactly `fastapi uvicorn pydantic` at start and there is
+no image build, so everything here is those three plus the standard library.
+Adding an import outside that set means the hub does not survive a restart.
+"""
+
+import base64
+import hmac
+import json
+import os
 import sqlite3
 import time
-from typing import List, Optional
-from fastapi import FastAPI
+from pathlib import Path
+from typing import Dict, List, Optional
+
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 DB_PATH = "/data/chat.db"
 
-app = FastAPI(title="Agent Swarm Hub")
+# Persisted under /data, which is the bind-mounted volume, so a pause survives
+# a container restart. A pause that forgot itself on restart would be worse
+# than none: the operator would believe the swarm was held when it was not.
+PAUSE_PATH = Path("/data/control_pause.json")
+
+
+def _load_credentials() -> Dict[str, str]:
+    """Parse HUB_CREDENTIALS into {component: secret}, or refuse to start.
+
+    Format is `name:secret,name:secret`. Read from the environment only --
+    there is deliberately no file fallback, so a credential cannot be left
+    sitting next to hub.py in appdata where a copy or a backup would spread it.
+
+    Every failure path raises. None of the messages contains a secret: this
+    text reaches the container log, and a credential in a log has to be treated
+    as exposed and rotated.
+    """
+    raw = os.environ.get("HUB_CREDENTIALS", "").strip()
+
+    if not raw:
+        raise RuntimeError(
+            "HUB_CREDENTIALS is not set. The hub refuses to start rather than "
+            "serve unauthenticated. Set it in the container environment as "
+            "'name:secret,name:secret'."
+        )
+
+    credentials: Dict[str, str] = {}
+
+    for entry in raw.split(","):
+        entry = entry.strip()
+
+        if not entry:
+            continue
+
+        name, separator, secret = entry.partition(":")
+        name = name.strip().lower()
+        secret = secret.strip()
+
+        if not separator or not name or not secret:
+            raise RuntimeError(
+                "HUB_CREDENTIALS entry is malformed; expected "
+                "'name:secret' pairs separated by commas. The offending "
+                "value is not repeated here on purpose."
+            )
+
+        credentials[name] = secret
+
+    if not credentials:
+        raise RuntimeError("HUB_CREDENTIALS parsed to no usable entries.")
+
+    return credentials
+
+
+CREDENTIALS = _load_credentials()
+
+# Components allowed to change control state. Everyone else may read status.
+ADMIN_COMPONENTS = {"admin", "operator"}
+
+# Compared against when the component name is unknown, so an unknown name and a
+# wrong secret take the same path and cost roughly the same time. Without it,
+# an unknown name returns before any comparison and the difference is
+# measurable, which turns the endpoint into an oracle for valid component names.
+_DUMMY_SECRET = "x" * 32
+
+# docs_url/redoc_url/openapi_url are disabled rather than protected. They were
+# three unauthenticated routes handing the full API surface to any LAN caller,
+# and nothing operational reads them -- removing them is a smaller change than
+# authenticating them and leaves less to get wrong.
+app = FastAPI(
+    title="Agent Swarm Hub",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
+
+_UNAUTHENTICATED = HTTPException(
+    status_code=401,
+    detail="authentication required",
+    headers={"WWW-Authenticate": 'Basic realm="Agent Swarm Hub"'},
+)
+
+
+def authenticate(request: Request) -> str:
+    """Return the authenticated component name, or raise 401.
+
+    This is the only place an identity is established. Every route depends on
+    it, and no route reads an identity from a request body.
+    """
+    header = request.headers.get("authorization", "")
+    scheme, _, encoded = header.partition(" ")
+
+    if scheme.lower() != "basic" or not encoded:
+        raise _UNAUTHENTICATED
+
+    try:
+        decoded = base64.b64decode(encoded, validate=True).decode("utf-8")
+    except Exception:
+        # Any malformed credential is one failure with one message. Saying
+        # which part was wrong would help an attacker more than an operator.
+        raise _UNAUTHENTICATED
+
+    name, separator, secret = decoded.partition(":")
+
+    if not separator:
+        raise _UNAUTHENTICATED
+
+    name = name.strip().lower()
+    expected = CREDENTIALS.get(name)
+
+    # Always compare, even when the name is unknown, and always with
+    # compare_digest rather than ==, which short-circuits on the first
+    # differing byte.
+    matched = hmac.compare_digest(
+        secret, expected if expected is not None else _DUMMY_SECRET
+    )
+
+    if expected is None or not matched:
+        raise _UNAUTHENTICATED
+
+    return name
+
+
+def require_admin(component: str = Depends(authenticate)) -> str:
+    """Authenticated *and* permitted to change control state."""
+    if component not in ADMIN_COMPONENTS:
+        raise HTTPException(
+            status_code=403,
+            detail="this component may not change control state",
+        )
+
+    return component
 
 class Message(BaseModel):
     id: int
@@ -17,7 +188,11 @@ class Message(BaseModel):
     timestamp: float
 
 class SendRequest(BaseModel):
-    sender: str
+    # `sender` and `token` are still accepted so existing clients do not start
+    # getting 422s, and both are ignored. `sender` is now derived from the
+    # credential, and `token` never authenticated anything: it was accepted on
+    # write and never returned by GET /messages, so no reader could check it.
+    sender: Optional[str] = None
     target: str
     content: str
     token: Optional[str] = None
@@ -28,7 +203,7 @@ def get_db():
     return conn
 
 @app.get("/messages", response_model=List[Message])
-def get_messages(since_id: int = 0):
+def get_messages(since_id: int = 0, component: str = Depends(authenticate)):
     with get_db() as conn:
         rows = conn.execute(
             "SELECT id, sender, target, content, timestamp FROM messages WHERE id > ? ORDER BY id ASC",
@@ -37,16 +212,78 @@ def get_messages(since_id: int = 0):
     return [dict(row) for row in rows]
 
 @app.post("/send")
-def send_message(req: SendRequest):
+def send_message(req: SendRequest, component: str = Depends(authenticate)):
     now = time.time()
     with get_db() as conn:
         cur = conn.execute(
             "INSERT INTO messages (sender, target, content, timestamp) VALUES (?, ?, ?, ?)",
-            (req.sender, req.target, req.content, now)
+            # `component`, not `req.sender`. This is the identity binding: the
+            # stored sender is the name whose secret just verified, so a client
+            # cannot post as somebody else however it fills in the body.
+            (component, req.target, req.content, now)
         )
         conn.commit()
         msg_id = cur.lastrowid
     return {"status": "ok", "id": msg_id}
+
+class PauseRequest(BaseModel):
+    reason: Optional[str] = None
+
+
+def _read_pause() -> Optional[dict]:
+    """The current pause record, or None when running.
+
+    An unreadable or corrupt pause file is reported as an engaged pause rather
+    than ignored. The asymmetry is deliberate and matches the worker-side flag:
+    a spurious pause costs a delay, a missed one lets work start that an
+    operator believed was held.
+    """
+    try:
+        if not PAUSE_PATH.exists():
+            return None
+
+        return json.loads(PAUSE_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {
+            "reason": "pause file unreadable ({0}); failing closed".format(exc),
+            "engaged_by": "unknown",
+            "engaged_at": None,
+        }
+
+
+@app.get("/control/status")
+def control_status(component: str = Depends(authenticate)):
+    """Readable by any authenticated component, changeable by none of them."""
+    pause = _read_pause()
+
+    return {
+        "paused": pause is not None,
+        "pause": pause,
+        "you": component,
+        "components": sorted(CREDENTIALS),
+        "authenticated": True,
+        "server_time": time.time(),
+    }
+
+
+@app.post("/control/pause")
+def control_pause(req: PauseRequest, component: str = Depends(require_admin)):
+    record = {
+        "reason": req.reason or "paused by operator",
+        "engaged_by": component,
+        "engaged_at": time.time(),
+    }
+    PAUSE_PATH.write_text(json.dumps(record), encoding="utf-8")
+
+    return {"status": "ok", "paused": True, "pause": record}
+
+
+@app.post("/control/resume")
+def control_resume(component: str = Depends(require_admin)):
+    PAUSE_PATH.unlink(missing_ok=True)
+
+    return {"status": "ok", "paused": False}
+
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -226,5 +463,11 @@ HTML_TEMPLATE = """
 """
 
 @app.get("/", response_class=HTMLResponse)
-def index():
+def index(component: str = Depends(authenticate)):
+    """The live terminal, behind the same credential as everything else.
+
+    The browser prompts for Basic credentials and caches them, so the page's
+    own fetch() calls to /messages and /send authenticate without any login
+    form or cookie handling here.
+    """
     return HTML_TEMPLATE
