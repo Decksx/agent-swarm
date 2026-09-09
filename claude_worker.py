@@ -73,6 +73,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import controller_client
 import swarm_control
 
 HUB_URL = os.environ.get("HUB_URL", "http://192.168.42.50:8050").rstrip("/")
@@ -95,8 +96,27 @@ REPLY_TARGET = "@Admin"
 HERE = Path(__file__).resolve().parent
 WORKSPACE = Path(os.environ.get("WORKSPACE", HERE / "workspace"))
 STATE_FILE = HERE / "claude_worker.state"
+
+# Written before a model is invoked and removed after the result is reported.
+# Its presence at startup means the process died mid-task. See main().
+INFLIGHT_PATH = HERE / "claude_worker.inflight"
 LOG_FILE = HERE / "claude_worker.log"
 HANDOFF_PATH = WORKSPACE / "HANDOFF.md"
+
+# --- Where work comes from ---------------------------------------------------
+#
+# Exactly one source, chosen at startup and named in the log. "directory" is
+# the Phase 0 local control directory; "controller" is the HTTP API on the hub.
+#
+# Never both. A worker polling two queues can hold two activations at once,
+# and neither queue would know about the other's -- the controller's host
+# capacity would be counting one while a second ran beside it. The default
+# stays "directory" so a worker started by hand behaves as it did yesterday;
+# converting one is a deliberate act in the launcher.
+ACTIVATION_SOURCE = os.environ.get("ACTIVATION_SOURCE", "directory").strip().lower()
+VALID_SOURCES = ("directory", "controller")
+
+CONTROLLER_URL = os.environ.get("CONTROLLER_URL", HUB_URL)
 
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "3"))
 HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "15"))
@@ -431,8 +451,18 @@ def fetch_messages(requests: Any, since_id: int) -> list[dict]:
     return payload
 
 
+def clear_inflight() -> None:
+    """Forget the in-flight marker. Safe to call when there is none."""
+    try:
+        INFLIGHT_PATH.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        log.warning("could not clear the in-flight marker: %s", exc)
+
+
 def execute_activation(
-    requests: Any, claude_binary: str, activation: dict
+    requests: Any, claude_binary: str, activation: dict, queue: Any = None
 ) -> None:
     """Run one operator-issued activation and post its result.
 
@@ -452,6 +482,7 @@ def execute_activation(
         # in consumed/, so a malformed activation is recorded as having been
         # seen instead of being re-read on every poll forever.
         log.error("activation %s has no runnable task; dropped", activation_id)
+        _report(queue, activation_id, "blocked", {"reason": "no runnable task"})
         return
 
     if ERROR_ENVELOPE_RE.match(task.lstrip()):
@@ -464,6 +495,8 @@ def execute_activation(
             activation_id,
             task[:200],
         )
+        _report(queue, activation_id, "blocked",
+                {"reason": "task text is a worker error envelope"})
         return
 
     rate_reason = rate_limit_reason()
@@ -484,6 +517,11 @@ def execute_activation(
             log.info(
                 "DROPPED activation %s: rate limit guard active", activation_id
             )
+
+        # Reported as blocked rather than failed: nothing about the task is
+        # wrong, this host cannot run it right now. AUTHOR_BLOCKED is the state
+        # an operator can release; CHANGES_REQUESTED would blame the task.
+        _report(queue, activation_id, "blocked", {"reason": rate_reason})
         return
 
     log.info(
@@ -500,6 +538,16 @@ def execute_activation(
             activation_id,
         )
 
+    # Written before the model is invoked, not after. The marker exists to
+    # answer "did this process die while a task was running", and a marker
+    # written after the run would answer it wrongly in exactly the case that
+    # matters.
+    if activation_id:
+        try:
+            INFLIGHT_PATH.write_text(str(activation_id), encoding="utf-8")
+        except OSError as exc:
+            log.warning("could not record the in-flight marker: %s", exc)
+
     started = time.monotonic()
     output, exit_code = run_task(claude_binary, HANDOFF_PREAMBLE + task)
     elapsed = time.monotonic() - started
@@ -515,6 +563,35 @@ def execute_activation(
     # output can contain anything the shell could print, including the
     # environment this process was started with.
     post_reply(requests, swarm_control.redact(output), exit_code, activation_id)
+
+    # The controller is told the outcome; chat is told the story. Only the
+    # first can move a task, which is why the narration above can be lossy and
+    # this cannot.
+    _report(
+        queue,
+        activation_id,
+        "candidate" if exit_code == 0 else "failed",
+        {
+            "exit_code": exit_code,
+            "elapsed_seconds": round(elapsed, 1),
+            "output_excerpt": swarm_control.redact(output)[:2000],
+        },
+    )
+
+    clear_inflight()
+
+
+def _report(queue: Any, activation_id: Any, outcome: str, payload: dict) -> None:
+    """Tell the controller how an activation ended, if there is one.
+
+    A no-op on the directory source, where the record moving into consumed/ is
+    the whole of the bookkeeping and there is nothing to report to.
+    """
+    if queue is None or not activation_id:
+        return
+
+    queue.report(activation_id, outcome=outcome, payload=payload)
+    clear_inflight()
 
 
 def main() -> int:
@@ -559,13 +636,58 @@ def main() -> int:
         log.error("no 'claude' executable on PATH; nothing could be run")
         return 127
 
+    if ACTIVATION_SOURCE not in VALID_SOURCES:
+        log.error(
+            "refusing to start: ACTIVATION_SOURCE=%r is not one of %s",
+            ACTIVATION_SOURCE,
+            ", ".join(VALID_SOURCES),
+        )
+        return 3
+
+    queue = None
+
+    if ACTIVATION_SOURCE == "controller":
+        queue = controller_client.ControllerQueue(
+            requests,
+            base_url=CONTROLLER_URL,
+            auth=_HUB_AUTH,
+            agent=AGENT_IDENTITY,
+            timeout=HTTP_TIMEOUT,
+        )
+
+    # A marker left over from a previous process means this worker died with a
+    # model running. It is NOT resumed: there is no way to know whether the run
+    # finished, whether it wrote anything, or what its result was, and
+    # re-running it would spend a second model call and could repeat a side
+    # effect. The activation is left alone so its lease expires and the
+    # controller's sweep recovers the task -- which is the one path that ends
+    # in a state everybody agrees on.
+    if INFLIGHT_PATH.exists():
+        try:
+            orphan = INFLIGHT_PATH.read_text(encoding="utf-8").strip()
+        except OSError:
+            orphan = "unreadable"
+
+        log.warning(
+            "previous process died running activation %s. Not resuming it; its "
+            "lease will expire and the controller will recover the task.",
+            orphan,
+        )
+        clear_inflight()
+
     WORKSPACE.mkdir(parents=True, exist_ok=True)
 
     log.info("hub        : %s", HUB_URL)
+    log.info("work from  : %s", ACTIVATION_SOURCE)
     log.info("claude     : %s", claude_binary)
     log.info("workspace  : %s", WORKSPACE)
     log.info("identity   : %s (bound locally, never from a message)", AGENT_IDENTITY)
-    log.info("activations: %s", swarm_control.ACTIVATIONS_DIR)
+    log.info(
+        "activations: %s",
+        f"{CONTROLLER_URL}/controller/activations/claim"
+        if ACTIVATION_SOURCE == "controller"
+        else swarm_control.ACTIVATIONS_DIR,
+    )
     log.info("chat        : narration only; it cannot start work")
     log.info("handoff    : %s", HANDOFF_PATH)
     log.info(
@@ -628,10 +750,16 @@ def main() -> int:
 
             # Checked before the claim, so a pause engaged mid-poll leaves the
             # queue intact rather than consuming the work it declined to run.
-            activation = swarm_control.claim_activation(AGENT_IDENTITY)
+            # True of both sources: the controller hands out an activation on
+            # claim, so asking it while paused would consume one exactly as
+            # renaming the directory record would.
+            if queue is not None:
+                activation = queue.claim()
+            else:
+                activation = swarm_control.claim_activation(AGENT_IDENTITY)
 
             if activation is not None:
-                execute_activation(requests, claude_binary, activation)
+                execute_activation(requests, claude_binary, activation, queue)
 
         swarm_control.write_status(AGENT_IDENTITY)
         time.sleep(POLL_SECONDS)
