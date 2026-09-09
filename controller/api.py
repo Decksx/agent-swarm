@@ -130,6 +130,12 @@ class ReviewJudgment(BaseModel):
     expected_state_seq: Optional[int] = None
 
 
+class AuthorOutcome(BaseModel):
+    outcome: str
+    payload: Dict[str, Any] = {}
+    expected_state_seq: Optional[int] = None
+
+
 class HostCapacity(BaseModel):
     host: str
     max_concurrent: int = 1
@@ -414,6 +420,35 @@ def build_router(
                 activation_id=activation_id,
                 agent=component,
                 judgment=body.judgment,
+                payload=body.payload,
+                expected_state_seq=body.expected_state_seq,
+            )
+        except Exception as exc:
+            raise _http(exc)
+
+    @router.post("/activations/{activation_id}/outcome")
+    def outcome(
+        activation_id: str,
+        body: AuthorOutcome,
+        component: str = Depends(authenticate),
+        conn: sqlite3.Connection = Depends(get_conn),
+    ):
+        """Report how an author activation ended.
+
+        The author counterpart of /review, and admin-gated for the same reason
+        it is not: the controller refuses unless the caller is the agent this
+        specific live author activation was issued to.
+
+        This is how a worker says a run failed. `candidate_submitted` is the
+        only author-authority event out of AUTHORING, so without this route a
+        worker could report success and nothing else.
+        """
+        try:
+            return activations.submit_author_outcome(
+                conn,
+                activation_id=activation_id,
+                agent=component,
+                outcome=body.outcome,
                 payload=body.payload,
                 expected_state_seq=body.expected_state_seq,
             )

@@ -615,14 +615,71 @@ def submit_result(
 # already available to a verifier, and are routed through here as well so a
 # reviewer has one endpoint and one idempotency story rather than two.
 REVIEW_JUDGMENTS = {
-    "satisfied": "review_requirements_satisfied",
-    "changes_requested": "author_defect",
-    "decision_required": "decision_required",
+    "satisfied": ("review_requirements_satisfied", CONTROLLER),
+    "changes_requested": ("author_defect", CONTROLLER),
+    "decision_required": ("decision_required", CONTROLLER),
 }
 
 
 class NotAReviewActivation(ActivationError):
     """A review judgment was submitted against an activation of another stage."""
+
+
+# What an author may report when its run is over, and the event each produces.
+#
+# Only `candidate` is an author-authority transition. A run that failed or hit
+# a broken environment moves the task through a controller transition, for the
+# same reason the review gate does: a worker must not be able to put its own
+# task into CHANGES_REQUESTED or AUTHOR_BLOCKED by asserting it. Without this
+# map a worker had exactly one reportable outcome -- success -- and no way to
+# say a task had failed at all.
+# Each outcome maps to (event, authority). `None` means "apply it under the
+# activation's own role", which is the honest answer whenever the role is
+# already permitted to cause that event: a worker reporting that it produced a
+# candidate is reporting its own work, and section 8 gives the author that
+# transition. The controller only stands in where the event is a *verdict* the
+# worker must not be able to reach -- author_defect puts a task into
+# CHANGES_REQUESTED, and environment_defect into AUTHOR_BLOCKED.
+AUTHOR_OUTCOMES = {
+    "candidate": ("candidate_submitted", None),
+    "failed": ("author_defect", CONTROLLER),
+    "blocked": ("environment_defect", CONTROLLER),
+}
+
+
+def submit_author_outcome(
+    conn: sqlite3.Connection,
+    *,
+    activation_id: str,
+    agent: str,
+    outcome: str,
+    payload: Optional[dict] = None,
+    expected_state_seq: Optional[int] = None,
+    now: Optional[float] = None,
+) -> dict:
+    """Record how an author activation ended, with controller authority.
+
+    The author counterpart of `submit_review_judgment`, and it exists for the
+    same reason: the outcomes a worker most needs to report -- this failed,
+    this environment is broken -- are controller transitions in section 8, so
+    a worker cannot emit them itself and previously could not report them at
+    all. The controller applies them on the strength of the caller holding
+    that specific live author activation.
+
+    `candidate` is applied the same way for one story rather than two, even
+    though the author role would be permitted to emit it directly.
+    """
+    return _submit_stage_outcome(
+        conn,
+        activation_id=activation_id,
+        agent=agent,
+        stage="author",
+        outcome=outcome,
+        outcome_map=AUTHOR_OUTCOMES,
+        payload=payload,
+        expected_state_seq=expected_state_seq,
+        now=now,
+    )
 
 
 def submit_review_judgment(
@@ -656,23 +713,60 @@ def submit_review_judgment(
     should refuse `satisfied` when they do not hold; until that exists, nothing
     in this controller checks them and no caller should assume otherwise.
     """
-    if judgment not in REVIEW_JUDGMENTS:
+    return _submit_stage_outcome(
+        conn,
+        activation_id=activation_id,
+        agent=agent,
+        stage="review",
+        outcome=judgment,
+        outcome_map=REVIEW_JUDGMENTS,
+        payload=payload,
+        expected_state_seq=expected_state_seq,
+        now=now,
+        outcome_key="judgment",
+    )
+
+
+def _submit_stage_outcome(
+    conn: sqlite3.Connection,
+    *,
+    activation_id: str,
+    agent: str,
+    stage: str,
+    outcome: str,
+    outcome_map: dict,
+    payload: Optional[dict] = None,
+    expected_state_seq: Optional[int] = None,
+    now: Optional[float] = None,
+    outcome_key: str = "outcome",
+) -> dict:
+    """Apply a stage's terminal outcome with controller authority.
+
+    Shared by the author and review stages because the discipline is the same
+    and a second hand-written copy of it would drift: establish that the caller
+    holds this specific live activation, then let the controller -- not the
+    caller -- emit the event. The stage is part of the authorization rather
+    than a label, so a review judgment cannot be submitted against an author
+    activation or the reverse.
+    """
+    if outcome not in outcome_map:
         raise ActivationError(
-            f"unknown review judgment {judgment!r}; "
-            f"expected one of {sorted(REVIEW_JUDGMENTS)}"
+            f"unknown {stage} {outcome_key} {outcome!r}; "
+            f"expected one of {sorted(outcome_map)}"
         )
 
     now = time.time() if now is None else now
     payload = payload or {}
-    kind = REVIEW_JUDGMENTS[judgment]
+    kind, authority = outcome_map[outcome]
 
-    # The judgment is part of the idempotency key, so re-delivering the same
-    # judgment replays, while a reviewer that changes its mind afterwards is
-    # refused as a conflicting result rather than silently overwriting.
+    # The outcome is part of the idempotency key, so redelivering the same one
+    # replays, while a worker that reports something different after the fact
+    # is refused as a conflicting result rather than silently overwriting a
+    # decision the task has already moved on from.
     request = {
         "activation_id": activation_id,
-        "kind": "review_judgment",
-        "judgment": judgment,
+        "kind": f"{stage}_outcome",
+        outcome_key: outcome,
         "payload": payload,
         "evidence_ids": [],
     }
@@ -692,37 +786,42 @@ def submit_review_judgment(
 
     # Checked after the caller and liveness checks, so an agent that does not
     # hold this activation learns nothing about what stage it is.
-    if row["stage"] != "review":
+    if row["stage"] != stage:
         raise NotAReviewActivation(
-            f"activation is a {row['stage']!r} activation, not a review"
+            f"activation is a {row['stage']!r} activation, not a {stage}"
         )
 
-    outcome = engine.apply_transition(
+    outcome_record = {outcome_key: outcome, f"{outcome_key}_by": agent}
+
+    result = engine.apply_transition(
         conn,
         task_id=row["task_id"],
         kind=kind,
         actor=agent,
-        authority=CONTROLLER,
+        # None means the activation's own role is already permitted to cause
+        # this, so borrowing controller authority would overstate what
+        # happened in the event log.
+        authority=authority if authority is not None else row["role"],
         expected_state_seq=expected_state_seq,
         activation_id=activation_id,
-        payload={**payload, "judgment": judgment, "judged_by": agent},
+        payload={**payload, **outcome_record},
         now=now,
     )
 
     response = {
         "activation_id": activation_id,
-        "event_id": outcome["event_id"],
+        "event_id": result["event_id"],
         "task_id": row["task_id"],
-        "judgment": judgment,
-        "from_state": outcome["from_state"],
-        "to_state": outcome["to_state"],
-        "state_seq": outcome["state_seq"],
+        outcome_key: outcome,
+        "from_state": result["from_state"],
+        "to_state": result["to_state"],
+        "state_seq": result["state_seq"],
     }
 
     _finalize(
         conn,
         activation_id=activation_id,
-        outcome=outcome,
+        outcome=result,
         request_hash=request_hash,
         response=response,
     )
