@@ -18,6 +18,8 @@ inferred from the protocol.
 | --- | --- |
 | `GET /messages` answers `200` with the full backlog to a caller holding no credential | requested from a shell with no `HUB_TOKEN` set |
 | `GET /control/status` does not exist | `404` |
+| The complete route inventory is five paths | the hub's own `/openapi.json` |
+| `POST /send` accepts an optional `token`; `GET /messages` never returns one | `SendRequest` and `Message` schemas |
 | The hub is a uvicorn app serving a "Swarm Live Terminal" UI | `server: uvicorn` response header; `GET /` |
 | A message carries exactly `id`, `sender`, `target`, `content`, `timestamp` | decoded a live `/messages` response |
 | `sender` is free text supplied by the client | `POST /send` body schema; nothing derives it from a credential |
@@ -25,11 +27,32 @@ inferred from the protocol.
 | No credential is committed or logged here | scanned all `*.py`, `*.bat`, `*.log`, `*.state` for `sk-`, `sk-proj-` and `AIza` shapes: zero matches |
 | The repository had no version control at all | `git rev-parse` failed; no `.git` in the directory or any parent |
 
-One thing is **not** measured and is recorded as a gap rather than guessed:
-whether the hub preserves or drops a `token` field on `POST /send`. Answering it
-requires writing a probe message to the live hub, which was not done. The design
-below does not depend on the answer — inbound tokens are not consulted either
-way.
+The hub serves its own OpenAPI schema at `/openapi.json`, unauthenticated, so
+the reachable surface is enumerable exactly rather than by guessing at paths:
+
+```text
+GET  /              Swarm Live Terminal UI
+GET  /messages      ?since_id=<int>  -> [Message]
+POST /send          SendRequest
+GET  /openapi.json  GET /docs   GET /redoc
+```
+
+**That is the complete route inventory** — five reachable paths, no security
+scheme declared, all unauthenticated. `/docs`, `/redoc` and `/openapi.json` are
+reachable endpoints in their own right and leak the API surface to anyone on the
+LAN; they need the same credential as the rest.
+
+The schema also settles a question that was previously recorded here as
+unmeasured. `SendRequest` **does** accept an optional, nullable `token`, but the
+`Message` model returned by `GET /messages` carries only `id`, `sender`,
+`target`, `content`, `timestamp`. A token can therefore be sent and is never
+handed back, which is exactly why the pre-Phase-0 inbound `token_ok()` check
+could refuse traffic but could never admit it — setting `HUB_TOKEN` would have
+stopped every worker dead.
+
+What remains unmeasured is narrower: whether the hub *validates* that token on
+write. Answering it requires a POST to the live hub, which was not done. Nothing
+here depends on the answer, because inbound tokens are not consulted either way.
 
 ## 2. What the workers did before
 
@@ -144,8 +167,9 @@ narration into it, and impersonate anyone in the UI.
 
 Enough to satisfy the remaining four requirements, in the order they matter:
 
-1. **A shared-secret dependency on every route**, including `GET /messages`,
-   `POST /send`, the UI, and any static asset. Read the expected value from an
+1. **A shared-secret dependency on every route** — all five: `GET /`,
+   `GET /messages`, `POST /send`, and the `/docs`, `/redoc`, `/openapi.json`
+   trio, which currently hand the whole API surface to any LAN caller. Read the expected value from an
    environment variable or a secrets file that is excluded from version control;
    never a literal. Reject with `401` when absent or wrong. Compare with
    `hmac.compare_digest`, not `==`.

@@ -211,8 +211,8 @@ def save_last_seen_id(message_id: int) -> None:
 # worker OR the substring "@gemini" appeared anywhere in its content, so any
 # hub client -- including another agent quoting the handle in passing -- could
 # spend this account's budget without authenticating. token_ok() compared an
-# inbound `token` field that the hub does not store, so it could refuse traffic
-# but never admit it.
+# inbound `token` field that the hub never returns on GET /messages, so it
+# could refuse traffic but never admit it.
 #
 # Both read fields off an unauthenticated stream, so neither could be repaired
 # where it stood. Whether a message may start work is now answered in one

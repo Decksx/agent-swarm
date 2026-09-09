@@ -53,8 +53,9 @@ Hub schema (confirmed, shared with claude_worker.py)
   ``sender``, ``target``, ``content`` and ``timestamp``.
 * ``POST /send`` takes ``sender``, ``target`` and ``content``.
 
-The hub stores no ``token`` field, which is why the pre-Phase-0 ``token_ok()``
-check could refuse traffic but never admit it. De-duplication is by ``id``.
+``POST /send`` accepts an optional ``token``, but ``GET /messages`` never
+returns one, which is why the pre-Phase-0 ``token_ok()`` check could refuse
+traffic but never admit it. De-duplication is by ``id``.
 """
 
 from __future__ import annotations
@@ -207,8 +208,8 @@ def save_last_seen_id(message_id: int) -> None:
 # worker OR the substring "@chatgpt" appeared anywhere in its content, which
 # meant any hub client -- including another agent quoting a handle in passing
 # -- could spend this account's budget. token_ok() compared an inbound `token`
-# field that the hub does not store, so it could refuse traffic but never
-# admit it.
+# field that the hub never returns on GET /messages, so it could refuse
+# traffic but never admit it.
 #
 # Both read fields off an unauthenticated stream, so neither could be repaired
 # where it stood. Whether a message may start work is now answered in one

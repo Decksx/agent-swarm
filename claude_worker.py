@@ -50,8 +50,12 @@ Confirmed against the running hub:
   ``id``, ``sender``, ``target``, ``content`` and ``timestamp``.
 * ``POST /send`` takes ``sender``, ``target`` and ``content``.
 
-Note what is absent: the hub stores no ``token`` field, so the pre-Phase-0
-inbound ``token_ok()`` check could refuse traffic but could never admit it.
+The hub's own OpenAPI schema (it serves ``/openapi.json`` unauthenticated)
+shows ``POST /send`` *accepts* an optional ``token``, but the ``Message`` model
+returned by ``GET /messages`` has no such field. So a token can be sent and is
+never handed back, which is why the pre-Phase-0 inbound ``token_ok()`` check
+could refuse traffic but could never admit it. Whether the hub validates that
+token on write is still unmeasured; nothing here depends on the answer.
 De-duplication of narration is by ``id``.
 """
 
@@ -231,8 +235,8 @@ def save_last_seen_id(message_id: int) -> None:
 # is_for_us() decided activation from the inbound `target` field; token_ok()
 # compared an inbound `token` field against a shared secret. Neither could be
 # repaired in place. Both read fields off an unauthenticated stream, and the
-# hub stores only sender/target/content, so an inbound message never carries a
-# `token` at all -- that check could refuse traffic but could never admit it.
+# hub never returns a `token` on GET /messages, so an inbound message never
+# carries one -- that check could refuse traffic but could never admit it.
 # Tightening a test on a field that cannot be trusted only moves the hole.
 #
 # Whether a message may start work is now answered in one place, for all three
