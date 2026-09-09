@@ -296,3 +296,41 @@ def test_an_unreadable_pause_file_fails_closed(client, hub):
 
     assert status["paused"] is True
     assert "failing closed" in status["pause"]["reason"]
+
+
+# --- The UI template --------------------------------------------------------
+
+
+def test_the_ui_escapes_sender_and_target(client):
+    """Regression guard for a stored XSS in the live terminal.
+
+    `content` was escaped from the start; `sender` and `target` were
+    interpolated raw into innerHTML. Since anyone on the LAN could choose the
+    sender, a message from `<img src=x onerror=...>` executed script in the
+    browser of whoever was watching.
+
+    Asserted against the served template rather than a rendered page, because
+    there is no browser here. The negative assertions are the load-bearing
+    half: it is easy to add an escaped copy and leave the raw one in place.
+    """
+    page = client.get("/", headers=basic("admin", "admin-secret")).text
+
+    assert "escapeHtml(String(msg.sender))" in page
+    assert "escapeHtml(String(msg.target))" in page
+
+    assert "${msg.sender}" not in page
+    assert "${msg.target}" not in page
+
+
+def test_the_ui_class_name_is_built_from_an_allowlist(client):
+    """A class attribute is not text, so it is stripped rather than escaped."""
+    page = client.get("/", headers=basic("admin", "admin-secret")).text
+
+    assert "replace(/[^A-Za-z0-9_-]/g, '')" in page
+
+
+def test_the_ui_no_longer_claims_to_be_admin(client):
+    """The page used to hardcode sender: 'Admin' on every send."""
+    page = client.get("/", headers=basic("admin", "admin-secret")).text
+
+    assert "sender: 'Admin'" not in page
