@@ -363,6 +363,15 @@ message is gone (`test_outbound_envelope_carries_no_token_field`).
 
 ## 8. The open Phase 0 item: credential rotation
 
+[RESOLVED 2026-09-09, in part. The operator rotated the OpenAI and Gemini
+keys the same day and the rotation is recorded in
+`docs/PHASE0_CLOSEOUT.md` section 1. The second half of the requirement --
+inspecting the exposure history -- is still open: it lives in the hub's
+database on Tower, and `hub/scan_hub_db.py` is delivered but has not been
+run. The finding below is kept as written, because what it establishes is
+that no record existed on 2026-09-09 before that rotation, and that is
+still true of the day it describes.]
+
 Protocol section 19 lists four Phase 0 requirements. Three are done and
 evidenced above: authenticate every endpoint and bind identity server-side;
 make workers ignore chat for activation; add a visible global pause and verify
