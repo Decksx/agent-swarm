@@ -27,6 +27,11 @@ from fastapi.testclient import TestClient
 
 HUB_PATH = Path(__file__).resolve().parent / "hub.py"
 
+# hub.py imports the controller package, which lives one directory up. In the
+# container the application directory is the working directory and this is
+# implicit; here it has to be arranged.
+sys.path.insert(0, str(HUB_PATH.parent.parent))
+
 CREDS = "admin:admin-secret,claudecode:claude-secret,gemini:gemini-secret"
 
 
@@ -41,6 +46,11 @@ def load_hub(monkeypatch, tmp_path, credentials=CREDS):
         monkeypatch.delenv("HUB_CREDENTIALS", raising=False)
     else:
         monkeypatch.setenv("HUB_CREDENTIALS", credentials)
+
+    # hub.py creates the controller schema at import, so it needs a writable
+    # path before the module is loaded rather than after. Without this it would
+    # reach for /data/controller.db, which does not exist off the container.
+    monkeypatch.setenv("CONTROLLER_DB", str(tmp_path / "controller.db"))
 
     db = tmp_path / "chat.db"
     conn = sqlite3.connect(db)
