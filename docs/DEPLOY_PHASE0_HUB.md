@@ -138,20 +138,42 @@ contain the value.
 
 ## 5. Point the workers at it
 
-On OFFICEPC, in the shell that launches the workers — each worker uses its own
-component secret, and its identity is its own name:
+On OFFICEPC, in the shell that launches the workers — set one variable per
+component, not one shared `HUB_SECRET`:
 
 ```powershell
-$env:HUB_SECRET = "<the claudecode secret>"   # for claude_worker
+$env:HUB_SECRET_CLAUDECODE = "<the claudecode secret>"
+$env:HUB_SECRET_CHATGPT    = "<the chatgpt secret>"
+$env:HUB_SECRET_GEMINI     = "<the gemini secret>"
 ```
 
-Because the Basic username is the worker's bound identity, each worker needs
-the secret matching its own name. The simplest arrangement is one shell per
-worker, which `start_workers.bat` already gives you (each opens its own window),
-or `setx` per component if you prefer them persisted.
+`start_workers.bat` gives each worker `HUB_SECRET` from its own variable and
+clears all three in the child, so a worker process holds exactly one credential
+and cannot read its peers'. A component whose variable is missing is not
+launched at all, and the launcher says which one and why.
 
 A worker started without `HUB_SECRET` exits 1 immediately rather than polling
 and 401-ing forever.
+
+> **Corrected 2026-09-09.** This section previously showed a single
+> `$env:HUB_SECRET` and said "the simplest arrangement is one shell per worker,
+> which `start_workers.bat` already gives you (each opens its own window)".
+> That was wrong twice over, and it is recorded rather than quietly replaced
+> because it is the kind of mistake that reads as correct.
+>
+> Each worker does get its own *window*, but `start` hands every child the
+> launching shell's environment, so all three inherited the same `HUB_SECRET`.
+> With the four deployed components holding distinct secrets, that meant at most
+> one worker could authenticate and the other two would 401 on every poll —
+> silently, because `fetch_messages` logs a warning and returns an empty list.
+>
+> It was also a security boundary, not just an operational one. The hub takes
+> the component name from the Basic username and verifies only the secret, so
+> any worker holding a secret shared with another component can authenticate as
+> that component by typing its name. Had the workers been made to work by giving
+> all four components one shared secret, every worker would have held Admin's
+> stop button. `hub/auth_matrix.py` is the check that this has not happened;
+> see `docs/PHASE0_CLOSEOUT.md` section 4.
 
 ## 6. Rollback
 
