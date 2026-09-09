@@ -63,6 +63,8 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+import controller_client
+import review_packet
 import swarm_control
 
 HUB_URL = os.environ.get("HUB_URL", "http://192.168.42.50:8050").rstrip("/")
@@ -84,6 +86,19 @@ GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
 HERE = Path(__file__).resolve().parent
 STATE_FILE = HERE / "gemini_worker.state"
 LOG_FILE = HERE / "gemini_worker.log"
+
+# --- Where work comes from ---------------------------------------------------
+#
+# One source, chosen at startup and named in the log. See claude_worker for the
+# reasoning; it is the same reasoning, and the same refusal to poll both.
+ACTIVATION_SOURCE = os.environ.get("ACTIVATION_SOURCE", "directory").strip().lower()
+VALID_SOURCES = ("directory", "controller")
+
+CONTROLLER_URL = os.environ.get("CONTROLLER_URL", HUB_URL)
+
+# The repository a review activation is judged against. The controller stores
+# state, not source, so it names a branch and this worker finds it here.
+REVIEW_REPO = os.environ.get("REVIEW_REPO", "")
 
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "3"))
 HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "15"))
@@ -380,6 +395,93 @@ def post_reply(requests: Any, target: str, body: str, message_id: Any) -> None:
 # with it; see tests/ for the assertions that replace it.
 
 
+def execute_review(
+    client: Any, types: Any, activation: dict, queue: Any
+) -> None:
+    """Judge one candidate and submit the verdict. Exactly one model call.
+
+    The evidence comes from the repository, not from the author. A reviewer
+    handed only a SHA and the author's summary is not reviewing, it is
+    agreeing -- the author's account of its own work is the thing under
+    review.
+
+    Every failure path here ends in a submitted judgment rather than a return.
+    A review activation that is claimed and then silently dropped leaves the
+    task in REVIEWING until its lease lapses, which looks identical to a
+    crashed reviewer and wastes the whole lease before anyone finds out.
+    """
+    activation_id = activation.get("activation_id")
+    branch = activation.get("expected_branch")
+
+    if not REVIEW_REPO:
+        log.error("REVIEW_REPO is not set; cannot review %s", activation_id)
+        queue.judge(activation_id, judgment="blocked",
+                    payload={"reason": "REVIEW_REPO is not configured on this host"})
+        return
+
+    if not branch:
+        log.error("activation %s names no branch to review", activation_id)
+        queue.judge(activation_id, judgment="blocked",
+                    payload={"reason": "the activation carried no expected_branch"})
+        return
+
+    try:
+        packet = review_packet.build(
+            REVIEW_REPO,
+            task=activation.get("task_record") or {},
+            branch=branch,
+            base=activation.get("expected_parent") or None,
+            author_summary=activation.get("author_summary", ""),
+        )
+    except review_packet.PacketError as exc:
+        # Blocked, not changes_requested: the packet could not be assembled, so
+        # nothing has been learned about the change itself.
+        log.error("could not build a review packet for %s: %s", activation_id, exc)
+        queue.judge(activation_id, judgment="blocked",
+                    payload={"reason": f"review packet: {exc}"})
+        return
+
+    log.info(
+        "REVIEWING activation %s: %s %s..%s, %d file(s)",
+        activation_id,
+        branch,
+        packet["base_sha"][:12],
+        packet["candidate_sha"][:12],
+        len(packet["changed_files"]),
+    )
+
+    prompt = review_packet.render(packet)
+    started = time.monotonic()
+
+    # The single model call. Shaped like a hub message so the existing
+    # transcript builder is reused unchanged, but sourced from the packet.
+    reply = generate_reply(
+        client, types,
+        [{"sender": "controller", "target": "@" + AGENT_IDENTITY, "content": prompt}],
+    )
+    elapsed = time.monotonic() - started
+
+    judgment, rationale = review_packet.parse_verdict(reply or "")
+
+    log.info(
+        "VERDICT for %s: %s in %.1fs -- %s",
+        activation_id, judgment, elapsed, rationale[:200],
+    )
+
+    queue.judge(
+        activation_id,
+        judgment=judgment,
+        payload={
+            "rationale": rationale,
+            "base_sha": packet["base_sha"],
+            "candidate_sha": packet["candidate_sha"],
+            "changed_files": packet["changed_files"],
+            "diff_truncated": packet["diff_truncated"],
+            "elapsed_seconds": round(elapsed, 1),
+        },
+    )
+
+
 def execute_activation(
     requests: Any, client: Any, types: Any, activation: dict
 ) -> None:
@@ -485,7 +587,27 @@ def main() -> int:
     # The key is passed to the client and never logged or posted.
     client = genai.Client(api_key=api_key)
 
+    if ACTIVATION_SOURCE not in VALID_SOURCES:
+        log.error(
+            "refusing to start: ACTIVATION_SOURCE=%r is not one of %s",
+            ACTIVATION_SOURCE, ", ".join(VALID_SOURCES),
+        )
+        return 3
+
+    queue = None
+
+    if ACTIVATION_SOURCE == "controller":
+        queue = controller_client.ControllerQueue(
+            requests,
+            base_url=CONTROLLER_URL,
+            auth=_HUB_AUTH,
+            agent=AGENT_IDENTITY,
+            timeout=HTTP_TIMEOUT,
+        )
+
     log.info("hub        : %s", HUB_URL)
+    log.info("work from  : %s", ACTIVATION_SOURCE)
+    log.info("review repo: %s", REVIEW_REPO or "(unset -- reviews will block)")
     log.info("model      : %s", GEMINI_MODEL)
     log.info("gemini_key : present")
     log.info("identity   : %s (bound locally, never from a message)", AGENT_IDENTITY)
@@ -549,13 +671,50 @@ def main() -> int:
 
             # Checked before the claim, so a pause engaged mid-poll leaves the
             # queue intact rather than consuming what it declined to run.
-            activation = swarm_control.claim_activation(AGENT_IDENTITY)
+            if queue is not None:
+                try:
+                    activation = queue.claim()
+                except (
+                    controller_client.Unauthenticated,
+                    controller_client.ClaimForbidden,
+                ) as exc:
+                    log.error("fatal: %s", exc)
+                    return 4
+            else:
+                activation = swarm_control.claim_activation(AGENT_IDENTITY)
 
             if activation is not None:
-                execute_activation(requests, client, types, activation)
+                stage = activation.get("stage")
+
+                # Review and planning are different jobs with different
+                # evidence and different authorities, and this worker will do
+                # exactly the one the activation says. An unrecognised stage is
+                # refused rather than guessed at: a planning prompt answered as
+                # a review would produce a verdict about nothing.
+                if queue is not None and stage == "review":
+                    execute_review(client, types, activation, queue)
+                elif queue is not None:
+                    log.error(
+                        "activation %s has stage %r, which this worker does not "
+                        "handle; reporting it blocked rather than guessing",
+                        activation.get("activation_id"), stage,
+                    )
+                    queue.judge(
+                        activation.get("activation_id"),
+                        judgment="blocked",
+                        payload={"reason": f"unsupported stage {stage!r}"},
+                    )
+                else:
+                    execute_activation(requests, client, types, activation)
 
         swarm_control.write_status(AGENT_IDENTITY)
-        time.sleep(POLL_SECONDS)
+
+        wait = POLL_SECONDS
+
+        if queue is not None:
+            wait = max(wait, getattr(queue, "retry_after", 0.0), queue.backoff.current)
+
+        time.sleep(wait)
 
     log.info("stopped at message id %s", last_seen_id)
     return 0
