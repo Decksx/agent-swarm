@@ -90,6 +90,15 @@ for line in io.open('/mnt/user/appdata/agent-swarm/hub.env', encoding='utf-8'):
     fi
 
     cd "$REPO"
+
+    # Deployment parity, before anything is claimed. A worker started against
+    # a stale controller produces evidence about a build nobody has, and that
+    # evidence looks valid -- which is worse than not running.
+    if ! python preflight.py --url "http://192.168.42.50:8050" --agent "$COMPONENT"; then
+      echo "not starting $IDENT: preflight failed"
+      exit 1
+    fi
+
     # No exec: the child stays a child so its pid is recordable and killable.
     python "$SCRIPT" >> "$SCRATCH/${IDENT}.launcher.out" 2>&1 &
     # Deliberately not recording $! -- see the note at the top. The worker

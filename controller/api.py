@@ -40,12 +40,13 @@ see the deployment notes on never adding `--workers N`.
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 
-from . import activations, engine, states
+from . import activations, build, engine, states
 from .db import initialize, open_controller_db
 
 # Controller errors mapped onto the status code that describes them, so a
@@ -184,10 +185,14 @@ def build_router(
             )
         }
 
+        # Computed from the files actually loaded, not from a constant. A
+        # constant would survive a forgotten deploy alongside the stale code
+        # it describes, which is the failure this exists to catch.
         return {
             "you": component,
             # The version lives in PRAGMA user_version, not a table.
             "schema_version": conn.execute("PRAGMA user_version").fetchone()[0],
+            **build.describe(Path(__file__).resolve().parent.parent),
             "tasks": tasks,
             "activations": counts,
         }
