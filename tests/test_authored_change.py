@@ -17,6 +17,10 @@ import pytest
 
 import authored_change
 
+# The explicit whole-repository scope. Named at every call site that uses it,
+# so a test granting repository-wide access says so in its own text.
+ANYWHERE = authored_change.Scope.everywhere()
+
 
 def git(repo, *args):
     return subprocess.run(
@@ -132,21 +136,21 @@ def test_a_path_that_would_escape_is_refused(repo, bad):
     has no legitimate reason to.
     """
     with pytest.raises(authored_change.UnsafePath):
-        authored_change.safe_relative_path(repo, bad)
+        authored_change.safe_relative_path(repo, bad, ANYWHERE)
 
 
 @pytest.mark.parametrize("good", [
     "a.txt", "notes/a.txt", "a/b/c/d.txt", "notes\\windows_style.txt",
 ])
 def test_an_ordinary_relative_path_is_allowed(repo, good):
-    resolved = authored_change.safe_relative_path(repo, good)
+    resolved = authored_change.safe_relative_path(repo, good, ANYWHERE)
 
     assert resolved.is_relative_to(repo.resolve())
 
 
 def test_the_repository_root_itself_is_refused(repo):
     with pytest.raises(authored_change.UnsafePath):
-        authored_change.safe_relative_path(repo, ".")
+        authored_change.safe_relative_path(repo, ".", ANYWHERE)
 
 
 # --- Applying ---------------------------------------------------------------
@@ -155,7 +159,7 @@ def test_the_repository_root_itself_is_refused(repo):
 def test_a_change_lands_on_a_new_branch_with_a_full_sha(repo):
     result = authored_change.apply_and_commit(
         repo, branch="task/T-1",
-        files=[("notes/hello.txt", "hi\n")], message="T-1: add a note",
+        files=[("notes/hello.txt", "hi\n")], message="T-1: add a note", scope=ANYWHERE,
     )
 
     assert result["branch"] == "task/T-1"
@@ -169,7 +173,7 @@ def test_main_is_left_alone(repo):
     before = git(repo, "rev-parse", "main")
 
     authored_change.apply_and_commit(
-        repo, branch="task/T-1", files=[("a.txt", "x\n")], message="m",
+        repo, branch="task/T-1", files=[("a.txt", "x\n")], message="m", scope=ANYWHERE,
     )
 
     assert git(repo, "rev-parse", "main") == before
@@ -182,12 +186,12 @@ def test_an_existing_branch_is_refused(repo):
     remove, so allowing it here would reintroduce it one layer down.
     """
     authored_change.apply_and_commit(
-        repo, branch="task/T-1", files=[("a.txt", "x\n")], message="m",
+        repo, branch="task/T-1", files=[("a.txt", "x\n")], message="m", scope=ANYWHERE,
     )
 
     with pytest.raises(authored_change.AuthoringError, match="already exists"):
         authored_change.apply_and_commit(
-            repo, branch="task/T-1", files=[("b.txt", "y\n")], message="m",
+            repo, branch="task/T-1", files=[("b.txt", "y\n")], message="m", scope=ANYWHERE,
         )
 
 
@@ -196,7 +200,7 @@ def test_an_unsafe_path_stops_the_whole_change(repo):
     with pytest.raises(authored_change.UnsafePath):
         authored_change.apply_and_commit(
             repo, branch="task/T-2",
-            files=[("ok.txt", "x\n"), ("../escape.txt", "y\n")], message="m",
+            files=[("ok.txt", "x\n"), ("../escape.txt", "y\n")], message="m", scope=ANYWHERE,
         )
 
     assert not (repo / "ok.txt").exists()
@@ -207,7 +211,7 @@ def test_writing_identical_content_is_an_error_not_an_empty_commit(repo):
     with pytest.raises(authored_change.AuthoringError, match="nothing to commit"):
         authored_change.apply_and_commit(
             repo, branch="task/T-3",
-            files=[("README.md", "seed\n")], message="m",
+            files=[("README.md", "seed\n")], message="m", scope=ANYWHERE,
         )
 
 
@@ -217,7 +221,7 @@ def test_a_non_repository_is_refused(tmp_path):
 
     with pytest.raises(authored_change.AuthoringError, match="not a git repository"):
         authored_change.apply_and_commit(
-            plain, branch="task/T-4", files=[("a.txt", "x\n")], message="m",
+            plain, branch="task/T-4", files=[("a.txt", "x\n")], message="m", scope=ANYWHERE,
         )
 
 
@@ -240,13 +244,14 @@ def test_the_prompt_carries_the_objective_and_the_contract():
 
 
 ALLOWED = ["notes", "docs/changelog.md"]
+SCOPE = authored_change.Scope.restricted_to(ALLOWED)
 
 
 @pytest.mark.parametrize("path", [
     "notes/a.txt", "notes/deep/b.txt", "notes", "docs/changelog.md",
 ])
 def test_a_path_inside_the_contract_is_allowed(repo, path):
-    assert authored_change.safe_relative_path(repo, path, ALLOWED)
+    assert authored_change.safe_relative_path(repo, path, SCOPE)
 
 
 @pytest.mark.parametrize("path", [
@@ -260,7 +265,7 @@ def test_a_path_outside_the_contract_is_refused(repo, path):
     repository.
     """
     with pytest.raises(authored_change.UnsafePath, match="outside the paths"):
-        authored_change.safe_relative_path(repo, path, ALLOWED)
+        authored_change.safe_relative_path(repo, path, SCOPE)
 
 
 def test_a_sibling_with_a_shared_prefix_is_not_allowed(repo):
@@ -270,13 +275,29 @@ def test_a_sibling_with_a_shared_prefix_is_not_allowed(repo):
     exactly this case.
     """
     with pytest.raises(authored_change.UnsafePath):
-        authored_change.safe_relative_path(repo, "notes-secret/x.txt", ALLOWED)
+        authored_change.safe_relative_path(repo, "notes-secret/x.txt", SCOPE)
 
 
-def test_no_contract_restriction_means_containment_only(repo):
-    """An empty list is "unrestricted", not "nothing permitted"."""
-    assert authored_change.safe_relative_path(repo, "anything.txt", [])
-    assert authored_change.safe_relative_path(repo, "anything.txt", None)
+def test_a_missing_scope_authorises_nothing(repo):
+    """Silence is not permission.
+
+    This is the correction. It previously read a missing scope as
+    unrestricted, so every path that failed to produce one -- an unparseable
+    contract, a forgotten argument, a parser gap -- ended with a model holding
+    write access to the whole repository. The quietest failure produced the
+    widest authority.
+    """
+    with pytest.raises(authored_change.ContractError):
+        authored_change.safe_relative_path(repo, "anything.txt", None)
+
+    with pytest.raises(authored_change.ContractError):
+        authored_change.Scope.restricted_to([])
+
+
+def test_the_whole_repository_requires_the_explicit_marker(repo):
+    """It stays reachable -- deliberately, and only deliberately."""
+    assert authored_change.safe_relative_path(repo, "anything.txt", ANYWHERE)
+    assert ANYWHERE.unrestricted is True
 
 
 def test_apply_refuses_a_file_outside_the_contract(repo):
@@ -284,7 +305,7 @@ def test_apply_refuses_a_file_outside_the_contract(repo):
         authored_change.apply_and_commit(
             repo, branch="task/T-9",
             files=[("notes/ok.txt", "x\n"), ("build.sh", "rm -rf /\n")],
-            message="m", allowed_paths=ALLOWED,
+            message="m", scope=SCOPE,
         )
 
     assert git(repo, "status", "--porcelain") == ""
@@ -304,7 +325,7 @@ def test_a_dirty_worktree_is_refused_before_anything_is_written(repo):
 
     with pytest.raises(authored_change.AuthoringError, match="not clean"):
         authored_change.apply_and_commit(
-            repo, branch="task/T-8", files=[("a.txt", "x\n")], message="m",
+            repo, branch="task/T-8", files=[("a.txt", "x\n")], message="m", scope=ANYWHERE,
         )
 
 
@@ -319,7 +340,7 @@ def test_a_failure_partway_through_leaves_no_branch_and_no_dirt(repo):
     with pytest.raises(authored_change.AuthoringError, match="nothing to commit"):
         authored_change.apply_and_commit(
             repo, branch="task/T-7",
-            files=[("README.md", "seed\n")], message="m",
+            files=[("README.md", "seed\n")], message="m", scope=ANYWHERE,
         )
 
     assert authored_change.worktree_is_clean(repo)
@@ -336,11 +357,11 @@ def test_a_failed_attempt_can_be_retried_on_the_same_branch(repo):
     with pytest.raises(authored_change.AuthoringError):
         authored_change.apply_and_commit(
             repo, branch="task/T-6",
-            files=[("README.md", "seed\n")], message="m",
+            files=[("README.md", "seed\n")], message="m", scope=ANYWHERE,
         )
 
     result = authored_change.apply_and_commit(
-        repo, branch="task/T-6", files=[("fixed.txt", "better\n")], message="m",
+        repo, branch="task/T-6", files=[("fixed.txt", "better\n")], message="m", scope=ANYWHERE,
     )
 
     assert len(result["candidate_sha"]) == 40

@@ -185,14 +185,27 @@ def build_router(
             )
         }
 
-        # Computed from the files actually loaded, not from a constant. A
-        # constant would survive a forgotten deploy alongside the stale code
-        # it describes, which is the failure this exists to catch.
+        # Two builds, not one, and the difference between them is the point.
+        #
+        # `loaded` is what this process started with; `disk` is what is on the
+        # host now. A constant would survive a forgotten deploy alongside the
+        # stale code it describes, which is the failure this exists to catch --
+        # but a single disk-read digest has its own version of that failure: a
+        # deploy that copies files without restarting reports the new build
+        # while the old code answers the request. Reporting both lets the
+        # preflight tell "never deployed" from "deployed, not restarted",
+        # which are different mistakes with different fixes.
+        loaded = build.loaded()
+        disk = build.describe(build.DEPLOYMENT_ROOT)
+
         return {
             "you": component,
             # The version lives in PRAGMA user_version, not a table.
             "schema_version": conn.execute("PRAGMA user_version").fetchone()[0],
-            **build.describe(Path(__file__).resolve().parent.parent),
+            "loaded_build_id": loaded["build_id"],
+            "disk_build_id": disk["build_id"],
+            "loaded_files": loaded["files"],
+            "disk_files": disk["files"],
             "tasks": tasks,
             "activations": counts,
         }

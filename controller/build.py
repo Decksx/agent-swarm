@@ -83,10 +83,50 @@ def build_id(files: Dict[str, str]) -> str:
 
 
 def describe(root: Path) -> dict:
-    """The manifest and its id, as the status route reports them."""
+    """The manifest and its id, computed from the files on disk right now."""
     files = manifest(root)
 
     return {"build_id": build_id(files), "files": files}
+
+
+# The directory this module was loaded from: `/app` in the container, holding
+# hub.py beside the controller package.
+DEPLOYMENT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def capture(root: Path) -> dict:
+    """Describe `root` for keeping, not for answering a question later."""
+    return describe(root)
+
+
+# Taken once, as the process starts. Everything below is why it is not simply
+# read again when somebody asks.
+#
+# `describe()` answers "what is on this host now". That is not the question a
+# preflight is asking, which is "what is this process running". The two differ
+# for as long as it takes to restart, and a deploy that copies files without
+# restarting uvicorn leaves them differing indefinitely: the request-time
+# digest reports the new build while the old code in memory serves the
+# request. The preflight would pass, against stale running code -- the same
+# incident this whole mechanism exists to prevent, moved one layer down and
+# made harder to see, because now the evidence actively says the deployment is
+# current.
+#
+# Import time is the closest available proxy for "the bytes the interpreter
+# loaded". It is not exact: a file changed between this line and the import of
+# the module it names would be captured in its new form, and Python may have
+# loaded a cached .pyc. Neither survives a restart, which is what the check
+# tells you to do.
+_LOADED = capture(DEPLOYMENT_ROOT)
+
+
+def loaded() -> dict:
+    """The build as it stood when this process started.
+
+    A copy each time: a caller that mutated this would silently rewrite the
+    process's account of itself, and nothing downstream would be able to tell.
+    """
+    return {"build_id": _LOADED["build_id"], "files": dict(_LOADED["files"])}
 
 
 def from_repository(repo_root: Path) -> dict:

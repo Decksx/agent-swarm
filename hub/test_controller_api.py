@@ -405,3 +405,33 @@ def test_a_candidate_is_recorded_under_the_authors_own_authority(client, authori
 
     assert submitted["actor"] == "claudecode"
     assert submitted["authority"] == "author"
+
+
+# --- What the controller says it is running ----------------------------------
+
+
+def test_status_reports_both_the_running_and_the_on_disk_build(client):
+    """One id cannot answer the question a preflight is asking.
+
+    A digest read at request time says what is on the host; it does not say
+    what this process loaded. A deploy that copies files without restarting
+    makes those differ, and reporting only the disk would tell the preflight
+    everything was current while the old code answered the request.
+    """
+    body = as_(client, "claudecode", "get", "/controller/status").json()
+
+    assert body["loaded_build_id"]
+    assert body["disk_build_id"]
+    assert body["loaded_files"]
+    assert "controller/api.py" in body["disk_files"]
+
+
+def test_status_no_longer_reports_one_ambiguous_build_id(client):
+    """`build_id` meant "the files on the host", and read as "what is running".
+
+    Leaving the old key in place would let a preflight keep reading the
+    ambiguous value and believe it had checked something.
+    """
+    body = as_(client, "claudecode", "get", "/controller/status").json()
+
+    assert "build_id" not in body

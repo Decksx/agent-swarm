@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+import preflight
 from controller import build
 
 
@@ -158,3 +159,109 @@ def test_a_deployment_with_no_build_id_at_all_does_not_match(tree):
     result = build.compare(build.describe(tree), {"build_id": None, "files": {}})
 
     assert result["match"] is False
+
+
+# --- Running is not the same as deployed ------------------------------------
+
+
+def test_a_capture_does_not_follow_later_edits(tree):
+    """The startup capture must be a photograph, not a live view.
+
+    This is the whole point of holding one: a request-time digest answers
+    "what is on the host", and the question a preflight asks is "what is this
+    process running". They differ for as long as it takes to restart.
+    """
+    captured = build.capture(tree)
+    (tree / "controller" / "engine.py").write_text("x = 2\n", encoding="utf-8")
+
+    assert captured["build_id"] != build.describe(tree)["build_id"]
+
+
+def test_the_loaded_build_cannot_be_mutated_by_a_caller():
+    """Nothing may rewrite the process's account of itself."""
+    first = build.loaded()
+    first["files"]["controller/engine.py"] = "tampered"
+
+    assert build.loaded()["files"] != first["files"]
+
+
+def test_the_module_captured_something_at_import():
+    assert build.loaded()["build_id"]
+    assert "controller/build.py" in build.loaded()["files"]
+
+
+# --- The three-way diagnosis ------------------------------------------------
+
+
+def _build(**files):
+    return {"build_id": build.build_id(files), "files": files}
+
+
+CHECKOUT = _build(**{"hub.py": "aaa", "controller/engine.py": "bbb"})
+
+
+def test_all_three_agreeing_is_the_only_pass():
+    result = preflight.diagnose(CHECKOUT, CHECKOUT, CHECKOUT)
+
+    assert result["ok"] is True
+    assert result["verdict"] == "current"
+
+
+def test_deployed_but_not_restarted_is_its_own_verdict():
+    """The dangerous one: the host's files are right, the process is not.
+
+    A check that read only the disk would pass here while the old code kept
+    serving every request -- the original incident, wearing the evidence that
+    it had been fixed.
+    """
+    started_with = _build(**{"hub.py": "aaa", "controller/engine.py": "OLD"})
+    result = preflight.diagnose(CHECKOUT, started_with, CHECKOUT)
+
+    assert result["ok"] is False
+    assert result["verdict"] == "not_restarted"
+    assert any("controller/engine.py" in line for line in result["lines"])
+    assert any("restart" in line.lower() for line in result["lines"])
+
+
+def test_never_deployed_is_reported_as_never_deployed():
+    stale = _build(**{"hub.py": "aaa", "controller/engine.py": "OLD"})
+    result = preflight.diagnose(CHECKOUT, stale, stale)
+
+    assert result["verdict"] == "not_deployed"
+    assert any("controller/engine.py" in line for line in result["lines"])
+
+
+def test_files_changed_under_a_running_process_is_its_own_verdict():
+    """Running the right code; the host no longer holds it.
+
+    Three builds give five outcomes, not four, and this is the one that looks
+    most like success: the process is genuinely running this checkout, so a
+    check comparing only against what it loaded would pass -- while the files
+    it would reload on any restart are somebody else's.
+    """
+    on_disk = _build(**{"hub.py": "aaa", "controller/engine.py": "EDITED"})
+    result = preflight.diagnose(CHECKOUT, CHECKOUT, on_disk)
+
+    assert result["ok"] is False
+    assert result["verdict"] == "changed_since_startup"
+    assert any("controller/engine.py" in line for line in result["lines"])
+
+
+def test_three_different_builds_are_reported_as_three():
+    """A half-finished deploy over an already-stale host."""
+    started_with = _build(**{"hub.py": "aaa", "controller/engine.py": "OLD"})
+    on_disk = _build(**{"hub.py": "PARTIAL", "controller/engine.py": "bbb"})
+    result = preflight.diagnose(CHECKOUT, started_with, on_disk)
+
+    assert result["verdict"] == "inconsistent"
+    assert result["ok"] is False
+
+
+def test_a_hub_that_reports_no_build_at_all_is_named_as_such():
+    """A controller predating this check reports neither id."""
+    result = preflight.diagnose(
+        CHECKOUT, {"build_id": None, "files": {}}, {"build_id": None, "files": {}}
+    )
+
+    assert result["ok"] is False
+    assert result["verdict"] == "predates_this_check"

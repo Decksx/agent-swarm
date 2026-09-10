@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Tuple
 
@@ -43,6 +44,10 @@ class AuthoringError(Exception):
 
 class UnsafePath(AuthoringError):
     """A path from the model would write outside the repository."""
+
+
+class ContractError(AuthoringError):
+    """The contract does not say what this task may touch, or says it unreadably."""
 
 
 # The output contract. Chosen for being unambiguous to parse rather than
@@ -91,6 +96,7 @@ def render_author_prompt(task: dict) -> str:
     ] if task.get("allowed_paths") else []))
 
 
+
 def matches_allowed(relative: str, allowed: List[str]) -> bool:
     """Whether `relative` falls under one of the contract's allowed paths.
 
@@ -115,19 +121,151 @@ def matches_allowed(relative: str, allowed: List[str]) -> bool:
     return False
 
 
-def safe_relative_path(
-    repo: Path, raw: str, allowed: Optional[List[str]] = None
-) -> Path:
-    """Resolve `raw` inside `repo` and within `allowed`, or refuse.
+# The one value that authorises writing anywhere in the repository. A word,
+# not a glob: `**` or an empty list are things a contract arrives at by
+# accident -- a truncated file, a key someone forgot to fill in, a model
+# emitting plausible YAML -- and this must only ever be arrived at on purpose.
+UNRESTRICTED = "UNRESTRICTED"
+
+
+@dataclass(frozen=True)
+class Scope:
+    """What a task may write to. Either a list of paths, or the whole tree."""
+
+    unrestricted: bool
+    paths: tuple = ()
+
+    @classmethod
+    def restricted_to(cls, paths) -> "Scope":
+        entries = tuple(
+            str(p).strip() for p in paths if str(p).strip()
+        )
+
+        if not entries:
+            raise ContractError("a restricted scope with no paths authorises nothing")
+
+        return cls(False, entries)
+
+    @classmethod
+    def everywhere(cls) -> "Scope":
+        """The whole repository. Only ever from the explicit marker."""
+        return cls(True, ())
+
+
+def parse_scope(contract: str, declared=None) -> Scope:
+    """The scope a task is authorised to write in, or refuse to author it.
+
+    **Silence is not permission.** This used to return an empty list for a
+    contract it could not read, and an empty list meant unrestricted -- so a
+    truncated contract, a misspelt key, or a format this parser had never seen
+    all ended with a model holding write access to the entire repository. The
+    quietest possible failure produced the widest possible authority, which is
+    exactly backwards: the less a contract is understood, the less it should be
+    allowed to do.
+
+    So an unreadable, absent or empty `allowed_paths` raises, and the only way
+    to write repository-wide is the literal `allowed_paths: UNRESTRICTED`.
+
+    Still a hand-parse rather than a YAML dependency: hub.py installs fastapi,
+    uvicorn and pydantic at every container start and nothing else. The change
+    here is not the parser, it is what happens when the parser fails.
+
+    When planning mode lands, a contract will be written by a model rather than
+    by the operator, and the marker must not be reachable that way -- a planner
+    granting its own author the whole repository is the same hole with a
+    different author. That belongs in the controller's plan validation, which
+    is where a planner's output stops being prose.
+    """
+    if declared is not None and not isinstance(declared, str):
+        entries = [str(p).strip() for p in declared if str(p).strip()]
+
+        if entries == [UNRESTRICTED]:
+            return Scope.everywhere()
+
+        if entries:
+            return Scope.restricted_to(entries)
+
+    if isinstance(declared, str) and declared.strip() == UNRESTRICTED:
+        return Scope.everywhere()
+
+    text = contract or ""
+    paths: List[str] = []
+    seen_key = False
+    collecting = False
+
+    for line in text.splitlines():
+        stripped = line.strip()
+
+        if stripped.startswith("allowed_paths:"):
+            seen_key = True
+            collecting = True
+            inline = stripped.partition(":")[2].strip()
+
+            if inline == UNRESTRICTED:
+                return Scope.everywhere()
+
+            if inline.startswith("[") and inline.endswith("]"):
+                entries = [
+                    part.strip().strip("'\"")
+                    for part in inline[1:-1].split(",") if part.strip()
+                ]
+
+                if entries == [UNRESTRICTED]:
+                    return Scope.everywhere()
+
+                if not entries:
+                    raise ContractError(
+                        "the contract's allowed_paths is an empty list, which "
+                        "authorises nothing; say UNRESTRICTED if that is what "
+                        "was meant"
+                    )
+
+                return Scope.restricted_to(entries)
+
+            if inline:
+                # A scalar that is neither the marker nor a list. Refusing
+                # beats guessing: the guess would be a permission.
+                raise ContractError(
+                    f"the contract's allowed_paths is {inline!r}, which this "
+                    "parser does not understand"
+                )
+
+            continue
+
+        if collecting:
+            if stripped.startswith("- "):
+                paths.append(stripped[2:].strip().strip("'\""))
+            elif stripped and not stripped.startswith("#"):
+                break
+
+    if not seen_key:
+        raise ContractError(
+            "the contract does not declare allowed_paths; refusing to author "
+            "a change with no statement of what it may touch"
+        )
+
+    if not paths:
+        raise ContractError(
+            "the contract declares allowed_paths but lists none; refusing to "
+            "read that as permission to write anywhere"
+        )
+
+    return Scope.restricted_to(paths)
+
+
+def safe_relative_path(repo: Path, raw: str, scope: "Scope") -> Path:
+    """Resolve `raw` inside `repo` and within `scope`, or refuse.
 
     Two separate checks, and both are needed. Staying inside the repository
-    stops a path from reaching the filesystem at large; `allowed` is the
+    stops a path from reaching the filesystem at large; the scope is the
     contract's own statement of what this task was authorised to touch. A task
     asked to add a note has no business editing the build script, and "inside
     the repository" does not distinguish those.
 
-    `allowed` empty or None means the contract named no restriction, and only
-    the containment check applies.
+    `scope` is required and has no default. The previous signature defaulted to
+    None and read it as "unrestricted", so every call that forgot to pass a
+    scope silently authorised the whole repository -- a default that grants
+    everything is not a default, it is a hole with a docstring.
 
     Containment is checked by resolving and comparing, not by scanning the
     string for '..'. String checks miss symlinks, miss Windows drive-relative
@@ -161,13 +299,19 @@ def safe_relative_path(
     if target == root:
         raise UnsafePath("path is the repository root")
 
-    if allowed:
+    if not isinstance(scope, Scope):
+        raise ContractError(
+            "no scope was supplied; authoring requires an explicit statement "
+            "of what this task may touch"
+        )
+
+    if not scope.unrestricted:
         relative = target.relative_to(root).as_posix()
 
-        if not matches_allowed(relative, allowed):
+        if not matches_allowed(relative, scope.paths):
             raise UnsafePath(
                 f"{relative!r} is outside the paths this task may touch "
-                f"({', '.join(sorted(allowed))})"
+                f"({', '.join(sorted(scope.paths))})"
             )
 
     return target
@@ -278,9 +422,14 @@ def apply_and_commit(
     files: List[Tuple[str, str]],
     message: str,
     base: str = "HEAD",
-    allowed_paths: Optional[List[str]] = None,
+    scope: Scope,
 ) -> dict:
     """Create `branch` off `base`, write `files`, commit, return branch and sha.
+
+    `scope` is keyword-only and has no default, so a caller cannot reach this
+    without having decided what the task may touch. The decision is not one
+    anything downstream can make: by the time a path is being resolved, the
+    only honest answer to "was this authorised?" is the one the contract gave.
 
     The branch must not already exist. Reusing one would let a retried
     activation build on a previous attempt's work and report the combination as
@@ -312,7 +461,7 @@ def apply_and_commit(
     # Every path validated before any file is written. A partial application
     # would leave the working tree dirty with no commit and no branch.
     targets = [
-        (safe_relative_path(root, path, allowed_paths), content)
+        (safe_relative_path(root, path, scope), content)
         for path, content in files
     ]
 

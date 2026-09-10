@@ -386,45 +386,6 @@ def post_reply(requests: Any, target: str, body: str, message_id: Any) -> None:
 # a constant at the one call site rather than a function of untrusted input.
 
 
-def _allowed_paths_from_contract(contract: str) -> list:
-    """Pull `allowed_paths` out of a free-form contract, or return [].
-
-    Deliberately a small hand-parse rather than a YAML dependency: hub.py
-    installs fastapi, uvicorn and pydantic at every container start and nothing
-    else, and the contract linter that would justify a real parser is deferred.
-    It reads a `allowed_paths:` key followed by `- entry` lines.
-
-    Returning [] for anything it does not understand means unrestricted, which
-    matches how the rest of the contract is treated -- stored, hashed, and not
-    interpreted. A stricter reading would refuse tasks for a field nothing
-    validates yet.
-    """
-    paths = []
-    collecting = False
-
-    for line in (contract or "").splitlines():
-        stripped = line.strip()
-
-        if stripped.startswith("allowed_paths:"):
-            collecting = True
-            inline = stripped.partition(":")[2].strip()
-
-            if inline.startswith("[") and inline.endswith("]"):
-                return [
-                    part.strip().strip("'\"")
-                    for part in inline[1:-1].split(",") if part.strip()
-                ]
-            continue
-
-        if collecting:
-            if stripped.startswith("- "):
-                paths.append(stripped[2:].strip().strip("'\""))
-            elif stripped and not stripped.startswith("#"):
-                break
-
-    return paths
-
-
 def execute_author(client: Any, activation: dict, queue: Any) -> None:
     """Author one change. Exactly one model call, then a deterministic commit.
 
@@ -447,12 +408,29 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
                      payload={"reason": "AUTHOR_REPO is not configured on this host"})
         return
 
-    # The contract's allowed paths, if it named any. Parsed leniently: the
-    # linter is deferred, so contract_yaml is free-form and a task that names
-    # none is unrestricted rather than forbidden from writing anything.
-    allowed = task_record.get("allowed_paths") or _allowed_paths_from_contract(
-        task_record.get("contract_yaml", "")
-    )
+    # What the contract authorises this task to write. Refused here, before
+    # the model is called, if it does not say: a contract nobody can read is
+    # not a contract, and the previous reading of it -- unparseable means
+    # unrestricted -- turned every parser gap into repository-wide write
+    # access. AUTHOR_BLOCKED rather than failed, because the fix is a human
+    # editing the contract, not a retry.
+    try:
+        scope = authored_change.parse_scope(
+            task_record.get("contract_yaml", ""),
+            declared=task_record.get("allowed_paths"),
+        )
+    except authored_change.ContractError as exc:
+        log.error("activation %s has no usable scope: %s", activation_id, exc)
+        queue.report(activation_id, outcome="blocked", payload={
+            "reason": f"the contract does not authorise any paths: {exc}",
+        })
+        return
+
+    if scope.unrestricted:
+        log.warning(
+            "activation %s authorises the ENTIRE repository at %s",
+            activation_id, AUTHOR_REPO,
+        )
 
     # Refused before the model is called, not after. A dirty worktree means the
     # commit would carry somebody else's uncommitted edits and attribute them
@@ -467,7 +445,7 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         return
 
     prompt = authored_change.render_author_prompt(
-        {**task_record, "task_id": task_id, "allowed_paths": allowed}
+        {**task_record, "task_id": task_id, "allowed_paths": list(scope.paths)}
     )
 
     log.info("AUTHORING activation %s for task %s", activation_id, task_id)
@@ -505,7 +483,7 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
             branch=f"task/{task_id}",
             files=files,
             message=f"{task_id}: {task_record.get('title', 'authored change')}",
-            allowed_paths=allowed,
+            scope=scope,
         )
     except authored_change.AuthoringError as exc:
         # apply_and_commit rolls back on failure, but whether it succeeded is
