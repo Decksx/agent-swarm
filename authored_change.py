@@ -89,7 +89,113 @@ def _rejection_section(task: dict) -> List[str]:
     ]
 
 
-def render_author_prompt(task: dict) -> str:
+DEFAULT_FILE_VIEW = 12_000
+DEFAULT_VIEW_BUDGET = 48_000
+
+
+def existing_in_scope(
+    repo: str,
+    sha: str,
+    scope: Scope,
+    *,
+    per_file: int = DEFAULT_FILE_VIEW,
+    total: int = DEFAULT_VIEW_BUDGET,
+) -> List[dict]:
+    """The current contents of the files this task may change, at `sha`.
+
+    An author with no shell cannot read the repository. Asked to edit an
+    existing file, it has to invent the parts it was not shown -- and the
+    output format demands the *complete* contents of every file it writes, so
+    inventing is not a corner it can cut, it is the only thing available to it.
+
+    A live run made the consequence unmistakable: asked to reword one sentence
+    in README.md while preserving everything else, the author produced a
+    plausible README for a different project, complete with a hackathon in
+    2020 and an MIT licence, and dropped every line it had been told to keep.
+    The reviewer caught it, which is the system working; the author was set up
+    to fail, which is this function.
+
+    Only files inside the scope, because those are the only ones it may write.
+    An unrestricted scope returns nothing rather than the whole repository: a
+    task authorised everywhere is not a task whose relevant files can be
+    guessed at, and filling a context window with an entire tree would crowd
+    out the objective.
+    """
+    if scope.unrestricted:
+        return []
+
+    listing = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", sha],
+        cwd=str(repo), capture_output=True, encoding="utf-8",
+        errors="replace", check=False,
+    )
+
+    if listing.returncode != 0:
+        return []
+
+    files = []
+    spent = 0
+
+    for path in sorted(
+        line.strip() for line in (listing.stdout or "").splitlines() if line.strip()
+    ):
+        if not matches_allowed(path, list(scope.paths)):
+            continue
+
+        shown = subprocess.run(
+            ["git", "show", f"{sha}:{path}"],
+            cwd=str(repo), capture_output=True, encoding="utf-8",
+            errors="replace", check=False,
+        )
+
+        if shown.returncode != 0:
+            continue
+
+        text = shown.stdout or ""
+        raw = text.encode("utf-8")
+        room = min(per_file, max(0, total - spent))
+        truncated = len(raw) > room
+
+        if truncated:
+            text = raw[:room].decode("utf-8", "ignore")
+
+        spent += len(text.encode("utf-8"))
+        files.append({"path": path, "text": text, "truncated": truncated})
+
+    return files
+
+
+def _existing_section(existing: List[dict]) -> List[str]:
+    """The in-scope files as they stand, or a statement that there are none."""
+    if not existing:
+        return []
+
+    parts = [
+        "",
+        "-" * 60,
+        "THE FILES YOU MAY CHANGE, AS THEY ARE NOW",
+        "",
+        "This is their current content at the commit you are working from. To "
+        "modify one, return its COMPLETE new content -- the parts you are not "
+        "changing included, byte for byte as they appear here.",
+    ]
+
+    for entry in existing:
+        parts += ["", f"--- {entry['path']}", entry["text"].rstrip("\n")]
+
+        if entry["truncated"]:
+            parts += [
+                "",
+                f"[{entry['path']} IS TRUNCATED. You have not been shown all "
+                "of it, so you cannot reproduce it. Do not rewrite this file: "
+                "answer CANNOT_AUTHOR and say the file is too large to be "
+                "shown in full.]",
+            ]
+
+    return parts
+
+
+def render_author_prompt(task: dict, existing: Optional[List[dict]] = None) -> str:
     """The prompt an API author is given."""
     return "\n".join([
         "You are producing one change to a repository. You cannot run "
@@ -123,7 +229,9 @@ def render_author_prompt(task: dict) -> str:
         "You may only write to these paths. Anything else is refused and your "
         "whole answer is discarded:",
         *(f"  {entry}" for entry in task.get("allowed_paths") or []),
-    ] if task.get("allowed_paths") else []) + _rejection_section(task))
+    ] if task.get("allowed_paths") else [])
+        + _existing_section(existing or [])
+        + _rejection_section(task))
 
 
 

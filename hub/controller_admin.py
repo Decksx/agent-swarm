@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import os
 import base64
 import json
 import sys
@@ -38,6 +39,19 @@ ADMIN = "admin"
 
 
 def read_secret(path: str, component: str) -> str:
+    """The component's credential, from the environment or the host's env file.
+
+    `HUB_SECRET` first, because this now runs from an operator's machine as
+    well as on the host: the env file lives on Tower and is not readable from
+    anywhere else. The variable is the same one every worker uses, so a
+    credential is passed the same way everywhere and never written to a second
+    file on a second machine.
+    """
+    from_env = os.environ.get("HUB_SECRET", "").strip()
+
+    if from_env:
+        return from_env
+
     with open(path, "r", encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()

@@ -356,3 +356,65 @@ def test_a_first_attempt_is_not_told_about_a_rejection_that_did_not_happen(
     )
 
     assert "REJECTED IN REVIEW" not in counted_reply["prompt"]
+
+
+# --- An author cannot edit what it has not been shown ------------------------
+
+
+def test_the_prompt_carries_the_current_contents_of_in_scope_files(
+    author_repo, counted_reply
+):
+    """The correction a live run forced.
+
+    Asked to reword one sentence in README.md and preserve the rest, an author
+    that had never seen the file produced a plausible README for a different
+    project -- a hackathon in 2020, an MIT licence -- and dropped every line it
+    was told to keep. The output format demands the complete file, so with
+    nothing to copy from, inventing was the only move available to it.
+    """
+    counted_reply["answer"] = ANSWER
+    chatgpt_worker.execute_author(
+        object(), activation(CONTRACT, base=base_of(author_repo)), Queue()
+    )
+
+    assert "AS THEY ARE NOW" in counted_reply["prompt"]
+    # notes/existing.txt is in scope and committed; its baseline content, not
+    # the edited copy sitting in the checkout.
+    assert "notes/existing.txt" in counted_reply["prompt"]
+    assert "old" in counted_reply["prompt"]
+    assert "edited" not in counted_reply["prompt"]
+
+
+def test_files_outside_the_scope_are_not_shown(author_repo, counted_reply):
+    """The prompt is not a place to leak the rest of the repository."""
+    counted_reply["answer"] = ANSWER
+    chatgpt_worker.execute_author(
+        object(), activation(CONTRACT, base=base_of(author_repo)), Queue()
+    )
+
+    assert "build.sh" not in counted_reply["prompt"]
+
+
+def test_an_unrestricted_scope_is_not_shown_the_whole_tree(author_repo):
+    """A task authorised everywhere has no relevant files to guess at."""
+    scope = authored_change.Scope.everywhere()
+
+    assert authored_change.existing_in_scope(
+        str(author_repo), base_of(author_repo), scope
+    ) == []
+
+
+def test_a_file_too_large_to_show_tells_the_author_to_refuse(author_repo):
+    """Half a file is worse than none: it reads as the whole file."""
+    scope = authored_change.Scope.restricted_to(["notes"])
+    shown = authored_change.existing_in_scope(
+        str(author_repo), base_of(author_repo), scope, per_file=2
+    )
+
+    assert shown[0]["truncated"] is True
+
+    prompt = authored_change.render_author_prompt(
+        {"task_id": "T-1", "objective": "o", "allowed_paths": ["notes"]}, shown
+    )
+    assert "CANNOT_AUTHOR" in prompt
+    assert "IS TRUNCATED" in prompt

@@ -475,8 +475,20 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         "activation %s: worktree %s at %s", activation_id, workspace, base_sha[:12]
     )
 
+    # What the files it may change look like right now. Without this an author
+    # with no shell has to invent the parts of a file it was not shown, and
+    # the output format requires the whole file.
+    existing = authored_change.existing_in_scope(str(workspace), base_sha, scope)
+
+    if existing:
+        log.info(
+            "activation %s: showing %d in-scope file(s) to the author",
+            activation_id, len(existing),
+        )
+
     prompt = authored_change.render_author_prompt(
-        {**task_record, "task_id": task_id, "allowed_paths": list(scope.paths)}
+        {**task_record, "task_id": task_id, "allowed_paths": list(scope.paths)},
+        existing,
     )
 
     log.info("AUTHORING activation %s for task %s", activation_id, task_id)

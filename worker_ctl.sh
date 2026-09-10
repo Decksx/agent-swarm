@@ -74,6 +74,20 @@ case "$ACTION" in
     python preflight.py --url "http://192.168.42.50:8050" --agent "$COMPONENT" "$@"
     ;;
 
+  admin)
+    # controller_admin against the live hub, from this machine. The admin
+    # credential is fetched the same way the workers' are and handed over in
+    # the environment, so it never reaches a shell history, a second file, or
+    # a transcript. Everything after `admin` is passed through.
+    HUB_SECRET="$(fetch_secret admin)"
+    if [ -z "$HUB_SECRET" ]; then echo "missing: hub credential for admin"; exit 1; fi
+    export HUB_SECRET
+
+    cd "$REPO"
+    shift
+    python hub/controller_admin.py --url "http://192.168.42.50:8050" "$@"
+    ;;
+
   start)
     case "$IDENT" in
       claudecode) SCRIPT=claude_worker.py; COMPONENT=claudecode ;;
@@ -163,6 +177,6 @@ case "$ACTION" in
     ;;
 
   *)
-    echo "usage: worker_ctl.sh {start|stop|count|preflight} {claudecode|gemini|chatgpt}"
+    echo "usage: worker_ctl.sh {start|stop|count|preflight|admin} ..."
     exit 2 ;;
 esac
