@@ -73,6 +73,7 @@ import re
 import subprocess
 import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
@@ -232,6 +233,53 @@ def normalize_handle(name: Any) -> str:
         return ""
 
     return name.strip().lstrip("@").strip().lower()
+
+
+UNKNOWN_TIME = "unknown"
+
+
+def message_stamp(message: Any) -> str:
+    """When one hub message was sent, as ISO-8601 UTC, for a transcript line.
+
+    Every worker prefixes its transcript lines with this, so a model reading a
+    thread can tell an exchange from five minutes ago from one from Tuesday.
+    Without it a transcript is a flat list of turns, and a model asked to
+    continue a conversation cannot tell that the last three messages arrived
+    after an overnight gap -- which is exactly when the state it is being
+    asked about has moved on underneath it.
+
+    UTC in the transcript, deliberately, where the browser shows local time.
+    A worker's transcript is read by a model and archived in a log that is
+    read on another machine in another zone; a local rendering there would be
+    local to whichever host happened to build the prompt.
+
+    The hub is the authority and sends `timestamp_utc` ready-made. The Unix
+    fallback is for one case only: a worker running against a hub that has not
+    yet been redeployed with the field. It computes the same instant the same
+    way rather than dropping the prefix, because a transcript where some lines
+    are stamped and some are not is harder to read than either.
+    """
+    if not isinstance(message, dict):
+        return UNKNOWN_TIME
+
+    stated = str(message.get("timestamp_utc") or "").strip()
+
+    if stated:
+        return stated
+
+    raw = message.get("timestamp")
+
+    if raw is None:
+        return UNKNOWN_TIME
+
+    try:
+        moment = datetime.fromtimestamp(float(raw), tz=timezone.utc)
+    except (TypeError, ValueError, OSError, OverflowError):
+        # Never guessed at. A bad value rendered as the epoch would put 1970
+        # in the transcript and read as a time somebody could reason about.
+        return UNKNOWN_TIME
+
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def outbound_envelope(
@@ -431,6 +479,15 @@ def record_narration(messages: Iterable[dict]) -> int:
                         "target": message.get("target"),
                         "content": redact(str(message.get("content", ""))),
                         "timestamp": message.get("timestamp"),
+                        # The hub's instant, written out. `timestamp` is kept
+                        # exactly as it arrived -- anything already reading
+                        # this file expects a float there -- and this is the
+                        # same moment in the form a person reading the log can
+                        # act on. `recorded_at` below is a different fact: when
+                        # this host wrote the line, which can be much later
+                        # after a worker has been down, and the two being
+                        # confusable is why both are now named unambiguously.
+                        "timestamp_utc": message_stamp(message),
                         "recorded_at": time.time(),
                         # Stamped on every row so that a reader of this file,
                         # or anything that later ingests it, cannot mistake

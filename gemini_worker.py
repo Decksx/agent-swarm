@@ -295,7 +295,12 @@ def build_transcript(context: list[dict]) -> str:
 
         sender = str(message.get("sender", "unknown"))
         target = str(message.get("target", ""))
-        lines.append(f"{sender} (to {target}): {text}")
+        # The instant, ahead of the speaker. A transcript without it is a flat
+        # list of turns, and a model continuing a thread cannot tell that the
+        # last three messages arrived after an overnight gap -- which is
+        # exactly when whatever it is being asked about has moved on.
+        when = swarm_control.message_stamp(message)
+        lines.append(f"[{when}] {sender} (to {target}): {text}")
 
     return "\n".join(lines)
 

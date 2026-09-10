@@ -39,6 +39,7 @@ import json
 import os
 import sqlite3
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -185,7 +186,46 @@ class Message(BaseModel):
     sender: str
     target: str
     content: str
-    timestamp: float
+    # Unix seconds, as it has always been stored. Kept, and kept first: every
+    # existing reader parses this field, and a rename would have been a
+    # migration of every client to gain nothing the new field does not give.
+    timestamp: Optional[float] = None
+    # The same instant, written so it cannot be misread: `2026-09-10T17:42:07Z`.
+    # A float is unambiguous to a machine and unreadable to a person, and the
+    # rendering of it was being done independently by the browser, by each
+    # worker's transcript builder, and by anybody reading a log -- three
+    # chances to disagree about what timezone a number meant. This is the
+    # answer, computed once, on the machine that assigned it.
+    timestamp_utc: str
+
+
+# Rows predating the timestamp column, or written by a client that sent none,
+# have NULL. There are not many and they are old, but they must render: a
+# transcript that drops its earliest messages loses exactly the context a
+# handoff is read for.
+UNKNOWN_TIME = "unknown"
+
+
+def iso_utc(value) -> str:
+    """One stored timestamp as ISO-8601 UTC, or a word saying it is not known.
+
+    Never guesses. A NULL timestamp rendered as the epoch would put 1970 in
+    the transcript and read as a real time somebody could reason about; a
+    NULL rendered as "now" would be worse still. `unknown` is the honest
+    answer and is visibly not a date.
+    """
+    if value is None:
+        return UNKNOWN_TIME
+
+    try:
+        moment = datetime.fromtimestamp(float(value), tz=timezone.utc)
+    except (TypeError, ValueError, OSError, OverflowError):
+        return UNKNOWN_TIME
+
+    # `Z`, not `+00:00`. Both are valid ISO-8601 and every consumer understands
+    # Z; the offset form is the one that gets truncated to a local-looking
+    # string by something downstream.
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 class SendRequest(BaseModel):
     # `sender` and `token` are still accepted so existing clients do not start
@@ -204,12 +244,33 @@ def get_db():
 
 @app.get("/messages", response_model=List[Message])
 def get_messages(since_id: int = 0, component: str = Depends(authenticate)):
+    # Ordered by time, then by id. The id alone was very nearly right -- it is
+    # monotonic and it is what `since_id` pages through -- but it is the order
+    # rows were *written*, and a transcript is read as the order things were
+    # *said*. Those agree until they do not.
+    #
+    # The tie-break is the point, not decoration. Several messages routinely
+    # share a timestamp: time.time() has coarser resolution than the hub can
+    # accept posts at, and a burst of agent replies lands inside one tick.
+    # Ordering by timestamp alone would leave those rows in whatever order
+    # SQLite found convenient, which is stable until an index changes and then
+    # silently is not -- so a conversation would reorder itself between two
+    # reads with nothing having changed.
+    #
+    # COALESCE, because NULL sorts before everything in SQLite. Untimestamped
+    # historical rows are old, so sorting them first is very nearly right by
+    # accident; saying so explicitly means it stays right on purpose.
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT id, sender, target, content, timestamp FROM messages WHERE id > ? ORDER BY id ASC",
+            "SELECT id, sender, target, content, timestamp FROM messages "
+            "WHERE id > ? ORDER BY COALESCE(timestamp, 0) ASC, id ASC",
             (since_id,)
         ).fetchall()
-    return [dict(row) for row in rows]
+
+    return [
+        {**dict(row), "timestamp_utc": iso_utc(row["timestamp"])}
+        for row in rows
+    ]
 
 @app.post("/send")
 def send_message(req: SendRequest, component: str = Depends(authenticate)):
@@ -348,6 +409,10 @@ HTML_TEMPLATE = """
     .sender-Admin { color: var(--admin); font-weight: bold; }
     .sender-ChatGPT { color: var(--chatgpt); font-weight: bold; }
     .target { color: #565f89; }
+    /* The UTC instant is on the title attribute, so the exact value the
+       server assigned is one hover away without every line carrying two
+       renderings of the same moment. */
+    .when { color: #565f89; cursor: help; }
     pre {
       margin: 0;
       white-space: pre-wrap;
@@ -400,6 +465,65 @@ HTML_TEMPLATE = """
     let lastId = 0;
     const log = document.getElementById('chat-log');
 
+    // The full local date, the time, and the zone it is in -- never the time
+    // of day on its own. This page is left open across days and read after
+    // the fact during a handoff, and "11:42:07" in a scrollback is a claim
+    // about a day nobody can recover. The zone is shown because the reader is
+    // not always in the same one as the machine that assigned the timestamp,
+    // and a bare local time silently asserts they are.
+    //
+    // Converted in the browser from the server's instant. The server does not
+    // know where it is being read, so it says UTC and the viewer's own
+    // timezone database does the rest -- which is also what makes daylight
+    // saving correct for historical messages: the conversion applies the rule
+    // that was in force at that instant, not the one in force now.
+    function localTime(msg) {
+      if (msg.timestamp_utc === 'unknown' || !msg.timestamp_utc) {
+        return 'time unknown';
+      }
+
+      const when = new Date(msg.timestamp_utc);
+
+      if (isNaN(when.getTime())) return 'time unknown';
+
+      // Fixed field order rather than a locale format: the log is read
+      // alongside ISO timestamps from the API and the transcripts, and
+      // year-month-day next to those does not require re-reading. The clock
+      // stays local-conventional, because that is the half a person checks
+      // against their own watch.
+      const date = `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}`;
+      const clock = when.toLocaleTimeString(undefined, { hour12: true });
+      const zone = zoneName(when);
+
+      return `${date} ${clock} ${zone}`;
+    }
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    // The short zone abbreviation, e.g. MDT. Falls back to the IANA name and
+    // then to the UTC offset: every browser can produce one of the three, and
+    // a message with no zone at all is the ambiguity this set out to remove.
+    function zoneName(when) {
+      try {
+        const parts = new Intl.DateTimeFormat(undefined, {
+          timeZoneName: 'short'
+        }).formatToParts(when);
+        const named = parts.find(p => p.type === 'timeZoneName');
+        if (named && named.value) return named.value;
+      } catch (err) { /* fall through */ }
+
+      try {
+        const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (zone) return zone;
+      } catch (err) { /* fall through */ }
+
+      const offset = -when.getTimezoneOffset();
+      const sign = offset < 0 ? '-' : '+';
+      const abs = Math.abs(offset);
+
+      return `UTC${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+    }
+
     async function fetchMessages() {
       try {
         const res = await fetch(`/messages?since_id=${lastId}`);
@@ -425,6 +549,7 @@ HTML_TEMPLATE = """
             <div class="meta">
               <span class="sender-${senderClass}">${senderText}</span>
               <span class="target">&#10142; ${targetText}</span>
+              <span class="when" title="${escapeHtml(String(msg.timestamp_utc))}">${escapeHtml(localTime(msg))}</span>
               <span style="margin-left: auto; color: #565f89;">#${escapeHtml(String(msg.id))}</span>
             </div>
             <pre>${escapeHtml(msg.content)}</pre>
