@@ -1,0 +1,14 @@
+{
+  "comicautomation": {
+    "path": "C:\\git\\ComicAutomation",
+    "repo_id": "fdc614a6f9af1a5f",
+    "planning_ref": "refs/heads/master",
+    "worktree_root": "C:\\git\\.swarm-worktrees\\comicautomation"
+  },
+  "agenthub": {
+    "path": "C:\\git\\claude-agent-hub",
+    "repo_id": "0dc8a2e4d227ab03",
+    "planning_ref": "refs/heads/phase1/mvp-slice",
+    "worktree_root": "C:\\git\\.swarm-worktrees\\agenthub"
+  }
+}

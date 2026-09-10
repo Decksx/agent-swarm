@@ -15,33 +15,39 @@ of what was left out. A planner that does not know what it was not shown treats
 the absence of a file as evidence the file does not exist. The omissions
 section exists to make "I was not shown this" available as a thought.
 
-What identifies the snapshot
-----------------------------
+What is being described
+-----------------------
 
-`repo_id` is a digest of the root commit(s) reachable from HEAD. Not the remote
-URL, which can be renamed, re-pointed, or absent on a host that only ever
-clones; not the filesystem path, which differs on every machine and again in
-every worktree. The root commit is fixed for the life of the history, so two
-checkouts of the same project agree and two different projects cannot collide.
-A plan carries the `repo_id` it was made against, which is what stops a plan
-for one repository being executed against another whose paths happen to match.
+A `repo_registry.Resolved`: a named project whose canonical checkout has been
+verified, whose planning ref has been pinned to one full SHA. There is no path
+parameter here, deliberately. Passing a path is how a snapshot came to describe
+`D:\Documents\ComicAutomation` -- a real checkout of the real project, on a
+feature branch, six weeks stale -- and nothing about that snapshot looked
+wrong.
 
-`head_sha` is the exact commit the snapshot describes. It becomes the plan's
-base, and a later HEAD that has moved off it is what makes a plan stale.
+`repo_id` identifies the lineage: a digest of the root commits, so two clones
+of a project agree and two projects cannot collide. It cannot say which
+checkout is authoritative, because the stale one has the same id. That is the
+registry's job, and this module takes its answer.
 
-The tree is the commit's tree
------------------------------
+`base_sha` is the commit the snapshot describes and the base every task planned
+from it branches from. It is resolved once, up front. A ref resolved again
+later is a different question with the same name.
 
-File listings and document contents come from `HEAD`, not from the working
-tree, because `head_sha` is what an author will branch from. A file that exists
-only as an uncommitted edit is not something a plan can rely on: the author
-starts from the commit and will not see it.
+The baseline is the commit; everything else is context
+------------------------------------------------------
 
-Uncommitted changes are therefore reported as a separate list of deviations
-rather than folded into the tree. That is the honest shape -- "these paths in
-the working copy do not match the commit I am describing" -- and it lets the
-planner see that a document it is reading has been edited since, without the
-snapshot having to guess which version is the real one.
+File listings and document contents come from `base_sha`. A file that exists
+only as an uncommitted edit, or only on the branch the checkout happens to be
+on, is not something a plan can rely on -- the author starts from the commit
+and will not see it.
+
+What is happening in the checkout right now is reported in its own fenced
+section: current branch, uncommitted paths, registered worktrees, and branches
+carrying commits the baseline does not have. That is there so a plan can avoid
+colliding with work already under way, and it is fenced because it is the part
+a planner will most readily mistake for fact. A modified path looks exactly
+like a file that exists.
 
 Budgets
 -------
@@ -74,6 +80,10 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Sequence
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import repo_registry  # noqa: E402
 
 # Enough of a file list for the planner to locate work in an ordinary
 # repository; past this the list stops being read and starts being scrolled.
@@ -166,34 +176,27 @@ def repo_id(repo: str) -> str:
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:16]
 
 
-def head(repo: str) -> dict:
-    """The commit being described, and the label it is currently wearing."""
-    sha = _git(repo, "rev-parse", "--verify", "HEAD^{commit}").strip()
+def describe_commit(repo: str, sha: str) -> dict:
+    """The baseline commit itself. Nothing here comes from the working tree."""
+    verified = _git(repo, "rev-parse", "--verify", f"{sha}^{{commit}}").strip()
 
-    if len(sha) != 40:
-        raise SnapshotError("HEAD did not resolve to a commit sha")
-
-    branch = _git(repo, "rev-parse", "--abbrev-ref", "HEAD").strip()
-    detached = branch == "HEAD"
-
-    subject = _git(repo, "log", "-1", "--format=%s", sha).strip()
-    committed = _git(repo, "log", "-1", "--format=%cI", sha).strip()
+    if len(verified) != 40:
+        raise SnapshotError(f"{sha!r} did not resolve to a commit sha")
 
     return {
-        "head_sha": sha,
-        "branch": "" if detached else branch,
-        "detached": detached,
-        "head_subject": subject,
-        "head_committed": committed,
+        "base_sha": verified,
+        "base_subject": _git(repo, "log", "-1", "--format=%s", verified).strip(),
+        "base_committed": _git(repo, "log", "-1", "--format=%cI", verified).strip(),
     }
 
 
 def uncommitted(repo: str, budget: int = DEFAULT_DIRTY_BUDGET) -> dict:
-    """Working-copy paths that do not match HEAD.
+    """Working-copy paths that do not match the checkout's own HEAD.
 
-    Reported rather than merged into the tree. The snapshot describes a
-    commit; these are the places where the disk disagrees with it, which is a
-    different fact and one the planner needs stated as such.
+    Operational context, never baseline. These paths say what somebody is in
+    the middle of; they say nothing about the commit being planned against,
+    and the commit being planned against is usually not even the one they are
+    relative to.
     """
     entries = [
         line.rstrip()
@@ -208,6 +211,121 @@ def uncommitted(repo: str, budget: int = DEFAULT_DIRTY_BUDGET) -> dict:
         "count": len(entries),
         "entries": shown,
         "entries_truncated": len(entries) > len(shown),
+    }
+
+
+def worktrees(repo: str) -> list:
+    """Every worktree git knows about, including ones that are not here.
+
+    A checkout carries worktree registrations from wherever it has been used,
+    and they outlive the machine that made them: this project holds seven
+    pointing at `/sessions/.../worktrees/...`, locked, from a cloud session.
+    They are reported rather than pruned. Prune is destructive, it is the
+    operator's call, and a locked worktree is locked because somebody meant
+    it. `present` says whether the path exists on this machine, which is the
+    part that decides whether a name can be reused.
+    """
+    entries = []
+    current = {}
+
+    for line in _git(repo, "worktree", "list", "--porcelain").splitlines():
+        line = line.rstrip()
+
+        if not line:
+            if current:
+                entries.append(current)
+                current = {}
+            continue
+
+        key, _, value = line.partition(" ")
+
+        if key == "worktree":
+            current = {
+                "path": value,
+                "present": Path(value).exists(),
+                "locked": False,
+                "branch": "",
+                "sha": "",
+            }
+        elif key == "HEAD":
+            current["sha"] = value
+        elif key == "branch":
+            current["branch"] = value
+        elif key == "locked":
+            current["locked"] = True
+
+    if current:
+        entries.append(current)
+
+    return entries
+
+
+def branches_ahead(repo: str, sha: str, limit: int = 40) -> list:
+    """Local branches carrying commits the baseline does not have.
+
+    This is how a planner sees that work is already in flight. A plan that
+    asks for something a branch is halfway through is not wrong exactly, but
+    it is wasted, and the operator is the only one who can say which.
+
+    Ahead and behind are both reported: a branch 40 behind and 2 ahead is
+    somebody's stale experiment, while 0 behind and 12 ahead is the work that
+    is about to land on the baseline.
+    """
+    names = [
+        line.strip()
+        for line in _git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads")
+        .splitlines()
+        if line.strip()
+    ]
+
+    ahead = []
+
+    for name in names:
+        counts = _git(repo, "rev-list", "--left-right", "--count", f"{sha}...{name}")
+        parts = counts.split()
+
+        if len(parts) != 2:
+            continue
+
+        behind_n, ahead_n = int(parts[0]), int(parts[1])
+
+        if ahead_n == 0:
+            continue
+
+        ahead.append({
+            "branch": name,
+            "ahead": ahead_n,
+            "behind": behind_n,
+            "tip": _git(repo, "rev-parse", name).strip()[:12],
+            "subject": _git(repo, "log", "-1", "--format=%s", name).strip()[:80],
+        })
+
+    ahead.sort(key=lambda row: (-row["ahead"], row["branch"]))
+
+    return ahead[:limit]
+
+
+def operational_context(repo: str, sha: str, *, dirty_budget: int = DEFAULT_DIRTY_BUDGET) -> dict:
+    """What is going on in the checkout right now.
+
+    Kept in its own section, and labelled in the rendered document, because it
+    is the part that must never leak into the baseline. It is also the part a
+    planner most wants to treat as fact: a file listed as modified looks
+    exactly like a file that exists, and it is not one -- an author branching
+    from the baseline will not find those edits.
+    """
+    branch = _git(repo, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    detached = branch == "HEAD"
+    working_head = _git(repo, "rev-parse", "--verify", "HEAD").strip()
+
+    return {
+        "checkout_branch": "" if detached else branch,
+        "checkout_detached": detached,
+        "checkout_head": working_head,
+        "checkout_head_is_baseline": working_head == sha,
+        "uncommitted": uncommitted(repo, budget=dirty_budget),
+        "worktrees": worktrees(repo),
+        "branches_ahead": branches_ahead(repo, sha),
     }
 
 
@@ -460,7 +578,7 @@ NOT_RUN = {
 
 
 def build(
-    repo: str,
+    resolved,
     *,
     documents: Sequence[str] = (),
     doc_patterns: Sequence[str] = DEFAULT_DOC_PATTERNS,
@@ -470,7 +588,14 @@ def build(
     dirty_budget: int = DEFAULT_DIRTY_BUDGET,
     tests: Optional[dict] = None,
 ) -> dict:
-    """Assemble the snapshot of `repo` at its current HEAD.
+    """Assemble the snapshot of one resolved project at one commit.
+
+    `resolved` is a `repo_registry.Resolved` -- a named project whose
+    identity has been verified and whose planning ref has already been pinned
+    to a single SHA. There is deliberately no path parameter and no ref
+    parameter. A path is how the wrong checkout got snapshotted, and a ref
+    resolved here rather than once, up front, would let the baseline move
+    between the plan and the work.
 
     `tests` is the result of `run_tests`, or None. None records `not_run`
     rather than an assumption: the one thing a snapshot must never do is let
@@ -478,20 +603,34 @@ def build(
     "nothing was run" look identical in a rendered document and only one of
     them is evidence.
     """
-    root = Path(repo).resolve()
+    root = Path(resolved.path).resolve()
 
     if not (root / ".git").exists():
         raise SnapshotError(f"{root} is not a git repository")
 
-    identity = head(str(root))
-    sha = identity["head_sha"]
+    commit = describe_commit(str(root), resolved.sha)
+    sha = commit["base_sha"]
 
-    dirty = uncommitted(str(root), budget=dirty_budget)
     listing = tree(str(root), sha, budget=file_budget)
+
+    # An empty manifest hashes and renders perfectly well. It would describe a
+    # project with no files, which is not a project -- far likelier a ref that
+    # resolved to something unexpected, or a discovery that silently found
+    # nothing. The same failure was shipped once already in a deploy script.
+    if listing["file_count"] == 0:
+        raise SnapshotError(
+            f"{resolved.name}: commit {sha[:12]} contains no files. Refusing "
+            "to produce a snapshot of nothing -- it would render as a valid "
+            "description of an empty repository."
+        )
+
+    operational = operational_context(str(root), sha, dirty_budget=dirty_budget)
+    dirty = operational["uncommitted"]
 
     # `status --porcelain` lines are "XY path"; the paths are what a document
     # is matched against. Renames arrive as "old -> new" and the new name is
-    # the one that exists.
+    # the one that exists. These mark a document as "edited in the checkout",
+    # never as content -- the content always comes from the baseline commit.
     dirty_paths = {
         entry[3:].split(" -> ")[-1].strip().strip('"') for entry in dirty["entries"]
     }
@@ -526,9 +665,18 @@ def build(
 
     if not dirty["clean"]:
         omissions.append(
-            f"the working copy has {dirty['count']:,} uncommitted "
-            f"{'entry' if dirty['count'] == 1 else 'entries'}; everything above "
-            f"describes commit {sha[:12]}, not what is on disk"
+            f"the canonical checkout has {dirty['count']:,} uncommitted "
+            f"{'entry' if dirty['count'] == 1 else 'entries'}. None of it is in "
+            f"the baseline: everything above describes commit {sha[:12]}, which "
+            "is what an author will branch from."
+        )
+
+    if not operational["checkout_head_is_baseline"]:
+        omissions.append(
+            f"the canonical checkout is on "
+            f"{operational['checkout_branch'] or 'a detached HEAD'} at "
+            f"{operational['checkout_head'][:12]}, which is not the baseline. "
+            "Its working files are somebody else's work in progress."
         )
 
     # Said whether or not anything else was cut, because it is the largest
@@ -546,10 +694,12 @@ def build(
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "project": resolved.name,
         "repo_path": str(root),
-        "repo_id": repo_id(str(root)),
-        **identity,
-        "uncommitted": dirty,
+        "repo_id": resolved.project.repo_id,
+        "planning_ref": resolved.ref,
+        **commit,
+        "operational": operational,
         "tree": listing,
         "documents": docs,
         "tests": dict(tests) if tests else dict(NOT_RUN),
@@ -565,39 +715,28 @@ def render(snapshot: dict) -> str:
     immediately before whatever question is asked of it -- what none of the
     above covers.
     """
-    identity = snapshot["head_sha"]
-    branch = snapshot["branch"] or f"(detached at {identity[:12]})"
-    dirty = snapshot["uncommitted"]
+    base = snapshot["base_sha"]
+    operational = snapshot["operational"]
+    dirty = operational["uncommitted"]
     listing = snapshot["tree"]
 
     parts = [
         "REPOSITORY SNAPSHOT",
         "",
-        f"generated : {snapshot['generated_at']}",
-        f"repo id   : {snapshot['repo_id']}",
-        f"path      : {snapshot['repo_path']}",
-        f"branch    : {branch}",
-        f"HEAD      : {identity}",
-        f"committed : {snapshot['head_committed']}  {snapshot['head_subject']}",
+        f"generated    : {snapshot['generated_at']}",
+        f"project      : {snapshot['project']}",
+        f"repo id      : {snapshot['repo_id']}",
+        f"path         : {snapshot['repo_path']}",
+        f"planning ref : {snapshot['planning_ref']}",
+        f"BASE SHA     : {base}",
+        f"committed    : {snapshot['base_committed']}  {snapshot['base_subject']}",
         "",
-        "Everything below describes that commit. It is the base an author "
-        "would branch from.",
-        "",
-        "WORKING COPY",
+        "THE BASELINE IS THAT COMMIT. The tree and the documents below are "
+        "read from it,",
+        "and every task planned from this snapshot branches from it. Nothing "
+        "in the checkout's",
+        "working files is part of it.",
     ]
-
-    if dirty["clean"]:
-        parts.append("  clean -- the working copy matches the commit above")
-    else:
-        parts.append(
-            f"  {dirty['count']} uncommitted "
-            f"{'entry' if dirty['count'] == 1 else 'entries'}; these paths on "
-            "disk differ from the commit and are not part of it:"
-        )
-        parts.extend(f"    {entry}" for entry in dirty["entries"])
-
-        if dirty["entries_truncated"]:
-            parts.append("    [LIST TRUNCATED]")
 
     parts += [
         "",
@@ -645,6 +784,81 @@ def render(snapshot: dict) -> str:
                 "of this document was not shown.]"
             )
 
+    # Fenced, and placed after the baseline rather than among it. Everything
+    # in this section is true of the checkout right now and false of the
+    # commit above -- a planner that reads a modified path as a file that
+    # exists has read work in progress as fact.
+    parts += [
+        "",
+        "=" * 70,
+        "OPERATIONAL CONTEXT -- NOT PART OF THE BASELINE",
+        "",
+        "What is going on in the canonical checkout at this moment. None of it "
+        "is in the",
+        "baseline commit, and an author branching from that commit will not "
+        "see any of it.",
+        "It is here so a plan can avoid colliding with work already under way.",
+        "",
+    ]
+
+    if operational["checkout_head_is_baseline"]:
+        parts.append(
+            f"  checkout is on the baseline commit "
+            f"({operational['checkout_branch'] or 'detached'})"
+        )
+    else:
+        where = operational["checkout_branch"] or "a detached HEAD"
+        parts.append(
+            f"  checkout is on {where} at {operational['checkout_head'][:12]} "
+            "-- NOT the baseline"
+        )
+
+    if dirty["clean"]:
+        parts.append("  no uncommitted changes")
+    else:
+        parts.append(
+            f"  {dirty['count']} uncommitted "
+            f"{'entry' if dirty['count'] == 1 else 'entries'} in the checkout:"
+        )
+        parts.extend(f"    {entry}" for entry in dirty["entries"])
+
+        if dirty["entries_truncated"]:
+            parts.append("    [LIST TRUNCATED]")
+
+    ahead = operational["branches_ahead"]
+    parts += ["", "  branches carrying commits the baseline does not have:"]
+
+    if not ahead:
+        parts.append("    (none)")
+    else:
+        parts.extend(
+            f"    {row['branch']:<52} +{row['ahead']:<4} -{row['behind']:<4} "
+            f"{row['tip']}  {row['subject']}"
+            for row in ahead
+        )
+
+    trees = operational["worktrees"]
+    parts += ["", "  worktrees registered on this checkout:"]
+
+    if not trees:
+        parts.append("    (none)")
+    else:
+        for row in trees:
+            marks = []
+
+            if not row["present"]:
+                marks.append("PATH NOT ON THIS MACHINE")
+            if row["locked"]:
+                marks.append("locked")
+
+            suffix = f"  [{', '.join(marks)}]" if marks else ""
+            parts.append(
+                f"    {row['path']}  {row['sha'][:12]} "
+                f"{row['branch'] or '(detached)'}{suffix}"
+            )
+
+    parts += ["", "=" * 70]
+
     tests = snapshot["tests"]
     parts += ["", "TEST STATUS"]
 
@@ -676,7 +890,15 @@ def render(snapshot: dict) -> str:
 
 def main(argv) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--repo", required=True)
+    parser.add_argument(
+        "--project", required=True,
+        help="a name registered in repos.json. There is no --repo: a path is "
+             "how the wrong checkout got snapshotted.",
+    )
+    parser.add_argument(
+        "--registry", default=None,
+        help="an alternative registry file (default: repos.json beside this)",
+    )
     parser.add_argument(
         "--doc", action="append", default=[],
         help="include this path first, ahead of the pattern matches. Repeatable.",
@@ -713,9 +935,22 @@ def main(argv) -> int:
         stream(encoding="utf-8", errors="replace")
 
     try:
-        tests = run_tests(args.repo, args.run_tests) if args.run_tests else None
+        resolved = repo_registry.resolve_name(args.project, args.registry)
+    except repo_registry.RegistryError as exc:
+        print(f"snapshot: {exc}")
+        return 2
+
+    print(
+        f"snapshot: {resolved.name} -> {resolved.ref} -> {resolved.sha}",
+        file=sys.stderr,
+    )
+
+    try:
+        tests = (
+            run_tests(str(resolved.path), args.run_tests) if args.run_tests else None
+        )
         snapshot = build(
-            args.repo,
+            resolved,
             documents=args.doc,
             doc_patterns=tuple(args.pattern) if args.pattern else DEFAULT_DOC_PATTERNS,
             file_budget=args.file_budget,

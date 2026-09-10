@@ -13,6 +13,7 @@ import subprocess
 
 import pytest
 
+import repo_registry
 import repo_snapshot
 from repo_snapshot import SnapshotError
 
@@ -46,6 +47,27 @@ def commit(repo, message="commit"):
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", message)
     return git(repo, "rev-parse", "HEAD").strip()
+
+
+def at_head(repo, name="demo"):
+    """A resolved project pointing at this repo's current HEAD.
+
+    These tests are about budgets, documents and truncation. Which checkout
+    and which ref are authoritative is `test_repo_registry`'s subject, so the
+    resolution step is stubbed here rather than exercised.
+    """
+    from pathlib import Path
+
+    project = repo_registry.Project(
+        name=name,
+        path=Path(repo),
+        repo_id="0" * 16,
+        planning_ref="refs/heads/main",
+        worktree_root=Path(repo).parent / "worktrees",
+    )
+    sha = git(repo, "rev-parse", "HEAD").strip()
+
+    return repo_registry.Resolved(project=project, sha=sha, ref="refs/heads/main")
 
 
 @pytest.fixture
@@ -90,42 +112,59 @@ def test_a_different_project_has_a_different_repo_id(repo, tmp_path):
     assert repo_snapshot.repo_id(str(other)) != repo_snapshot.repo_id(str(repo))
 
 
-def test_the_head_sha_is_the_full_commit(repo):
-    snapshot = repo_snapshot.build(str(repo))
+def test_the_base_sha_is_the_full_commit(repo):
+    snapshot = repo_snapshot.build(at_head(repo))
 
-    assert snapshot["head_sha"] == git(repo, "rev-parse", "HEAD").strip()
-    assert len(snapshot["head_sha"]) == 40
-    assert snapshot["branch"] == "main"
-    assert snapshot["detached"] is False
+    assert snapshot["base_sha"] == git(repo, "rev-parse", "HEAD").strip()
+    assert len(snapshot["base_sha"]) == 40
+
+
+def test_the_checkouts_branch_is_operational_not_baseline(repo):
+    """Which branch the checkout sits on says nothing about the baseline."""
+    snapshot = repo_snapshot.build(at_head(repo))
+
+    assert snapshot["operational"]["checkout_branch"] == "main"
+    assert snapshot["operational"]["checkout_detached"] is False
+    assert snapshot["operational"]["checkout_head_is_baseline"] is True
 
 
 def test_a_detached_head_is_reported_as_detached(repo):
     git(repo, "checkout", "-q", "--detach", "HEAD")
-    snapshot = repo_snapshot.build(str(repo))
+    snapshot = repo_snapshot.build(at_head(repo))
 
-    assert snapshot["detached"] is True
-    assert snapshot["branch"] == ""
+    assert snapshot["operational"]["checkout_detached"] is True
+    assert snapshot["operational"]["checkout_branch"] == ""
     assert "detached" in repo_snapshot.render(snapshot)
 
 
 def test_a_directory_that_is_not_a_repository_is_refused(tmp_path):
-    with pytest.raises(SnapshotError):
-        repo_snapshot.build(str(tmp_path))
+    resolved = repo_registry.Resolved(
+        project=repo_registry.Project(
+            name="demo", path=tmp_path, repo_id="0" * 16,
+            planning_ref="refs/heads/main", worktree_root=tmp_path / "w",
+        ),
+        sha="0" * 40,
+        ref="refs/heads/main",
+    )
+
+    with pytest.raises(SnapshotError, match="not a git repository"):
+        repo_snapshot.build(resolved)
 
 
-def test_a_repository_with_no_commits_is_refused(tmp_path):
+def test_a_repository_with_no_commits_has_no_identity(tmp_path):
     """There is no base to plan against, and inventing one is worse."""
     empty = init(tmp_path / "empty")
 
+    # git itself refuses first: with no commits there is no HEAD to walk.
     with pytest.raises(SnapshotError):
-        repo_snapshot.build(str(empty))
+        repo_snapshot.repo_id(str(empty))
 
 
 # --- The tree is the commit's tree ------------------------------------------
 
 
 def test_the_tree_lists_the_committed_files(repo):
-    listing = repo_snapshot.build(str(repo))["tree"]
+    listing = repo_snapshot.build(at_head(repo))["tree"]
 
     assert "src/thing.py" in listing["files"]
     assert listing["file_count"] == 6
@@ -136,25 +175,25 @@ def test_the_tree_lists_the_committed_files(repo):
 def test_an_untracked_file_is_not_in_the_tree(repo):
     """An author branching from HEAD will not find it there."""
     write(repo, "src/scratch.py", "x = 1\n")
-    snapshot = repo_snapshot.build(str(repo))
+    snapshot = repo_snapshot.build(at_head(repo))
 
     assert "src/scratch.py" not in snapshot["tree"]["files"]
-    assert any("scratch" in entry for entry in snapshot["uncommitted"]["entries"])
-    assert snapshot["uncommitted"]["clean"] is False
+    assert any("scratch" in entry for entry in snapshot["operational"]["uncommitted"]["entries"])
+    assert snapshot["operational"]["uncommitted"]["clean"] is False
 
 
 def test_a_clean_worktree_says_so(repo):
-    snapshot = repo_snapshot.build(str(repo))
+    snapshot = repo_snapshot.build(at_head(repo))
 
-    assert snapshot["uncommitted"]["clean"] is True
-    assert snapshot["uncommitted"]["count"] == 0
-    assert "clean" in repo_snapshot.render(snapshot)
+    assert snapshot["operational"]["uncommitted"]["clean"] is True
+    assert snapshot["operational"]["uncommitted"]["count"] == 0
+    assert "no uncommitted changes" in repo_snapshot.render(snapshot)
 
 
 def test_uncommitted_changes_are_stated_in_the_omissions(repo):
     """The whole document describes a commit the disk no longer matches."""
     write(repo, "src/thing.py", "def thing():\n    return 2\n")
-    snapshot = repo_snapshot.build(str(repo))
+    snapshot = repo_snapshot.build(at_head(repo))
 
     assert any("uncommitted" in line for line in snapshot["omissions"])
 
@@ -164,7 +203,7 @@ def test_the_file_list_is_budgeted_and_the_cut_is_reported(repo):
         write(repo, f"src/generated_{index}.py", "x = 1\n")
 
     commit(repo, "many files")
-    snapshot = repo_snapshot.build(str(repo), file_budget=10)
+    snapshot = repo_snapshot.build(at_head(repo), file_budget=10)
     listing = snapshot["tree"]
 
     assert len(listing["files"]) == 10
@@ -213,7 +252,7 @@ def test_named_documents_come_first_and_in_the_order_given(repo):
 
 
 def test_a_named_document_that_is_not_in_the_commit_is_reported(repo):
-    snapshot = repo_snapshot.build(str(repo), documents=["docs/nope.md"])
+    snapshot = repo_snapshot.build(at_head(repo), documents=["docs/nope.md"])
 
     assert [d["path"] for d in snapshot["documents"]].count("docs/nope.md") == 0
     assert any("docs/nope.md" in line for line in snapshot["omissions"])
@@ -226,7 +265,7 @@ def test_documents_are_read_from_the_commit_not_the_disk(repo):
     every other statement is about `head_sha`.
     """
     write(repo, "docs/status.md", "# Status\n\nSECRET UNCOMMITTED EDIT\n")
-    snapshot = repo_snapshot.build(str(repo))
+    snapshot = repo_snapshot.build(at_head(repo))
     status = next(d for d in snapshot["documents"] if d["path"] == "docs/status.md")
 
     assert "SECRET UNCOMMITTED EDIT" not in status["text"]
@@ -246,7 +285,7 @@ def test_a_long_document_is_truncated_and_says_so(repo):
     """
     write(repo, "docs/architecture.md", "# Architecture\n" + ("detail\n" * 4000))
     commit(repo, "long doc")
-    snapshot = repo_snapshot.build(str(repo), doc_budget=500)
+    snapshot = repo_snapshot.build(at_head(repo), doc_budget=500)
     doc = next(d for d in snapshot["documents"] if d["path"] == "docs/architecture.md")
 
     assert doc["truncated"] is True
@@ -261,7 +300,7 @@ def test_documents_that_do_not_fit_are_named_with_their_size(repo):
     write(repo, "docs/architecture.md", "# Architecture\n" + ("detail\n" * 2000))
     commit(repo, "long doc")
     snapshot = repo_snapshot.build(
-        str(repo), doc_budget=2_000, total_doc_budget=1_500
+        at_head(repo), doc_budget=2_000, total_doc_budget=1_500
     )
 
     # architecture.md came first alphabetically and spent the budget.
@@ -278,7 +317,7 @@ def test_a_document_is_left_out_rather_than_shown_as_a_stub(repo):
     write(repo, "docs/architecture.md", "# Architecture\n" + ("detail\n" * 200))
     commit(repo, "long doc")
     snapshot = repo_snapshot.build(
-        str(repo), doc_budget=2_000, total_doc_budget=1_450
+        at_head(repo), doc_budget=2_000, total_doc_budget=1_450
     )
 
     included = [d["path"] for d in snapshot["documents"]]
@@ -293,16 +332,16 @@ def test_the_uncommitted_list_is_budgeted(repo):
     for index in range(20):
         write(repo, f"scratch_{index}.txt", "x\n")
 
-    snapshot = repo_snapshot.build(str(repo), dirty_budget=5)
+    snapshot = repo_snapshot.build(at_head(repo), dirty_budget=5)
 
-    assert snapshot["uncommitted"]["count"] == 20
-    assert len(snapshot["uncommitted"]["entries"]) == 5
-    assert snapshot["uncommitted"]["entries_truncated"] is True
+    assert snapshot["operational"]["uncommitted"]["count"] == 20
+    assert len(snapshot["operational"]["uncommitted"]["entries"]) == 5
+    assert snapshot["operational"]["uncommitted"]["entries_truncated"] is True
     assert any("uncommitted changes" in line for line in snapshot["omissions"])
 
 
 def test_source_is_never_included_and_that_is_stated(repo):
-    snapshot = repo_snapshot.build(str(repo))
+    snapshot = repo_snapshot.build(at_head(repo))
 
     assert any("file contents" in line for line in snapshot["omissions"])
 
@@ -311,7 +350,7 @@ def test_source_is_never_included_and_that_is_stated(repo):
 
 
 def test_no_suite_run_is_recorded_as_unknown(repo):
-    snapshot = repo_snapshot.build(str(repo))
+    snapshot = repo_snapshot.build(at_head(repo))
 
     assert snapshot["tests"]["status"] == "not_run"
 
@@ -337,7 +376,7 @@ def test_a_failing_command_is_recorded_as_failed(repo):
     assert result["status"] == "failed"
     assert result["exit_code"] == 3
 
-    snapshot = repo_snapshot.build(str(repo), tests=result)
+    snapshot = repo_snapshot.build(at_head(repo), tests=result)
     assert "failed" in repo_snapshot.render(snapshot)
 
 
@@ -368,11 +407,12 @@ def test_a_timed_out_suite_is_an_error_not_a_failure(repo):
 
 
 def test_the_rendered_document_carries_the_identity(repo):
-    snapshot = repo_snapshot.build(str(repo))
+    snapshot = repo_snapshot.build(at_head(repo))
     rendered = repo_snapshot.render(snapshot)
 
-    assert snapshot["head_sha"] in rendered
+    assert snapshot["base_sha"] in rendered
     assert snapshot["repo_id"] in rendered
+    assert snapshot["planning_ref"] in rendered
     assert "OMITTED OR TRUNCATED" in rendered
     assert "docs/status.md" in rendered
     assert "Milestone 3 in progress." in rendered
@@ -382,7 +422,7 @@ def test_the_snapshot_survives_a_round_trip_through_json(repo):
     """It is written to the ledger beside the plan it produced."""
     import json
 
-    snapshot = repo_snapshot.build(str(repo))
+    snapshot = repo_snapshot.build(at_head(repo))
     restored = json.loads(json.dumps(snapshot))
 
     assert repo_snapshot.render(restored) == repo_snapshot.render(snapshot)
