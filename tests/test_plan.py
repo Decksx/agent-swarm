@@ -270,3 +270,222 @@ def test_the_prompt_carries_the_snapshot_and_asks_for_the_form():
 
 def test_the_prompt_forbids_stating_a_base():
     assert "Do not state a base_sha" in plan.render_prompt("snap")
+
+
+# --- context_paths: what an author may read, as distinct from write ---------
+#
+# The rejection cycle's defect was an author with no shell asked to edit a file
+# it had never been shown. Showing it the files it may write fixed that case.
+# It does not fix the next one: a change that has to fit an interface, a
+# caller, or a test the task does not write. The correction available before
+# this field existed was to widen allowed_paths, which buys reading with write
+# authority and is how a task authorised to touch one module comes back having
+# rewritten four.
+
+
+def test_context_paths_are_optional():
+    """A task genuinely may need nothing but its own files."""
+    assert parse(task())["tasks"][0]["context_paths"] == []
+
+
+def test_context_paths_are_carried_through_separately():
+    result = parse(task(
+        allowed_paths=["notes"], context_paths=["src/reader.py", "tests"],
+    ))
+
+    assert result["tasks"][0]["allowed_paths"] == ["notes"]
+    assert result["tasks"][0]["context_paths"] == ["src/reader.py", "tests"]
+
+
+def test_a_plan_may_not_ask_to_read_the_whole_repository():
+    """UNRESTRICTED context is not a reading list, it is the absence of one.
+
+    The budget would then choose which files the author saw, in tree order,
+    and present that arbitrary prefix as the files that matter.
+    """
+    with pytest.raises(PlanError, match="reading list"):
+        parse(task(context_paths=[plan.UNRESTRICTED]))
+
+
+@pytest.mark.parametrize("bad", [
+    "../outside.py", "/etc/passwd", "C:\\windows\\x", ".git/config", "src/*.py",
+])
+def test_a_context_path_is_held_to_the_same_containment_rules(bad):
+    """Both lists reach the harness as repository-relative paths."""
+    with pytest.raises(PlanError):
+        parse(task(context_paths=[bad]))
+
+
+def test_a_context_path_error_names_the_field_it_came_from():
+    """The message says which list was wrong. There are now two."""
+    with pytest.raises(PlanError, match="context_paths"):
+        parse(task(context_paths=["../escape"]))
+
+
+def test_a_path_cannot_be_both_writable_and_reference_material():
+    """The author would be handed both statements about one file at once."""
+    with pytest.raises(PlanError, match="both"):
+        parse(task(allowed_paths=["src"], context_paths=["src/reader.py"]))
+
+
+def test_the_overlap_is_caught_in_either_direction():
+    with pytest.raises(PlanError, match="both"):
+        parse(task(allowed_paths=["src/reader.py"], context_paths=["src"]))
+
+
+def test_a_neighbouring_prefix_is_not_an_overlap():
+    """`notes` does not cover `notes-secret`; matching is by component."""
+    result = parse(task(allowed_paths=["notes"], context_paths=["notes-secret"]))
+
+    assert result["tasks"][0]["context_paths"] == ["notes-secret"]
+
+
+def test_a_string_of_context_paths_is_refused_not_iterated():
+    """A string is iterable. Reading it would produce one path per character."""
+    with pytest.raises(PlanError, match="string"):
+        parse(task(context_paths="src/reader.py"))
+
+
+def test_an_unreasonable_reading_list_is_refused():
+    many = [
+        f"src/module_{n}.py"
+        for n in range(plan.MAX_CONTEXT_PATHS_PER_TASK + 1)
+    ]
+
+    with pytest.raises(PlanError, match="context_paths"):
+        parse(task(context_paths=many))
+
+
+# --- Concurrent tasks that would silently revert each other ------------------
+#
+# The failure is not a merge conflict, which is loud. Both authors are shown
+# the same file at the same base and both must return its complete contents.
+# The second to integrate carries the base version of the first's edit, the
+# first task's change disappears, and both tasks are approved.
+
+
+def test_two_independent_tasks_may_not_write_the_same_path():
+    with pytest.raises(PlanError, match="no dependency between them"):
+        parse(
+            task(task_id="A", allowed_paths=["src/shared.py"]),
+            task(task_id="B", allowed_paths=["src/shared.py"]),
+        )
+
+
+def test_a_directory_and_a_file_inside_it_collide():
+    with pytest.raises(PlanError, match="src/shared.py"):
+        parse(
+            task(task_id="A", allowed_paths=["src"]),
+            task(task_id="B", allowed_paths=["src/shared.py"]),
+        )
+
+
+def test_a_dependency_makes_the_overlap_legitimate():
+    """An edge is how a plan says these two touch the same thing."""
+    result = parse(
+        task(task_id="A", allowed_paths=["src/shared.py"]),
+        task(task_id="B", allowed_paths=["src/shared.py"], dependencies=["A"]),
+    )
+
+    assert len(result["tasks"]) == 2
+
+
+def test_a_transitive_dependency_is_enough():
+    """C after B after A orders C after A, though C never names A.
+
+    Working from declared edges alone would call A and C concurrent and refuse
+    a plan that is fine.
+    """
+    result = parse(
+        task(task_id="A", allowed_paths=["src/shared.py"]),
+        task(task_id="B", allowed_paths=["src/b.py"], dependencies=["A"]),
+        task(task_id="C", allowed_paths=["src/shared.py"], dependencies=["B"]),
+    )
+
+    assert len(result["tasks"]) == 3
+
+
+def test_independent_tasks_may_read_the_same_files():
+    """Reading is not writing. A shared interface is for sharing."""
+    result = parse(
+        task(task_id="A", allowed_paths=["src/a.py"], context_paths=["src/api.py"]),
+        task(task_id="B", allowed_paths=["src/b.py"], context_paths=["src/api.py"]),
+    )
+
+    assert len(result["tasks"]) == 2
+
+
+def test_the_colliding_pair_and_path_are_all_named():
+    """A planner told only that a collision exists cannot fix it."""
+    with pytest.raises(PlanError) as raised:
+        parse(
+            task(task_id="ALPHA", allowed_paths=["src/shared.py"]),
+            task(task_id="BETA", allowed_paths=["src/shared.py"]),
+        )
+
+    message = str(raised.value)
+
+    assert "ALPHA" in message
+    assert "BETA" in message
+    assert "src/shared.py" in message
+
+
+# --- Grounding: the check that needs the repository --------------------------
+
+
+def grounded(*tasks, tree=()):
+    parsed = parse(*tasks)
+    return plan.ground(parsed, "unused", ls_tree=lambda sha: list(tree))
+
+
+def test_a_missing_context_path_is_a_defect():
+    """Reference material can only be a file that is already there."""
+    report = grounded(
+        task(allowed_paths=["notes"], context_paths=["src/absent.py"]),
+        tree=["README.md", "src/present.py"],
+    )
+
+    assert report["grounded"] is False
+    assert report["tasks"][0]["missing_context"] == ["src/absent.py"]
+
+
+def test_an_allowed_path_that_does_not_exist_is_a_file_being_created():
+    """Half the tasks worth planning create files. Reported, not refused."""
+    report = grounded(
+        task(allowed_paths=["notes/new.md"], context_paths=["README.md"]),
+        tree=["README.md"],
+    )
+
+    assert report["grounded"] is True
+    assert report["tasks"][0]["creates"] == ["notes/new.md"]
+    assert report["tasks"][0]["edits"] == []
+
+
+def test_grounding_distinguishes_editing_from_creating():
+    report = grounded(
+        task(allowed_paths=["src/present.py", "src/brand_new.py"]),
+        tree=["src/present.py"],
+    )
+
+    assert report["tasks"][0]["edits"] == ["src/present.py"]
+    assert report["tasks"][0]["creates"] == ["src/brand_new.py"]
+
+
+def test_a_directory_context_path_counts_the_files_under_it():
+    report = grounded(
+        task(allowed_paths=["notes"], context_paths=["src"]),
+        tree=["src/a.py", "src/b.py", "README.md"],
+    )
+
+    assert report["tasks"][0]["context_files"] == 2
+    assert report["tasks"][0]["missing_context"] == []
+
+
+def test_an_empty_tree_is_a_failed_listing_not_a_wrong_plan():
+    """Every path would report missing.
+
+    The report would then read as a catastrophically wrong plan rather than as
+    a git call that failed.
+    """
+    with pytest.raises(PlanError, match="lists no files"):
+        grounded(task(), tree=[])

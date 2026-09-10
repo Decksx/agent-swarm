@@ -165,6 +165,191 @@ def existing_in_scope(
     return files
 
 
+DEFAULT_CONTEXT_BUDGET = 48_000
+
+
+def context_at(
+    repo: str,
+    sha: str,
+    scope: Scope,
+    *,
+    per_file: int = DEFAULT_FILE_VIEW,
+    total: int = DEFAULT_CONTEXT_BUDGET,
+) -> dict:
+    """The read-only files this task was given, at `sha`. Never writable.
+
+    `existing_in_scope` answers "what am I about to rewrite". This answers the
+    other question, the one the rejection cycle did not reach: what does the
+    code around it look like. An author asked to change a function it can see,
+    with no sight of the module that imports it, the interface it implements
+    or the test that pins its behaviour, is not being asked to be careful --
+    it is being asked to guess, and a plausible guess is what a reviewer then
+    has to catch.
+
+    Read from the commit, never the working tree, for the reason the whole
+    system reads from commits: the checkout is somebody else's work in
+    progress, and context that shifts between the author and the reviewer is
+    context neither of them can be held to.
+
+    Returns three lists, and the two that are usually empty are the point:
+
+    * `files`   -- what was read, each flagged if it had to be cut short;
+    * `missing` -- declared entries that matched nothing at this commit. A
+                   plan naming a file that is not there is a plan written
+                   against a repository that does not exist, and the author
+                   must not be sent to work with a quietly shorter reading
+                   list than the one it was promised;
+    * `omitted` -- entries that existed but got no room. Distinguished from
+                   truncated, because a file shown in part can still be
+                   reasoned about and a file not shown at all cannot, and both
+                   render as absence if they are not named separately.
+    """
+    if not scope.context:
+        return {"files": [], "missing": [], "omitted": []}
+
+    listing = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", sha],
+        cwd=str(repo), capture_output=True, encoding="utf-8",
+        errors="replace", check=False,
+    )
+
+    if listing.returncode != 0:
+        # Every entry is reported missing rather than none. The caller blocks
+        # on `missing`, and a tree that could not be listed must not read as a
+        # task that happened to need no context.
+        return {
+            "files": [],
+            "missing": [
+                {"path": entry, "reason": "the tree at this commit could not be read"}
+                for entry in scope.context
+            ],
+            "omitted": [],
+        }
+
+    tree = sorted(
+        line.strip() for line in (listing.stdout or "").splitlines() if line.strip()
+    )
+
+    files: List[dict] = []
+    missing: List[dict] = []
+    omitted: List[dict] = []
+    spent = 0
+    taken = set()
+
+    for entry in scope.context:
+        matched = [path for path in tree if matches_allowed(path, [entry])]
+
+        if not matched:
+            missing.append({
+                "path": entry,
+                "reason": f"nothing at this path in {sha[:12]}",
+            })
+            continue
+
+        for path in matched:
+            if path in taken:
+                # Two entries can name overlapping directories. The file is
+                # read once; showing it twice would spend the budget on a
+                # duplicate and read as two different files to the author.
+                continue
+
+            shown = subprocess.run(
+                ["git", "show", f"{sha}:{path}"],
+                cwd=str(repo), capture_output=True, encoding="utf-8",
+                errors="replace", check=False,
+            )
+
+            if shown.returncode != 0:
+                missing.append({"path": path, "reason": "could not be read"})
+                continue
+
+            text = shown.stdout or ""
+            raw = text.encode("utf-8")
+            room = min(per_file, max(0, total - spent))
+
+            if room <= 0:
+                omitted.append({
+                    "path": path,
+                    "reason": f"the {total:,} byte context budget was already spent",
+                })
+                continue
+
+            truncated = len(raw) > room
+
+            if truncated:
+                text = raw[:room].decode("utf-8", "ignore")
+
+            spent += len(text.encode("utf-8"))
+            taken.add(path)
+            files.append({"path": path, "text": text, "truncated": truncated})
+
+    return {"files": files, "missing": missing, "omitted": omitted}
+
+
+def _context_section(context: dict) -> List[str]:
+    """The reading list, headed by what it may not be used for.
+
+    The heading says read-only before it says anything else. An author handed
+    a file and no statement about it will treat being shown it as permission
+    to change it -- that is what being shown a file has meant everywhere else
+    in this prompt -- and the refusal would come after the model call, as a
+    discarded answer and a spent attempt.
+    """
+    files = context.get("files") or []
+    missing = context.get("missing") or []
+    omitted = context.get("omitted") or []
+
+    if not (files or missing or omitted):
+        return []
+
+    parts = [
+        "",
+        "-" * 60,
+        "FOR CONTEXT ONLY -- YOU MAY NOT WRITE ANY OF THESE",
+        "",
+        "These are here so you can see what your change has to fit: the "
+        "interfaces it uses, the callers it must not break, the tests that "
+        "pin its behaviour. Returning a FILE block for any path below is "
+        "refused and your whole answer is discarded, including the parts that "
+        "were in scope.",
+    ]
+
+    for entry in files:
+        parts += ["", f"--- {entry['path']} (read-only)", entry["text"].rstrip("\n")]
+
+        if entry["truncated"]:
+            parts += [
+                "",
+                f"[{entry['path']} IS TRUNCATED -- you have not been shown all "
+                "of it. If what you need to write depends on the part you "
+                "cannot see, do not infer it: answer CANNOT_AUTHOR and say "
+                "which file was cut short.]",
+            ]
+
+    if omitted:
+        parts += [
+            "",
+            "NOT SHOWN AT ALL, for want of room:",
+            *(f"  {entry['path']} -- {entry['reason']}" for entry in omitted),
+            "",
+            "These exist and you were meant to have them. If the change "
+            "depends on any of them, answer CANNOT_AUTHOR rather than "
+            "guessing at what they contain.",
+        ]
+
+    if missing:
+        parts += [
+            "",
+            "ASKED FOR AND NOT FOUND at the commit you are working from:",
+            *(f"  {entry['path']} -- {entry['reason']}" for entry in missing),
+            "",
+            "The plan expected these to exist. That they do not is a fact "
+            "about the plan, not something for you to work around.",
+        ]
+
+    return parts
+
+
 def _existing_section(existing: List[dict]) -> List[str]:
     """The in-scope files as they stand, or a statement that there are none."""
     if not existing:
@@ -195,8 +380,20 @@ def _existing_section(existing: List[dict]) -> List[str]:
     return parts
 
 
-def render_author_prompt(task: dict, existing: Optional[List[dict]] = None) -> str:
-    """The prompt an API author is given."""
+def render_author_prompt(
+    task: dict,
+    existing: Optional[List[dict]] = None,
+    context: Optional[dict] = None,
+) -> str:
+    """The prompt an API author is given.
+
+    Order matters and is not alphabetical. The objective, then the output
+    contract, then the write authority, then the files that authority covers,
+    then the read-only context, then the rejection if there was one. Authority
+    is stated before any file is shown, so that every file below it is read
+    under a rule that has already been given rather than one that arrives
+    afterwards to take something back.
+    """
     return "\n".join([
         "You are producing one change to a repository. You cannot run "
         "commands; you write file contents and the harness commits them.",
@@ -231,6 +428,7 @@ def render_author_prompt(task: dict, existing: Optional[List[dict]] = None) -> s
         *(f"  {entry}" for entry in task.get("allowed_paths") or []),
     ] if task.get("allowed_paths") else [])
         + _existing_section(existing or [])
+        + _context_section(context or {})
         + _rejection_section(task))
 
 
@@ -268,13 +466,25 @@ UNRESTRICTED = "UNRESTRICTED"
 
 @dataclass(frozen=True)
 class Scope:
-    """What a task may write to. Either a list of paths, or the whole tree."""
+    """What a task may write to, and what it was shown in order to do it.
+
+    Two lists, and the difference between them is the point. `paths` is
+    authority: a file listed there may be rewritten. `context` is
+    understanding: a file listed there is read from the baseline, put in front
+    of the author, and refused if the author tries to write it.
+
+    They are one object rather than two because they are decided together and
+    must not drift. A task whose write authority and whose reading list are
+    carried separately is a task where one of them can be passed to the model
+    and the other forgotten, and the forgotten one is always the constraint.
+    """
 
     unrestricted: bool
     paths: tuple = ()
+    context: tuple = ()
 
     @classmethod
-    def restricted_to(cls, paths) -> "Scope":
+    def restricted_to(cls, paths, context=()) -> "Scope":
         entries = tuple(
             str(p).strip() for p in paths if str(p).strip()
         )
@@ -282,15 +492,164 @@ class Scope:
         if not entries:
             raise ContractError("a restricted scope with no paths authorises nothing")
 
-        return cls(False, entries)
+        return cls(False, entries, _context_entries(entries, context))
 
     @classmethod
-    def everywhere(cls) -> "Scope":
-        """The whole repository. Only ever from the explicit marker."""
-        return cls(True, ())
+    def everywhere(cls, context=()) -> "Scope":
+        """The whole repository. Only ever from the explicit marker.
+
+        Context is still recorded. An unrestricted task is not shown its
+        in-scope files -- the whole tree is in scope -- so a reading list is
+        the only way it is shown anything at all, and it is exactly the case
+        where being shown the right files matters most.
+        """
+        return cls(True, (), _context_entries((), context))
 
 
-def parse_scope(contract: str, declared=None) -> Scope:
+def _context_entries(allowed: tuple, context) -> tuple:
+    """The read-only reading list, de-duplicated and checked against `allowed`.
+
+    A path that is already writable is dropped rather than refused. It is
+    already shown to the author in full, by `existing_in_scope`, and listing
+    it again under a heading that says "you may not write this" would hand the
+    author two statements about one file where the second contradicts the
+    first. Silently correct because it is a redundancy, not a mistake: the
+    file is shown and it is writable, which is what both entries wanted.
+    """
+    seen = []
+
+    for raw in context or ():
+        entry = str(raw or "").strip().replace("\\", "/").strip("/")
+
+        if not entry or entry in seen:
+            continue
+
+        if allowed and matches_allowed(entry, list(allowed)):
+            continue
+
+        seen.append(entry)
+
+    return tuple(seen)
+
+
+def _declared_list(text: str, key: str) -> tuple:
+    """Read one `key:` out of a contract. Returns (seen, inline, entries).
+
+    Shared by allowed_paths and context_paths so the two cannot come to
+    disagree about what a list looks like. `inline` is whatever was written on
+    the key's own line -- a marker, a flow list, or a scalar this does not
+    understand -- and `entries` are the `- ` items beneath it. Deciding what
+    any of that *means* is the caller's job, because the two keys mean
+    different things by silence: an absent allowed_paths is a refusal, and an
+    absent context_paths is a task with nothing to read.
+
+    Still a hand-parse rather than a YAML dependency: hub.py installs fastapi,
+    uvicorn and pydantic at every container start and nothing else.
+    """
+    entries: List[str] = []
+    seen = False
+    inline = ""
+    collecting = False
+
+    for line in (text or "").splitlines():
+        stripped = line.strip()
+
+        if stripped.startswith(key + ":"):
+            seen = True
+            collecting = True
+            inline = stripped.partition(":")[2].strip()
+
+            if inline:
+                # A value on the key's own line ends the list. Anything
+                # indented under it now belongs to a key that already has a
+                # value, and reading both would silently merge them.
+                break
+
+            continue
+
+        if collecting:
+            if stripped.startswith("- "):
+                entries.append(stripped[2:].strip().strip("'\""))
+            elif stripped and not stripped.startswith("#"):
+                break
+
+    return seen, inline, entries
+
+
+def parse_context(contract: str, declared=None) -> tuple:
+    """The read-only reading list a task was given, possibly empty.
+
+    Silence means *nothing to read* here, which is the opposite of what it
+    means for allowed_paths -- and the asymmetry is deliberate rather than an
+    oversight. An unreadable allowed_paths must fail closed because the
+    quietest failure would otherwise produce the widest write authority. An
+    unreadable context_paths fails to *less* context, and the author's own
+    output contract already refuses to invent what it was not shown: it is
+    told to answer CANNOT_AUTHOR rather than guess. So the safe direction for
+    one is a refusal and for the other is an empty list.
+
+    UNRESTRICTED is refused outright. "Read the entire repository" is not a
+    reading list, it is the absence of one, and it would silently become
+    whatever fits in a context window -- an arbitrary prefix of the tree,
+    chosen by budget, presented as the files that matter.
+    """
+    if declared is not None and not isinstance(declared, str):
+        entries = [str(p).strip() for p in declared if str(p).strip()]
+
+        if UNRESTRICTED in entries:
+            raise ContractError(
+                "context_paths includes UNRESTRICTED. A reading list of "
+                "everything is not a reading list; name the files."
+            )
+
+        if entries:
+            return tuple(entries)
+
+    if isinstance(declared, str) and declared.strip():
+        raise ContractError(
+            f"context_paths is the string {declared.strip()!r}; it is a list "
+            "of paths"
+        )
+
+    seen, inline, entries = _declared_list(contract or "", "context_paths")
+
+    if not seen:
+        return ()
+
+    if inline == UNRESTRICTED:
+        raise ContractError(
+            "the contract's context_paths is UNRESTRICTED. A reading list of "
+            "everything is not a reading list; name the files."
+        )
+
+    if inline.startswith("[") and inline.endswith("]"):
+        entries = [
+            part.strip().strip("'\"")
+            for part in inline[1:-1].split(",") if part.strip()
+        ]
+
+        if UNRESTRICTED in entries:
+            raise ContractError(
+                "the contract's context_paths includes UNRESTRICTED; name the "
+                "files instead"
+            )
+
+        return tuple(entries)
+
+    if inline:
+        raise ContractError(
+            f"the contract's context_paths is {inline!r}, which this parser "
+            "does not understand"
+        )
+
+    # `context_paths:` with nothing under it. Empty rather than an error: it
+    # authorises nothing and withholds nothing, so there is no reading of it
+    # that is dangerous, and refusing would turn a stray key into a blocked
+    # task.
+    return tuple(entries)
+
+
+def parse_scope(contract: str, declared=None, declared_context=None) -> Scope:
     """The scope a task is authorised to write in, or refuse to author it.
 
     **Silence is not permission.** This used to return an empty list for a
@@ -314,67 +673,50 @@ def parse_scope(contract: str, declared=None) -> Scope:
     different author. That belongs in the controller's plan validation, which
     is where a planner's output stops being prose.
     """
+    context = parse_context(contract, declared_context)
+
     if declared is not None and not isinstance(declared, str):
         entries = [str(p).strip() for p in declared if str(p).strip()]
 
         if entries == [UNRESTRICTED]:
-            return Scope.everywhere()
+            return Scope.everywhere(context)
 
         if entries:
-            return Scope.restricted_to(entries)
+            return Scope.restricted_to(entries, context)
 
     if isinstance(declared, str) and declared.strip() == UNRESTRICTED:
-        return Scope.everywhere()
+        return Scope.everywhere(context)
 
-    text = contract or ""
-    paths: List[str] = []
-    seen_key = False
-    collecting = False
+    seen_key, inline, paths = _declared_list(contract or "", "allowed_paths")
 
-    for line in text.splitlines():
-        stripped = line.strip()
+    if inline == UNRESTRICTED:
+        return Scope.everywhere(context)
 
-        if stripped.startswith("allowed_paths:"):
-            seen_key = True
-            collecting = True
-            inline = stripped.partition(":")[2].strip()
+    if inline.startswith("[") and inline.endswith("]"):
+        entries = [
+            part.strip().strip("'\"")
+            for part in inline[1:-1].split(",") if part.strip()
+        ]
 
-            if inline == UNRESTRICTED:
-                return Scope.everywhere()
+        if entries == [UNRESTRICTED]:
+            return Scope.everywhere(context)
 
-            if inline.startswith("[") and inline.endswith("]"):
-                entries = [
-                    part.strip().strip("'\"")
-                    for part in inline[1:-1].split(",") if part.strip()
-                ]
+        if not entries:
+            raise ContractError(
+                "the contract's allowed_paths is an empty list, which "
+                "authorises nothing; say UNRESTRICTED if that is what "
+                "was meant"
+            )
 
-                if entries == [UNRESTRICTED]:
-                    return Scope.everywhere()
+        return Scope.restricted_to(entries, context)
 
-                if not entries:
-                    raise ContractError(
-                        "the contract's allowed_paths is an empty list, which "
-                        "authorises nothing; say UNRESTRICTED if that is what "
-                        "was meant"
-                    )
-
-                return Scope.restricted_to(entries)
-
-            if inline:
-                # A scalar that is neither the marker nor a list. Refusing
-                # beats guessing: the guess would be a permission.
-                raise ContractError(
-                    f"the contract's allowed_paths is {inline!r}, which this "
-                    "parser does not understand"
-                )
-
-            continue
-
-        if collecting:
-            if stripped.startswith("- "):
-                paths.append(stripped[2:].strip().strip("'\""))
-            elif stripped and not stripped.startswith("#"):
-                break
+    if inline:
+        # A scalar that is neither the marker nor a list. Refusing beats
+        # guessing: the guess would be a permission.
+        raise ContractError(
+            f"the contract's allowed_paths is {inline!r}, which this "
+            "parser does not understand"
+        )
 
     if not seen_key:
         raise ContractError(
@@ -388,7 +730,7 @@ def parse_scope(contract: str, declared=None) -> Scope:
             "read that as permission to write anywhere"
         )
 
-    return Scope.restricted_to(paths)
+    return Scope.restricted_to(paths, context)
 
 
 def safe_relative_path(repo: Path, raw: str, scope: "Scope") -> Path:
@@ -443,9 +785,25 @@ def safe_relative_path(repo: Path, raw: str, scope: "Scope") -> Path:
             "of what this task may touch"
         )
 
-    if not scope.unrestricted:
-        relative = target.relative_to(root).as_posix()
+    relative = target.relative_to(root).as_posix()
 
+    # Checked before the scope, and checked even when the scope is
+    # unrestricted. Context is the one authority an UNRESTRICTED task does not
+    # get: it was handed these files to read, and "you may write anywhere" was
+    # never meant to include the reference material it was given in order to
+    # write correctly. Named specifically rather than folded into the general
+    # refusal, because "outside the paths this task may touch" is misleading
+    # for a file the author was shown a moment earlier -- it would read as the
+    # harness contradicting itself.
+    if scope.context and matches_allowed(relative, list(scope.context)):
+        raise UnsafePath(
+            f"{relative!r} was supplied as read-only context. It is there to "
+            "be understood, not changed; a task that needs to write it needs "
+            "it in allowed_paths, which is a decision for the plan and not "
+            "for the author."
+        )
+
+    if not scope.unrestricted:
         if not matches_allowed(relative, scope.paths):
             raise UnsafePath(
                 f"{relative!r} is outside the paths this task may touch "

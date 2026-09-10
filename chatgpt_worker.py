@@ -307,15 +307,24 @@ def build_chat_messages(context: list[dict]) -> list[dict]:
             continue
 
         sender = str(message.get("sender", "unknown"))
+        # The instant, ahead of the speaker. A transcript without it is a flat
+        # list of turns, and a model continuing a thread cannot tell that the
+        # last three messages arrived after an overnight gap -- which is
+        # exactly when whatever it is being asked about has moved on.
+        when = swarm_control.message_stamp(message)
 
         if sender.strip().lstrip("@").lower() in SELF_HANDLES:
-            chat.append({"role": "assistant", "content": text})
+            # This worker's own past replies. Stamped too: the gap before its
+            # own last message is as informative as the gap before anyone
+            # else's, and an unstamped line in a stamped transcript reads as a
+            # message with no time rather than as one of its own.
+            chat.append({"role": "assistant", "content": f"[{when}] {text}"})
         else:
             target = str(message.get("target", ""))
             chat.append(
                 {
                     "role": "user",
-                    "content": f"{sender} (to {target}): {text}",
+                    "content": f"[{when}] {sender} (to {target}): {text}",
                 }
             )
 
@@ -443,6 +452,7 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         scope = authored_change.parse_scope(
             task_record.get("contract_yaml", ""),
             declared=task_record.get("allowed_paths"),
+            declared_context=task_record.get("context_paths"),
         )
     except authored_change.ContractError as exc:
         log.error("activation %s has no usable scope: %s", activation_id, exc)
@@ -486,9 +496,68 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
             activation_id, len(existing),
         )
 
+    # The read-only reading list: the imports, interfaces and tests the change
+    # has to fit. Read from the task's own base commit, in the private
+    # worktree, so the author and the reviewer are looking at the same bytes.
+    context = authored_change.context_at(str(workspace), base_sha, scope)
+
+    # A context path that is not there is a defect in the plan, not in the
+    # attempt. The planner named a file at a commit where it does not exist,
+    # which means the plan was written against a repository that no longer
+    # matches -- and the author cannot discover that, because from inside the
+    # prompt a shorter reading list looks exactly like a shorter reading list.
+    #
+    # Blocked before the model is called, for the same reason an unreadable
+    # contract is: the fix is somebody correcting the task, and a retry would
+    # spend an attempt reproducing the same absence. Silence here would be the
+    # worse failure -- the author would proceed without the file it was
+    # promised and produce something plausible, which is the exact shape of
+    # the candidate the reviewer had to reject.
+    if context["missing"]:
+        named = ", ".join(entry["path"] for entry in context["missing"])
+        log.error(
+            "activation %s: required context missing at %s: %s",
+            activation_id, base_sha[:12], named,
+        )
+
+        try:
+            worktrees.remove(project, activation_id)
+        except worktrees.WorktreeError as exc:
+            log.warning("could not remove the worktree for %s: %s", activation_id, exc)
+
+        queue.report(activation_id, outcome="blocked", payload={
+            "reason": (
+                f"context_paths name {len(context['missing'])} path(s) that do "
+                f"not exist at {base_sha[:12]}: {named}. The task was planned "
+                "against a different tree; it needs correcting, not retrying."
+            ),
+            "missing_context": context["missing"],
+            "base_sha": base_sha,
+        })
+        return
+
+    if context["files"]:
+        log.info(
+            "activation %s: showing %d read-only context file(s)%s",
+            activation_id, len(context["files"]),
+            (f", {len(context['omitted'])} omitted for budget"
+             if context["omitted"] else ""),
+        )
+
+    if context["omitted"]:
+        # Not blocked: the author may not need them, and it has been told in
+        # the prompt to answer CANNOT_AUTHOR if it does. Logged at warning
+        # because a task whose context does not fit is a task that wants
+        # decomposing, and that judgment belongs to a person.
+        log.warning(
+            "activation %s: %d context file(s) did not fit and were not shown",
+            activation_id, len(context["omitted"]),
+        )
+
     prompt = authored_change.render_author_prompt(
         {**task_record, "task_id": task_id, "allowed_paths": list(scope.paths)},
         existing,
+        context,
     )
 
     log.info("AUTHORING activation %s for task %s", activation_id, task_id)

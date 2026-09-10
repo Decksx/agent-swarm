@@ -33,6 +33,25 @@ What the controller checks, and why each one
   its own author the whole repository is the fail-open contract hole with an
   extra step, and this is the layer that was named as the place to stop it.
 
+* **context_paths are separate from allowed_paths, and read-only.** Write
+  authority and reading list are different questions and were being answered
+  by one field. An author given only the files it may write has to infer the
+  interfaces it calls, the callers it must not break and the tests that pin
+  its behaviour -- and a model that infers them writes something plausible,
+  which is the most expensive kind of wrong because a reviewer has to read
+  carefully to catch it. Widening allowed_paths to fix that is the wrong
+  correction: it buys understanding with authority, and the author only needed
+  the first. So the plan states both, and the contract carries both, and the
+  author is refused a write to anything in the second.
+
+* **Concurrent tasks do not overlap in what they may write.** Two tasks with
+  no dependency between them may be authored at the same time from the same
+  base. If their writable paths intersect, one of them is authored against a
+  tree that does not contain the other's change, and whichever integrates
+  second is either a conflict or a silent revert. A dependency edge is how a
+  plan says "these touch the same thing"; without one, saying so here is the
+  only chance anybody gets before both branches exist.
+
 * **Dependencies form a DAG within the plan.** A cycle is not a scheduling
   problem to resolve later; it is a plan that cannot be executed, and saying
   so now costs nothing.
@@ -79,6 +98,13 @@ UNRESTRICTED = "UNRESTRICTED"
 MAX_TASKS = 12
 MAX_PATHS_PER_TASK = 20
 
+# Higher than the writable cap on purpose. Reading is cheap and understanding
+# is the thing that was missing, so this is generous -- but not unbounded: a
+# reading list longer than this is a request for the repository, and the
+# budget would then decide which files the author actually saw, silently and
+# by file order.
+MAX_CONTEXT_PATHS_PER_TASK = 40
+
 
 class PlanError(Exception):
     """The plan could not be accepted."""
@@ -108,8 +134,14 @@ def _block(text: str) -> str:
     return text[start + len(BEGIN):end].strip()
 
 
-def _safe_path(raw: str, *, task_id: str) -> str:
-    """One allowed path, or raise. Same rules an author's paths are held to.
+def _safe_path(raw: str, *, task_id: str, field: str = "allowed_paths") -> str:
+    """One path from a plan, or raise. Same rules an author's paths are held to.
+
+    Shared by allowed_paths and context_paths. The containment rules are
+    identical -- neither may escape the repository, reach into .git, or arrive
+    as a glob -- because both are handed to the harness as repository-relative
+    paths and read the same way. What differs is what the path then permits,
+    and that is decided by which list it is in, not by this function.
 
     These become an author's write authority, so they are checked here rather
     than trusted because a model produced them earlier in the pipeline.
@@ -117,9 +149,17 @@ def _safe_path(raw: str, *, task_id: str) -> str:
     candidate = str(raw or "").strip().replace("\\", "/")
 
     if not candidate:
-        raise PlanError(f"{task_id}: an empty allowed_path")
+        raise PlanError(f"{task_id}: an empty entry in {field}")
 
     if candidate == UNRESTRICTED:
+        if field == "context_paths":
+            raise PlanError(
+                f"{task_id}: {UNRESTRICTED} in context_paths. A reading list "
+                "of everything is not a reading list -- the context budget "
+                "would decide which files the author actually saw, in tree "
+                "order. Name the files."
+            )
+
         raise PlanError(
             f"{task_id}: a plan may not grant {UNRESTRICTED}. Repository-wide "
             "authority is an operator's decision, not a planner's."
@@ -134,17 +174,17 @@ def _safe_path(raw: str, *, task_id: str) -> str:
         raise PlanError(f"{task_id}: drive-qualified path {raw!r}")
 
     if ".." in pure.parts:
-        raise PlanError(f"{task_id}: {raw!r} escapes the repository")
+        raise PlanError(f"{task_id}: {raw!r} in {field} escapes the repository")
 
     if ".git" in pure.parts:
-        raise PlanError(f"{task_id}: {raw!r} is inside .git")
+        raise PlanError(f"{task_id}: {raw!r} in {field} is inside .git")
 
     if "*" in candidate or "?" in candidate:
         # A glob is not a path. It would be matched by nothing downstream --
         # `matches_allowed` compares path components -- so it would silently
         # authorise less than it appears to.
         raise PlanError(
-            f"{task_id}: {raw!r} looks like a glob; allowed_paths are files "
+            f"{task_id}: {raw!r} looks like a glob; {field} are files "
             "and directories, matched by path component"
         )
 
@@ -213,6 +253,54 @@ def _one_task(raw: dict, *, index: int, owners: Sequence[str]) -> dict:
 
     allowed = [_safe_path(entry, task_id=task_id) for entry in paths]
 
+    # Read-only, and optional -- a task genuinely may need nothing but its own
+    # files. Empty is a statement the planner is allowed to make; the failure
+    # this guards against is the opposite one, a planner widening allowed_paths
+    # to see a file it only needed to read.
+    context_raw = raw.get("context_paths") or []
+
+    if isinstance(context_raw, str):
+        raise PlanError(
+            f"{task_id}: context_paths is a string. It is a list of paths, and "
+            "a string here would be read one character at a time."
+        )
+
+    if not isinstance(context_raw, list):
+        raise PlanError(f"{task_id}: context_paths is not a list")
+
+    if len(context_raw) > MAX_CONTEXT_PATHS_PER_TASK:
+        raise PlanError(
+            f"{task_id}: {len(context_raw)} context_paths; more than "
+            f"{MAX_CONTEXT_PATHS_PER_TASK} is a request for the repository, "
+            "and the context budget would then choose what the author saw"
+        )
+
+    context = [
+        _safe_path(entry, task_id=task_id, field="context_paths")
+        for entry in context_raw
+    ]
+
+    # A path that is writable is already shown to the author in full. Naming it
+    # again as read-only would put two statements about one file in the same
+    # prompt, the second one taking away what the first granted, and the
+    # author has no way to tell which was meant. Refused rather than quietly
+    # dropped, because at plan time it is more likely a confusion about which
+    # list the path belonged in -- and that confusion is worth surfacing while
+    # somebody can still say which one was meant.
+    overlapping = sorted({
+        entry for entry in context if _covered(entry, allowed) or any(
+            _covered(path, [entry]) for path in allowed
+        )
+    })
+
+    if overlapping:
+        raise PlanError(
+            f"{task_id}: {', '.join(overlapping)} appears in both "
+            "allowed_paths and context_paths. A path is writable or it is "
+            "reference material; it cannot be both, and the author would be "
+            "given both statements at once."
+        )
+
     depends = raw.get("dependencies") or []
 
     if not isinstance(depends, list):
@@ -226,8 +314,32 @@ def _one_task(raw: dict, *, index: int, owners: Sequence[str]) -> dict:
         "owner": owner,
         "mode": mode,
         "allowed_paths": allowed,
+        "context_paths": context,
         "dependencies": [str(entry).strip() for entry in depends if str(entry).strip()],
     }
+
+
+def _covered(path: str, entries: Sequence[str]) -> bool:
+    """Whether `path` falls under one of `entries`, by path component.
+
+    The same rule `authored_change.matches_allowed` enforces at write time,
+    and it must stay the same rule: a plan that this accepts and the harness
+    then refuses is a plan that fails halfway through, after branches exist.
+    Components rather than string prefixes, so `notes` does not cover
+    `notes-secret/x` -- a `startswith` check would say it did.
+    """
+    target = PurePosixPath((path or "").strip().replace("\\", "/").strip("/"))
+
+    for raw in entries:
+        pattern = PurePosixPath((raw or "").strip().replace("\\", "/").strip("/"))
+
+        if not pattern.parts or not target.parts:
+            continue
+
+        if target.parts[: len(pattern.parts)] == pattern.parts:
+            return True
+
+    return False
 
 
 def _check_dependencies(tasks: List[dict]) -> None:
@@ -272,6 +384,88 @@ def _check_dependencies(tasks: List[dict]) -> None:
             "the dependencies contain a cycle among: "
             + ", ".join(sorted(remaining))
         )
+
+
+def _ordering(tasks: List[dict]) -> Dict[str, set]:
+    """For each task, every task that must finish before it can start.
+
+    The transitive closure, not just the declared edges. `C depends on B` and
+    `B depends on A` orders C after A even though C never mentions A, and a
+    collision check working from declared edges alone would call A and C
+    concurrent and refuse a plan that is fine.
+
+    Called after the cycle check, so iterating to a fixed point terminates.
+    """
+    closure = {task["task_id"]: set(task["dependencies"]) for task in tasks}
+    changed = True
+
+    while changed:
+        changed = False
+
+        for name, deps in closure.items():
+            grown = set(deps)
+
+            for dependency in deps:
+                grown |= closure.get(dependency, set())
+
+            if grown != deps:
+                closure[name] = grown
+                changed = True
+
+    return closure
+
+
+def _check_concurrent_writes(tasks: List[dict]) -> None:
+    """Two tasks that may run at once must not write the same paths.
+
+    "At once" is not a scheduling detail this can look up -- nothing has been
+    scheduled yet. It is a property of the plan: two tasks with no dependency
+    path between them, in either direction, are two tasks the plan is saying
+    may be authored simultaneously, from the same base commit, in separate
+    worktrees that cannot see each other.
+
+    What goes wrong is quiet. Both authors are shown the same file at the same
+    base and both return its complete contents, because the output contract
+    requires the whole file. The second one to integrate does not conflict in
+    the interesting case -- it simply carries the base version of the other
+    task's edit, and the first task's change disappears with nothing anywhere
+    reporting a failure. Both tasks are approved. Both branches exist. One
+    change is gone.
+
+    A dependency edge is the plan's way of saying two tasks touch the same
+    thing. This is the only moment anybody gets to notice that one is missing
+    before the branches exist, so the plan is refused and the planner is told
+    which pair and which path.
+
+    Only writable paths. context_paths are read-only and may overlap freely --
+    two tasks reading the same interface is what a shared interface is for.
+    """
+    ordered = _ordering(tasks)
+
+    for i, first in enumerate(tasks):
+        for second in tasks[i + 1:]:
+            a, b = first["task_id"], second["task_id"]
+
+            if b in ordered.get(a, set()) or a in ordered.get(b, set()):
+                continue
+
+            shared = sorted({
+                path for path in first["allowed_paths"]
+                if _covered(path, second["allowed_paths"])
+            } | {
+                path for path in second["allowed_paths"]
+                if _covered(path, first["allowed_paths"])
+            })
+
+            if shared:
+                raise PlanError(
+                    f"{a} and {b} have no dependency between them, so they may "
+                    f"be authored at the same time, but both may write "
+                    f"{', '.join(shared)}. Whichever integrates second would "
+                    "carry the base version of the other's file and silently "
+                    "revert it. Either make one depend on the other, or give "
+                    "them separate paths."
+                )
 
 
 def parse(
@@ -326,6 +520,7 @@ def parse(
     ]
 
     _check_dependencies(tasks)
+    _check_concurrent_writes(tasks)
 
     return {
         "project": snapshot["project"],
@@ -333,6 +528,96 @@ def parse(
         "planning_ref": snapshot["planning_ref"],
         "base_sha": snapshot["base_sha"],
         "summary": str(parsed.get("summary") or "").strip(),
+        "tasks": tasks,
+    }
+
+
+def ground(plan: dict, repo: str, *, ls_tree=None) -> dict:
+    """Check the plan's paths against the tree it claims to be planned against.
+
+    `parse` is a parser: it can tell that a path is well formed and that two
+    tasks collide, and it cannot tell that `comic_automation/scanner.py` is a
+    file that exists. That takes the repository, and it is the check that
+    catches the most expensive failure mode -- a confident plan against files
+    the model inferred from a directory listing and a README.
+
+    The two lists are held to different standards, and the difference is not
+    an inconsistency:
+
+    * **A context_path that does not exist is a defect.** It is reference
+      material; the only thing it can be is a file that is already there. A
+      missing one means the plan describes a tree that is not this one, and
+      the author would silently receive a shorter reading list than the plan
+      promised it.
+
+    * **An allowed_path that does not exist may be perfectly correct.** Half
+      the tasks worth planning create files. So these are reported, not
+      refused -- named as `creates` so a reader can see at a glance whether a
+      task claiming to edit a module is in fact about to invent one.
+
+    Returns a report rather than raising. The caller decides: at planning time
+    a missing context path should send the plan back to the planner, and a
+    person reviewing proposals wants to see the whole picture at once rather
+    than the first problem.
+    """
+    if ls_tree is None:
+        def ls_tree(sha):
+            import subprocess
+
+            result = subprocess.run(
+                ["git", "ls-tree", "-r", "--name-only", sha],
+                cwd=str(repo), capture_output=True, encoding="utf-8",
+                errors="replace", check=False,
+            )
+
+            if result.returncode != 0:
+                raise PlanError(
+                    f"could not read the tree at {str(sha)[:12]} in {repo}: "
+                    f"{(result.stderr or '').strip()}"
+                )
+
+            return [
+                line.strip()
+                for line in (result.stdout or "").splitlines() if line.strip()
+            ]
+
+    tree = list(ls_tree(plan["base_sha"]))
+
+    if not tree:
+        # An empty tree matches nothing, so every path would be reported
+        # missing and the report would read as a catastrophically wrong plan
+        # rather than as a failed listing.
+        raise PlanError(
+            f"the tree at {plan['base_sha'][:12]} lists no files. Refusing to "
+            "ground a plan against nothing -- every path would report missing."
+        )
+
+    tasks = []
+    missing_context = 0
+
+    for task in plan["tasks"]:
+        def matched(entry):
+            return [path for path in tree if _covered(path, [entry])]
+
+        absent = [entry for entry in task["context_paths"] if not matched(entry)]
+        creates = [entry for entry in task["allowed_paths"] if not matched(entry)]
+        missing_context += len(absent)
+
+        tasks.append({
+            "task_id": task["task_id"],
+            "missing_context": absent,
+            "creates": creates,
+            "edits": [
+                entry for entry in task["allowed_paths"] if matched(entry)
+            ],
+            "context_files": sum(len(matched(e)) for e in task["context_paths"]),
+        })
+
+    return {
+        "base_sha": plan["base_sha"],
+        "tree_size": len(tree),
+        "grounded": missing_context == 0,
+        "missing_context_total": missing_context,
         "tasks": tasks,
     }
 
@@ -413,6 +698,7 @@ def render_prompt(snapshot_text: str, guidance: str = "") -> str:
                 "owner": "chatgpt",
                 "mode": "implement",
                 "allowed_paths": ["path/that/may/be/written"],
+                "context_paths": ["path/that/must/be/read/to/do/it/right.py"],
                 "dependencies": [],
             }],
         }, indent=2),
@@ -423,6 +709,24 @@ def render_prompt(snapshot_text: str, guidance: str = "") -> str:
         "- allowed_paths are real repository-relative paths, not globs. They "
         "become the author's write authority, so name the narrowest set that "
         "can do the work.",
+        "- context_paths are files the author will be shown READ-ONLY, at this "
+        "same commit, so it can see what its change has to fit: the module it "
+        "imports from, the interface it implements, the caller it must not "
+        "break, the test that pins the behaviour. The author has no shell and "
+        "cannot open anything you do not list here. It sees the full current "
+        "contents of its allowed_paths already, so do not repeat those.",
+        "- Do NOT widen allowed_paths to let an author read something. That "
+        "buys understanding with write authority, and a file listed as "
+        "writable is a file that can come back rewritten. If it only needs "
+        "reading, it is a context_path.",
+        "- Every context_path must already exist at this commit. One that does "
+        "not is refused: it means the plan was written against a different "
+        "tree. allowed_paths may name files that do not exist yet, which is "
+        "how a task creates one.",
+        "- Two tasks with no dependency between them may run at the same time, "
+        "so they must not list overlapping allowed_paths. If two tasks must "
+        "touch the same file, make one depend on the other. Overlapping "
+        "context_paths are fine -- reading is not writing.",
         f"- {UNRESTRICTED} is not available to you. If a task genuinely needs "
         "repository-wide access, say so in the summary and let a person decide.",
         "- dependencies name task_ids in this same plan and must not form a "

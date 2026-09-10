@@ -418,3 +418,146 @@ def test_a_file_too_large_to_show_tells_the_author_to_refuse(author_repo):
     )
     assert "CANNOT_AUTHOR" in prompt
     assert "IS TRUNCATED" in prompt
+
+
+# --- The reading list reaches the author, and its absence stops the run -----
+#
+# A context path naming a file that is not there is a defect in the plan, not
+# in the attempt. The author cannot notice it: from inside the prompt, a
+# shorter reading list looks exactly like a shorter reading list, so it would
+# proceed without the file it was promised and produce something plausible --
+# which is the shape of the candidate the reviewer had to reject.
+
+
+CONTEXT_CONTRACT = (
+    "task_id: T-1\n"
+    "allowed_paths:\n"
+    "  - notes\n"
+    "context_paths:\n"
+    "  - build.sh\n"
+)
+
+
+def test_the_reading_list_reaches_the_prompt(author_repo, counted_reply):
+    counted_reply["answer"] = ANSWER
+
+    chatgpt_worker.execute_author(
+        object(),
+        activation(CONTEXT_CONTRACT, base=base_of(author_repo)),
+        Queue(),
+    )
+
+    assert "FOR CONTEXT ONLY" in counted_reply["prompt"]
+    assert "echo build" in counted_reply["prompt"]
+
+
+def test_context_comes_from_the_baseline_not_the_dirty_checkout(
+    author_repo, counted_reply
+):
+    """The checkout is somebody else's work in progress.
+
+    Context that shifts between the author and the reviewer is context neither
+    of them can be held to.
+    """
+    counted_reply["answer"] = ANSWER
+    base = base_of(author_repo)
+    (author_repo / "build.sh").write_text("echo SABOTAGE\n", encoding="utf-8")
+
+    chatgpt_worker.execute_author(
+        object(), activation(CONTEXT_CONTRACT, base=base), Queue()
+    )
+
+    assert "echo build" in counted_reply["prompt"]
+    assert "SABOTAGE" not in counted_reply["prompt"]
+
+
+def test_a_missing_context_path_blocks_before_the_model_is_called(author_repo):
+    """The fix is somebody correcting the task, not another attempt.
+
+    A retry would spend an attempt reproducing the same absence.
+    """
+    queue = Queue()
+    contract = (
+        "task_id: T-1\nallowed_paths:\n  - notes\n"
+        "context_paths:\n  - src/absent.py\n"
+    )
+
+    chatgpt_worker.execute_author(
+        NeverCalled(), activation(contract, base=base_of(author_repo)), queue
+    )
+
+    assert queue.last["outcome"] == "blocked"
+    assert "src/absent.py" in queue.last["payload"]["reason"]
+
+
+def test_the_block_names_every_missing_path_and_the_commit(author_repo):
+    queue = Queue()
+    contract = (
+        "task_id: T-1\nallowed_paths:\n  - notes\n"
+        "context_paths:\n  - src/absent.py\n  - docs/also_absent.md\n"
+    )
+    base = base_of(author_repo)
+
+    chatgpt_worker.execute_author(
+        NeverCalled(), activation(contract, base=base), queue
+    )
+
+    missing = [entry["path"] for entry in queue.last["payload"]["missing_context"]]
+
+    assert sorted(missing) == ["docs/also_absent.md", "src/absent.py"]
+    assert queue.last["payload"]["base_sha"] == base
+
+
+def test_a_missing_context_path_leaves_no_worktree_behind(author_repo, tmp_path):
+    """The refusal happens after the worktree exists, so it has to clean up.
+
+    Nothing was authored and nothing is under inspection; a directory per
+    blocked task would accumulate with nothing ever reading them.
+    """
+    contract = (
+        "task_id: T-1\nallowed_paths:\n  - notes\n"
+        "context_paths:\n  - src/absent.py\n"
+    )
+
+    chatgpt_worker.execute_author(
+        NeverCalled(), activation(contract, base=base_of(author_repo)), Queue()
+    )
+
+    assert list((tmp_path / "worktrees").glob("*")) == []
+
+
+def test_the_author_may_not_write_a_context_path(author_repo, counted_reply):
+    """Being shown a file is not permission to change it.
+
+    The whole answer is discarded, including the part that was in scope: a
+    partial application would commit half of what the model returned and
+    report success for it.
+    """
+    queue = Queue()
+    counted_reply["answer"] = (
+        "FILE: build.sh\n"
+        f"{authored_change.BEGIN}\n"
+        "echo rewritten\n"
+        f"{authored_change.END}\n"
+    )
+
+    chatgpt_worker.execute_author(
+        object(), activation(CONTEXT_CONTRACT, base=base_of(author_repo)), queue
+    )
+
+    assert queue.last["outcome"] == "failed"
+    assert "read-only context" in queue.last["payload"]["reason"]
+    assert (author_repo / "build.sh").read_text(encoding="utf-8") == "echo build\n"
+
+
+def test_a_task_with_no_context_paths_is_unaffected(author_repo, counted_reply):
+    """The field is optional and its absence is not a failure."""
+    queue = Queue()
+    counted_reply["answer"] = ANSWER
+
+    chatgpt_worker.execute_author(
+        object(), activation(CONTRACT, base=base_of(author_repo)), queue
+    )
+
+    assert queue.last["outcome"] == "candidate"
+    assert "FOR CONTEXT ONLY" not in counted_reply["prompt"]

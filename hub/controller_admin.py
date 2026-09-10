@@ -136,8 +136,18 @@ def main(argv) -> int:
     )
     p.add_argument(
         "--allowed-path", action="append", default=[],
-        help="build a minimal contract declaring this path. Repeatable. "
-             "Mutually exclusive with --contract-file.",
+        help="build a minimal contract declaring this path as WRITABLE. "
+             "Repeatable. Mutually exclusive with --contract-file.",
+    )
+    p.add_argument(
+        "--context-path", action="append", default=[],
+        help="a file or directory the author is shown READ-ONLY, so it can "
+             "see what its change has to fit: the interface it calls, the "
+             "caller it must not break, the test that pins the behaviour. "
+             "Repeatable. It must exist at the base commit or the task blocks "
+             "before the model is called. Do not use --allowed-path to let an "
+             "author read something -- that buys understanding with write "
+             "authority, and a writable file can come back rewritten.",
     )
     p.add_argument(
         "--ready",
@@ -194,6 +204,20 @@ def main(argv) -> int:
             print("give --contract-file or --allowed-path, not both")
             return 2
 
+        if args.contract_file and args.context_path:
+            print("give --contract-file or --context-path, not both")
+            return 2
+
+        if args.context_path and not args.allowed_path:
+            # A reading list with no write authority describes a task that can
+            # read and not act. The worker would block on the contract anyway;
+            # saying so here costs nothing and names the actual omission.
+            print(
+                "--context-path needs --allowed-path: a task that may read "
+                "but not write cannot be authored"
+            )
+            return 2
+
         if args.contract_file:
             contract = io.open(args.contract_file, encoding="utf-8").read()
         elif args.allowed_path:
@@ -204,6 +228,13 @@ def main(argv) -> int:
                 "allowed_paths:\n"
                 f"{entries}"
             )
+
+            # Written after allowed_paths, never merged into it. The two lists
+            # authorise different things, and a contract that ran them together
+            # would hand the author write access to its own reference material.
+            if args.context_path:
+                reading = "".join(f"  - {entry}\n" for entry in args.context_path)
+                contract += f"context_paths:\n{reading}"
         else:
             # Deliberately not a default that would authorise anything. The
             # task is created and will block at authoring, naming the reason,
