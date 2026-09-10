@@ -25,6 +25,7 @@ Every subcommand takes ``--env-file`` (default
 from __future__ import annotations
 
 import argparse
+import io
 import base64
 import json
 import sys
@@ -114,6 +115,17 @@ def main(argv) -> int:
     p.add_argument("objective")
     p.add_argument("--base-sha", default="0" * 40)
     p.add_argument(
+        "--contract-file",
+        help="path to the contract to store with the task. A task whose "
+             "contract does not declare allowed_paths cannot be authored: "
+             "the worker blocks it before calling the model.",
+    )
+    p.add_argument(
+        "--allowed-path", action="append", default=[],
+        help="build a minimal contract declaring this path. Repeatable. "
+             "Mutually exclusive with --contract-file.",
+    )
+    p.add_argument(
         "--ready",
         action="store_true",
         help="also move it out of DRAFT to READY_AUTHOR",
@@ -145,6 +157,9 @@ def main(argv) -> int:
     p = sub.add_parser("events")
     p.add_argument("task_id")
 
+    p = sub.add_parser("retry")
+    p.add_argument("task_id")
+
     args = parser.parse_args(argv[1:])
     secret = read_secret(args.env_file, ADMIN)
     url = args.url.rstrip("/")
@@ -161,11 +176,32 @@ def main(argv) -> int:
         }))
 
     if args.command == "create-task":
+        if args.contract_file and args.allowed_path:
+            print("give --contract-file or --allowed-path, not both")
+            return 2
+
+        if args.contract_file:
+            contract = io.open(args.contract_file, encoding="utf-8").read()
+        elif args.allowed_path:
+            entries = "".join(f"  - {entry}\n" for entry in args.allowed_path)
+            contract = (
+                "schema_version: 7\n"
+                f"task_id: {args.task_id}\n"
+                "allowed_paths:\n"
+                f"{entries}"
+            )
+        else:
+            # Deliberately not a default that would authorise anything. The
+            # task is created and will block at authoring, naming the reason,
+            # which is better than a contract nobody wrote being honoured.
+            contract = "schema_version: 7\n"
+
         status, body = call(url, secret, "POST", "/controller/tasks", {
             "task_id": args.task_id,
             "title": args.title,
             "objective": args.objective,
             "base_sha": args.base_sha,
+            "contract_yaml": contract,
         })
 
         if status >= 400 or not args.ready:
@@ -174,6 +210,11 @@ def main(argv) -> int:
         print(f"created {args.task_id}")
         return show(*call(
             url, secret, "POST", f"/controller/tasks/{args.task_id}/ready"
+        ))
+
+    if args.command == "retry":
+        return show(*call(
+            url, secret, "POST", f"/controller/tasks/{args.task_id}/retry"
         ))
 
     if args.command == "repair":

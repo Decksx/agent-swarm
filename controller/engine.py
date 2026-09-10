@@ -23,6 +23,7 @@ from typing import Optional
 
 from .db import transaction
 from .states import (
+    CONTROLLER,
     NON_TRANSITIONING_EVENTS,
     TransitionRejected,
     resolve,
@@ -232,6 +233,68 @@ def apply_transition(
         "state_seq": new_seq,
         "replayed": False,
     }
+
+
+# How many author attempts a task gets before a person has to look at it.
+# Not a cost control -- a loop detector. Two rejections in a row means the
+# reviewer is asking for something the author is not able to produce from the
+# contract it has, and a third attempt is the same generation with the same
+# inputs. The state machine has always had `budget_exhausted` beside
+# `retry_authorized` for this; nothing emitted either until now.
+DEFAULT_AUTHOR_ATTEMPTS = 3
+
+
+def authorize_retry(
+    conn: sqlite3.Connection,
+    *,
+    task_id: str,
+    actor: str,
+    max_attempts: int = DEFAULT_AUTHOR_ATTEMPTS,
+    now: Optional[float] = None,
+) -> dict:
+    """Decide whether a rejected task gets another attempt.
+
+    A controller decision, not an operator one, and the distinction is the
+    same as everywhere else in section 8: the operator *asks* for a retry, and
+    the controller either authorises one or refuses and escalates. An
+    admin-authority route for this would let an operator keep buying attempts
+    past the point where the loop is the problem.
+
+    Attempts are counted from the activations actually issued rather than from
+    a counter on the task, because that is the number that reflects what was
+    really spent -- a task repaired, superseded, or re-versioned does not get
+    its history rewritten by this.
+
+    Returns the transition outcome. On exhaustion the task goes to NEEDS_HUMAN
+    rather than raising: refusing another attempt is a decision the ledger
+    should carry, not an error the caller can ignore.
+    """
+    spent = conn.execute(
+        "SELECT COUNT(*) AS n FROM activations "
+        "WHERE task_id = ? AND stage = 'author' AND chargeable_attempt = 1",
+        (task_id,),
+    ).fetchone()["n"]
+
+    if spent >= max_attempts:
+        return apply_transition(
+            conn,
+            task_id=task_id,
+            kind="budget_exhausted",
+            actor=actor,
+            authority=CONTROLLER,
+            now=now,
+            payload={"author_attempts": spent, "max_attempts": max_attempts},
+        )
+
+    return apply_transition(
+        conn,
+        task_id=task_id,
+        kind="retry_authorized",
+        actor=actor,
+        authority=CONTROLLER,
+        now=now,
+        payload={"author_attempts": spent, "max_attempts": max_attempts},
+    )
 
 
 def replay_state(conn: sqlite3.Connection, task_id: str) -> Optional[str]:

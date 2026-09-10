@@ -293,6 +293,29 @@ def build_router(
         except Exception as exc:
             raise _http(exc)
 
+    @router.post("/tasks/{task_id}/retry")
+    def retry(
+        task_id: str,
+        component: str = Depends(require_admin),
+        conn: sqlite3.Connection = Depends(get_conn),
+    ):
+        """Ask for another author attempt on a rejected task.
+
+        Admin triggers it; the controller decides. `retry_authorized` is a
+        controller-authority transition, so it cannot be applied through the
+        admin transition route -- and that is not an oversight to work around
+        here. An operator who could declare a retry could keep buying attempts
+        past the point where the loop itself is the problem, which is what
+        `budget_exhausted` and NEEDS_HUMAN exist to stop.
+
+        Either outcome is a recorded decision: another attempt, or an
+        escalation to a person.
+        """
+        try:
+            return engine.authorize_retry(conn, task_id=task_id, actor=component)
+        except Exception as exc:
+            raise _http(exc)
+
     @router.post("/tasks/{task_id}/repair")
     def repair(
         task_id: str,
