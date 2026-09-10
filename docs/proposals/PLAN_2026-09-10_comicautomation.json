@@ -1,0 +1,164 @@
+{
+  "exported_at": "2026-09-10T23:30:01Z",
+  "project": "comicautomation",
+  "repo_id": "fdc614a6f9af1a5f",
+  "planning_ref": "refs/heads/master",
+  "base_sha": "032b9857a50e1d1e6c18cb9cb55c615d69a637e3",
+  "planner": "gemini-3.6-flash",
+  "planner_summary": "This plan adds documentation, configuration validation tooling, and test coverage for database read guards and watcher routing rules. Because Python source file contents were omitted from the snapshot, tasks are structured around new, self-contained files and test modules that rely on provided documentation and configuration examples as context.",
+  "controller_url": "http://192.168.42.50:8050",
+  "state": "all four are DRAFT; none has been activated",
+  "consistency_check": {
+    "fields_compared": [
+      "title",
+      "objective",
+      "acceptance_criteria",
+      "mode",
+      "allowed_paths",
+      "context_paths",
+      "base_sha"
+    ],
+    "mismatches": [],
+    "agree": true
+  },
+  "proposals": [
+    {
+      "task_id": "DOC-1",
+      "title": "Document WAL-aware read guard design and protocol",
+      "state": "DRAFT",
+      "objective": "Create a dedicated documentation file in docs/wal_aware_read_guards.md detailing the PRAGMA data_version read-guard protocol for SQLite WAL mode, outlining transaction semantics, pre/post data_version validation, and report rejection rules.",
+      "acceptance_criteria": [
+        "docs/wal_aware_read_guards.md exists and explains the single deferred transaction requirement and PRAGMA data_version check protocol.",
+        "The document details error handling and diagnostic signals when data_version changes during execution."
+      ],
+      "proposed_owner": "chatgpt",
+      "mode": "document",
+      "base_sha": "032b9857a50e1d1e6c18cb9cb55c615d69a637e3",
+      "dependencies": [],
+      "allowed_paths": [
+        "docs/wal_aware_read_guards.md"
+      ],
+      "context_paths": [
+        "CLAUDE.md",
+        "docs/database_architecture.md",
+        "comic_automation/database/read_guards.py"
+      ],
+      "grounding": {
+        "creates": [
+          "docs/wal_aware_read_guards.md"
+        ],
+        "edits": [],
+        "missing_context": [],
+        "context_files_resolved": 3
+      },
+      "contract_yaml": "schema_version: 7\ntask_id: DOC-1\nmode: document\nallowed_paths:\n  - docs/wal_aware_read_guards.md\ncontext_paths:\n  - CLAUDE.md\n  - docs/database_architecture.md\n  - comic_automation/database/read_guards.py\n",
+      "contract_hash": "ef2275b32e4f4c040992a6a5493a40e2e9eceb693f13f189fa76c207fd6c3acd",
+      "created_at": 1789081027.327684,
+      "created_by": "admin"
+    },
+    {
+      "task_id": "ROUTING-1",
+      "title": "Create routing JSON configuration validation script",
+      "state": "DRAFT",
+      "objective": "Implement a standalone script scripts/validate_routing_config.py that validates JSON routing files against expected schema constraints (destinations dictionary, default destination, and ordered rules array).",
+      "acceptance_criteria": [
+        "scripts/validate_routing_config.py accepts a path to a routing JSON file via CLI arguments.",
+        "The script reports validation errors for missing default destinations, invalid JSON syntax, or malformed rule objects, and exits non-zero on error."
+      ],
+      "proposed_owner": "chatgpt",
+      "mode": "implement",
+      "base_sha": "032b9857a50e1d1e6c18cb9cb55c615d69a637e3",
+      "dependencies": [],
+      "allowed_paths": [
+        "scripts/validate_routing_config.py"
+      ],
+      "context_paths": [
+        "docs/cbz_watcher.md",
+        "config/routing.example.json",
+        "config/routing.v2.json"
+      ],
+      "grounding": {
+        "creates": [
+          "scripts/validate_routing_config.py"
+        ],
+        "edits": [],
+        "missing_context": [],
+        "context_files_resolved": 3
+      },
+      "contract_yaml": "schema_version: 7\ntask_id: ROUTING-1\nmode: implement\nallowed_paths:\n  - scripts/validate_routing_config.py\ncontext_paths:\n  - docs/cbz_watcher.md\n  - config/routing.example.json\n  - config/routing.v2.json\n",
+      "contract_hash": "c9007a01ac47868882109d76dccb77c926d2511e4adab1c11842a783aea80633",
+      "created_at": 1789081027.4269218,
+      "created_by": "admin"
+    },
+    {
+      "task_id": "ROUTING-2",
+      "title": "Add unit tests for routing configuration validator",
+      "state": "DRAFT",
+      "objective": "Create unit tests in tests/test_routing_config_validation.py verifying scripts/validate_routing_config.py against valid sample configs and various malformed JSON structures.",
+      "acceptance_criteria": [
+        "tests/test_routing_config_validation.py contains unit tests passing valid routing configs (e.g. config/routing.example.json).",
+        "Tests verify detection of invalid routing files missing mandatory keys or containing invalid rule patterns."
+      ],
+      "proposed_owner": "chatgpt",
+      "mode": "test",
+      "base_sha": "032b9857a50e1d1e6c18cb9cb55c615d69a637e3",
+      "dependencies": [
+        "ROUTING-1"
+      ],
+      "allowed_paths": [
+        "tests/test_routing_config_validation.py"
+      ],
+      "context_paths": [
+        "docs/cbz_watcher.md",
+        "config/routing.example.json",
+        "config/routing.v2.json"
+      ],
+      "grounding": {
+        "creates": [
+          "tests/test_routing_config_validation.py"
+        ],
+        "edits": [],
+        "missing_context": [],
+        "context_files_resolved": 3
+      },
+      "contract_yaml": "schema_version: 7\ntask_id: ROUTING-2\nmode: test\nallowed_paths:\n  - tests/test_routing_config_validation.py\ncontext_paths:\n  - docs/cbz_watcher.md\n  - config/routing.example.json\n  - config/routing.v2.json\n",
+      "contract_hash": "8578f87bd368c5110662e7bc738a349678a04be9dfa7d102c84613105166bf5b",
+      "created_at": 1789081027.4379406,
+      "created_by": "admin"
+    },
+    {
+      "task_id": "TEST-1",
+      "title": "Add test suite for WAL-aware read guard checks",
+      "state": "DRAFT",
+      "objective": "Create tests/test_wal_read_guard_protocol.py to test read guard wrappers against SQLite databases in WAL mode, asserting behavior when PRAGMA data_version remains unchanged versus when a concurrent write alters data_version.",
+      "acceptance_criteria": [
+        "tests/test_wal_read_guard_protocol.py defines pytest test cases for read guard success on unchanged data_version.",
+        "Test cases verify that data_version mismatches trigger report rejection or guard exceptions."
+      ],
+      "proposed_owner": "chatgpt",
+      "mode": "test",
+      "base_sha": "032b9857a50e1d1e6c18cb9cb55c615d69a637e3",
+      "dependencies": [],
+      "allowed_paths": [
+        "tests/test_wal_read_guard_protocol.py"
+      ],
+      "context_paths": [
+        "CLAUDE.md",
+        "comic_automation/database/read_guards.py",
+        "tests/test_read_guards.py"
+      ],
+      "grounding": {
+        "creates": [
+          "tests/test_wal_read_guard_protocol.py"
+        ],
+        "edits": [],
+        "missing_context": [],
+        "context_files_resolved": 3
+      },
+      "contract_yaml": "schema_version: 7\ntask_id: TEST-1\nmode: test\nallowed_paths:\n  - tests/test_wal_read_guard_protocol.py\ncontext_paths:\n  - CLAUDE.md\n  - comic_automation/database/read_guards.py\n  - tests/test_read_guards.py\n",
+      "contract_hash": "8fdb63f8160798a00ce1e971d8498e1f2caa4e7841d9f4d6ac4e701771a6600c",
+      "created_at": 1789081027.3965347,
+      "created_by": "admin"
+    }
+  ]
+}
