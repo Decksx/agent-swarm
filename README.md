@@ -1,6 +1,6 @@
 # Greeting demo
 
-A throwaway repository for exercising the review loop.
+A throwaway repository for exercising the review loop end to end.
 
 ## Layout
 
