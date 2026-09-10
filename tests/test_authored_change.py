@@ -234,3 +234,113 @@ def test_the_prompt_carries_the_objective_and_the_contract():
     assert authored_change.BEGIN in prompt
     assert authored_change.END in prompt
     assert "COMPLETE contents" in prompt
+
+
+# --- allowed_paths ----------------------------------------------------------
+
+
+ALLOWED = ["notes", "docs/changelog.md"]
+
+
+@pytest.mark.parametrize("path", [
+    "notes/a.txt", "notes/deep/b.txt", "notes", "docs/changelog.md",
+])
+def test_a_path_inside_the_contract_is_allowed(repo, path):
+    assert authored_change.safe_relative_path(repo, path, ALLOWED)
+
+
+@pytest.mark.parametrize("path", [
+    "build.sh", "docs/other.md", "src/main.py", "README.md",
+])
+def test_a_path_outside_the_contract_is_refused(repo, path):
+    """Inside the repository is not the same as authorised to touch.
+
+    A task asked to add a note has no business editing the build script, and
+    the containment check cannot tell those apart -- both are inside the
+    repository.
+    """
+    with pytest.raises(authored_change.UnsafePath, match="outside the paths"):
+        authored_change.safe_relative_path(repo, path, ALLOWED)
+
+
+def test_a_sibling_with_a_shared_prefix_is_not_allowed(repo):
+    """`notes` must not authorise `notes-secret`.
+
+    A startswith check would allow it. Matching is on path components for
+    exactly this case.
+    """
+    with pytest.raises(authored_change.UnsafePath):
+        authored_change.safe_relative_path(repo, "notes-secret/x.txt", ALLOWED)
+
+
+def test_no_contract_restriction_means_containment_only(repo):
+    """An empty list is "unrestricted", not "nothing permitted"."""
+    assert authored_change.safe_relative_path(repo, "anything.txt", [])
+    assert authored_change.safe_relative_path(repo, "anything.txt", None)
+
+
+def test_apply_refuses_a_file_outside_the_contract(repo):
+    with pytest.raises(authored_change.UnsafePath):
+        authored_change.apply_and_commit(
+            repo, branch="task/T-9",
+            files=[("notes/ok.txt", "x\n"), ("build.sh", "rm -rf /\n")],
+            message="m", allowed_paths=ALLOWED,
+        )
+
+    assert git(repo, "status", "--porcelain") == ""
+    assert "task/T-9" not in git(repo, "branch", "--list", "task/T-9")
+
+
+# --- The worktree is left clean, or the failure says so ---------------------
+
+
+def test_a_dirty_worktree_is_refused_before_anything_is_written(repo):
+    """Somebody else's uncommitted edits must not land in this task's commit.
+
+    They would be attributed to the model, and the review would judge them as
+    though the author had written them.
+    """
+    (repo / "stray.txt").write_text("not mine\n", encoding="utf-8")
+
+    with pytest.raises(authored_change.AuthoringError, match="not clean"):
+        authored_change.apply_and_commit(
+            repo, branch="task/T-8", files=[("a.txt", "x\n")], message="m",
+        )
+
+
+def test_a_failure_partway_through_leaves_no_branch_and_no_dirt(repo):
+    """The empty-change failure happens after files are written and staged.
+
+    That is the interesting case: the attempt got far enough to modify the
+    worktree before failing, so recovery has to actually undo something.
+    """
+    before = git(repo, "rev-parse", "--abbrev-ref", "HEAD")
+
+    with pytest.raises(authored_change.AuthoringError, match="nothing to commit"):
+        authored_change.apply_and_commit(
+            repo, branch="task/T-7",
+            files=[("README.md", "seed\n")], message="m",
+        )
+
+    assert authored_change.worktree_is_clean(repo)
+    assert git(repo, "rev-parse", "--abbrev-ref", "HEAD") == before
+    assert git(repo, "branch", "--list", "task/T-7") == ""
+
+
+def test_a_failed_attempt_can_be_retried_on_the_same_branch(repo):
+    """The point of cleaning up: the branch name is free again.
+
+    Without the rollback the retry would hit "branch already exists" and the
+    task would be stuck behind its own failed attempt.
+    """
+    with pytest.raises(authored_change.AuthoringError):
+        authored_change.apply_and_commit(
+            repo, branch="task/T-6",
+            files=[("README.md", "seed\n")], message="m",
+        )
+
+    result = authored_change.apply_and_commit(
+        repo, branch="task/T-6", files=[("fixed.txt", "better\n")], message="m",
+    )
+
+    assert len(result["candidate_sha"]) == 40

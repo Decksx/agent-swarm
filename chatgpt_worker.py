@@ -386,6 +386,45 @@ def post_reply(requests: Any, target: str, body: str, message_id: Any) -> None:
 # a constant at the one call site rather than a function of untrusted input.
 
 
+def _allowed_paths_from_contract(contract: str) -> list:
+    """Pull `allowed_paths` out of a free-form contract, or return [].
+
+    Deliberately a small hand-parse rather than a YAML dependency: hub.py
+    installs fastapi, uvicorn and pydantic at every container start and nothing
+    else, and the contract linter that would justify a real parser is deferred.
+    It reads a `allowed_paths:` key followed by `- entry` lines.
+
+    Returning [] for anything it does not understand means unrestricted, which
+    matches how the rest of the contract is treated -- stored, hashed, and not
+    interpreted. A stricter reading would refuse tasks for a field nothing
+    validates yet.
+    """
+    paths = []
+    collecting = False
+
+    for line in (contract or "").splitlines():
+        stripped = line.strip()
+
+        if stripped.startswith("allowed_paths:"):
+            collecting = True
+            inline = stripped.partition(":")[2].strip()
+
+            if inline.startswith("[") and inline.endswith("]"):
+                return [
+                    part.strip().strip("'\"")
+                    for part in inline[1:-1].split(",") if part.strip()
+                ]
+            continue
+
+        if collecting:
+            if stripped.startswith("- "):
+                paths.append(stripped[2:].strip().strip("'\""))
+            elif stripped and not stripped.startswith("#"):
+                break
+
+    return paths
+
+
 def execute_author(client: Any, activation: dict, queue: Any) -> None:
     """Author one change. Exactly one model call, then a deterministic commit.
 
@@ -408,8 +447,27 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
                      payload={"reason": "AUTHOR_REPO is not configured on this host"})
         return
 
+    # The contract's allowed paths, if it named any. Parsed leniently: the
+    # linter is deferred, so contract_yaml is free-form and a task that names
+    # none is unrestricted rather than forbidden from writing anything.
+    allowed = task_record.get("allowed_paths") or _allowed_paths_from_contract(
+        task_record.get("contract_yaml", "")
+    )
+
+    # Refused before the model is called, not after. A dirty worktree means the
+    # commit would carry somebody else's uncommitted edits and attribute them
+    # to the model, and finding that out after paying for a generation is worse
+    # than finding it out before.
+    if not authored_change.worktree_is_clean(AUTHOR_REPO):
+        log.error("worktree at %s is not clean; not authoring %s",
+                  AUTHOR_REPO, activation_id)
+        queue.report(activation_id, outcome="blocked", payload={
+            "reason": "the author repository has uncommitted changes",
+        })
+        return
+
     prompt = authored_change.render_author_prompt(
-        {**task_record, "task_id": task_id}
+        {**task_record, "task_id": task_id, "allowed_paths": allowed}
     )
 
     log.info("AUTHORING activation %s for task %s", activation_id, task_id)
@@ -447,12 +505,34 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
             branch=f"task/{task_id}",
             files=files,
             message=f"{task_id}: {task_record.get('title', 'authored change')}",
+            allowed_paths=allowed,
         )
     except authored_change.AuthoringError as exc:
+        # apply_and_commit rolls back on failure, but whether it succeeded is
+        # checked rather than assumed. "The attempt failed" and "the attempt
+        # failed and left the repository unusable" need different responses,
+        # and the second one must not be reported as the first.
+        clean = authored_change.worktree_is_clean(AUTHOR_REPO)
+
+        if not clean:
+            log.error(
+                "activation %s failed AND left %s dirty; it needs a human",
+                activation_id, AUTHOR_REPO,
+            )
+
         log.error("could not apply activation %s: %s", activation_id, exc)
-        queue.report(activation_id, outcome="failed", payload={
-            "reason": str(exc), "elapsed_seconds": round(elapsed, 1),
-        })
+        queue.report(
+            activation_id,
+            # A dirty worktree is an environment problem, not a verdict on the
+            # attempt: no further authoring can happen here until it is fixed,
+            # and AUTHOR_BLOCKED is the state an operator releases.
+            outcome="failed" if clean else "blocked",
+            payload={
+                "reason": str(exc),
+                "worktree_clean": clean,
+                "elapsed_seconds": round(elapsed, 1),
+            },
+        )
         return
 
     log.info(

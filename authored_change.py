@@ -34,7 +34,7 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path, PurePosixPath
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 
 class AuthoringError(Exception):
@@ -83,15 +83,56 @@ def render_author_prompt(task: dict) -> str:
         "ignored.",
         "- If the objective cannot be met by writing files, answer with the "
         "single line: CANNOT_AUTHOR: <one sentence saying why>",
-    ])
+    ] + ([
+        "",
+        "You may only write to these paths. Anything else is refused and your "
+        "whole answer is discarded:",
+        *(f"  {entry}" for entry in task.get("allowed_paths") or []),
+    ] if task.get("allowed_paths") else []))
 
 
-def safe_relative_path(repo: Path, raw: str) -> Path:
-    """Resolve `raw` inside `repo`, or refuse.
+def matches_allowed(relative: str, allowed: List[str]) -> bool:
+    """Whether `relative` falls under one of the contract's allowed paths.
 
-    Checked by resolving and comparing, not by scanning the string for '..'.
-    String checks miss symlinks, miss Windows drive-relative forms like `C:x`,
-    and miss anything the filesystem normalises differently from the checker.
+    An entry is either an exact file or a directory prefix. Matching is done on
+    path components rather than string prefixes, so `notes` does not authorise
+    `notes-secret/x`, which a `startswith` check would happily allow.
+    """
+    target = PurePosixPath(relative)
+
+    for entry in allowed:
+        pattern = PurePosixPath((entry or "").strip().replace("\\", "/").strip("/"))
+
+        if not pattern.parts:
+            continue
+
+        if target == pattern:
+            return True
+
+        if target.parts[: len(pattern.parts)] == pattern.parts:
+            return True
+
+    return False
+
+
+def safe_relative_path(
+    repo: Path, raw: str, allowed: Optional[List[str]] = None
+) -> Path:
+    """Resolve `raw` inside `repo` and within `allowed`, or refuse.
+
+    Two separate checks, and both are needed. Staying inside the repository
+    stops a path from reaching the filesystem at large; `allowed` is the
+    contract's own statement of what this task was authorised to touch. A task
+    asked to add a note has no business editing the build script, and "inside
+    the repository" does not distinguish those.
+
+    `allowed` empty or None means the contract named no restriction, and only
+    the containment check applies.
+
+    Containment is checked by resolving and comparing, not by scanning the
+    string for '..'. String checks miss symlinks, miss Windows drive-relative
+    forms like `C:x`, and miss anything the filesystem normalises differently
+    from the checker.
     """
     candidate = (raw or "").strip().replace("\\", "/")
 
@@ -119,6 +160,15 @@ def safe_relative_path(repo: Path, raw: str) -> Path:
 
     if target == root:
         raise UnsafePath("path is the repository root")
+
+    if allowed:
+        relative = target.relative_to(root).as_posix()
+
+        if not matches_allowed(relative, allowed):
+            raise UnsafePath(
+                f"{relative!r} is outside the paths this task may touch "
+                f"({', '.join(sorted(allowed))})"
+            )
 
     return target
 
@@ -189,6 +239,38 @@ def _git(repo: Path, *args: str) -> str:
     return result.stdout or ""
 
 
+def _abandon(root: Path, branch: str, starting_ref: str) -> None:
+    """Undo a failed authoring attempt, leaving no branch and no dirt.
+
+    Best effort by necessity -- it runs while an exception is propagating and
+    must not replace it with one of its own -- but each step is attempted
+    independently so a failure in one does not skip the rest. Whether it
+    succeeded is checked by the caller with `worktree_is_clean`, because "the
+    attempt failed" and "the attempt failed and left the repository unusable"
+    need different responses.
+    """
+    for args in (
+        ("reset", "--hard", "HEAD"),
+        ("clean", "-fdq"),
+        ("checkout", "-q", starting_ref),
+        ("branch", "-D", branch),
+    ):
+        subprocess.run(
+            ["git", *args], cwd=str(root), capture_output=True,
+            check=False, timeout=60,
+        )
+
+
+def worktree_is_clean(repo: str) -> bool:
+    """Whether the repository has no uncommitted changes."""
+    result = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=str(repo), capture_output=True,
+        encoding="utf-8", errors="replace", check=False, timeout=60,
+    )
+
+    return result.returncode == 0 and not (result.stdout or "").strip()
+
+
 def apply_and_commit(
     repo: str,
     *,
@@ -196,6 +278,7 @@ def apply_and_commit(
     files: List[Tuple[str, str]],
     message: str,
     base: str = "HEAD",
+    allowed_paths: Optional[List[str]] = None,
 ) -> dict:
     """Create `branch` off `base`, write `files`, commit, return branch and sha.
 
@@ -228,26 +311,47 @@ def apply_and_commit(
 
     # Every path validated before any file is written. A partial application
     # would leave the working tree dirty with no commit and no branch.
-    targets = [(safe_relative_path(root, path), content) for path, content in files]
+    targets = [
+        (safe_relative_path(root, path, allowed_paths), content)
+        for path, content in files
+    ]
 
-    _git(root, "checkout", "-q", "-b", branch, base_sha)
+    # The worktree must be clean before anything is written. Building on
+    # somebody else's uncommitted edits would put them in this task's commit
+    # and attribute them to the model.
+    dirty = _git(root, "status", "--porcelain").strip()
 
-    for target, content in targets:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8", newline="\n")
-
-    _git(root, "add", "--", *[str(t) for t, _ in targets])
-
-    status = _git(root, "status", "--porcelain")
-
-    if not status.strip():
+    if dirty:
         raise AuthoringError(
-            "the model's files are identical to the base; there is nothing to "
-            "commit"
+            "the worktree is not clean before authoring; refusing to commit "
+            f"changes that are not this task's ({len(dirty.splitlines())} entries)"
         )
 
-    _git(root, "commit", "-q", "-m", message)
-    sha = _git(root, "rev-parse", "HEAD").strip()
+    starting_ref = _git(root, "rev-parse", "--abbrev-ref", "HEAD").strip() or base_sha
+    _git(root, "checkout", "-q", "-b", branch, base_sha)
+
+    # From here a failure has to leave the repository as it was found.
+    # Anything else hands the next attempt a half-applied change to build
+    # on, which is what the branch-already-exists check exists to prevent.
+
+    try:
+        for target, content in targets:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8", newline="\n")
+
+        _git(root, "add", "--", *[str(t) for t, _ in targets])
+
+        if not _git(root, "status", "--porcelain").strip():
+            raise AuthoringError(
+                "the model's files are identical to the base; there is "
+                "nothing to commit"
+            )
+
+        _git(root, "commit", "-q", "-m", message)
+        sha = _git(root, "rev-parse", "HEAD").strip()
+    except BaseException:
+        _abandon(root, branch, starting_ref)
+        raise
 
     return {
         "branch": branch,
