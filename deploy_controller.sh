@@ -13,10 +13,22 @@
 #     evidence produced against it names a build nobody can reconstruct;
 #   * if any file arrives on the host with a different digest than it left
 #     with, because a partial copy is the failure that looks most like success;
+#   * if the required test suites do not pass, checked here rather than by
+#     an operator running pytest beforehand and reading the result. A suite
+#     was once run as `pytest | tail`, which reports the exit status of tail;
+#     the failures scrolled past, the status was 0, and the deploy went out.
+#     A gate a person performs is a gate that is sometimes not performed, and
+#     one that reads a verdict through a pipe is worse than none at all
+#     because it produces a green line either way;
 #   * if the hub does not come back up;
 #   * if the preflight does not go green afterwards, which is the only
 #     statement that means anything -- the copy having "worked" is not
 #     evidence that the process is running what was copied.
+#
+# There is no flag to skip the tests. --allow-uncommitted exists because an
+# operator can knowingly deploy an experiment and discount the evidence from
+# it; there is no equivalent reading of "deployed with failing tests", and a
+# bypass that exists is a bypass that gets used at the moment it matters most.
 #
 # The restart is the point, not an afterthought. Copying files into a running
 # container's mount changes what is on disk and nothing about what is loaded;
@@ -31,13 +43,18 @@ HUB_URL="http://192.168.42.50:8050"
 PYTHON="${DEPLOY_PYTHON:-python}"
 
 ALLOW_UNCOMMITTED=0
+TESTS_ONLY=0
 
 for arg in "$@"; do
   case "$arg" in
     --allow-uncommitted)
       ALLOW_UNCOMMITTED=1 ;;
+    # Runs the gate and stops. Not a bypass -- the opposite of one: it is how
+    # the gate gets run without a deploy attached, so failing it is cheap.
+    --tests-only)
+      TESTS_ONLY=1 ;;
     -h|--help)
-      echo "usage: deploy_controller.sh [--allow-uncommitted]"
+      echo "usage: deploy_controller.sh [--allow-uncommitted] [--tests-only]"
       exit 0 ;;
     *)
       echo "deploy: unknown argument $arg"; exit 2 ;;
@@ -58,7 +75,11 @@ DIRTY="$(git status --porcelain -- "${FILES[@]}")"
 if [ -n "$DIRTY" ]; then
   echo "$DIRTY" | sed 's/^/  uncommitted: /'
 
-  if [ "$ALLOW_UNCOMMITTED" -eq 0 ]; then
+  # --tests-only deploys nothing, so it has no build to correspond to a
+  # commit and nothing to roll back. Refusing it for a dirty tree would make
+  # the cheap way to run the gate the one that needs a flag named "and do not
+  # trust the result", which is how people stop running it.
+  if [ "$ALLOW_UNCOMMITTED" -eq 0 ] && [ "$TESTS_ONLY" -eq 0 ]; then
     echo "deploy: refusing. These files differ from HEAD, so the deployed"
     echo "        build would correspond to no commit -- there would be"
     echo "        nothing to roll back to and nothing to reproduce it from."
@@ -92,6 +113,106 @@ if [ "$FOUND" -ne "${#FILES[@]}" ]; then
   echo "        deployed. Something is not finding the files it is describing,"
   echo "        and its id describes whatever it did find."
   exit 1
+fi
+
+# --- The gate: the suites, before anything leaves this machine --------------
+#
+# Every verdict below is an exit status read directly from the command that
+# produced it. Nothing is piped: `pytest | tail` reports tail's status, which
+# is 0 whether the suite passed or burned, and that is the incident this
+# exists because of. Output goes to a file, the status comes from `$?`, and
+# the file is shown afterwards -- so what is displayed and what is decided on
+# are produced by two separate steps and the display cannot change the answer.
+#
+# Both suites are named as directories, and the count check below is what makes
+# that safe. A gate that runs "whatever tests it finds" passes when it finds
+# none -- finding none is the exact shape of a broken invocation -- so naming
+# files individually was the first instinct. It is the wrong one: a hub test
+# file added later would then be silently ungated, and nothing would say so.
+# Naming the directory means new tests are gated the day they are written, and
+# the "no passing tests" refusal covers the case the naming was protecting
+# against.
+
+SUITE_NAMES=(
+  "controller, workers and planning"
+  "hub and controller HTTP surface"
+)
+SUITE_ARGS=(
+  "tests"
+  "hub"
+)
+
+LOGDIR="$(mktemp -d)"
+trap 'rm -rf "$LOGDIR"' EXIT
+
+# The interpreter that runs the suites is the same one that built the manifest
+# above. Two interpreters would mean the tests could pass under one while the
+# build id described what the other would import.
+if ! "$PYTHON" -c "import pytest" 2>/dev/null; then
+  echo "deploy: FAIL $PYTHON has no pytest, so the required suites cannot run."
+  echo "        Not skipped: a suite that did not run is not a suite that"
+  echo "        passed, and this is the one place that difference decides"
+  echo "        whether a build ships. Point DEPLOY_PYTHON at an interpreter"
+  echo "        with pytest, fastapi, httpx and tzdata installed."
+  exit 1
+fi
+
+FAILED=0
+
+for i in "${!SUITE_NAMES[@]}"; do
+  name="${SUITE_NAMES[$i]}"
+  log="$LOGDIR/suite-$i.log"
+
+  echo "deploy: running suite -- $name"
+
+  # `|| status=$?` rather than `set -e`: a failing suite is a result to report,
+  # not a reason to abort before the other suite has been run. An operator
+  # seeing one failure wants to know whether the other one also failed.
+  status=0
+  "$PYTHON" -m pytest ${SUITE_ARGS[$i]} -q > "$log" 2>&1 || status=$?
+
+  # A summary line, for the log. Read after the status, and never instead of
+  # it -- this is the pipe that started all this, kept only where it decides
+  # nothing.
+  summary="$(tail -n 1 "$log" | tr -d '\r')"
+
+  if [ "$status" -ne 0 ]; then
+    echo "deploy: FAIL $name (pytest exit $status)"
+    echo "$summary" | sed 's/^/        /'
+    tail -n 25 "$log" | sed 's/^/        /'
+    FAILED=1
+    continue
+  fi
+
+  # Exit 0 with nothing run. pytest exits 5 for "no tests collected", which
+  # the status catches, but a suite whose every test was skipped -- a missing
+  # optional dependency, a platform marker -- exits 0 and reports success
+  # having verified nothing. "No failures" and "no tests" render almost
+  # identically and only one of them is evidence.
+  if ! echo "$summary" | grep -Eq '[0-9]+ passed'; then
+    echo "deploy: FAIL $name exited 0 but reports no passing tests."
+    echo "        \"nothing failed\" is not \"something passed\"."
+    echo "$summary" | sed 's/^/        /'
+    FAILED=1
+    continue
+  fi
+
+  echo "deploy: ok   $summary"
+done
+
+if [ "$FAILED" -ne 0 ]; then
+  echo
+  echo "deploy: refusing. The required suites did not pass, and there is no"
+  echo "        flag here to say they may be ignored. Fix them, or deploy"
+  echo "        the commit that last passed them."
+  exit 1
+fi
+
+echo "deploy: all ${#SUITE_NAMES[@]} required suites passed"
+
+if [ "$TESTS_ONLY" -eq 1 ]; then
+  echo "deploy: --tests-only, so stopping before the copy"
+  exit 0
 fi
 
 # --- Copy, then prove the copy ----------------------------------------------
