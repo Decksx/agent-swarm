@@ -35,7 +35,45 @@ count_workers() {
     2>/dev/null | tr -d '\r\n '
 }
 
+# The hub credential for one component, read from the host's env file. Kept
+# here rather than in a shell variable an operator has to remember to set: the
+# secret that matters is the one the worker will actually present, and reading
+# it from the same place the hub reads it means a preflight that passes is
+# evidence about that credential and not about a copy of it.
+fetch_secret() {
+  ssh -o BatchMode=yes -o ConnectTimeout=20 tower.local "python3 -c \"
+import io
+for line in io.open('/mnt/user/appdata/agent-swarm/hub.env', encoding='utf-8'):
+    line = line.strip()
+    if line.startswith('HUB_CREDENTIALS='):
+        raw = line.split('=', 1)[1].strip().strip(chr(34)).strip(chr(39))
+        for entry in raw.split(','):
+            name, _, secret = entry.strip().partition(':')
+            if name.strip().lower() == '$1':
+                print(secret.strip(), end='')
+\"" 2>/dev/null
+}
+
 case "$ACTION" in
+  preflight)
+    # Deployment parity on its own, without starting a worker. The check is
+    # worth running after every deploy and before every run, and tying it to
+    # launching a process meant it was only ever run when something was about
+    # to be started.
+    case "$IDENT" in
+      claudecode|gemini|chatgpt) COMPONENT="$IDENT" ;;
+      *) echo "usage: worker_ctl.sh preflight {claudecode|gemini|chatgpt}"; exit 2 ;;
+    esac
+
+    HUB_SECRET="$(fetch_secret "$COMPONENT")"
+    if [ -z "$HUB_SECRET" ]; then echo "missing: hub credential for $COMPONENT"; exit 1; fi
+    export HUB_SECRET
+
+    cd "$REPO"
+    shift 2
+    python preflight.py --url "http://192.168.42.50:8050" --agent "$COMPONENT" "$@"
+    ;;
+
   start)
     case "$IDENT" in
       claudecode) SCRIPT=claude_worker.py; COMPONENT=claudecode ;;
@@ -44,17 +82,7 @@ case "$ACTION" in
       *) echo "usage: worker_ctl.sh start {claudecode|gemini|chatgpt}"; exit 2 ;;
     esac
 
-    HUB_SECRET="$(ssh -o BatchMode=yes -o ConnectTimeout=20 tower.local "python3 -c \"
-import io
-for line in io.open('/mnt/user/appdata/agent-swarm/hub.env', encoding='utf-8'):
-    line = line.strip()
-    if line.startswith('HUB_CREDENTIALS='):
-        raw = line.split('=', 1)[1].strip().strip(chr(34)).strip(chr(39))
-        for entry in raw.split(','):
-            name, _, secret = entry.strip().partition(':')
-            if name.strip().lower() == '$COMPONENT':
-                print(secret.strip(), end='')
-\"" 2>/dev/null)"
+    HUB_SECRET="$(fetch_secret "$COMPONENT")"
 
     if [ -z "$HUB_SECRET" ]; then echo "missing: hub credential for $COMPONENT"; exit 1; fi
     export HUB_SECRET
@@ -131,6 +159,6 @@ for line in io.open('/mnt/user/appdata/agent-swarm/hub.env', encoding='utf-8'):
     ;;
 
   *)
-    echo "usage: worker_ctl.sh {start|stop|count} {claudecode|gemini|chatgpt}"
+    echo "usage: worker_ctl.sh {start|stop|count|preflight} {claudecode|gemini|chatgpt}"
     exit 2 ;;
 esac
