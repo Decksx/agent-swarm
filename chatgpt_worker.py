@@ -69,6 +69,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+import authored_change
+import controller_client
 import swarm_control
 
 HUB_URL = os.environ.get("HUB_URL", "http://192.168.42.50:8050").rstrip("/")
@@ -90,6 +92,16 @@ OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
 HERE = Path(__file__).resolve().parent
 STATE_FILE = HERE / "chatgpt_worker.state"
 LOG_FILE = HERE / "chatgpt_worker.log"
+
+# One source, chosen at startup. Same reasoning as the other two workers.
+ACTIVATION_SOURCE = os.environ.get("ACTIVATION_SOURCE", "directory").strip().lower()
+VALID_SOURCES = ("directory", "controller")
+
+CONTROLLER_URL = os.environ.get("CONTROLLER_URL", HUB_URL)
+
+# The repository this worker authors in. It has no shell, so it writes the
+# files the model returns and commits them itself.
+AUTHOR_REPO = os.environ.get("AUTHOR_REPO", "")
 
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "3"))
 HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "15"))
@@ -374,6 +386,87 @@ def post_reply(requests: Any, target: str, body: str, message_id: Any) -> None:
 # a constant at the one call site rather than a function of untrusted input.
 
 
+def execute_author(client: Any, activation: dict, queue: Any) -> None:
+    """Author one change. Exactly one model call, then a deterministic commit.
+
+    The split matters: the model supplies file contents and this function
+    applies them. It has no shell, so there is no path by which the model
+    itself can run anything -- what it returns is text, and the only thing done
+    with that text is writing files whose paths were validated first.
+
+    Every failure ends in a submitted outcome rather than a return, so a task
+    never sits in AUTHORING waiting out a lease because the worker gave up
+    quietly.
+    """
+    activation_id = activation.get("activation_id")
+    task_id = activation.get("task_id") or "task"
+    task_record = activation.get("task_record") or {}
+
+    if not AUTHOR_REPO:
+        log.error("AUTHOR_REPO is not set; cannot author %s", activation_id)
+        queue.report(activation_id, outcome="blocked",
+                     payload={"reason": "AUTHOR_REPO is not configured on this host"})
+        return
+
+    prompt = authored_change.render_author_prompt(
+        {**task_record, "task_id": task_id}
+    )
+
+    log.info("AUTHORING activation %s for task %s", activation_id, task_id)
+    started = time.monotonic()
+
+    reply = generate_reply(
+        client,
+        [{"sender": "controller", "target": "@" + AGENT_IDENTITY, "content": prompt}],
+    )
+    elapsed = time.monotonic() - started
+
+    if reply is None:
+        log.warning("no reply for activation %s after %.1fs", activation_id, elapsed)
+        queue.report(activation_id, outcome="blocked",
+                     payload={"reason": "the model returned nothing"})
+        return
+
+    try:
+        files = authored_change.parse_files(reply)
+    except authored_change.AuthoringError as exc:
+        # `failed` rather than `blocked`: the model answered, and the answer
+        # was not usable. That is a fact about the attempt, which is what
+        # CHANGES_REQUESTED is for.
+        log.error("activation %s produced an unusable answer: %s", activation_id, exc)
+        queue.report(activation_id, outcome="failed", payload={
+            "reason": str(exc),
+            "reply_excerpt": swarm_control.redact(reply)[:1000],
+            "elapsed_seconds": round(elapsed, 1),
+        })
+        return
+
+    try:
+        result = authored_change.apply_and_commit(
+            AUTHOR_REPO,
+            branch=f"task/{task_id}",
+            files=files,
+            message=f"{task_id}: {task_record.get('title', 'authored change')}",
+        )
+    except authored_change.AuthoringError as exc:
+        log.error("could not apply activation %s: %s", activation_id, exc)
+        queue.report(activation_id, outcome="failed", payload={
+            "reason": str(exc), "elapsed_seconds": round(elapsed, 1),
+        })
+        return
+
+    log.info(
+        "COMPLETED activation %s: %s at %s (%d file(s)) in %.1fs",
+        activation_id, result["branch"], result["candidate_sha"][:12],
+        len(result["files"]), elapsed,
+    )
+
+    queue.report(activation_id, outcome="candidate", payload={
+        "elapsed_seconds": round(elapsed, 1),
+        **result,
+    })
+
+
 def execute_activation(requests: Any, client: Any, activation: dict) -> None:
     """Answer one operator-issued activation.
 
@@ -477,7 +570,24 @@ def main() -> int:
     # never handled, logged, or posted by this script.
     client = OpenAI(timeout=OPENAI_TIMEOUT)
 
+    if ACTIVATION_SOURCE not in VALID_SOURCES:
+        log.error(
+            "refusing to start: ACTIVATION_SOURCE=%r is not one of %s",
+            ACTIVATION_SOURCE, ", ".join(VALID_SOURCES),
+        )
+        return 3
+
+    queue = None
+
+    if ACTIVATION_SOURCE == "controller":
+        queue = controller_client.ControllerQueue(
+            requests, base_url=CONTROLLER_URL, auth=_HUB_AUTH,
+            agent=AGENT_IDENTITY, timeout=HTTP_TIMEOUT,
+        )
+
     log.info("hub        : %s", HUB_URL)
+    log.info("work from  : %s", ACTIVATION_SOURCE)
+    log.info("author repo: %s", AUTHOR_REPO or "(unset -- authoring will block)")
     log.info("model      : %s", OPENAI_MODEL)
     log.info("openai_key : present")
     log.info("identity   : %s (bound locally, never from a message)", AGENT_IDENTITY)
@@ -553,13 +663,46 @@ def main() -> int:
 
             # Checked before the claim, so a pause engaged mid-poll leaves the
             # queue intact rather than consuming what it declined to run.
-            activation = swarm_control.claim_activation(AGENT_IDENTITY)
+            if queue is not None:
+                try:
+                    activation = queue.claim()
+                except (
+                    controller_client.Unauthenticated,
+                    controller_client.ClaimForbidden,
+                ) as exc:
+                    log.error("fatal: %s", exc)
+                    return 4
+            else:
+                activation = swarm_control.claim_activation(AGENT_IDENTITY)
 
             if activation is not None:
-                execute_activation(requests, client, activation)
+                stage = activation.get("stage")
+
+                if queue is not None and stage == "author":
+                    execute_author(client, activation, queue)
+                elif queue is not None:
+                    # This worker authors. A review activation belongs to the
+                    # verifier, and answering one here would produce a verdict
+                    # from something that never looked at a diff.
+                    log.error(
+                        "activation %s has stage %r, which this worker does "
+                        "not handle", activation.get("activation_id"), stage,
+                    )
+                    queue.report(
+                        activation.get("activation_id"), outcome="blocked",
+                        payload={"reason": f"unsupported stage {stage!r}"},
+                    )
+                else:
+                    execute_activation(requests, client, activation)
 
         swarm_control.write_status(AGENT_IDENTITY)
-        time.sleep(POLL_SECONDS)
+
+        wait = POLL_SECONDS
+
+        if queue is not None:
+            wait = max(wait, getattr(queue, "retry_after", 0.0), queue.backoff.current)
+
+        time.sleep(wait)
 
     instance.release()
     log.info("stopped at message id %s", last_seen_id)
