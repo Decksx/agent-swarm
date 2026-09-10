@@ -34,6 +34,24 @@ What each entry states
                      warning nobody reads. A full refname cannot be ambiguous.
 * `worktree_root` -- where task execution happens. Never inside the canonical
                      checkout, which is dirty and stays that way.
+* `plannable`     -- optional, defaults to true. False means no new work may be
+                     planned against this project. Resolution still succeeds:
+                     a task already in flight can be authored, reviewed and
+                     read, because the entry is not being retired, it is being
+                     closed to new work. Only the planner is refused.
+
+Why a project would be closed to planning
+-----------------------------------------
+
+A demonstration target is a repository that exists to be written to badly. The
+`greeting` repository holds three candidate branches, one of them a rejected
+candidate that is the evidence for the review that rejected it, and all of it
+has to survive until Phase 1 is signed off. A planner handed that registry
+entry would see a small, tidy, obviously-improvable repository and plan against
+it, and the first new task would start moving the branches that are the
+evidence. `plannable: false` is how an entry says "read me, do not extend me"
+without being deleted -- which is the other way to stop a planner, and it takes
+the evidence with it.
 
 The ref is resolved once
 ------------------------
@@ -78,6 +96,15 @@ class ResolutionError(RegistryError):
     """A registered project cannot be planned against as it stands."""
 
 
+class NotPlannable(ResolutionError):
+    """The project resolves, but is closed to new planning on purpose.
+
+    A subclass rather than a flag on ResolutionError so a caller can tell the
+    two apart: everything else that raises here means something is broken or
+    stale, and this means the registry is working exactly as configured.
+    """
+
+
 @dataclass(frozen=True)
 class Project:
     name: str
@@ -85,6 +112,7 @@ class Project:
     repo_id: str
     planning_ref: str
     worktree_root: Path
+    plannable: bool = True
 
     def as_dict(self) -> dict:
         return {
@@ -93,6 +121,7 @@ class Project:
             "repo_id": self.repo_id,
             "planning_ref": self.planning_ref,
             "worktree_root": str(self.worktree_root),
+            "plannable": self.plannable,
         }
 
 
@@ -154,6 +183,17 @@ def parse(name: str, entry: dict) -> Project:
     path = Path(str(entry["path"]).strip())
     worktree_root = Path(str(entry["worktree_root"]).strip())
 
+    plannable = entry.get("plannable", True)
+
+    if not isinstance(plannable, bool):
+        # Not coerced. `"false"` is a true string and `0` is a false integer,
+        # and a permission that depends on which one somebody typed is not a
+        # permission. The one field here whose wrong reading opens something
+        # up is the one field that will not guess.
+        raise RegistryError(
+            f"{name}: plannable is {plannable!r}; it must be true or false"
+        )
+
     if _is_inside(worktree_root, path):
         raise RegistryError(
             f"{name}: worktree_root {worktree_root} is inside the canonical "
@@ -167,6 +207,7 @@ def parse(name: str, entry: dict) -> Project:
         repo_id=str(entry["repo_id"]).strip(),
         planning_ref=ref,
         worktree_root=worktree_root,
+        plannable=plannable,
     )
 
 
@@ -221,10 +262,16 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
     )
 
 
-def resolve(project: Project, *, repo_id_of=None) -> Resolved:
+def resolve(project: Project, *, repo_id_of=None, for_planning: bool = False) -> Resolved:
     """Verify the checkout is the registered one and pin the planning ref.
 
-    Three refusals, and each one is a state in which planning would otherwise
+    `for_planning` is what a planner passes and nothing else does. It adds the
+    `plannable` check, and it is opt-in rather than the default because the
+    flag closes a project to *new work*, not to work already under way: an
+    author finishing a task against a closed project must still resolve it,
+    and a reviewer must still be able to read it.
+
+    Four refusals, and each one is a state in which planning would otherwise
     proceed and produce something that looks like a plan:
 
     * the checkout is not there, or is not a repository -- typically a drive
@@ -234,13 +281,25 @@ def resolve(project: Project, *, repo_id_of=None) -> Resolved:
       matters;
     * the planning ref does not exist. A renamed default branch would
       otherwise fall back to whatever the checkout happened to be on, which is
-      the original mistake with an extra step.
+      the original mistake with an extra step;
+    * the entry is marked `plannable: false`, and this call is a planner. The
+      repository is fine; it is closed to new work on purpose, and a planner
+      cannot tell the difference by looking at it.
 
     `repo_id_of` is injectable so this module does not have to import the
     snapshot generator, which imports nothing from here in turn.
     """
     if repo_id_of is None:
         from repo_snapshot import repo_id as repo_id_of
+
+    if for_planning and not project.plannable:
+        raise NotPlannable(
+            f"{project.name}: the registry marks this project plannable: "
+            "false. It is closed to new planning on purpose -- typically "
+            "because its branches are evidence somebody still needs. Nothing "
+            "is wrong with the checkout; change the registry if that is "
+            "genuinely what is wanted."
+        )
 
     path = project.path
 
@@ -285,6 +344,11 @@ def resolve(project: Project, *, repo_id_of=None) -> Resolved:
     return Resolved(project=project, sha=sha, ref=project.planning_ref)
 
 
-def resolve_name(name: str, registry: Optional[Path] = None) -> Resolved:
+def resolve_name(
+    name: str,
+    registry: Optional[Path] = None,
+    *,
+    for_planning: bool = False,
+) -> Resolved:
     """`get` then `resolve`, which is how every caller uses this."""
-    return resolve(get(name, registry))
+    return resolve(get(name, registry), for_planning=for_planning)

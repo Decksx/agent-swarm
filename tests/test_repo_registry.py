@@ -403,3 +403,75 @@ def test_only_this_modules_worktrees_are_listed(canonical, registry_file, tmp_pa
         str(tmp_path / "unrelated"), "master")
 
     assert worktrees.existing(project) == ["T-5"]
+
+
+# --- Closed to planning, not retired ----------------------------------------
+#
+# The demonstration repository holds a rejected candidate that is the evidence
+# for the review that rejected it. A planner shown that entry would see a small
+# tidy repository and plan against it, and the first new task would start
+# moving the evidence. These are what stops that without deleting the entry --
+# because deleting it also takes the record of which checkout was used.
+
+
+@pytest.fixture
+def closed_registry(tmp_path, canonical, registry_file):
+    """The same registry, with the project closed to new planning."""
+    raw = json.loads(registry_file.read_text(encoding="utf-8"))
+    raw["demo"]["plannable"] = False
+    registry_file.write_text(json.dumps(raw), encoding="utf-8")
+    return registry_file
+
+
+def test_an_entry_is_plannable_unless_it_says_otherwise(registry_file):
+    assert repo_registry.get("demo", registry_file).plannable is True
+
+
+def test_a_planner_is_refused_a_project_closed_to_planning(closed_registry):
+    with pytest.raises(repo_registry.NotPlannable, match="plannable"):
+        repo_registry.resolve_name("demo", closed_registry, for_planning=True)
+
+
+def test_authoring_and_review_still_resolve_a_closed_project(
+    baseline, closed_registry
+):
+    """The flag closes new work, not work already recorded against it.
+
+    A task in flight against a closed project must still be authorable and
+    reviewable, or closing a project would strand whatever is mid-cycle in it.
+    """
+    resolved = repo_registry.resolve_name("demo", closed_registry)
+
+    assert resolved.sha == baseline
+
+
+def test_the_refusal_is_distinguishable_from_something_being_broken(
+    closed_registry
+):
+    """NotPlannable is a ResolutionError, but not every ResolutionError is it.
+
+    A caller reporting "this project is unavailable" for a project that is
+    merely closed would send somebody looking for a mount that never failed.
+    """
+    with pytest.raises(ResolutionError) as raised:
+        repo_registry.resolve_name("demo", closed_registry, for_planning=True)
+
+    assert isinstance(raised.value, repo_registry.NotPlannable)
+
+
+@pytest.mark.parametrize("value", ["false", "no", 0, 1, None, []])
+def test_a_non_boolean_plannable_is_refused_rather_than_coerced(
+    tmp_path, canonical, registry_file, value
+):
+    """`"false"` is a true string. A permission does not guess.
+
+    Every value here is one somebody could plausibly write meaning "closed",
+    and several of them are truthy. Reading any of them as a boolean would
+    make the widest reading the most likely accident.
+    """
+    raw = json.loads(registry_file.read_text(encoding="utf-8"))
+    raw["demo"]["plannable"] = value
+    registry_file.write_text(json.dumps(raw), encoding="utf-8")
+
+    with pytest.raises(RegistryError, match="plannable"):
+        repo_registry.get("demo", registry_file)
