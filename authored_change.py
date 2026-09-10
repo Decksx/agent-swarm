@@ -59,6 +59,36 @@ BEGIN = "<<<BEGIN>>>"
 END = "<<<END>>>"
 
 
+def _rejection_section(task: dict) -> List[str]:
+    """What the last review sent this task back for, if anything.
+
+    Included verbatim and attributed, because a retry that is not told what
+    was wrong is not an attempt at the correction -- it is the same generation
+    with the same inputs, and it will produce the same candidate. The
+    reviewer's words are labelled as the reviewer's: they are a judgment to
+    address, not part of the objective, and an author that treats them as new
+    requirements will drift away from what was actually asked for.
+    """
+    rejection = task.get("last_rejection") or {}
+    rationale = str(rejection.get("rationale") or "").strip()
+
+    if not rationale:
+        return []
+
+    return [
+        "",
+        "-" * 60,
+        "A PREVIOUS ATTEMPT AT THIS TASK WAS REJECTED IN REVIEW.",
+        "",
+        "The reviewer said:",
+        rationale,
+        "",
+        "Address that. The objective above is unchanged and is still what you "
+        "are being judged against; the rejection tells you where the last "
+        "attempt fell short of it.",
+    ]
+
+
 def render_author_prompt(task: dict) -> str:
     """The prompt an API author is given."""
     return "\n".join([
@@ -93,7 +123,7 @@ def render_author_prompt(task: dict) -> str:
         "You may only write to these paths. Anything else is refused and your "
         "whole answer is discarded:",
         *(f"  {entry}" for entry in task.get("allowed_paths") or []),
-    ] if task.get("allowed_paths") else []))
+    ] if task.get("allowed_paths") else []) + _rejection_section(task))
 
 
 

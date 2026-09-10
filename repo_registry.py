@@ -55,12 +55,19 @@ is in flight without any of it entering the baseline it plans against.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
 from typing import Dict, Optional
 
-DEFAULT_REGISTRY = Path(__file__).resolve().parent / "repos.json"
+# The committed registry is the default; SWARM_REPOS overrides it. The paths
+# in an entry are host-specific, so a host with a different layout -- or a
+# throwaway registry for a demonstration -- points at its own file rather than
+# editing the one under version control.
+DEFAULT_REGISTRY = Path(
+    os.environ.get("SWARM_REPOS") or Path(__file__).resolve().parent / "repos.json"
+)
 
 
 class RegistryError(Exception):

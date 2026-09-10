@@ -320,3 +320,39 @@ def test_a_model_that_returns_nothing_is_blocked_not_failed(
     chatgpt_worker.execute_author(object(), activation(CONTRACT, base=base_of(author_repo)), queue)
 
     assert queue.last["outcome"] == "blocked"
+
+
+# --- A retry is told what was wrong -----------------------------------------
+
+
+def test_a_retry_carries_the_reviewers_words_into_the_prompt(
+    author_repo, counted_reply
+):
+    """Otherwise the second attempt is the first one re-rolled.
+
+    The budget in `authorize_retry` calls two rejections in a row a loop for
+    exactly this reason. Feeding the rationale back is what makes an attempt
+    an attempt at the correction.
+    """
+    counted_reply["answer"] = ANSWER
+    act = activation(CONTRACT, base=base_of(author_repo))
+    act["task_record"]["last_rejection"] = {
+        "rationale": "the file is missing the trailing newline the objective asks for",
+    }
+    act["expected_branch"] = "task/T-1-a2"
+
+    chatgpt_worker.execute_author(object(), act, Queue())
+
+    assert "REJECTED IN REVIEW" in counted_reply["prompt"]
+    assert "trailing newline" in counted_reply["prompt"]
+
+
+def test_a_first_attempt_is_not_told_about_a_rejection_that_did_not_happen(
+    author_repo, counted_reply
+):
+    counted_reply["answer"] = ANSWER
+    chatgpt_worker.execute_author(
+        object(), activation(CONTRACT, base=base_of(author_repo)), Queue()
+    )
+
+    assert "REJECTED IN REVIEW" not in counted_reply["prompt"]

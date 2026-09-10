@@ -132,6 +132,24 @@ def get_task(conn: sqlite3.Connection, task_id: str) -> dict:
     if version is not None:
         task.update(dict(version))
 
+    # What the last review sent it back for, if it was sent back.
+    #
+    # A retry without this is the same generation with the same inputs, which
+    # is not an attempt at the correction -- it is a re-roll. The author is
+    # told what the reviewer said, verbatim and labelled as the reviewer's
+    # words, so the second attempt can be about the thing that was wrong.
+    rejection = conn.execute(
+        "SELECT payload FROM events WHERE task_id = ? AND kind = 'author_defect' "
+        "ORDER BY seq DESC LIMIT 1",
+        (task_id,),
+    ).fetchone()
+
+    if rejection is not None:
+        try:
+            task["last_rejection"] = json.loads(rejection["payload"] or "{}")
+        except (TypeError, ValueError):
+            task["last_rejection"] = {}
+
     return task
 
 
