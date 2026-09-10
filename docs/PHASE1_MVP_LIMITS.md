@@ -105,7 +105,27 @@ This matters more than it looks: the incident that started this work produced
 330 agent-to-agent messages, and the two per-token providers bill against a
 $10/month plan.
 
-## 7. One writer, one process
+## 7. The single-instance lock trusts a pid alone
+
+`swarm_control.SingleInstance` decides whether a lock is stale by asking
+whether the pid in it is still alive. It does not check that the live process
+is *the same* process that took the lock.
+
+Pids are reused. A worker that crashes and whose pid is later handed to
+something unrelated -- on Windows, plausibly within one uptime -- produces a
+lock that looks held by a live process and refuses to let the real worker
+start. The failure is a worker that will not run and an operator being told a
+pid that belongs to a text editor.
+
+Closing it means recording process identity alongside the pid: creation time is
+the usual choice, since it is available on both platforms and is stable for the
+life of a process. Until then, an operator who is certain the holder is gone
+removes the pid file, which the refusal message names.
+
+Deliberately not fixed before the ChatGPT conversion: the window is narrow, the
+symptom is loud rather than silent, and the manual escape is one file deletion.
+
+## 8. One writer, one process
 
 The controller's transactional guarantees assume a single writer to
 `/data/controller.db`. That is true because the hub runs as one uvicorn process.

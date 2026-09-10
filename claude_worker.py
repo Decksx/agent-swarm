@@ -97,6 +97,11 @@ HERE = Path(__file__).resolve().parent
 WORKSPACE = Path(os.environ.get("WORKSPACE", HERE / "workspace"))
 STATE_FILE = HERE / "claude_worker.state"
 
+# Holds the epoch time at which the rate hold-off ends. On disk rather than in
+# memory so a restart during the hold-off honours it instead of clearing it --
+# restarting to escape a rate limit is precisely what should not work.
+RATELIMIT_PATH = HERE / "claude_worker.ratelimit"
+
 # Written before a model is invoked and removed after the result is reported.
 # Its presence at startup means the process died mid-task. See main().
 INFLIGHT_PATH = HERE / "claude_worker.inflight"
@@ -154,8 +159,21 @@ HANDOFF_PREAMBLE = (
 # the hub gets a single alert. Restarting the process is what clears this,
 # matching the "restart to clear a stuck throttle" pattern used elsewhere in
 # this swarm.
+# How long this worker will run before it holds off, and how long it holds off
+# for. The window is a proxy: Anthropic enforces a rolling limit server-side
+# and this process cannot see it, but every accepted task spends real time in
+# `claude -p`, so continuous uptime is a coarse and honest stand-in.
 RATE_LIMIT_WARN_SECONDS = float(
     os.environ.get("RATE_LIMIT_WARN_SECONDS", str(4.5 * 3600))
+)
+
+# After the window trips, the worker waits this long and then resumes by
+# itself. Previously it stopped accepting work until somebody restarted it,
+# which is a manual step in a system whose whole point is not needing one --
+# and an operator who did not notice would find a worker that looked healthy
+# and had quietly stopped working hours earlier.
+RATE_LIMIT_COOLDOWN_SECONDS = float(
+    os.environ.get("RATE_LIMIT_COOLDOWN_SECONDS", str(5 * 3600))
 )
 
 # Replies are truncated so a task that prints a large file cannot wedge the
@@ -288,14 +306,79 @@ _process_started_at = time.monotonic()
 _rate_limit_alert_sent = False
 
 
-def rate_limit_reason() -> str | None:
-    """Why a new task should not be accepted right now, or None to proceed."""
+def _read_holdoff() -> float:
+    """The epoch time the current hold-off ends, or 0.0 if there is none."""
+    try:
+        return float(RATELIMIT_PATH.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        # Missing is the ordinary case; unreadable is treated the same way
+        # rather than as an indefinite hold, because a file nothing can parse
+        # would otherwise stop this worker forever.
+        return 0.0
+
+
+def _begin_holdoff(now: float) -> float:
+    """Start a hold-off and return when it ends."""
+    until = now + RATE_LIMIT_COOLDOWN_SECONDS
+
+    try:
+        RATELIMIT_PATH.write_text(f"{until:.0f}", encoding="utf-8")
+    except OSError as exc:
+        log.error("could not persist the rate hold-off: %s", exc)
+
+    return until
+
+
+def _end_holdoff() -> None:
+    """Clear the hold-off and start the uptime window again."""
+    global _process_started_at
+
+    try:
+        RATELIMIT_PATH.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        log.warning("could not clear the rate hold-off: %s", exc)
+
+    # The window restarts from now, not from process start. Without this the
+    # worker would trip again on its very next check and hold off forever.
+    _process_started_at = time.monotonic()
+
+
+def rate_limit_reason(now: float | None = None) -> str | None:
+    """Why no new work should be claimed right now, or None to proceed.
+
+    Recovers on its own. When the hold-off deadline passes, the deadline is
+    cleared, the uptime window restarts, and work resumes with no restart and
+    no operator action.
+
+    Deliberately returns a reason rather than calling anything: this is
+    consulted before the claim, so a guarded worker takes no activation and
+    makes no provider call at all. Claiming and then refusing would consume
+    work it had already decided not to do.
+    """
+    now = time.time() if now is None else now
+    until = _read_holdoff()
+
+    if until:
+        if now < until:
+            return (
+                f"rate hold-off until {time.strftime('%H:%M:%S', time.localtime(until))} "
+                f"({(until - now) / 60:.0f} min remaining)"
+            )
+
+        _end_holdoff()
+        log.info("rate hold-off has expired; accepting work again")
+        return None
+
     elapsed = time.monotonic() - _process_started_at
 
     if elapsed >= RATE_LIMIT_WARN_SECONDS:
+        until = _begin_holdoff(now)
         return (
-            f"worker uptime {elapsed / 3600:.1f}h has reached the "
-            f"{RATE_LIMIT_WARN_SECONDS / 3600:.1f}h warn threshold"
+            f"worker uptime {elapsed / 3600:.1f}h reached the "
+            f"{RATE_LIMIT_WARN_SECONDS / 3600:.1f}h window; holding off for "
+            f"{RATE_LIMIT_COOLDOWN_SECONDS / 3600:.1f}h"
         )
 
     return None
@@ -532,31 +615,6 @@ def execute_activation(
         )
         _report(queue, activation_id, "blocked",
                 {"reason": "task text is a worker error envelope"})
-        return
-
-    rate_reason = rate_limit_reason()
-    if rate_reason is not None:
-        if not _rate_limit_alert_sent:
-            log.warning(
-                "RATE LIMIT GUARD: %s; refusing new tasks until restart",
-                rate_reason,
-            )
-            post_alert(
-                requests,
-                "@Admin",
-                f"claude_worker pausing new tasks: {rate_reason}. Restart "
-                "the process to clear this once usage has reset.",
-            )
-            record_rate_limit_alert_sent()
-        else:
-            log.info(
-                "DROPPED activation %s: rate limit guard active", activation_id
-            )
-
-        # Reported as blocked rather than failed: nothing about the task is
-        # wrong, this host cannot run it right now. AUTHOR_BLOCKED is the state
-        # an operator can release; CHANGES_REQUESTED would blame the task.
-        _report(queue, activation_id, "blocked", {"reason": rate_reason})
         return
 
     log.info(
@@ -805,15 +863,30 @@ def main() -> int:
             swarm_control.record_narration(messages)
 
         # 2. Work. Claimed from the local control directory only.
-        paused = swarm_control.pause_reason()
+        # The rate hold-off is consulted alongside the pause and for the same
+        # reason: both must stop work being *taken*, not merely stop it being
+        # run. The controller hands out an activation on claim, so a worker
+        # that claims and then declines has consumed work it already knew it
+        # would not do -- and the task waits out a whole lease to find out.
+        paused = swarm_control.pause_reason() or rate_limit_reason()
 
         if paused is not None:
             if was_paused != paused:
-                log.warning("PAUSED: %s; starting no new work", paused)
+                log.warning("HOLDING: %s; starting no new work", paused)
                 was_paused = paused
+
+                # Alerted once per hold-off rather than once per process, so a
+                # worker that holds off, recovers, and holds off again days
+                # later still says so the second time.
+                if "rate hold-off" in paused or "window" in paused:
+                    post_alert(
+                        requests, "@Admin",
+                        f"claude_worker is holding off: {paused}. It will "
+                        "resume by itself; no restart is needed.",
+                    )
         else:
             if was_paused is not None:
-                log.info("pause released; accepting activations again")
+                log.info("hold released; accepting activations again")
                 was_paused = None
 
             # Checked before the claim, so a pause engaged mid-poll leaves the
