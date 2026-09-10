@@ -133,6 +133,11 @@ def main(argv) -> int:
     # no working copy, so this is the only way it can say what to look at.
     p.add_argument("--expected-branch", default=None)
     p.add_argument("--expected-parent", default=None)
+    p.add_argument("--expected-candidate", default=None)
+    # Required for a review, and not verified by the controller -- it names a
+    # path on another host. It exists so the ledger can answer "which checkout
+    # was this reviewed in".
+    p.add_argument("--repo-location", default=None)
 
     p = sub.add_parser("show")
     p.add_argument("task_id")
@@ -191,6 +196,8 @@ def main(argv) -> int:
             "hard_deadline_seconds": args.hard_deadline_seconds,
             "expected_branch": args.expected_branch,
             "expected_parent": args.expected_parent,
+            "expected_candidate": args.expected_candidate,
+            "repo_location": args.repo_location,
         }))
 
     if args.command == "show":

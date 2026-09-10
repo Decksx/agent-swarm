@@ -72,6 +72,10 @@ for line in io.open('/mnt/user/appdata/agent-swarm/hub.env', encoding='utf-8'):
     export AGENT_IDENTITY="$IDENT"
     export WORKSPACE="$SCRATCH/mvp_workspace"
     export REVIEW_REPO="$SCRATCH/mvp_workspace"
+    # ChatGPT authors in its own checkout, so its demonstration cannot be
+    # confused with the claude/gemini one.
+    export AUTHOR_REPO="$SCRATCH/chatgpt_workspace"
+    if [ "$IDENT" = "gemini" ]; then export REVIEW_REPO="$SCRATCH/chatgpt_workspace"; fi
     export POLL_SECONDS=5
     export TASK_TIMEOUT=600
     export SWARM_CONTROL_DIR="$SCRATCH/swarm_control"
