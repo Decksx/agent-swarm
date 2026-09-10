@@ -71,7 +71,9 @@ from typing import Any
 
 import authored_change
 import controller_client
+import repo_registry
 import swarm_control
+import worktrees
 
 HUB_URL = os.environ.get("HUB_URL", "http://192.168.42.50:8050").rstrip("/")
 
@@ -99,9 +101,12 @@ VALID_SOURCES = ("directory", "controller")
 
 CONTROLLER_URL = os.environ.get("CONTROLLER_URL", HUB_URL)
 
-# The repository this worker authors in. It has no shell, so it writes the
-# files the model returns and commits them itself.
-AUTHOR_REPO = os.environ.get("AUTHOR_REPO", "")
+# The registered project this worker authors for. A name, resolved through
+# repos.json -- never a path. Authoring happens in a worktree created at the
+# task's own base_sha, so the canonical checkout is only ever read from: it is
+# where a person works, it is normally dirty, and committing on top of that
+# would put somebody's unfinished edits into a model's commit.
+AUTHOR_PROJECT = os.environ.get("AUTHOR_PROJECT", "")
 
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "3"))
 HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "15"))
@@ -402,10 +407,30 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
     task_id = activation.get("task_id") or "task"
     task_record = activation.get("task_record") or {}
 
-    if not AUTHOR_REPO:
-        log.error("AUTHOR_REPO is not set; cannot author %s", activation_id)
+    if not AUTHOR_PROJECT:
+        log.error("AUTHOR_PROJECT is not set; cannot author %s", activation_id)
         queue.report(activation_id, outcome="blocked",
-                     payload={"reason": "AUTHOR_REPO is not configured on this host"})
+                     payload={"reason": "AUTHOR_PROJECT is not configured on this host"})
+        return
+
+    try:
+        project = repo_registry.get(AUTHOR_PROJECT)
+    except repo_registry.RegistryError as exc:
+        log.error("activation %s: %s", activation_id, exc)
+        queue.report(activation_id, outcome="blocked",
+                     payload={"reason": f"repository registry: {exc}"})
+        return
+
+    # The baseline comes from the controller, not from this host. A worker
+    # deciding for itself what to branch from is a worker deciding what was
+    # reviewed.
+    base_sha = str(task_record.get("base_sha") or "").strip()
+
+    if len(base_sha) != 40:
+        log.error("activation %s carries no usable base_sha", activation_id)
+        queue.report(activation_id, outcome="blocked", payload={
+            "reason": f"the task's base_sha is {base_sha!r}, not a commit",
+        })
         return
 
     # What the contract authorises this task to write. Refused here, before
@@ -428,21 +453,27 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
 
     if scope.unrestricted:
         log.warning(
-            "activation %s authorises the ENTIRE repository at %s",
-            activation_id, AUTHOR_REPO,
+            "activation %s authorises the ENTIRE repository of %s",
+            activation_id, project.name,
         )
 
-    # Refused before the model is called, not after. A dirty worktree means the
-    # commit would carry somebody else's uncommitted edits and attribute them
-    # to the model, and finding that out after paying for a generation is worse
-    # than finding it out before.
-    if not authored_change.worktree_is_clean(AUTHOR_REPO):
-        log.error("worktree at %s is not clean; not authoring %s",
-                  AUTHOR_REPO, activation_id)
+    # A private tree at the baseline, before the model is called. The old
+    # check -- refuse if the shared checkout is dirty -- was the right
+    # instinct in the wrong place: it made a person's unsaved work into an
+    # obstacle, which is how a safety check gets switched off. Nothing here
+    # touches that checkout.
+    try:
+        workspace = worktrees.create(project, base_sha, activation_id)
+    except worktrees.WorktreeError as exc:
+        log.error("no workspace for activation %s: %s", activation_id, exc)
         queue.report(activation_id, outcome="blocked", payload={
-            "reason": "the author repository has uncommitted changes",
+            "reason": f"could not prepare an isolated worktree: {exc}",
         })
         return
+
+    log.info(
+        "activation %s: worktree %s at %s", activation_id, workspace, base_sha[:12]
+    )
 
     prompt = authored_change.render_author_prompt(
         {**task_record, "task_id": task_id, "allowed_paths": list(scope.paths)}
@@ -477,10 +508,17 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         })
         return
 
+    # The branch the controller named at issue time, so a retry after a
+    # rejection lands on its own branch rather than colliding with the
+    # candidate that was rejected -- which is still the evidence for that
+    # review and must not be moved.
+    branch = (activation.get("expected_branch") or f"task/{task_id}").strip()
+
     try:
         result = authored_change.apply_and_commit(
-            AUTHOR_REPO,
-            branch=f"task/{task_id}",
+            str(workspace),
+            branch=branch,
+            base=base_sha,
             files=files,
             message=f"{task_id}: {task_record.get('title', 'authored change')}",
             scope=scope,
@@ -490,15 +528,24 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         # checked rather than assumed. "The attempt failed" and "the attempt
         # failed and left the repository unusable" need different responses,
         # and the second one must not be reported as the first.
-        clean = authored_change.worktree_is_clean(AUTHOR_REPO)
+        clean = authored_change.worktree_is_clean(str(workspace))
 
         if not clean:
             log.error(
                 "activation %s failed AND left %s dirty; it needs a human",
-                activation_id, AUTHOR_REPO,
+                activation_id, workspace,
             )
 
         log.error("could not apply activation %s: %s", activation_id, exc)
+
+        if clean:
+            worktrees.remove(project, activation_id)
+        else:
+            # Left on disk deliberately. A tree that could not be rolled back
+            # is the only record of what went wrong, and removing it would
+            # destroy the evidence for the state it just reported.
+            log.error("worktree kept for inspection: %s", workspace)
+
         queue.report(
             activation_id,
             # A dirty worktree is an environment problem, not a verdict on the
@@ -512,6 +559,15 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
             },
         )
         return
+
+    # The commit lives in the shared object store and the branch points at it,
+    # so the worktree has done its job. Removing it keeps the root from filling
+    # with one directory per attempt, and a reviewer reads the range from the
+    # canonical checkout without needing a working copy at all.
+    try:
+        worktrees.remove(project, activation_id)
+    except worktrees.WorktreeError as exc:
+        log.warning("candidate is safe on %s but %s", result["branch"], exc)
 
     log.info(
         "COMPLETED activation %s: %s at %s (%d file(s)) in %.1fs",
@@ -645,7 +701,9 @@ def main() -> int:
 
     log.info("hub        : %s", HUB_URL)
     log.info("work from  : %s", ACTIVATION_SOURCE)
-    log.info("author repo: %s", AUTHOR_REPO or "(unset -- authoring will block)")
+    log.info(
+        "author for : %s", AUTHOR_PROJECT or "(unset -- authoring will block)"
+    )
     log.info("model      : %s", OPENAI_MODEL)
     log.info("openai_key : present")
     log.info("identity   : %s (bound locally, never from a message)", AGENT_IDENTITY)

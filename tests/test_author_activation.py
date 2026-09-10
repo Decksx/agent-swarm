@@ -9,12 +9,15 @@ count into an assertion rather than a hope.
 
 from __future__ import annotations
 
+import json
 import subprocess
 
 import pytest
 
 import authored_change
 import chatgpt_worker
+import repo_registry
+import repo_snapshot
 
 
 def git(repo, *args):
@@ -29,7 +32,12 @@ def git(repo, *args):
 
 @pytest.fixture
 def author_repo(tmp_path, monkeypatch):
-    """A clean repository the worker is pointed at."""
+    """A registered project whose canonical checkout is dirty, as they are.
+
+    The worker never writes here. This is the shape the real one has:
+    somebody is mid-edit, and that must neither stop an authoring run nor
+    contaminate one.
+    """
     root = tmp_path / "work"
     root.mkdir()
     git(root, "init", "-q", "-b", "main")
@@ -42,8 +50,26 @@ def author_repo(tmp_path, monkeypatch):
     git(root, "add", "-A")
     git(root, "commit", "-q", "-m", "initial")
 
-    monkeypatch.setattr(chatgpt_worker, "AUTHOR_REPO", str(root))
+    # A person's unsaved work, present throughout every test below.
+    (root / "notes" / "existing.txt").write_text("edited\n", encoding="utf-8")
+
+    registry = tmp_path / "repos.json"
+    registry.write_text(json.dumps({
+        "demo": {
+            "path": str(root),
+            "repo_id": repo_snapshot.repo_id(str(root)),
+            "planning_ref": "refs/heads/main",
+            "worktree_root": str(tmp_path / "worktrees"),
+        }
+    }), encoding="utf-8")
+
+    monkeypatch.setattr(repo_registry, "DEFAULT_REGISTRY", registry)
+    monkeypatch.setattr(chatgpt_worker, "AUTHOR_PROJECT", "demo")
     return root
+
+
+def base_of(repo):
+    return git(repo, "rev-parse", "HEAD").strip()
 
 
 class Queue:
@@ -90,12 +116,20 @@ def counted_reply(monkeypatch):
     return state
 
 
-def activation(contract, *, allowed=None, title="add a note"):
+def activation(contract, *, base, allowed=None, title="add a note"):
+    """One author activation, carrying the baseline the controller resolved.
+
+    `base_sha` comes from the task record because the controller decides what
+    is branched from. A worker choosing for itself would be choosing what gets
+    reviewed.
+    """
     return {
         "activation_id": "A-1",
         "task_id": "T-1",
+        "expected_branch": "task/T-1-a1",
         "task_record": {
             "title": title,
+            "base_sha": base,
             "objective": "add a note",
             "contract_yaml": contract,
             "allowed_paths": allowed,
@@ -133,18 +167,21 @@ def test_an_unusable_contract_blocks_before_the_model_is_called(
     dialect this parser has never seen.
     """
     queue = Queue()
-    chatgpt_worker.execute_author(NeverCalled(), activation(contract), queue)
+    chatgpt_worker.execute_author(NeverCalled(), activation(contract, base=base_of(author_repo)), queue)
 
     assert queue.last["outcome"] == "blocked"
     assert "authorise" in queue.last["payload"]["reason"]
 
 
 def test_a_blocked_contract_leaves_the_repository_untouched(author_repo):
+    before = git(author_repo, "status", "--porcelain")
     queue = Queue()
-    chatgpt_worker.execute_author(NeverCalled(), activation("title: x\n"), queue)
+    chatgpt_worker.execute_author(
+        NeverCalled(), activation("title: x\n", base=base_of(author_repo)), queue
+    )
 
-    assert git(author_repo, "status", "--porcelain") == ""
-    assert git(author_repo, "branch", "--list", "task/T-1").strip() == ""
+    assert git(author_repo, "status", "--porcelain") == before
+    assert git(author_repo, "branch", "--list", "task/T-1-a1").strip() == ""
 
 
 # --- A contract that says something is honoured ------------------------------
@@ -155,7 +192,7 @@ def test_a_scoped_contract_authors_one_commit_with_one_model_call(
 ):
     counted_reply["answer"] = ANSWER
     queue = Queue()
-    chatgpt_worker.execute_author(object(), activation(CONTRACT), queue)
+    chatgpt_worker.execute_author(object(), activation(CONTRACT, base=base_of(author_repo)), queue)
 
     assert counted_reply["calls"] == 1
     assert queue.last["outcome"] == "candidate"
@@ -167,7 +204,7 @@ def test_the_prompt_names_the_paths_the_task_may_touch(
     author_repo, counted_reply
 ):
     counted_reply["answer"] = ANSWER
-    chatgpt_worker.execute_author(object(), activation(CONTRACT), Queue())
+    chatgpt_worker.execute_author(object(), activation(CONTRACT, base=base_of(author_repo)), Queue())
 
     assert "notes" in counted_reply["prompt"]
 
@@ -181,11 +218,11 @@ def test_a_file_outside_the_scope_fails_the_attempt(author_repo, counted_reply):
         f"{authored_change.END}\n"
     )
     queue = Queue()
-    chatgpt_worker.execute_author(object(), activation(CONTRACT), queue)
+    chatgpt_worker.execute_author(object(), activation(CONTRACT, base=base_of(author_repo)), queue)
 
     assert queue.last["outcome"] == "failed"
-    assert git(author_repo, "status", "--porcelain") == ""
     assert (author_repo / "build.sh").read_text(encoding="utf-8") == "echo build\n"
+    assert git(author_repo, "branch", "--list", "task/T-1-a1").strip() == ""
 
 
 def test_the_controllers_own_allowed_paths_are_honoured(
@@ -195,7 +232,7 @@ def test_the_controllers_own_allowed_paths_are_honoured(
     counted_reply["answer"] = ANSWER
     queue = Queue()
     chatgpt_worker.execute_author(
-        object(), activation("nothing parseable here", allowed=["notes"]), queue
+        object(), activation("nothing parseable here", base=base_of(author_repo), allowed=["notes"]), queue
     )
 
     assert queue.last["outcome"] == "candidate"
@@ -211,7 +248,7 @@ def test_the_explicit_marker_authors_repository_wide(author_repo, counted_reply)
     )
     queue = Queue()
     chatgpt_worker.execute_author(
-        object(), activation("allowed_paths: UNRESTRICTED\n"), queue
+        object(), activation("allowed_paths: UNRESTRICTED\n", base=base_of(author_repo)), queue
     )
 
     assert queue.last["outcome"] == "candidate"
@@ -221,14 +258,58 @@ def test_the_explicit_marker_authors_repository_wide(author_repo, counted_reply)
 # --- The other refusals on this path ----------------------------------------
 
 
-def test_a_dirty_worktree_blocks_before_the_model_is_called(author_repo):
-    """Paying for a generation and then discovering it cannot land is worse."""
-    (author_repo / "someone_elses.txt").write_text("edit\n", encoding="utf-8")
-    queue = Queue()
-    chatgpt_worker.execute_author(NeverCalled(), activation(CONTRACT), queue)
+def test_a_dirty_canonical_checkout_does_not_stop_authoring(
+    author_repo, counted_reply
+):
+    """The correction to the earlier rule, which refused outright.
 
-    assert queue.last["outcome"] == "blocked"
-    assert "uncommitted" in queue.last["payload"]["reason"]
+    Refusing whenever somebody had unsaved work was the right instinct in the
+    wrong place: the canonical checkout is dirty most of the time, so the
+    check fired constantly and would have been switched off. The isolation is
+    what makes the unsaved work irrelevant instead of blocking.
+    """
+    (author_repo / "someone_elses.txt").write_text("edit\n", encoding="utf-8")
+    counted_reply["answer"] = ANSWER
+    queue = Queue()
+    chatgpt_worker.execute_author(
+        object(), activation(CONTRACT, base=base_of(author_repo)), queue
+    )
+
+    assert queue.last["outcome"] == "candidate"
+    assert (author_repo / "someone_elses.txt").read_text(encoding="utf-8") == "edit\n"
+
+
+def test_the_candidate_does_not_contain_the_checkouts_uncommitted_work(
+    author_repo, counted_reply
+):
+    """The thing isolation is for.
+
+    `notes/existing.txt` is edited in the checkout and not committed. It must
+    not appear in the candidate's diff, attributed to the model.
+    """
+    counted_reply["answer"] = ANSWER
+    queue = Queue()
+    chatgpt_worker.execute_author(
+        object(), activation(CONTRACT, base=base_of(author_repo)), queue
+    )
+
+    candidate = queue.last["payload"]["candidate_sha"]
+    changed = git(author_repo, "diff", "--name-only", f"{base_of(author_repo)}..{candidate}")
+
+    assert changed.split() == ["notes/hello.txt"]
+
+
+def test_the_worktree_is_taken_away_once_the_commit_exists(
+    author_repo, counted_reply, tmp_path
+):
+    """The branch holds the candidate; the tree has done its job."""
+    counted_reply["answer"] = ANSWER
+    chatgpt_worker.execute_author(
+        object(), activation(CONTRACT, base=base_of(author_repo)), Queue()
+    )
+
+    assert not (tmp_path / "worktrees" / "A-1").exists()
+    assert git(author_repo, "branch", "--list", "task/T-1-a1").strip()
 
 
 def test_a_model_that_returns_nothing_is_blocked_not_failed(
@@ -236,6 +317,6 @@ def test_a_model_that_returns_nothing_is_blocked_not_failed(
 ):
     counted_reply["answer"] = None
     queue = Queue()
-    chatgpt_worker.execute_author(object(), activation(CONTRACT), queue)
+    chatgpt_worker.execute_author(object(), activation(CONTRACT, base=base_of(author_repo)), queue)
 
     assert queue.last["outcome"] == "blocked"

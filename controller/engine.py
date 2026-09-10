@@ -102,6 +102,18 @@ def create_task(
 
 
 def get_task(conn: sqlite3.Connection, task_id: str) -> dict:
+    """The task, including the contract and base of its current version.
+
+    The two tables are joined here rather than left to callers because every
+    caller wants the same thing and the omission was invisible: `tasks` has no
+    `contract_yaml` and no `base_sha`, so a worker reading the task record got
+    an empty contract and no baseline, and nothing said so. With the scope
+    correction in place that now blocks authoring outright, which is the safe
+    direction and also the reason it surfaced at all.
+
+    The contract is served from here, never read from the tree being changed.
+    A contract an author could edit is not a constraint on that author.
+    """
     row = conn.execute(
         "SELECT * FROM tasks WHERE task_id = ?", (task_id,)
     ).fetchone()
@@ -109,7 +121,18 @@ def get_task(conn: sqlite3.Connection, task_id: str) -> dict:
     if row is None:
         raise TaskNotFound(task_id)
 
-    return dict(row)
+    task = dict(row)
+
+    version = conn.execute(
+        "SELECT contract_yaml, contract_hash, base_sha, protocol_schema_version "
+        "FROM task_versions WHERE task_id = ? AND version = ?",
+        (task_id, task["current_version"]),
+    ).fetchone()
+
+    if version is not None:
+        task.update(dict(version))
+
+    return task
 
 
 def _existing_event(conn: sqlite3.Connection, event_id: str) -> Optional[dict]:

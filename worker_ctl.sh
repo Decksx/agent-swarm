@@ -100,10 +100,14 @@ case "$ACTION" in
     export AGENT_IDENTITY="$IDENT"
     export WORKSPACE="$SCRATCH/mvp_workspace"
     export REVIEW_REPO="$SCRATCH/mvp_workspace"
-    # ChatGPT authors in its own checkout, so its demonstration cannot be
-    # confused with the claude/gemini one.
-    export AUTHOR_REPO="$SCRATCH/chatgpt_workspace"
-    if [ "$IDENT" = "gemini" ]; then export REVIEW_REPO="$SCRATCH/chatgpt_workspace"; fi
+    # The registered project this host authors for, by name. Not a path: a
+    # path is how a snapshot came to describe the wrong checkout, and the
+    # worker resolves the name through repos.json and works in a private
+    # worktree at the task's own base_sha.
+    export AUTHOR_PROJECT="${AUTHOR_PROJECT:-agenthub}"
+    # The reviewer only reads -- rev-parse, diff, log -- so it can point at
+    # the canonical checkout directly. Nothing it runs touches a working tree.
+    if [ "$IDENT" = "gemini" ]; then export REVIEW_REPO="${REVIEW_REPO_OVERRIDE:-$REPO}"; fi
     export POLL_SECONDS=5
     export TASK_TIMEOUT=600
     export SWARM_CONTROL_DIR="$SCRATCH/swarm_control"
