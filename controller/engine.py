@@ -139,14 +139,14 @@ def get_task(conn: sqlite3.Connection, task_id: str) -> dict:
     # told what the reviewer said, verbatim and labelled as the reviewer's
     # words, so the second attempt can be about the thing that was wrong.
     rejection = conn.execute(
-        "SELECT payload FROM events WHERE task_id = ? AND kind = 'author_defect' "
+        "SELECT payload_json FROM events WHERE task_id = ? AND kind = 'author_defect' "
         "ORDER BY seq DESC LIMIT 1",
         (task_id,),
     ).fetchone()
 
     if rejection is not None:
         try:
-            task["last_rejection"] = json.loads(rejection["payload"] or "{}")
+            task["last_rejection"] = json.loads(rejection["payload_json"] or "{}")
         except (TypeError, ValueError):
             task["last_rejection"] = {}
 
