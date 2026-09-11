@@ -95,6 +95,38 @@ NARRATION_PATH = CONTROL_DIR / "narration.jsonl"
 PAUSE_PATH = CONTROL_DIR / "PAUSED"
 STATUS_PATH = CONTROL_DIR / "status.json"
 
+# --- Who runs what ----------------------------------------------------------
+#
+# The one place an identity is turned into the script that identity runs.
+#
+# It lived in ``supervisor.py`` while only the supervisor needed it, and moved
+# here when the lock did. ``SingleInstance`` has to answer "is the process in
+# this lock file really this identity's worker", and a lock that had to import
+# the supervisor to find out would make the worker depend on the thing that
+# supervises it. Two copies of the mapping is the other way to arrange it, and
+# a mapping that disagrees with itself is a lock that protects one name and
+# terminates another.
+
+WORKER_SCRIPTS = {
+    "chatgpt": "chatgpt_worker.py",
+    "gemini": "gemini_worker.py",
+    "claudecode": "claude_worker.py",
+}
+
+# The supervisor is not a worker, but it has a pid file for the same reason
+# and it goes stale the same way.
+SUPERVISOR = "supervisor"
+SUPERVISOR_SCRIPT = "supervisor.py"
+
+
+def script_for(name: str) -> Optional[str]:
+    """The script `name` runs -- a worker identity, or "supervisor"."""
+    if name == SUPERVISOR:
+        return SUPERVISOR_SCRIPT
+
+    return WORKER_SCRIPTS.get(name)
+
+
 # Chat is narration. This is a named constant rather than a bare ``False``
 # scattered through the workers so that the property is greppable and so a
 # future change has to edit something that says what it means.
@@ -373,10 +405,17 @@ class SingleInstance:
     which is worse than the waste, because it is the measurement the whole
     review rests on.
 
-    The lock is a file holding a pid. A stale one -- from a process that was
-    killed rather than shut down -- is detected by checking whether that pid is
-    still alive and taken over if it is not, because refusing to start after a
-    crash would turn one bad shutdown into an outage.
+    The lock is a file holding a pid, and a stale one is taken over, because
+    refusing to start after a crash would turn one bad shutdown into an
+    outage. Stale means two things, and reading only the first cost an
+    identity its worker: the pid is gone, *or* the pid is alive and running
+    something that is not this identity's script. A crashed worker leaves its
+    number behind and the host reissues it, so a lock file is a claim about
+    the past and the process behind it is the only evidence about now.
+
+    A holder that cannot be identified is left standing. Failing to read a
+    process is not evidence that it is not the worker, and starting a second
+    one beside it is the duplicate this exists to prevent.
     """
 
     def __init__(self, identity: str, directory: Optional[Path] = None) -> None:
@@ -384,35 +423,142 @@ class SingleInstance:
         base = CONTROL_DIR if directory is None else Path(directory)
         self.path = base / f"{identity}.pid"
 
-    def _holder(self) -> Optional[int]:
-        """The pid in the lock file, or None if there is no live holder."""
+    def _raw(self) -> Optional[str]:
+        """The lock file's exact contents, or None if there is no file.
+
+        Exact, because `acquire` has to be able to tell whether the file it is
+        about to remove is still the one it judged stale, and a parsed pid
+        cannot answer that -- a racer may have replaced the file in between.
+        """
         try:
-            raw = self.path.read_text(encoding="utf-8").strip()
-        except (OSError, ValueError):
+            return self.path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+
+    def _recorded_pid(self) -> Optional[int]:
+        """The number written in the lock file, whatever it may since mean."""
+        raw = self._raw()
+
+        if raw is None:
             return None
 
         try:
-            pid = int(raw)
+            return int(raw.strip())
         except ValueError:
             # Unreadable content is treated as no holder rather than as a
             # holder that cannot be checked: the alternative is a lock nothing
             # can ever clear.
             return None
 
-        return pid if pid_is_alive(pid) else None
+    def _holder(self) -> Optional[int]:
+        """The pid holding this lock, or None if nothing this identity's is.
+
+        Liveness was the whole test here, and liveness is not the question.
+        The number in the file was a worker's when it was written; a worker
+        that died without releasing leaves it behind, and the operating system
+        hands it to whatever starts next.
+
+        That happened on the first live start. `chatgpt.pid` held a number
+        from the previous run, Windows had just reissued it to the claudecode
+        worker two seconds earlier, and so the chatgpt worker read a live pid
+        out of its own lock file and refused to start. Not once -- nothing
+        rewrites a lock nobody can take, so chatgpt was locked out
+        permanently, by a file describing a process that had been dead for an
+        hour and a half.
+
+        So a live holder has to be running this identity's script to count.
+        One that is definitively running something else is a stale lock with a
+        recycled number in it, and is taken over exactly like a lock whose
+        process is gone.
+
+        A holder that cannot be identified still counts. "I cannot read that
+        process" is not evidence of absence, and starting a second worker on
+        it is the duplicate this class exists to prevent.
+        """
+        pid = self._recorded_pid()
+
+        if pid is None or not pid_is_alive(pid):
+            return None
+
+        if pid == os.getpid():
+            # This process. Whatever it is running, it is what holds the lock,
+            # and `release` has to be able to recognise its own.
+            return pid
+
+        script = script_for(self.identity)
+
+        if script is None:
+            # An identity with no known script -- nothing here can identify
+            # it, so a live holder is left standing.
+            return pid
+
+        return None if process_is_script(pid, script) is False else pid
 
     def acquire(self) -> None:
-        holder = self._holder()
+        """Take the lock, or refuse because somebody else genuinely holds it.
 
-        if holder is not None and holder != os.getpid():
-            raise AlreadyRunning(
-                f"another {self.identity!r} worker is already running as pid "
-                f"{holder}; refusing to start a second one. Stop it first, or "
-                f"remove {self.path} if you are certain it is gone."
-            )
+        Created exclusively rather than written over. Two workers for one
+        identity starting together both used to read "stale", both write, and
+        both proceed -- a check-then-write with the whole race in the gap. An
+        exclusive create has no gap: one of them makes the file and the other
+        is told it already exists, and the one that is told goes and asks who
+        holds it.
 
+        Clearing a stale lock is then a deletion followed by another exclusive
+        create, so the racers meet again at the same primitive rather than in
+        the clear. Bounded, because a lock being cleared and retaken by other
+        processes faster than this can act is a lock this should decline
+        rather than spin on.
+        """
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(str(os.getpid()), encoding="utf-8")
+
+        for _ in range(5):
+            try:
+                handle = os.open(
+                    self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY
+                )
+            except FileExistsError:
+                stale = self._raw()
+                holder = self._holder()
+
+                if holder is not None and holder != os.getpid():
+                    raise AlreadyRunning(
+                        f"another {self.identity!r} worker is already running "
+                        f"as pid {holder}; refusing to start a second one. "
+                        f"Stop it first, or remove {self.path} if you are "
+                        f"certain it is gone."
+                    )
+
+                # Stale, or ours from an earlier acquire. Removing it puts
+                # this back at the exclusive create, where a racer can lose.
+                #
+                # Removed only if it is still the file this judged. Racers
+                # clearing one stale lock together all decide to remove it at
+                # the same moment, and an unconditional delete lets the second
+                # one remove the lock the first has just legitimately taken --
+                # which is two winners, arrived at through the exclusive
+                # create that was supposed to prevent exactly that. Measured,
+                # not reasoned about: the six-way race produced two.
+                if self._raw() == stale:
+                    try:
+                        self.path.unlink()
+                    except OSError:
+                        pass
+
+                continue
+            except OSError:
+                raise
+
+            with os.fdopen(handle, "w", encoding="utf-8") as stream:
+                stream.write(str(os.getpid()))
+
+            return
+
+        raise AlreadyRunning(
+            f"the {self.identity!r} lock at {self.path} is being taken and "
+            f"cleared faster than this process can claim it; refusing to "
+            f"start rather than race for it."
+        )
 
     def release(self) -> None:
         """Give up the lock, but only if it is still ours."""
@@ -652,6 +798,35 @@ def running_python_script(arguments):
 def _file_name(argument) -> str:
     """The last path segment of an argument, on either platform's separators."""
     return posixpath.basename(str(argument).replace("\\", "/").rstrip("/"))
+
+
+def process_is_script(pid: int, script: str) -> Optional[bool]:
+    """Whether `pid` is running `script`: True, False, or None for cannot tell.
+
+    Three answers rather than two, because the two callers want opposite
+    things from the third one.
+
+    True and False are the same fact read two ways. False is not "no worker
+    here" in the abstract -- it is "this number is running something else",
+    which is exactly what a lock file left by a crashed worker looks like once
+    the operating system has reissued its pid.
+
+    None is the honest answer when the command line cannot be read or will not
+    parse, and it must never be collapsed into either. A caller deciding
+    whether to start treats None as "there may be a worker here" and does not
+    start beside it; a caller deciding whether to terminate treats None as "I
+    cannot identify this" and does not kill it. Both stay on the safe side of
+    the same uncertainty, which is only possible while it is still a distinct
+    answer.
+    """
+    arguments = process_arguments(pid)
+
+    if arguments is None:
+        return None
+
+    running = running_python_script(arguments)
+
+    return running is not None and running.lower() == script.lower()
 
 
 def terminate_pid(pid: int, *, timeout: float = 20.0) -> bool:

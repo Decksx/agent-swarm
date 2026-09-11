@@ -162,16 +162,14 @@ def test_a_running_worker_is_not_started_again(control_dir, spawned):
 
 
 def test_a_worker_holding_the_lock_elsewhere_is_left_alone(
-    control_dir, spawned, monkeypatch
+    control_dir, spawned, host
 ):
     """A worker an operator started, or one an earlier supervisor left behind.
 
     Spawning beside it would give one identity two claimants, each believing
     it is alone.
     """
-    lock = swarm_control.SingleInstance("gemini", directory=control_dir)
-    lock.path.write_text(str(9999), encoding="utf-8")
-    monkeypatch.setattr(swarm_control, "pid_is_alive", lambda pid: pid == 9999)
+    adopt(control_dir, host, "gemini", 9999, "python gemini_worker.py")
 
     sup = build(control_dir, spawned)
     sup.tick(now=100.0)
@@ -180,6 +178,25 @@ def test_a_worker_holding_the_lock_elsewhere_is_left_alone(
 
     assert "gemini" not in started
     assert started == set(supervisor.WORKERS) - {"gemini"}
+
+
+def test_a_worker_that_cannot_be_identified_is_left_alone(
+    control_dir, spawned, host
+):
+    """Cannot tell is not the same as no worker there.
+
+    A command line this cannot read may belong to the running worker, and
+    starting a second one on that guess is the duplicate the lock exists to
+    prevent. The cost of being wrong the other way is one worker not started
+    and reported, which an operator can see and act on.
+    """
+    adopt(control_dir, host, "gemini", 9999, "python gemini_worker.py")
+    host.command_lines[9999] = None
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+
+    assert "gemini" not in {e["kwargs"]["env"]["AGENT_IDENTITY"] for e in spawned}
 
 
 def test_a_stale_lock_does_not_block_a_start(control_dir, spawned, monkeypatch):
@@ -882,8 +899,15 @@ def test_a_pid_whose_command_line_cannot_be_read_is_not_killed(
 def test_a_worker_that_could_not_be_stopped_is_reported_as_remaining(
     control_dir, spawned, host
 ):
-    """Refusing to kill it is right; calling the shutdown clean is not."""
-    adopt(control_dir, host, "gemini", 9999, "svchost.exe -k netsvcs")
+    """Refusing to kill it is right; calling the shutdown clean is not.
+
+    The uncertain case, not the recycled one. A lock whose pid is definitely
+    running something else is a stale lock and no worker at all; a lock whose
+    pid cannot be read may still be the worker, and a shutdown that cannot
+    account for it has not reached zero.
+    """
+    adopt(control_dir, host, "gemini", 9999, "python gemini_worker.py")
+    host.command_lines[9999] = None
 
     sup = build(control_dir, spawned)
     sup.tick(now=100.0)
@@ -891,10 +915,25 @@ def test_a_worker_that_could_not_be_stopped_is_reported_as_remaining(
     assert sup.shutdown() == 1
 
 
+def test_a_recycled_pid_in_a_lock_is_not_a_remaining_worker(
+    control_dir, spawned, host
+):
+    """The other half of the same judgement. Nothing was left running, so
+    reporting a survivor would fail a shutdown that succeeded."""
+    adopt(control_dir, host, "gemini", 9999, "svchost.exe -k netsvcs")
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+
+    assert sup.shutdown() == 0
+    assert host.killed == []
+
+
 def test_an_unstoppable_adopted_worker_is_not_reported_as_stopped(
     control_dir, spawned, host, caplog
 ):
-    adopt(control_dir, host, "gemini", 9999, "svchost.exe -k netsvcs")
+    adopt(control_dir, host, "gemini", 9999, "python gemini_worker.py")
+    host.command_lines[9999] = None
     sup = build(control_dir, spawned)
     sup.tick(now=100.0)
 
@@ -934,10 +973,21 @@ def test_reap_stops_an_orphan_without_supervising(control_dir, spawned, host):
 
 
 def test_reap_refuses_to_kill_what_it_cannot_identify(control_dir, spawned, host):
-    adopt(control_dir, host, "gemini", 9999, "svchost.exe -k netsvcs")
+    adopt(control_dir, host, "gemini", 9999, "python gemini_worker.py")
+    host.command_lines[9999] = None
 
     assert supervisor.main(["supervisor.py", "--reap"]) == 1
     assert host.killed == []
+
+
+def test_reap_treats_a_recycled_pid_as_nothing_to_reap(control_dir, spawned, host):
+    """It is not a worker, so there is nothing to stop and nothing to report
+    -- and the process it does name is left running."""
+    adopt(control_dir, host, "gemini", 9999, "svchost.exe -k netsvcs")
+
+    assert supervisor.main(["supervisor.py", "--reap"]) == 0
+    assert host.killed == []
+    assert 9999 in host.live
 
 
 def test_reap_reports_success_when_nothing_is_running(control_dir, spawned, host):
