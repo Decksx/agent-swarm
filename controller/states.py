@@ -172,6 +172,19 @@ TRANSITIONS: Dict[Tuple[str, str], Transition] = {
     ("CHANGES_REQUESTED", "budget_exhausted"): _t("NEEDS_HUMAN", CONTROLLER),
 
     ("READY_INTEGRATION", "integration_started"): _t("INTEGRATING", CONTROLLER, OPERATOR),
+    # A self-transition, and the only one in this table.
+    #
+    # The other two stages have an assigned state and a running state, so the
+    # claim is what moves between them. Integration has one state: issuing the
+    # activation moves READY_INTEGRATION -> INTEGRATING, and there is nowhere
+    # further to go until the attempt ends.
+    #
+    # Recorded anyway, because without it an integrate activation cannot be
+    # claimed at all -- `claim` applies this event and an undefined transition
+    # refuses. That is how it was found. The event also answers a question the
+    # state cannot: which worker picked this up, and when. A task sitting in
+    # INTEGRATING with no claim recorded is one nobody has started.
+    ("INTEGRATING", "activation_claimed"): _t("INTEGRATING", OPERATOR),
     # Self-transition: a reservation changes scheduling, not stage.
     ("READY_INTEGRATION", "reservation_granted"): _t("READY_INTEGRATION", CONTROLLER),
 

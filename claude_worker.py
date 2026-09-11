@@ -676,14 +676,19 @@ def execute_integration(activation: dict, queue: Any = None) -> None:
             refuse(f"{name} is not configured on this host", outcome="blocked")
             return
 
-    pr_number = task_record.get("pr_number") or activation.get("pr_number")
+    # The branch the CONTROLLER issued this activation against. Not a pull
+    # request number: nothing in the controller has ever produced one, and the
+    # worker taking one from its input would mean whoever assembled that input
+    # chose what got merged. The integrator derives the pull request from this
+    # branch, the ledger's approved candidate, and the host's configuration,
+    # and refuses on anything but exactly one open match.
+    branch = str(activation.get("expected_branch") or "").strip()
 
-    try:
-        pr_number = int(str(pr_number).strip())
-    except (TypeError, ValueError):
+    if not branch:
         refuse(
-            "the task does not name a pull request to integrate; the review "
-            "artifact is what a person looked at and it is not optional",
+            "the activation names no expected_branch, so there is nothing to "
+            "find a pull request from. An integrate activation is issued with "
+            "the same evidence a review is.",
             outcome="blocked",
         )
         return
@@ -695,8 +700,8 @@ def execute_integration(activation: dict, queue: Any = None) -> None:
         return
 
     log.info(
-        "INTEGRATING activation %s for task %s (PR #%s)",
-        activation_id, task_id, pr_number,
+        "INTEGRATING activation %s for task %s from %s",
+        activation_id, task_id, branch,
     )
 
     try:
@@ -704,7 +709,7 @@ def execute_integration(activation: dict, queue: Any = None) -> None:
             task_record,
             repo=os.environ["INTEGRATION_REPO"],
             target_ref=os.environ["INTEGRATION_TARGET_REF"],
-            pr_number=pr_number,
+            branch=branch,
             repo_slug=os.environ["INTEGRATION_REPO_SLUG"],
             work_root=os.environ["INTEGRATION_WORK_ROOT"],
             required_suites=[

@@ -101,7 +101,8 @@ def expire_into_uncertainty(client, task_id):
 
     issued = client.post("/controller/activations", auth=ADMIN, json={
         "task_id": task_id, "agent": "claudecode", "host": "officepc",
-        "stage": "integrate",
+        "stage": "integrate", "expected_branch": f"task/{task_id}",
+        "expected_candidate": CAND, "repo_location": "/repo",
         # Already lapsed by the time the sweep looks at it.
         "lease_seconds": 0.001, "hard_deadline_seconds": 0.002,
     }).json()
@@ -116,9 +117,15 @@ def expire_into_uncertainty(client, task_id):
 
 
 def issue_integration(client, task_id):
+    """An integrate activation carries the same evidence a review does.
+
+    The controller has no working copy, so naming the branch and the immutable
+    candidate is the only way it can point a worker at the right thing.
+    """
     return client.post("/controller/activations", auth=ADMIN, json={
         "task_id": task_id, "agent": "claudecode", "host": "officepc",
-        "stage": "integrate",
+        "stage": "integrate", "expected_branch": f"task/{task_id}",
+        "expected_candidate": CAND, "repo_location": "/repo",
     }).json()
 
 
@@ -334,7 +341,40 @@ def test_an_uncertain_task_cannot_simply_be_integrated_again(client):
 
     response = client.post("/controller/activations", auth=ADMIN, json={
         "task_id": task, "agent": "claudecode", "host": "officepc",
+        "stage": "integrate", "expected_branch": f"task/{task}",
+        "expected_candidate": CAND, "repo_location": "/repo",
+    })
+
+    assert response.status_code >= 400
+
+
+def test_an_integrate_activation_without_evidence_is_refused(client):
+    """The controller has no working copy. An integrate activation that does
+    not name the branch and the candidate leaves the worker to work out for
+    itself what to merge, which is the worker deciding."""
+    task = approved_task(client)
+
+    response = client.post("/controller/activations", auth=ADMIN, json={
+        "task_id": task, "agent": "claudecode", "host": "officepc",
         "stage": "integrate",
     })
 
     assert response.status_code >= 400
+
+
+def test_the_claim_carries_the_branch_and_candidate_to_the_worker(client):
+    """Everything the worker needs to find the pull request, from the
+    controller. Nothing hand-supplied."""
+    task = approved_task(client)
+    issued = issue_integration(client, task)
+
+    response = client.post("/controller/activations/claim", auth=WORKER)
+
+    assert response.status_code == 200, response.text
+    claimed = response.json()["activation"]
+
+    assert claimed is not None, response.text
+    assert claimed["stage"] == "integrate"
+    assert claimed["expected_branch"] == f"task/{task}"
+    assert claimed["expected_candidate"] == CAND
+    assert "pr_number" not in claimed

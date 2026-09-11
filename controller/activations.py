@@ -226,7 +226,13 @@ def issue(
 
         task = engine.get_task(conn, task_id)
 
-        if stage == "review":
+        # Integration needs exactly what review needs, and for the same
+        # reason: the controller has no working copy, so naming the branch and
+        # the immutable candidate is the only way it can point a worker at the
+        # right thing. An integrate activation without them leaves the worker
+        # to work out for itself which pull request it was asked to land,
+        # which is the worker deciding what gets merged.
+        if stage in ("review", "integrate"):
             expected_parent, expected_candidate = _review_evidence(
                 conn,
                 task_id=task_id,

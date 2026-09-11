@@ -368,6 +368,86 @@ def check_target_unmoved(plan: Plan) -> str:
     return now
 
 
+def find_pull_request(
+    *, repo_slug: str, branch: str, candidate_sha: str, target_ref: str
+) -> int:
+    """The one open pull request this integration is about, or refuse.
+
+    Derived, never supplied. The worker used to be handed a `pr_number`, and
+    nothing in the controller ever produced one -- only the tests did, which
+    is how a field that does not exist in production came to look load-bearing
+    in review.
+
+    Everything here comes from the controller or from configuration: the
+    branch is `expected_branch` off the claimed activation, the commit is the
+    ledger's `approved_candidate_sha`, and the repository and target are the
+    host's own settings. No part of it is a caller's opinion about which pull
+    request to merge.
+
+    Exactly one match, and the count is the check. Zero means the review
+    artifact does not exist and there is nothing a person looked at. More than
+    one means the question "which PR is this" has no answer, and picking the
+    newest -- or the lowest-numbered -- would be this program deciding
+    something nobody asked it to decide.
+    """
+    base = target_ref.split("/")[-1] if target_ref.startswith("refs/") else target_ref
+
+    result = _gh(
+        "pr", "list", "--repo", repo_slug,
+        "--head", branch, "--base", base, "--state", "open",
+        "--json", "number,headRefOid,baseRefName,isDraft,state",
+    )
+
+    if result.returncode != 0:
+        raise IntegrationRefused(
+            f"could not list pull requests for {branch} in {repo_slug}: "
+            f"{(result.stderr or '').strip()}"
+        )
+
+    try:
+        candidates = json.loads(result.stdout or "[]")
+    except ValueError as exc:
+        raise IntegrationRefused(f"unreadable pull request listing: {exc}")
+
+    if not candidates:
+        raise IntegrationRefused(
+            f"no open pull request from {branch} into {base} in {repo_slug}. "
+            "The review artifact is what a person looked at; without it there "
+            "is nothing to integrate."
+        )
+
+    if len(candidates) > 1:
+        numbers = ", ".join(f"#{pr.get('number')}" for pr in candidates)
+        raise IntegrationRefused(
+            f"{len(candidates)} open pull requests from {branch} into {base}: "
+            f"{numbers}. Which one this integration is about has no answer, "
+            "and choosing would be this program deciding something nobody "
+            "asked it to."
+        )
+
+    pr = candidates[0]
+
+    # Checked here as well as in `check_pr`, because this is the step that
+    # decides *which* pull request the rest of the run is about. A PR selected
+    # by branch whose head is not the approved commit means the branch moved
+    # after approval, and every later check would then be checking the wrong
+    # object carefully.
+    if pr.get("headRefOid") != candidate_sha:
+        raise IntegrationRefused(
+            f"PR #{pr.get('number')} from {branch} is at "
+            f"{str(pr.get('headRefOid'))[:12]}, and the approved candidate is "
+            f"{candidate_sha[:12]}. The branch moved after approval."
+        )
+
+    if pr.get("baseRefName") != base:
+        raise IntegrationRefused(
+            f"PR #{pr.get('number')} targets {pr.get('baseRefName')!r}, not "
+            f"{base!r}"
+        )
+
+    return int(pr["number"])
+
+
 def check_pr(plan: Plan, *, repo_slug: str) -> dict:
     """The pull request is the one approved, still open, and not conflicted.
 
@@ -677,7 +757,7 @@ def run_integration(
     *,
     repo: str,
     target_ref: str,
-    pr_number: int,
+    branch: str,
     repo_slug: str,
     work_root: str,
     required_suites: Sequence[str] = (),
@@ -691,20 +771,22 @@ def run_integration(
     against the remote afterwards rather than taken from the API's response.
 
         1. approval      from the controller ledger, never from a caller
-        2. target        pinned from the remote
-        3. evidence      from the runner, by commit SHA
-        4. PR            open, not draft, head is the approval, no conflict
-        5. target again  unmoved since step 2 -- cheap, and not the guard
-        6. build         construct the merge locally from the pinned target
-        7. push          non-force; the REMOTE refuses if the target moved
-        8. landed        refetch; the target must contain the merge
-        9. parents       the merge joined the pinned target to the approval
-       10. tree          the merged tree equals the approved tree
+        2. pull request  derived from the controller-issued branch, never
+                         supplied; exactly one open match or refuse
+        3. target        pinned from the remote
+        4. evidence      from the runner, by commit SHA
+        5. PR            open, not draft, head is the approval, no conflict
+        6. target again  unmoved since step 3 -- cheap, and not the guard
+        7. build         construct the merge locally from the pinned target
+        8. push          non-force; the REMOTE refuses if the target moved
+        9. landed        refetch; the target must contain the merge
+       10. parents       the merge joined the pinned target to the approval
+       11. tree          the merged tree equals the approved tree
 
-    Step 7 is where the safety actually lives. Step 5 is a read and can be
+    Step 8 is where the safety actually lives. Step 6 is a read and can be
     overtaken between looking and acting, so it exists to fail cheaply rather
-    than to protect anything; steps 9 and 10 confirm afterwards what step 7
-    made true. Only step 7 is a condition and an effect in one operation, and
+    than to protect anything; steps 10 and 11 confirm afterwards what step 8
+    made true. Only step 8 is a condition and an effect in one operation, and
     only the remote can perform it.
 
     Returns the ledger record. Raises `IntegrationRefused` at the first step
@@ -712,6 +794,13 @@ def run_integration(
     is a read.
     """
     candidate = approved_candidate(task)
+
+    # Derived from the controller-issued branch and the ledger-derived
+    # approval, before any plan exists to carry it.
+    pr_number = find_pull_request(
+        repo_slug=repo_slug, branch=branch,
+        candidate_sha=candidate, target_ref=target_ref,
+    )
 
     plan = Plan(
         task_id=str(task.get("task_id") or ""),

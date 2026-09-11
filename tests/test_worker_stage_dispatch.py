@@ -79,15 +79,23 @@ def configured(monkeypatch, tmp_path):
 
 
 def activation(**over):
+    """Exactly the fields a real claim returns, and no others.
+
+    There is deliberately no `pr_number` here. The earlier version had one,
+    and nothing in the controller has ever produced it -- so a field that does
+    not exist in production looked load-bearing in review, and the tests were
+    what made it look that way.
+    """
     base = {
         "activation_id": "A-1",
         "task_id": "T-1",
         "stage": "integrate",
+        "expected_branch": "task/T-1",
+        "expected_candidate": CAND,
         "task_record": {
             "task_id": "T-1",
             "state": "INTEGRATING",
             "approved_candidate_sha": CAND,
-            "pr_number": 7,
         },
     }
     base.update(over)
@@ -234,10 +242,11 @@ def test_an_uncertain_task_is_not_merged(monkeypatch, configured):
     assert queue.only["outcome"] == "blocked"
 
 
-def test_a_missing_pull_request_blocks_rather_than_merges(
+def test_an_activation_with_no_branch_blocks_rather_than_merges(
     monkeypatch, configured
 ):
-    """The review artifact is what a person looked at."""
+    """Without a branch there is nothing to find a pull request from, and
+    guessing one would be the worker choosing what to merge."""
     called = {"count": 0}
     monkeypatch.setattr(
         integrator, "run_integration",
@@ -245,16 +254,31 @@ def test_a_missing_pull_request_blocks_rather_than_merges(
     )
     queue = Queue()
 
-    claude_worker.execute_integration(
-        activation(task_record={
-            "task_id": "T-1", "state": "INTEGRATING",
-            "approved_candidate_sha": CAND,
-        }),
-        queue,
-    )
+    claude_worker.execute_integration(activation(expected_branch=""), queue)
 
     assert called["count"] == 0
     assert queue.only["outcome"] == "blocked"
+    assert "expected_branch" in queue.only["payload"]["reason"]
+
+
+def test_the_branch_is_passed_through_and_no_pr_number_is(
+    monkeypatch, configured
+):
+    """The integrator derives the pull request; the worker supplies the
+    controller-issued branch and nothing else about which PR to merge."""
+    seen = {}
+
+    def capture(task, **kw):
+        seen.update(kw)
+        return {"candidate_sha": CAND, "merge_sha": MERGE,
+                "target_ref": "refs/heads/master"}
+
+    monkeypatch.setattr(integrator, "run_integration", capture)
+
+    claude_worker.execute_integration(activation(), Queue())
+
+    assert seen["branch"] == "task/T-1"
+    assert "pr_number" not in seen
 
 
 def test_an_unconfigured_host_blocks_rather_than_guessing(monkeypatch):

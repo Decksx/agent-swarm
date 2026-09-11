@@ -517,3 +517,106 @@ def test_an_uncertain_task_is_not_integrable():
 
     with pytest.raises(IntegrationRefused, match="only live in"):
         integrator.approved_candidate(record)
+
+
+# --- The pull request is derived, never supplied ----------------------------
+#
+# The worker used to be handed a `pr_number`, and nothing in the controller has
+# ever produced one -- only the tests did. A field that does not exist in
+# production looked load-bearing in review, and the tests were what made it
+# look that way.
+
+
+def pr_list(monkeypatch, payload, code=0):
+    monkeypatch.setattr(
+        integrator, "_gh",
+        lambda *a: subprocess.CompletedProcess(a, code, json.dumps(payload), ""),
+    )
+
+
+def listed(**over):
+    body = {"number": 4, "headRefOid": CANDIDATE, "baseRefName": "master",
+            "isDraft": False, "state": "OPEN"}
+    body.update(over)
+    return body
+
+
+def find(**kw):
+    args = {"repo_slug": "o/r", "branch": "task/T-1",
+            "candidate_sha": CANDIDATE, "target_ref": "refs/heads/master"}
+    args.update(kw)
+    return integrator.find_pull_request(**args)
+
+
+def test_exactly_one_open_pull_request_is_found(monkeypatch):
+    pr_list(monkeypatch, [listed()])
+
+    assert find() == 4
+
+
+def test_no_open_pull_request_is_refused(monkeypatch):
+    """The review artifact is what a person looked at; without it there is
+    nothing to integrate."""
+    pr_list(monkeypatch, [])
+
+    with pytest.raises(IntegrationRefused, match="no open pull request"):
+        find()
+
+
+def test_several_open_pull_requests_are_refused(monkeypatch):
+    """Which one this is about has no answer, and choosing would be the
+    program deciding something nobody asked it to."""
+    pr_list(monkeypatch, [listed(number=4), listed(number=9)])
+
+    with pytest.raises(IntegrationRefused, match="has no answer"):
+        find()
+
+
+def test_the_refusal_names_the_competing_pull_requests(monkeypatch):
+    pr_list(monkeypatch, [listed(number=4), listed(number=9)])
+
+    with pytest.raises(IntegrationRefused) as raised:
+        find()
+
+    assert "#4" in str(raised.value) and "#9" in str(raised.value)
+
+
+def test_a_pull_request_whose_head_is_not_the_approval_is_refused(monkeypatch):
+    """Selected by branch, so this is the step that would otherwise carry the
+    wrong object carefully through every later check."""
+    pr_list(monkeypatch, [listed(headRefOid="d" * 40)])
+
+    with pytest.raises(IntegrationRefused, match="moved after approval"):
+        find()
+
+
+def test_a_pull_request_targeting_another_branch_is_refused(monkeypatch):
+    pr_list(monkeypatch, [listed(baseRefName="develop")])
+
+    with pytest.raises(IntegrationRefused, match="targets"):
+        find()
+
+
+def test_the_search_uses_the_branch_and_base_it_was_given(monkeypatch):
+    seen = {}
+
+    def fake_gh(*args):
+        seen["args"] = args
+        return subprocess.CompletedProcess(args, 0, json.dumps([listed()]), "")
+
+    monkeypatch.setattr(integrator, "_gh", fake_gh)
+    find(branch="task/OTHER")
+
+    assert "task/OTHER" in seen["args"]
+    assert "master" in seen["args"]
+    assert "--state" in seen["args"] and "open" in seen["args"]
+
+
+def test_an_unreadable_listing_is_not_an_empty_one(monkeypatch):
+    monkeypatch.setattr(
+        integrator, "_gh",
+        lambda *a: subprocess.CompletedProcess(a, 1, "", "network"),
+    )
+
+    with pytest.raises(IntegrationRefused, match="could not list"):
+        find()
