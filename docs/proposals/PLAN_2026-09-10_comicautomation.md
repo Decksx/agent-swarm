@@ -1,5 +1,9 @@
 # Proposals: ComicAutomation, 2026-09-10
 
+> **Disposition: ALL FOUR REJECTED 2026-09-10.** See
+> [`DISPOSITIONS.md`](DISPOSITIONS.md). This file is the generated record
+> of what the planner produced and is left as it was written.
+
 Four tasks, all `DRAFT`. **None has been activated, and no model call was
 made to produce this file** — every field below is read back from the
 controller and cross-checked against the plan that created it.

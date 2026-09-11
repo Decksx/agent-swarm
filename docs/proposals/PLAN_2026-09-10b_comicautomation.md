@@ -1,5 +1,9 @@
 # Proposals (revised): ComicAutomation, 2026-09-10
 
+> **Disposition: REJECTED 2026-09-11.** See
+> [`DISPOSITIONS.md`](DISPOSITIONS.md). This file is the generated record
+> of what the planner produced and is left as it was written.
+
 One task, `DRAFT`, **not activated**. This supersedes the four proposals in
 [`PLAN_2026-09-10_comicautomation.md`](PLAN_2026-09-10_comicautomation.md),
 all of which are now `CANCELLED` in the controller with their rejection
