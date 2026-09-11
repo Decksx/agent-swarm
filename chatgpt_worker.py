@@ -612,7 +612,11 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         )
 
     prompt = authored_change.render_author_prompt(
-        {**task_record, "task_id": task_id, "allowed_paths": list(scope.paths)},
+        {**task_record, "task_id": task_id, "allowed_paths": list(scope.paths),
+         # From the activation, not the task record: it is an input the
+         # controller handed to *this* attempt, and a task record shared
+         # across attempts is the wrong place for something scoped to one.
+         "operator_context": activation.get("operator_context")},
         existing,
         context,
     )

@@ -463,6 +463,7 @@ def execute_review(
             candidate=candidate,
             branch=branch or "",
             author_summary=activation.get("author_summary", ""),
+            operator_context=activation.get("operator_context"),
         )
     except review_packet.PacketError as exc:
         # Blocked, not changes_requested: the packet could not be assembled, so

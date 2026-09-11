@@ -59,6 +59,69 @@ BEGIN = "<<<BEGIN>>>"
 END = "<<<END>>>"
 
 
+def operator_section(context: Optional[dict]) -> List[str]:
+    """What the operator answered, when this activation was issued to act on it.
+
+    Included verbatim and attributed, for the same reason a rejection is: an
+    attempt that is not told what the operator decided is not an attempt at
+    the decision. The escalation happened because the swarm could not settle
+    something itself, and a worker resuming without the answer resumes into
+    exactly the position that raised the question.
+
+    **And it is bounded by the contract.** An earlier version of this said
+    "where it and the objective disagree, follow the operator", which quietly
+    made a sentence of prose a contract-modification route: the controller
+    refuses `create_contract_version` through the response route precisely
+    because a contract needs structured fields, and then this told the model
+    to disregard the objective of a contract whose hash had not changed. The
+    new task version carries the same `contract_hash` -- so a run that
+    followed prose over the contract would produce a candidate that no
+    recorded contract describes, and a reviewer judging it against the
+    contract would be judging it against something the author was told to
+    ignore.
+
+    So the answer is authoritative about *how* to proceed within the contract,
+    and cannot move the contract itself. Where following it would require
+    changing the objective, the acceptance criteria, the base commit, the
+    proof mode or the allowed paths, the worker is told to stop and ask for a
+    contract version -- which is the structured route that exists for it.
+    """
+    if not context:
+        return []
+
+    response = str(context.get("response") or "").strip()
+
+    if not response:
+        return []
+
+    action = str(context.get("action") or "").strip()
+    actor = str(context.get("actor") or "operator").strip()
+    version = context.get("task_version")
+    sequence = context.get("event_seq")
+
+    return [
+        "",
+        "-" * 60,
+        "THIS TASK WAS ESCALATED AND THE OPERATOR HAS ANSWERED.",
+        "",
+        f"The operator ({actor}) said:",
+        response,
+        "",
+        f"They directed: {action}" if action else "",
+        f"(task version {version}, event {sequence})",
+        "",
+        "How to read this:",
+        "- It is authoritative guidance for how to carry out this task, and "
+        "it settles the question that caused the escalation.",
+        "- It CANNOT change the contract. The objective, the acceptance "
+        "criteria, the base commit, the proof mode and the allowed paths are "
+        "unchanged by it, and this answer did not alter the contract hash.",
+        "- If following it would require changing any of those, do not do it. "
+        "Stop and say that a new contract version is needed, naming which of "
+        "them would have to change and why.",
+    ]
+
+
 def _rejection_section(task: dict) -> List[str]:
     """What the last review sent this task back for, if anything.
 
@@ -429,7 +492,8 @@ def render_author_prompt(
     ] if task.get("allowed_paths") else [])
         + _existing_section(existing or [])
         + _context_section(context or {})
-        + _rejection_section(task))
+        + _rejection_section(task)
+        + operator_section(task.get("operator_context")))
 
 
 

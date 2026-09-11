@@ -81,6 +81,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+import narrator
 import swarm_control
 
 HERE = Path(__file__).resolve().parent
@@ -120,6 +121,10 @@ BACKOFF_RESET_AFTER = 120.0
 # rather than delivered, so it cannot be missed, and it survives the supervisor
 # being busy when it is written.
 STOP_FILENAME = "STOPPING"
+
+# Where narration records how far it has got. In the control directory
+# with the rest of the per-host runtime state, and ignored by git with it.
+NARRATION_CURSOR = "narration.cursor"
 
 log = logging.getLogger("supervisor")
 
@@ -339,6 +344,64 @@ class Supervisor:
         self.stopping = False
         self.last_tick = 0.0
         self._paused = False
+        self.narration = self._build_narration()
+
+    def _build_narration(self):
+        """The narrator, or None if it has no credential.
+
+        Built here because the supervisor is already the thing that polls the
+        controller on a timer, and a second process would say everything
+        twice. It is not supervised like a worker: it holds no lease, claims
+        nothing, and a pass that fails costs a delayed line rather than a
+        stalled task.
+
+        A missing credential disables narration and leaves the runtime alone.
+        Refusing to keep three workers alive because the room would be quiet
+        would be the wrong trade, and the refusal is logged with the variable
+        it wants -- which is the thing an operator can act on.
+        """
+        if self.requests is None:
+            return None
+
+        try:
+            secret = narrator.credential()
+        except narrator.NarrationNotConfigured as exc:
+            log.error("%s", exc)
+            return None
+
+        return narrator.Narrator(
+            controller_url=self.controller_url,
+            cursor=narrator.Cursor(swarm_control.CONTROL_DIR / NARRATION_CURSOR),
+            secret=secret,
+            requests_module=self.requests,
+        )
+
+    def narrate(self) -> None:
+        """One narration pass, and never one that can end the runtime.
+
+        Narration is the least important thing here. A worker that stops being
+        supervised is an outage; a line that arrives late is a line that
+        arrives late, and the cursor means it arrives rather than being lost.
+        """
+        if self.narration is None:
+            return
+
+        try:
+            self.narration.tick()
+        except narrator.CursorUnreadable as exc:
+            # Stopped for the run, not retried. The cursor is damaged, the
+            # file has been left alone for diagnosis, and every further pass
+            # would raise the same thing -- so this says it once and stops,
+            # rather than burying the one line that explains a silent room
+            # under a copy of itself every twenty seconds.
+            log.error("%s", exc)
+            log.error(
+                "narration is stopped for this run; fix or remove the cursor "
+                "and restart the supervisor"
+            )
+            self.narration = None
+        except Exception:
+            log.error("narration pass failed", exc_info=True)
 
     # --- the controller side -------------------------------------------------
 
@@ -498,6 +561,17 @@ class Supervisor:
             # before claiming, so a paused swarm is a set of idle processes
             # rather than a torn-down runtime -- and coming back is a file
             # deletion, not a restart.
+            #
+            # Narration continues. A pause stops the swarm starting work; it
+            # does not stop things happening. An operator answering an
+            # escalation, or anything else reaching the controller from
+            # outside, still produces events -- and a pause that hid them
+            # would blind the operator at exactly the moment they are leaning
+            # on the room to decide whether to resume.
+            if now - self.last_tick >= self.interval:
+                self.last_tick = now
+                self.narrate()
+
             return
 
         for child in self.children.values():
@@ -507,6 +581,9 @@ class Supervisor:
             self.last_tick = now
             self.advance()
             self.sweep()
+            # On the same beat as the controller calls, so an idle swarm adds
+            # no polling of its own: no events, no lines, no cost.
+            self.narrate()
 
     def run(self) -> int:
         """Until told to stop."""
