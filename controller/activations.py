@@ -263,16 +263,26 @@ def issue(
             ),
         )
 
-    # Outside the transaction above because apply_transition opens its own, and
-    # nesting is refused. The activation exists but the task has not moved yet;
-    # if this fails the activation is orphaned in ISSUED and reclaimed by the
-    # lease sweep, which is the safe direction -- the alternative is a task
-    # marked ASSIGNED with no activation to claim.
-    engine.apply_transition(
-        conn, task_id=task_id, kind=transition_kind, actor="controller",
-        authority=CONTROLLER, activation_id=activation_id, now=now,
-        payload={"agent": agent, "host": host, "stage": stage},
-    )
+        # Inside the same transaction as the insert, and this is the whole
+        # point of `apply_transition_within`.
+        #
+        # It used to be outside, on the reasoning that an orphaned ISSUED
+        # activation is safer than a task marked ASSIGNED with nothing to
+        # claim. That is true of the failure it was reasoning about and not of
+        # the one it created: with the insert committed and the transition
+        # pending, two concurrent callers could both insert before either
+        # transitioned, and the loser's activation sat live, consuming host
+        # capacity, belonging to nobody, until its lease lapsed.
+        #
+        # Holding one transaction across both removes the seam rather than
+        # choosing which side of it to fail on. The second caller's
+        # transition is refused -- the task has already left the state it
+        # required -- and its insert rolls back with it.
+        engine.apply_transition_within(
+            conn, task_id=task_id, kind=transition_kind, actor="controller",
+            authority=CONTROLLER, activation_id=activation_id, now=now,
+            payload={"agent": agent, "host": host, "stage": stage},
+        )
 
     return {"activation_id": activation_id, "role": role, "attempt_no": attempt}
 

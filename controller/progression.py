@@ -35,6 +35,7 @@ whoever it happened to name.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Optional
 
@@ -109,22 +110,48 @@ def _has_live_activation(conn: sqlite3.Connection, task_id: str) -> bool:
     return row is not None
 
 
-def _branch_for(conn: sqlite3.Connection, task_id: str) -> Optional[str]:
-    """The branch the controller already named for this task.
+def _producing_activation(conn: sqlite3.Connection, task_id: str) -> Optional[dict]:
+    """The author activation that produced the candidate now approved.
 
-    Read from the task's own author activation rather than constructed from
-    the task id. They agree today, and a constructed one would keep agreeing
-    right up until somebody issued an activation with a different branch --
-    at which point the review would be pointed at a branch nobody wrote to.
+    Not "the most recent activation naming a branch", which is what this used
+    to read, and not a global setting. Both were wrong in the same direction:
+    they described where work happens in general rather than where *this*
+    task's work happened.
+
+    The consequence was live. One `PROGRESSION_REPO_LOCATION` was applied to
+    every ready task, so tasks belonging to other repositories were handed
+    activations pointing at the demonstration checkout.
+
+    So the branch, the repository and the candidate all come from one row: the
+    author activation whose `candidate_submitted` event produced the commit the
+    review approved. Every downstream stage is then talking about the same
+    piece of work, and a task from another repository carries its own location
+    or is not advanced at all.
     """
     row = conn.execute(
-        "SELECT expected_branch FROM activations WHERE task_id = ? "
-        "AND expected_branch IS NOT NULL AND expected_branch <> '' "
-        "ORDER BY issued_at DESC LIMIT 1",
+        "SELECT a.activation_id, a.expected_branch, a.repo_location, "
+        "       e.payload_json "
+        "FROM events e JOIN activations a "
+        "  ON a.activation_id = e.activation_id "
+        "WHERE e.task_id = ? AND e.kind = 'candidate_submitted' "
+        "ORDER BY e.seq DESC LIMIT 1",
         (task_id,),
     ).fetchone()
 
-    return row["expected_branch"] if row else None
+    if row is None:
+        return None
+
+    try:
+        payload = json.loads(row["payload_json"] or "{}")
+    except ValueError:
+        payload = {}
+
+    return {
+        "activation_id": row["activation_id"],
+        "expected_branch": (row["expected_branch"] or "").strip(),
+        "repo_location": (row["repo_location"] or "").strip(),
+        "candidate_sha": str(payload.get("candidate_sha") or "").strip(),
+    }
 
 
 def advance(
@@ -200,16 +227,50 @@ def advance(
             considered.append(record)
             continue
 
-        branch = _branch_for(conn, row["task_id"])
+        produced = _producing_activation(conn, row["task_id"])
 
-        if not branch:
+        if produced is None or not produced["expected_branch"]:
             # Without it a review activation cannot be issued at all, and an
             # integration would have nothing to find a pull request from.
             record["reason"] = (
-                "no activation has ever named a branch for this task"
+                "no author activation with a branch produced a candidate for "
+                "this task"
             )
             considered.append(record)
             continue
+
+        branch = produced["expected_branch"]
+
+        # The repository this task's work actually happened in, carried from
+        # the activation that did it. Falls back to the routing default only
+        # when the producing activation recorded none, and a task with neither
+        # is not advanced rather than pointed at somebody else's checkout.
+        repo_location = produced["repo_location"] or routing.repo_location
+
+        if not repo_location:
+            record["reason"] = (
+                "neither the producing activation nor the routing names a "
+                "repository location for this task"
+            )
+            considered.append(record)
+            continue
+
+        # For an integration, the approval must be about the candidate this
+        # activation will be pointed at. They are the same value whenever the
+        # ledger is consistent, and checking is how an inconsistent one is
+        # caught before an integrator acts on it rather than after.
+        if stage == "integrate":
+            approved = (row["approved_candidate_sha"] or "").strip()
+
+            if produced["candidate_sha"] and produced["candidate_sha"] != approved:
+                record["reason"] = (
+                    f"the approval names {approved[:12]} and the latest "
+                    f"candidate on {branch} is "
+                    f"{produced['candidate_sha'][:12]}; refusing to point an "
+                    "integration at a commit the review did not approve"
+                )
+                considered.append(record)
+                continue
 
         try:
             issued = activations.issue(
@@ -221,7 +282,10 @@ def advance(
                 lease_seconds=routing.lease_seconds,
                 hard_deadline_seconds=routing.hard_deadline_seconds,
                 expected_branch=branch,
-                repo_location=routing.repo_location,
+                expected_candidate=(
+                    (row["approved_candidate_sha"] or "").strip() or None
+                ),
+                repo_location=repo_location,
                 now=now,
             )
         except activations.HostAtCapacity as exc:
@@ -240,6 +304,8 @@ def advance(
             "activation_id": issued["activation_id"],
             "agent": routing.agent_for(stage),
             "expected_branch": branch,
+            "repo_location": repo_location,
+            "from_activation": produced["activation_id"],
         })
         considered.append(record)
 

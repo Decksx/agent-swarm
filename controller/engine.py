@@ -226,12 +226,59 @@ def apply_transition(
     Supplying `event_id` makes the call idempotent: re-delivering the identical
     request returns the stored result rather than appending a second event.
     """
+    with transaction(conn):
+        return apply_transition_within(
+            conn, task_id=task_id, kind=kind, actor=actor,
+            authority=authority, expected_state_seq=expected_state_seq,
+            activation_id=activation_id, source_event_id=source_event_id,
+            payload=payload, event_id=event_id, now=now,
+        )
+
+
+def apply_transition_within(
+    conn: sqlite3.Connection,
+    *,
+    task_id: str,
+    kind: str,
+    actor: str,
+    authority: str,
+    expected_state_seq: Optional[int] = None,
+    activation_id: Optional[str] = None,
+    source_event_id: Optional[str] = None,
+    payload: Optional[dict] = None,
+    event_id: Optional[str] = None,
+    now: Optional[float] = None,
+) -> dict:
+    """`apply_transition`, for a caller that is already inside a transaction.
+
+    Exists so that an operation which must happen atomically *with* a
+    transition can hold one transaction across both. `issue` is the case: it
+    inserted an activation, committed, and then transitioned the task in a
+    second transaction -- so two concurrent callers could both insert before
+    either transitioned, producing a duplicate live activation that consumed
+    capacity and belonged to nobody.
+
+    The comment that used to sit at that seam called the orphan "the safe
+    direction", which was true of the failure it was reasoning about (a task
+    marked ASSIGNED with no activation) and not true of the one it created.
+    Both are avoided by not having a seam.
+
+    Never call this outside a transaction: the event and the projection would
+    be separately committable, which is the one thing the schema's design note
+    says must not happen.
+    """
+    if not conn.in_transaction:
+        raise RuntimeError(
+            "apply_transition_within must run inside a transaction; use "
+            "apply_transition to open one"
+        )
+
     now = time.time() if now is None else now
     payload = payload or {}
     event_id = event_id or uuid.uuid4().hex
     payload_json = json.dumps(payload, sort_keys=True)
 
-    with transaction(conn):
+    if True:
         # Idempotency is checked inside the transaction, not before it. Outside,
         # two concurrent identical deliveries could both find no existing event
         # and both proceed.

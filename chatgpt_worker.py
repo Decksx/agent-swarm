@@ -495,6 +495,45 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         "activation %s: worktree %s at %s", activation_id, workspace, base_sha[:12]
     )
 
+    # Fail closed before the model is called, not after.
+    #
+    # A candidate nobody can publish is a candidate no reviewer can reach and
+    # no CI can run against, so the task stops at READY_REVIEW having spent a
+    # model call to get there. Checked here rather than at the publication
+    # step because the cost of the misconfiguration is the call, and the call
+    # is about to happen.
+    #
+    # `branch_only` is the exception, and it has to be explicit. A task whose
+    # candidate is genuinely not meant to leave this machine is a real thing
+    # -- the MVP demonstrations were exactly that -- but it is a decision
+    # somebody makes about a task, not a state a host drifts into by having an
+    # unset variable.
+    branch_only = bool(task_record.get("branch_only"))
+
+    if not PUBLISH_REPO_SLUG and not branch_only:
+        log.error(
+            "activation %s: PUBLISH_REPO_SLUG is not set and %s is not "
+            "branch_only", activation_id, task_id,
+        )
+
+        try:
+            worktrees.remove(project, activation_id)
+        except worktrees.WorktreeError as exc:
+            log.warning("could not remove the worktree for %s: %s",
+                        activation_id, exc)
+
+        queue.report(activation_id, outcome="blocked", payload={
+            "reason": (
+                "PUBLISH_REPO_SLUG is not configured on this host, so a "
+                "candidate could be authored but not published -- no reviewer "
+                "could reach it and no CI could run against it. Refusing "
+                "before the model call. Set it, or mark the task branch_only "
+                "if the candidate is deliberately not meant to leave this "
+                "machine."
+            ),
+        })
+        return
+
     # What the files it may change look like right now. Without this an author
     # with no shell has to invent the parts of a file it was not shown, and
     # the output format requires the whole file.
@@ -678,7 +717,7 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
     # reviewer can reach.
     published = {}
 
-    if PUBLISH_REPO_SLUG:
+    if PUBLISH_REPO_SLUG and not branch_only:
         try:
             published = publication.publish_candidate(
                 str(project.path),
