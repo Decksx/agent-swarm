@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import Optional
 
 log = logging.getLogger("narrator")
@@ -264,3 +265,193 @@ def render(event: dict) -> Optional[str]:
         parts.append(str(stage))
 
     return f"[{' · '.join(parts)}] {summarize(event)} (seq {seq})"
+
+
+class Cursor:
+    """Where narration has got to, on disk, so a restart does not replay.
+
+    Written by atomic replacement. A cursor torn by a crash mid-write is worse
+    than either outcome it could have held: a truncated file reads as no
+    cursor at all, and a fresh narrator would then seed itself at the current
+    maximum and silently skip everything that happened while it was down.
+    Replacement makes the file either the old sequence or the new one.
+
+    Duplicate delivery after a crash is acceptable and loss is not, which is
+    why the cursor is written *after* the hub accepts a message rather than
+    before. Every line carries its sequence number, so a repeat is
+    recognisable as a repeat; a gap is not recognisable as anything.
+    """
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+
+    def read(self) -> Optional[int]:
+        """The last delivered sequence, or None if narration has never run."""
+        try:
+            raw = self.path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return None
+
+        try:
+            return int(raw)
+        except ValueError:
+            # Unreadable is treated as never-run rather than as zero. Zero
+            # would replay the entire ledger into the room; never-run seeds at
+            # the current maximum and says so.
+            log.error(
+                "narration cursor at %s is unreadable (%r); starting fresh",
+                self.path, raw[:80],
+            )
+            return None
+
+    def write(self, seq: int) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.path.with_suffix(self.path.suffix + ".new")
+        temporary.write_text(str(int(seq)), encoding="utf-8")
+        os.replace(temporary, self.path)
+
+
+class Narrator:
+    """Reads the controller's event feed and says what it finds, once.
+
+    Holds no state of its own beyond the cursor. It is driven by whatever is
+    already running -- the supervisor's tick -- rather than being a fourth
+    process, because a second narrator would say everything twice and there is
+    nothing here that needs its own scheduler.
+    """
+
+    def __init__(self, *, controller_url: str, cursor: Cursor, secret: str,
+                 requests_module, page: int = 200):
+        self.controller_url = controller_url.rstrip("/")
+        self.cursor = cursor
+        self.secret = secret
+        self.requests = requests_module
+        self.page = page
+
+    # --- talking to the two services ----------------------------------------
+
+    def _auth(self):
+        return (IDENTITY, self.secret)
+
+    def feed(self, since: Optional[int]) -> Optional[dict]:
+        """One page of events, or None if the controller could not be asked."""
+        params = {"limit": self.page}
+
+        if since is not None:
+            params["since"] = since
+
+        try:
+            response = self.requests.get(
+                f"{self.controller_url}/controller/events",
+                params=params, auth=self._auth(), timeout=20,
+            )
+        except Exception as exc:
+            log.warning("controller unreachable for narration: %s", exc)
+            return None
+
+        if response.status_code >= 400:
+            log.warning(
+                "controller refused the event feed: %s %s",
+                response.status_code, response.text[:200],
+            )
+            return None
+
+        try:
+            return response.json()
+        except ValueError:
+            log.warning("controller returned unreadable JSON from the feed")
+            return None
+
+    def say(self, text: str) -> bool:
+        """Post one line. Returns whether the hub accepted it."""
+        try:
+            response = self.requests.post(
+                f"{self.controller_url}/send",
+                json={"target": TARGET, "content": text},
+                auth=self._auth(), timeout=20,
+            )
+        except Exception as exc:
+            log.warning("hub unreachable for narration: %s", exc)
+            return False
+
+        if response.status_code >= 400:
+            log.warning(
+                "hub refused a narration line: %s %s",
+                response.status_code, response.text[:200],
+            )
+            return False
+
+        return True
+
+    # --- the pass ------------------------------------------------------------
+
+    def start(self) -> Optional[int]:
+        """Seed the cursor at the ledger's current end and announce it.
+
+        The maximum comes from the controller's own count, not from the tail
+        of a page. A narrator that took its starting point from a limited page
+        would begin at the end of its first *page* and then replay everything
+        after it into the room -- which is the flood this exists to avoid,
+        arrived at by looking like it was avoiding it.
+
+        Persisted before the announcement, so a crash between the two costs a
+        missing startup line rather than a replayed ledger.
+        """
+        body = self.feed(None)
+
+        if body is None:
+            return None
+
+        maximum = int(body.get("max_seq") or 0)
+        self.cursor.write(maximum)
+        self.say(f"Narrator started at seq {maximum}")
+        log.info("narration started at seq %s", maximum)
+
+        return maximum
+
+    def tick(self) -> int:
+        """Deliver whatever is new. Returns how many lines were posted."""
+        since = self.cursor.read()
+
+        if since is None:
+            return 0 if self.start() is None else 0
+
+        body = self.feed(since)
+
+        if body is None:
+            return 0
+
+        said = 0
+
+        # Ascending, and one at a time. The feed is ordered by sequence and
+        # the cursor moves with it, so a failure stops the batch where it
+        # happened rather than skipping past it: everything before the failed
+        # event is delivered and recorded, and the next pass resumes at
+        # exactly the event that failed.
+        for event in body.get("events") or []:
+            seq = event.get("seq")
+
+            if seq is None or seq <= since:
+                continue
+
+            line = render(event)
+
+            if line is None:
+                # Excluded on purpose, and the cursor still advances past it.
+                # Leaving it behind would make every pass re-read the same
+                # heartbeats forever and never reach anything after them.
+                since = seq
+                self.cursor.write(seq)
+                continue
+
+            if not self.say(line):
+                log.warning(
+                    "narration stopped at seq %s; it will resume there", seq,
+                )
+                break
+
+            since = seq
+            self.cursor.write(seq)
+            said += 1
+
+        return said

@@ -39,8 +39,10 @@ see the deployment notes on never adding `--workers N`.
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -48,6 +50,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 
 from . import activations, build, engine, states
+from .db import transaction
 from . import progression
 from .db import initialize, open_controller_db
 
@@ -152,6 +155,39 @@ class HostCapacity(BaseModel):
     max_concurrent: int = 1
 
 
+# The NEEDS_HUMAN exits an operator may take through this route.
+#
+# A subset of what the state table allows, on purpose. `create_contract_version`
+# is a real exit and is not here: it mints a new contract, and a contract is
+# yaml, a base sha and a proof mode -- none of which a sentence of prose
+# contains. Offering it as a free-text action would let an operator believe
+# they had authorized new work when what they had actually supplied was a
+# comment.
+RESUME_ACTIONS = frozenset({
+    "return_to_author",
+    "return_to_review",
+    "admin_failed",
+})
+
+
+class OperatorResponse(BaseModel):
+    """An operator answering a NEEDS_HUMAN escalation.
+
+    Every field is required because every one of them is a way this goes wrong
+    if it is guessed. `expected_version` is the stale-write check: an operator
+    reading a question in the chatroom may be answering something the swarm
+    has already moved past, and applying that answer to whatever the task
+    looks like now is how a stale instruction becomes an authoritative one.
+    `action` is named rather than inferred -- "return this to the author" and
+    "return this to review" are different instructions, and a controller that
+    picked one from the wording of a sentence would be interpreting prose as
+    authority.
+    """
+    expected_version: int
+    response: str
+    action: str
+
+
 class Heartbeat(BaseModel):
     # The worker asks for the lease it wants; the controller decides whether
     # it still has one to give. Never extends the hard deadline.
@@ -173,6 +209,80 @@ def build_router(
             yield conn
         finally:
             conn.close()
+
+    # The narrator's only read, and the only route it needs.
+    #
+    # Bounded and ordered by `seq`, which is the whole reason pagination here
+    # is safe. `seq` is AUTOINCREMENT and every append happens in one
+    # serialized transaction, so an event committed while a narrator is
+    # paginating necessarily lands *above* every sequence already returned --
+    # it becomes the next page rather than shifting the current one. A feed
+    # ordered by timestamp, or one paginated by offset, would let a late
+    # arrival reorder or displace what had already been delivered.
+    @router.get("/events")
+    def event_feed(
+        since: Optional[int] = None,
+        limit: int = 200,
+        component: str = Depends(authenticate),
+        conn: sqlite3.Connection = Depends(get_conn),
+    ):
+        """Events after `since`, oldest first, with the authoritative maximum.
+
+        `max_seq` is computed from the table rather than from the page, so a
+        first-run narrator can learn where the ledger currently ends without
+        reading it. Taking the maximum from a limited page would start a fresh
+        narrator at the end of its first *page* and replay everything after it
+        into the room.
+
+        Omitting `since` returns no events at all -- just the maximum. That is
+        the "where are we" call, and it is shaped this way so that the cheapest
+        thing a new narrator can do is also the thing that does not flood the
+        room.
+        """
+        limit = max(1, min(int(limit), 500))
+
+        row = conn.execute("SELECT MAX(seq) AS m FROM events").fetchone()
+        max_seq = row["m"] if row and row["m"] is not None else 0
+
+        if since is None:
+            return {"events": [], "max_seq": max_seq, "next_since": max_seq}
+
+        rows = conn.execute(
+            "SELECT e.*, a.stage AS stage FROM events e "
+            "LEFT JOIN activations a ON a.activation_id = e.activation_id "
+            "WHERE e.seq > ? ORDER BY e.seq ASC LIMIT ?",
+            (int(since), limit),
+        ).fetchall()
+
+        events = []
+
+        for row in rows:
+            try:
+                payload = json.loads(row["payload_json"])
+            except (ValueError, TypeError):
+                payload = {}
+
+            events.append({
+                "seq": row["seq"],
+                "event_id": row["event_id"],
+                "task_id": row["task_id"],
+                "task_version": row["task_version"],
+                "activation_id": row["activation_id"],
+                "stage": row["stage"],
+                "actor": row["actor"],
+                "authority": row["authority"],
+                "kind": row["kind"],
+                "from_state": row["from_state"],
+                "to_state": row["to_state"],
+                "payload_json": payload,
+                "created_at": row["created_at"],
+            })
+
+        return {
+            "events": events,
+            "max_seq": max_seq,
+            "next_since": events[-1]["seq"] if events else int(since),
+        }
 
     @router.get("/status")
     def controller_status(
@@ -385,6 +495,153 @@ def build_router(
             raise _http(exc)
 
     # --- Activations ---------------------------------------------------------
+
+    # The operator's way back in, and the only one.
+    #
+    # Admin authority, deliberately. `narrator` can read the feed and speak in
+    # the room and can do nothing here: the room is where questions are asked,
+    # and it is not where answers acquire authority. Chat carried unauthenticated
+    # remote execution before Phase 0, and a reply path that reached this route
+    # would hand that back with better manners.
+    @router.post("/tasks/{task_id}/operator-response")
+    def operator_response(
+        task_id: str,
+        body: OperatorResponse,
+        component: str = Depends(require_admin),
+        conn: sqlite3.Connection = Depends(get_conn),
+    ):
+        """Answer a NEEDS_HUMAN escalation and say what should happen next.
+
+        One transaction over all four steps: check the task is still asking,
+        check the operator is answering the version they were shown, record
+        what was said, and apply the resume they named. Splitting any of those
+        out would let an answer be recorded against a task that had already
+        moved, or a resume be applied with no record of what prompted it.
+
+        The version advances as part of the same transaction. That is not
+        bookkeeping -- it is what invalidates everything in flight against the
+        old one. A retry authorized before the escalation is pinned to the
+        version it was authorized for, and an operator's answer is a decision
+        that those attempts were made under conditions that no longer hold.
+        """
+        action = (body.action or "").strip()
+
+        if action not in RESUME_ACTIONS:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "unsupported resume action",
+                    "action": action,
+                    "supported": sorted(RESUME_ACTIONS),
+                    # Named rather than silently absent. `create_contract_version`
+                    # is a real NEEDS_HUMAN exit and it needs a contract --
+                    # yaml, base sha, proof mode -- none of which a sentence
+                    # of prose contains. Accepting it here would mint a
+                    # version whose contract was guessed.
+                    "unsupported_here": {
+                        "create_contract_version":
+                            "needs structured contract data (contract_yaml, "
+                            "base_sha, proof_mode); use the task version route",
+                    },
+                },
+            )
+
+        text = (body.response or "").strip()
+
+        if not text:
+            raise HTTPException(
+                status_code=422, detail="response text may not be empty",
+            )
+
+        with transaction(conn):
+            task = conn.execute(
+                "SELECT * FROM tasks WHERE task_id = ?", (task_id,)
+            ).fetchone()
+
+            if task is None:
+                raise HTTPException(status_code=404, detail="no such task")
+
+            if task["state"] != "NEEDS_HUMAN":
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "task is not asking for an operator decision",
+                        "state": task["state"],
+                    },
+                )
+
+            if task["current_version"] != body.expected_version:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "stale response: the task has moved on",
+                        "expected_version": body.expected_version,
+                        "current_version": task["current_version"],
+                    },
+                )
+
+            resulting_version = task["current_version"] + 1
+
+            current = conn.execute(
+                "SELECT * FROM task_versions WHERE task_id = ? AND version = ?",
+                (task_id, task["current_version"]),
+            ).fetchone()
+
+            if current is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="task has no contract for its current version",
+                )
+
+            now = time.time()
+
+            # The same contract at a new version. Nothing about the work
+            # changed; what changed is that every attempt pinned to the old
+            # version was made before the operator answered.
+            conn.execute(
+                "INSERT INTO task_versions (task_id, version, contract_yaml, "
+                "contract_hash, protocol_schema_version, base_sha, proof_mode, "
+                "created_at, created_by) VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    task_id, resulting_version, current["contract_yaml"],
+                    current["contract_hash"],
+                    current["protocol_schema_version"], current["base_sha"],
+                    current["proof_mode"], now, component,
+                ),
+            )
+            conn.execute(
+                "UPDATE tasks SET current_version = ? WHERE task_id = ?",
+                (resulting_version, task_id),
+            )
+
+            # Recorded before the resume, so the log reads in the order it
+            # happened: the operator said this, and therefore the task moved.
+            said = engine.apply_transition_within(
+                conn, task_id=task_id, kind="operator_response",
+                actor=component, authority=states.ADMIN,
+                payload={
+                    "response": text,
+                    "action": action,
+                    "resulting_version": resulting_version,
+                },
+                now=now,
+            )
+
+            moved = engine.apply_transition_within(
+                conn, task_id=task_id, kind=action, actor=component,
+                authority=states.ADMIN, source_event_id=said["event_id"],
+                payload={"response_event_id": said["event_id"]}, now=now,
+            )
+
+        return {
+            "task_id": task_id,
+            "response_event_id": said["event_id"],
+            "action": action,
+            "from_state": "NEEDS_HUMAN",
+            "to_state": moved["to_state"],
+            "task_version": resulting_version,
+            "answered_by": component,
+        }
 
     @router.post("/hosts")
     def set_capacity(

@@ -70,6 +70,22 @@ load_credentials() {
   export GEMINI_HUB_SECRET="$(fetch_secret gemini)"
   export CLAUDECODE_HUB_SECRET="$(fetch_secret claudecode)"
 
+  # The narrator speaks from inside the supervisor, so this one is not passed
+  # to a child -- it stays in the supervisor's own environment.
+  #
+  # Fetched at start like every other secret rather than stored on this host.
+  # A credential in a file on OFFICEPC is a credential that outlives the
+  # process holding it, survives into backups, and can be read by anything
+  # running as this user; one fetched over ssh at start exists only in the
+  # memory of the process that needs it.
+  #
+  # Absence is not fatal here. The supervisor's job is keeping workers alive,
+  # and it should not refuse to do that because the room would be quiet --
+  # narration itself refuses to start and says why, which is the failure an
+  # operator can act on.
+  export NARRATOR_HUB_SECRET="$(fetch_secret narrator)"
+  [ -z "$NARRATOR_HUB_SECRET" ] && echo "warning: no narrator credential; narration will be disabled"
+
   export OPENAI_API_KEY="$(powershell.exe -NoProfile -Command \
     '[Environment]::GetEnvironmentVariable("OPENAI_API_KEY","User")' 2>/dev/null | tr -d '\r\n')"
   export GEMINI_API_KEY="$(powershell.exe -NoProfile -Command \

@@ -22,7 +22,7 @@ REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-from controller import activations, engine, states  # noqa: E402
+from controller import activations, engine, schema, states  # noqa: E402
 
 SECRET = "s" * 32
 ADMIN = ("admin", SECRET)
@@ -458,7 +458,12 @@ def test_the_stored_proof_mode_survives_a_migration_from_version_three(tmp_path)
     fresh = db.connect(path)
     db.migrate(fresh)
 
-    assert fresh.execute("PRAGMA user_version").fetchone()[0] == 4
+    # The build's own version, not a literal: this asserts that migrating
+    # arrives at whatever this build expects, which is the property that
+    # matters and the one that survives the next bump.
+    assert fresh.execute("PRAGMA user_version").fetchone()[0] == (
+        schema.SCHEMA_VERSION
+    )
     assert engine.get_task(fresh, "OLD-1")["proof_mode"] == "sabotage"
     assert fresh.execute("PRAGMA foreign_key_check").fetchall() == []
 

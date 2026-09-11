@@ -226,6 +226,15 @@ TRANSITIONS: Dict[Tuple[str, str], Transition] = {
     # "resume" carrying a destination in its payload -- a payload field would
     # put the choice back inside data the controller would have to validate
     # anyway.
+    # What the operator said, recorded as its own event and moving nothing.
+    #
+    # A self-transition rather than a bare insert, so the answer goes through
+    # the same authority check and the same one-transaction rule as everything
+    # else in the log. The resume that follows it is a separate event, which is
+    # what keeps "the operator said this" and "and therefore the task moved"
+    # two facts rather than one -- an answer that was refused a resume still
+    # happened, and an answer nobody gave cannot be inferred from a resume.
+    ("NEEDS_HUMAN", "operator_response"): _t("NEEDS_HUMAN", ADMIN),
     ("NEEDS_HUMAN", "return_to_author"): _t("READY_AUTHOR", ADMIN),
     ("NEEDS_HUMAN", "return_to_review"): _t("READY_REVIEW", ADMIN),
     ("NEEDS_HUMAN", "create_contract_version"): _t("DRAFT", ADMIN),

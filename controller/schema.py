@@ -40,7 +40,14 @@ from __future__ import annotations
 # under a rule that recorded which candidate the approval was for, and
 # inventing one retroactively would be exactly the fabrication the integrator
 # refuses to act on.
-SCHEMA_VERSION = 4
+#
+# Bumped to 5 on 2026-09-11 for `activations.operator_context`. Additive and
+# nullable again. An operator's answer to a NEEDS_HUMAN escalation has to
+# reach the worker as part of its instructions, and a column is the only place
+# an activation's inputs are allowed to live -- recording the answer in the
+# event log and expecting each worker to go and find it would make every one
+# of them decide for itself which event counted.
+SCHEMA_VERSION = 5
 
 SCHEMA_SQL = """
 -- One row per task. `state` and `state_seq` are the projection that the event
@@ -151,6 +158,19 @@ CREATE TABLE IF NOT EXISTS activations (
   status              TEXT NOT NULL,
   result_event_id     TEXT,
   result_request_hash TEXT,
+  -- What the operator said, copied in at issuance and never updated.
+  --
+  -- A copy, not a pointer. A worker's instructions have to *contain* the
+  -- answer it is acting on: one that had to query the event log for it would
+  -- be reconstructing its own input, and every worker would have to agree on
+  -- which event counted and what "latest" meant. Recording an answer and
+  -- calling the worker informed is the same mistake as recording an approval
+  -- and calling a candidate approved.
+  --
+  -- Immutable for the reason the rest of this row is: an activation is one
+  -- bounded attempt against one fixed set of facts, and facts that change
+  -- under it make its result unattributable.
+  operator_context    TEXT,
   result_response     TEXT,
   FOREIGN KEY (task_id, task_version)
     REFERENCES task_versions(task_id, version)

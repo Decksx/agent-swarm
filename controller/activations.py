@@ -283,14 +283,15 @@ def issue(
             "agent, host, role, stage, attempt_no, chargeable_attempt, "
             "expected_branch, expected_parent, expected_candidate, "
             "repo_location, issued_at, lease_expires_at, "
-            "hard_deadline_at, heartbeat_seq, status) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "hard_deadline_at, heartbeat_seq, status, operator_context) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 activation_id, task_id, task["current_version"], agent, host,
                 role, stage, attempt, 1 if chargeable else 0,
                 expected_branch, expected_parent, expected_candidate,
                 repo_location, now,
                 now + lease_seconds, now + hard_deadline_seconds, 0, ISSUED,
+                operator_context(conn, task_id, task["current_version"]),
             ),
         )
 
@@ -425,6 +426,52 @@ def _review_evidence(
     return parent, candidate
 
 
+
+def operator_context(conn: sqlite3.Connection, task_id: str, version: int):
+    """The operator's answer this activation is being issued to act on, as JSON.
+
+    The latest `operator_response` whose resume produced the version being
+    issued -- not simply the latest one. A task that has been escalated twice
+    has two answers in its log, and an activation carrying the older one would
+    be acting on an instruction the operator has already replaced.
+
+    Tying it to the version rather than to recency is what makes that exact.
+    Responding advances the version, so the answer and the version it produced
+    are one fact; a retry at the same version is issued against the same answer,
+    which is correct, and anything past that version carries none.
+
+    Returns None when there is nothing to carry, which is the ordinary case.
+    """
+    row = conn.execute(
+        "SELECT seq, actor, payload_json FROM events "
+        "WHERE task_id = ? AND kind = 'operator_response' "
+        "ORDER BY seq DESC LIMIT 1",
+        (task_id,),
+    ).fetchone()
+
+    if row is None:
+        return None
+
+    try:
+        payload = json.loads(row["payload_json"])
+    except (ValueError, TypeError):
+        return None
+
+    if payload.get("resulting_version") != version:
+        return None
+
+    return json.dumps(
+        {
+            "response": payload.get("response"),
+            "action": payload.get("action"),
+            "actor": row["actor"],
+            "event_seq": row["seq"],
+            "task_version": version,
+        },
+        sort_keys=True,
+    )
+
+
 def claim(
     conn: sqlite3.Connection,
     *,
@@ -480,6 +527,14 @@ def claim(
         "expected_parent": row["expected_parent"],
         "expected_candidate": row["expected_candidate"],
         "repo_location": row["repo_location"],
+        # The operator's answer, when this activation was issued to act on
+        # one. Part of the claim response rather than something the worker
+        # fetches, for the same reason the review range is: a worker's inputs
+        # are what the controller handed it.
+        "operator_context": (
+            json.loads(row["operator_context"]) if row["operator_context"]
+            else None
+        ),
         **build_timing(fresh, now),
     }
 

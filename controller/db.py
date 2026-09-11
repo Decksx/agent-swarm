@@ -101,6 +101,17 @@ def split_statements(sql: str) -> list:
 # procedure and a backup taken first, which is what section 17 means by an
 # explicit migration.
 MIGRATIONS = {
+    # Additive and nullable, like the migrations below it. NULL is correct for
+    # every existing row: no activation in the deployed database was issued
+    # while an operator response was outstanding, and inventing one would put
+    # words in the operator's mouth.
+    #
+    # A callable rather than a bare ALTER so that it can be run twice. The
+    # version bump is a separate transaction from the step, so a crash between
+    # them leaves the column added and the version unchanged -- and the next
+    # startup would re-run an ALTER that now fails on its own success,
+    # wedging a controller that had actually migrated correctly.
+    5: lambda conn: _add_operator_context(conn),
     2: [
         "ALTER TABLE activations ADD COLUMN expected_candidate TEXT",
         "ALTER TABLE activations ADD COLUMN repo_location TEXT",
@@ -125,6 +136,23 @@ MIGRATIONS = {
 # demonstrated, and "the candidate stays on its branch" is an answer to that
 # question in the same way "baseline" and "sabotage" are.
 PROOF_MODES = ("baseline", "sabotage", "both", "branch_only")
+
+
+def _add_operator_context(conn: sqlite3.Connection) -> None:
+    """Add `activations.operator_context` unless it is already there.
+
+    Asked of the table rather than assumed from the version, because the
+    version is exactly what is not yet true when this runs.
+    """
+    columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(activations)")
+    }
+
+    if "operator_context" in columns:
+        return
+
+    with transaction(conn):
+        conn.execute("ALTER TABLE activations ADD COLUMN operator_context TEXT")
 
 
 def _widen_proof_mode(conn: sqlite3.Connection) -> None:
