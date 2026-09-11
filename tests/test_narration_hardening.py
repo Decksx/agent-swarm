@@ -405,3 +405,19 @@ def test_a_summary_is_never_squeezed_to_nothing():
     body = line[line.index("]") + 1:line.rindex("(seq")]
 
     assert body.strip()
+
+
+@pytest.mark.parametrize("kind", sorted(narrator.NARRATED))
+def test_the_three_pieces_are_separated(kind):
+    """`flatten` strips, so spaces put inside a piece do not survive it.
+
+    Built as "[...] " and " (seq N)" the separators were eaten and the line
+    came out as `[...]authoring: -> AUTHOR_ASSIGNED(seq 108)`. Found in the
+    room rather than in a test, which is what a format assertion that only
+    checked the ends could not see.
+    """
+    line = narrator.render(event(seq=7, kind=kind, payload_json={"reason": "x"}))
+
+    assert "] " in line, line
+    assert line.endswith(" (seq 7)"), line
+    assert "](" not in line

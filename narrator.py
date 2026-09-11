@@ -327,8 +327,15 @@ def render(event: dict) -> Optional[str]:
     # the entire mechanism that makes at-least-once delivery safe. The
     # prefix is bounded too, so a task id long enough to fill the line cannot
     # squeeze the suffix out from the other side.
-    prefix = flatten(f"[{' · '.join(parts)}] ", MAX_PREFIX)
-    suffix = flatten(f" (seq {seq})", MAX_SUFFIX)
+    # The brackets and the separating spaces are added *after* flattening,
+    # never inside it. `flatten` strips its result, so a prefix built as
+    # "[...] " lost the space that separates it from the summary and a suffix
+    # built as " (seq N)" lost the space before it -- which ran the three
+    # pieces together into `[...]authoring: -> AUTHOR_ASSIGNED(seq 108)`.
+    # Cosmetic, and the kind of cosmetic that makes a transcript harder to
+    # scan in the moment it is being relied on.
+    prefix = "[" + flatten(" · ".join(parts), MAX_PREFIX) + "] "
+    suffix = " (seq " + flatten(seq, MAX_SUFFIX) + ")"
     room = MAX_LINE - len(prefix) - len(suffix)
 
     return prefix + flatten(summarize(event), max(room, 1)) + suffix
