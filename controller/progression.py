@@ -1,0 +1,220 @@
+"""Issuing the next stage, so a person does not have to.
+
+Three operator steps used to sit between the stages of a run, and none of them
+was a judgment: push the candidate, open its pull request, and issue the next
+activation. The first two belong to the author's host and live in
+`publication`. This is the third.
+
+Why the controller does this and not a worker
+---------------------------------------------
+
+Issuing an activation is granting permission to act, so a worker that could
+issue its own next stage could grant itself the work. The asymmetry is the
+whole point of the design: a worker asks, and the controller decides.
+
+So this runs with controller authority, on the controller's own state, and a
+caller only gets to say "look for anything ready" -- never "start this task at
+this stage".
+
+What makes it safe to run repeatedly
+------------------------------------
+
+A task is advanced only if it is in a state whose next stage is unambiguous
+*and* has no live activation. The second half is the idempotency: an
+activation already issued means the stage is already under way, so a second
+call does nothing rather than issuing a duplicate. That matters because this
+is meant to be polled, and a poller that raced itself would hand the same task
+to two workers.
+
+Nothing is inferred about *what* to do. The stage follows from the state by a
+table, the evidence comes from the ledger, and the agents and host come from
+configuration. An unconfigured controller advances nothing, which is the right
+failure: a controller that guessed who should review would assign work to
+whoever it happened to name.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from typing import Optional
+
+from . import activations, engine
+
+# The state each stage follows from. Deliberately only two entries: these are
+# the boundaries that were being crossed by hand, and every other transition in
+# the machine either needs a judgment or is already automatic.
+NEXT_STAGE = {
+    "READY_REVIEW": "review",
+    "READY_INTEGRATION": "integrate",
+}
+
+
+class Routing:
+    """Who does what, and where. Configuration, never inference.
+
+    Every field is required for the stage that uses it. A missing one means
+    that stage is not advanced -- reported, rather than filled in with a
+    plausible default, because the plausible default for "who reviews this" is
+    whichever agent happens to be first in a list.
+    """
+
+    def __init__(
+        self,
+        *,
+        verifier: str = "",
+        integrator: str = "",
+        host: str = "",
+        repo_location: str = "",
+        lease_seconds: float = 900.0,
+        hard_deadline_seconds: float = 5400.0,
+    ):
+        self.verifier = (verifier or "").strip()
+        self.integrator = (integrator or "").strip()
+        self.host = (host or "").strip()
+        self.repo_location = (repo_location or "").strip()
+        self.lease_seconds = lease_seconds
+        self.hard_deadline_seconds = hard_deadline_seconds
+
+    def agent_for(self, stage: str) -> str:
+        return {"review": self.verifier, "integrate": self.integrator}.get(stage, "")
+
+    def missing_for(self, stage: str) -> list:
+        lacking = []
+
+        if not self.agent_for(stage):
+            lacking.append("verifier" if stage == "review" else "integrator")
+
+        if not self.host:
+            lacking.append("host")
+
+        if not self.repo_location:
+            lacking.append("repo_location")
+
+        return lacking
+
+
+def _has_live_activation(conn: sqlite3.Connection, task_id: str) -> bool:
+    """Whether anything is already under way for this task.
+
+    The idempotency, and the reason this can be polled. An activation that has
+    been issued but not yet claimed still counts: it is a permission somebody
+    holds, and issuing a second would put the same task in two workers' hands.
+    """
+    row = conn.execute(
+        "SELECT 1 FROM activations WHERE task_id = ? AND status IN (?, ?) "
+        "LIMIT 1",
+        (task_id, activations.ISSUED, activations.CLAIMED),
+    ).fetchone()
+
+    return row is not None
+
+
+def _branch_for(conn: sqlite3.Connection, task_id: str) -> Optional[str]:
+    """The branch the controller already named for this task.
+
+    Read from the task's own author activation rather than constructed from
+    the task id. They agree today, and a constructed one would keep agreeing
+    right up until somebody issued an activation with a different branch --
+    at which point the review would be pointed at a branch nobody wrote to.
+    """
+    row = conn.execute(
+        "SELECT expected_branch FROM activations WHERE task_id = ? "
+        "AND expected_branch IS NOT NULL AND expected_branch <> '' "
+        "ORDER BY issued_at DESC LIMIT 1",
+        (task_id,),
+    ).fetchone()
+
+    return row["expected_branch"] if row else None
+
+
+def advance(
+    conn: sqlite3.Connection,
+    *,
+    routing: Routing,
+    task_id: Optional[str] = None,
+    now: Optional[float] = None,
+) -> list:
+    """Issue the next activation for every task whose stage is unambiguous.
+
+    Returns one record per task considered, saying what happened and why --
+    including the ones it declined to advance. A caller polling this needs to
+    be able to tell "nothing was ready" from "something was ready and could not
+    be started", and a function that returned only its successes would make
+    those identical.
+    """
+    states = list(NEXT_STAGE)
+    placeholders = ",".join("?" for _ in states)
+    params = list(states)
+
+    query = f"SELECT task_id, state FROM tasks WHERE state IN ({placeholders})"
+
+    if task_id:
+        query += " AND task_id = ?"
+        params.append(task_id)
+
+    considered = []
+
+    for row in conn.execute(query, params).fetchall():
+        stage = NEXT_STAGE[row["state"]]
+        record = {"task_id": row["task_id"], "state": row["state"],
+                  "stage": stage, "issued": False}
+
+        if _has_live_activation(conn, row["task_id"]):
+            record["reason"] = "an activation is already live for this task"
+            considered.append(record)
+            continue
+
+        lacking = routing.missing_for(stage)
+
+        if lacking:
+            record["reason"] = (
+                f"routing is not configured for {stage}: missing "
+                f"{', '.join(lacking)}"
+            )
+            considered.append(record)
+            continue
+
+        branch = _branch_for(conn, row["task_id"])
+
+        if not branch:
+            # Without it a review activation cannot be issued at all, and an
+            # integration would have nothing to find a pull request from.
+            record["reason"] = (
+                "no activation has ever named a branch for this task"
+            )
+            considered.append(record)
+            continue
+
+        try:
+            issued = activations.issue(
+                conn,
+                task_id=row["task_id"],
+                agent=routing.agent_for(stage),
+                host=routing.host,
+                stage=stage,
+                lease_seconds=routing.lease_seconds,
+                hard_deadline_seconds=routing.hard_deadline_seconds,
+                expected_branch=branch,
+                repo_location=routing.repo_location,
+                now=now,
+            )
+        except activations.HostAtCapacity as exc:
+            # Not an error. The host is busy and this task will be advanced by
+            # a later call, which is exactly what a queue does.
+            record["reason"] = str(exc)
+            considered.append(record)
+            continue
+        except Exception as exc:
+            record["reason"] = f"{type(exc).__name__}: {exc}"
+            considered.append(record)
+            continue
+
+        record.update({
+            "issued": True,
+            "activation_id": issued["activation_id"],
+            "agent": routing.agent_for(stage),
+            "expected_branch": branch,
+        })
+        considered.append(record)
+
+    return considered

@@ -39,6 +39,7 @@ see the deployment notes on never adding `--workers N`.
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -47,6 +48,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 
 from . import activations, build, engine, states
+from . import progression
 from .db import initialize, open_controller_db
 
 # Controller errors mapped onto the status code that describes them, so a
@@ -610,6 +612,42 @@ def build_router(
                 payload=body.payload,
                 expected_state_seq=body.expected_state_seq,
             )
+        except Exception as exc:
+            raise _http(exc)
+
+    @router.post("/tasks/advance")
+    def advance(
+        task_id: Optional[str] = None,
+        component: str = Depends(require_admin),
+        conn: sqlite3.Connection = Depends(get_conn),
+    ):
+        """Issue the next activation for anything whose stage is unambiguous.
+
+        The third of the three operator steps that sat between stages, and the
+        only one the controller can take: issuing an activation is granting
+        permission to act, so a worker that could issue its own next stage
+        could grant itself the work. A caller may only say "look for anything
+        ready" -- never "start this task at this stage".
+
+        Safe to poll. A task with a live activation is skipped, so a second
+        call while a stage is under way does nothing rather than handing the
+        same task to two workers.
+
+        Reports what it declined as well as what it issued, because a poller
+        needs to tell "nothing was ready" from "something was ready and could
+        not be started".
+        """
+        routing = progression.Routing(
+            verifier=os.environ.get("PROGRESSION_VERIFIER", ""),
+            integrator=os.environ.get("PROGRESSION_INTEGRATOR", ""),
+            host=os.environ.get("PROGRESSION_HOST", ""),
+            repo_location=os.environ.get("PROGRESSION_REPO_LOCATION", ""),
+        )
+
+        try:
+            return {"considered": progression.advance(
+                conn, routing=routing, task_id=task_id
+            )}
         except Exception as exc:
             raise _http(exc)
 

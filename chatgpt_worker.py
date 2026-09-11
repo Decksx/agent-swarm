@@ -71,6 +71,7 @@ from typing import Any
 
 import authored_change
 import controller_client
+import publication
 import repo_registry
 import swarm_control
 import worktrees
@@ -107,6 +108,15 @@ CONTROLLER_URL = os.environ.get("CONTROLLER_URL", HUB_URL)
 # where a person works, it is normally dirty, and committing on top of that
 # would put somebody's unfinished edits into a model's commit.
 AUTHOR_PROJECT = os.environ.get("AUTHOR_PROJECT", "")
+
+# Where a candidate is published, and what it is proposed against. Both empty
+# by default, and an empty slug means publication is skipped entirely rather
+# than guessed at -- a worker that inferred a remote from the checkout's
+# `origin` would push a model's commit to whatever that happened to be.
+PUBLISH_REPO_SLUG = os.environ.get("PUBLISH_REPO_SLUG", "").strip()
+PUBLISH_TARGET_REF = os.environ.get(
+    "PUBLISH_TARGET_REF", "refs/heads/master"
+).strip()
 
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "3"))
 HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "15"))
@@ -656,9 +666,53 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         len(result["files"]), elapsed,
     )
 
+    # Publish before reporting. A candidate nobody outside this machine can
+    # see is a candidate no reviewer can review and no CI can run against, and
+    # every run so far needed a person to push the branch and open the pull
+    # request between authoring and review. Neither step is a judgment.
+    #
+    # Before the report rather than after, so the ledger's
+    # `candidate_submitted` payload says where the candidate went. A report
+    # that landed first and a push that then failed would leave a task in
+    # READY_REVIEW pointing at a branch that does not exist anywhere a
+    # reviewer can reach.
+    published = {}
+
+    if PUBLISH_REPO_SLUG:
+        try:
+            published = publication.publish_candidate(
+                str(project.path),
+                branch=result["branch"],
+                candidate_sha=result["candidate_sha"],
+                repo_slug=PUBLISH_REPO_SLUG,
+                target_ref=PUBLISH_TARGET_REF,
+                task_id=task_id,
+                title=str(task_record.get("title") or ""),
+                objective=str(task_record.get("objective") or ""),
+                activation_id=str(activation_id),
+            )
+            log.info(
+                "published %s as PR #%s%s",
+                result["branch"], published.get("pr_number"),
+                " (already existed)" if not published.get("created") else "",
+            )
+        except publication.PublicationError as exc:
+            # Blocked, not failed. The candidate is good and committed; what
+            # went wrong is the environment around it, and an operator fixing
+            # a remote is not a reason to make the author write the file again.
+            log.error("could not publish %s: %s", result["branch"], exc)
+            queue.report(activation_id, outcome="blocked", payload={
+                "reason": f"the candidate was authored but could not be "
+                          f"published: {exc}",
+                "elapsed_seconds": round(elapsed, 1),
+                **result,
+            })
+            return
+
     queue.report(activation_id, outcome="candidate", payload={
         "elapsed_seconds": round(elapsed, 1),
         **result,
+        **published,
     })
 
 
