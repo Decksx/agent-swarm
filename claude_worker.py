@@ -807,6 +807,39 @@ def _execute_author(
                 {"reason": "task text is a worker error envelope"})
         return
 
+    # A contract-bound run is refused before anything else happens if it
+    # has no contract to be bound by.
+    #
+    # Before the marker, before the prompt, before the binary: this worker
+    # holds Bash authority, and the only thing between it and the rest of
+    # the filesystem is a contract it has been shown. A run that reaches
+    # the CLI without one is an unbounded agent that has been told it is
+    # bounded -- told so by the operator section, which states that the
+    # base commit and the allowed paths cannot be changed.
+    #
+    # Controller-sourced only. An activation issued through the local
+    # control directory is an operator typing a task by hand; it has no
+    # task record and never claimed to, and refusing it would remove a
+    # path Phase 0 deliberately kept. What must not happen is a
+    # *controller* activation -- one belonging to a task with a contract --
+    # running as though it had none.
+    allowed_paths = None
+
+    if activation.get("source") == "controller":
+        try:
+            allowed_paths = authored_change.require_contract(
+                activation.get("task_record")
+            )
+        except authored_change.ContractDefect as defect:
+            log.error(
+                "activation %s is contract-bound and cannot be run: %s",
+                activation_id, defect,
+            )
+            _report(queue, activation_id, "blocked", {
+                "reason": f"contract unusable: {defect}",
+            })
+            return
+
     log.info(
         "ACCEPTED activation %s from %s (%d chars)",
         activation_id,
@@ -847,8 +880,12 @@ def _execute_author(
     # controller client. The contract fields live in `task_record`, which
     # the API author renders because its prompt is built from the contract;
     # this one is handed prose, so the contract has to be written into it.
-    contract = "\n".join(
-        authored_change.contract_section(activation.get("task_record"))
+    contract = (
+        "\n".join(
+            authored_change.contract_section(
+                activation["task_record"], allowed_paths)
+        )
+        if allowed_paths is not None else ""
     )
     operator = "\n".join(
         authored_change.operator_section(activation.get("operator_context"))

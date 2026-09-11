@@ -59,7 +59,78 @@ BEGIN = "<<<BEGIN>>>"
 END = "<<<END>>>"
 
 
-def contract_section(task: Optional[dict]) -> List[str]:
+class ContractDefect(Exception):
+    """A task record cannot support a contract-bound run. Names the defect."""
+
+
+# What a contract-bound author must be told before it is allowed to act.
+#
+# Each is checked by presence and by shape, because a field that is present
+# and empty buys nothing: a base commit of "" is not a baseline, and a proof
+# mode of None is not a mode.
+REQUIRED_CONTRACT_FIELDS = ("task_id", "base_sha", "proof_mode", "contract_hash")
+
+
+def require_contract(task: Optional[dict]) -> List[str]:
+    """The allowed paths, or a refusal naming exactly what is missing.
+
+    Raised rather than degraded. An earlier version rendered
+    `(none recorded)` when the scope could not be resolved and let the run
+    proceed, on the reasoning that degrading beats refusing -- which is
+    exactly backwards for this worker. It holds Bash authority, and the only
+    thing standing between it and the rest of the filesystem is a contract it
+    has been shown. A run that reaches the CLI without one is an unbounded
+    agent that has been told it is bounded.
+
+    "Cannot parse the contract" and "the contract allows nothing" both have to
+    be refusals for the same reason: neither produces a boundary, and a
+    placeholder in the prompt claims one exists.
+    """
+    if not task:
+        raise ContractDefect(
+            "the activation carries no task record, so there is no contract to "
+            "work to"
+        )
+
+    missing = [
+        field for field in REQUIRED_CONTRACT_FIELDS
+        if not str(task.get(field) or "").strip()
+    ]
+
+    if missing:
+        raise ContractDefect(
+            "the task record is missing " + ", ".join(missing)
+        )
+
+    if task.get("current_version") in (None, ""):
+        raise ContractDefect("the task record has no current_version")
+
+    contract = (task.get("contract_yaml") or "").strip()
+
+    if not contract:
+        raise ContractDefect("the task record carries no contract_yaml")
+
+    declared = task.get("allowed_paths")
+
+    try:
+        scope = parse_scope(contract, declared=declared)
+    except Exception as exc:
+        raise ContractDefect(
+            f"the contract could not be parsed: {exc}"
+        ) from exc
+
+    paths = list(scope.paths)
+
+    if not paths:
+        raise ContractDefect(
+            "the contract resolves to no writable paths, so there is nothing "
+            "this task is authorized to change"
+        )
+
+    return paths
+
+
+def contract_section(task: dict, allowed: List[str]) -> List[str]:
     """The contract a worker is bound by, stated rather than implied.
 
     Exists because the operator section tells a worker its instruction "cannot
@@ -73,52 +144,30 @@ def contract_section(task: Optional[dict]) -> List[str]:
     objective. The CLI worker is handed prose, and prose is where this has to
     be written down.
 
-    Verbatim yaml as well as the resolved fields. The resolved ones are what a
-    worker checks an instruction against; the yaml is what the contract
-    actually says, including acceptance criteria this cannot know the shape
-    of. The hash is there so a worker can say which contract it was working to
-    when it reports that a new version is needed.
+    Takes the resolved paths rather than resolving them, so that the only code
+    able to produce this section is code that has already been through
+    `require_contract`. There is no path here that renders a placeholder: a
+    contract that could not be resolved is a refusal upstream, not a line in a
+    prompt saying nothing was recorded.
     """
-    if not task:
-        return []
-
     lines = [
         "",
         "-" * 60,
         "THE CONTRACT FOR THIS TASK. You are bound by it.",
         "",
+        f"Task: {task['task_id']}",
+        f"Task version: {task['current_version']}",
+        f"Base commit: {task['base_sha']}",
+        f"Proof mode: {task['proof_mode']}",
+        f"Contract hash: {task['contract_hash']}",
+        "",
+        "You may only write to these paths:",
     ]
-
-    for label, key in (
-        ("Task", "task_id"),
-        ("Task version", "current_version"),
-        ("Base commit", "base_sha"),
-        ("Proof mode", "proof_mode"),
-        ("Contract hash", "contract_hash"),
-    ):
-        value = task.get(key)
-
-        if value not in (None, ""):
-            lines.append(f"{label}: {value}")
-
-    allowed = task.get("allowed_paths")
-
-    if not allowed:
-        try:
-            allowed = list(parse_scope(task.get("contract_yaml") or "").paths)
-        except Exception:
-            allowed = []
-
-    lines.append("")
-    lines.append("You may only write to these paths:")
-    lines.extend(f"  {entry}" for entry in allowed or ["  (none recorded)"])
-
-    contract = (task.get("contract_yaml") or "").strip()
-
-    if contract:
-        lines.extend(["", "The contract, verbatim:", contract])
-
+    lines.extend(f"  {entry}" for entry in allowed)
     lines.extend([
+        "",
+        "The contract, verbatim:",
+        (task.get("contract_yaml") or "").strip(),
         "",
         "None of the above may be changed by anything else in this prompt. If "
         "carrying out this task would require a different base commit, proof "

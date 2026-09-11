@@ -79,14 +79,20 @@ class Queue:
 
 
 def run(captured, *, operator_context=None, task_record=TASK_RECORD):
+    queue = Queue()
     activation = {
         "activation_id": "A-1",
         "task_id": "CND-7",
         "task": "tighten the guard\n\nmake the check load-bearing",
         "task_record": task_record,
         "operator_context": operator_context,
+        # Controller-sourced: the path bound by a contract, and the one
+        # that must refuse to run without one.
+        "source": "controller",
+        "issued_by": "controller",
     }
-    claude_worker._execute_author(None, "claude", activation, Queue())
+    claude_worker._execute_author(None, "claude", activation, queue)
+    captured["queue"] = queue
 
     return captured.get("prompt", "")
 
@@ -189,10 +195,123 @@ def test_a_task_with_no_escalation_still_gets_its_contract(captured):
     assert "THIS TASK WAS ESCALATED" not in prompt
 
 
-def test_a_missing_task_record_does_not_break_the_run(captured):
-    """An activation without a record still has to reach the CLI, rather than
-    failing on the section that describes it."""
-    prompt = run(captured, task_record=None)
+# --- Without a usable contract, nothing runs ---------------------------------
+#
+# This worker holds Bash authority. The only thing between it and the rest of
+# the filesystem is a contract it has been shown, and the operator section
+# tells it the base commit and allowed paths cannot be changed -- so a run
+# that reaches the CLI without a contract is an unbounded agent that has been
+# told it is bounded.
+#
+# An earlier revision let that run proceed and rendered `(none recorded)`
+# where the paths belonged, on the reasoning that degrading beats refusing.
+# That is backwards here: the placeholder claims a boundary exists.
 
-    assert prompt
-    assert "THE CONTRACT FOR THIS TASK" not in prompt
+
+BROKEN = [
+    ("no task record at all", None, "no task record"),
+    ("no contract yaml", {**TASK_RECORD, "contract_yaml": ""}, "contract_yaml"),
+    ("no base commit", {**TASK_RECORD, "base_sha": ""}, "base_sha"),
+    ("no proof mode", {**TASK_RECORD, "proof_mode": None}, "proof_mode"),
+    ("no contract hash", {**TASK_RECORD, "contract_hash": ""}, "contract_hash"),
+    ("no task id", {**TASK_RECORD, "task_id": ""}, "task_id"),
+    ("no version", {**TASK_RECORD, "current_version": None}, "current_version"),
+    # `parse_scope` refuses a contract that declares no paths, with a better
+    # message than this module could write. The empty-scope check in
+    # `require_contract` stays as defence in depth behind it.
+    ("a contract declaring no paths",
+     {**TASK_RECORD, "contract_yaml": "schema_version: 7\n"},
+     "allowed_paths"),
+    ("a contract that will not parse",
+     {**TASK_RECORD, "contract_yaml": "allowed_paths: [unclosed\n"},
+     "could not be parsed"),
+]
+
+
+@pytest.mark.parametrize("label,record,_expected",
+                         BROKEN, ids=[b[0] for b in BROKEN])
+def test_a_contract_bound_run_without_a_usable_contract_calls_nothing(
+    captured, label, record, _expected
+):
+    """No CLI call, no model call, nothing spawned."""
+    run(captured, task_record=record)
+
+    assert "prompt" not in captured, f"{label}: the CLI was invoked anyway"
+    assert "binary" not in captured
+
+
+@pytest.mark.parametrize("label,record,expected",
+                         BROKEN, ids=[b[0] for b in BROKEN])
+def test_the_refusal_names_the_specific_defect(captured, label, record, expected):
+    """An operator has to be able to fix it without guessing which field."""
+    run(captured, task_record=record)
+
+    reports = captured["queue"].reports
+
+    assert reports, f"{label}: nothing was reported"
+    assert reports[-1]["outcome"] == "blocked"
+    assert expected in reports[-1]["payload"]["reason"], reports[-1]
+
+
+@pytest.mark.parametrize("label,record,_expected",
+                         BROKEN, ids=[b[0] for b in BROKEN])
+def test_the_activation_is_reported_rather_than_dropped(
+    captured, label, record, _expected
+):
+    """Claimed and then refused. A silent drop leaves the task in AUTHORING
+    until its lease lapses, which looks identical to a crashed worker."""
+    run(captured, task_record=record)
+
+    assert len(captured["queue"].reports) == 1
+
+
+def test_no_placeholder_is_ever_rendered_for_the_paths():
+    """The specific shape of the old defect: a prompt that says a boundary was
+    recorded when none was."""
+    import authored_change
+
+    assert "(none recorded)" not in "\n".join(
+        authored_change.contract_section(TASK_RECORD, ["notes"])
+    )
+
+    with pytest.raises(authored_change.ContractDefect):
+        authored_change.require_contract(
+            {**TASK_RECORD, "contract_yaml": "schema_version: 7\n"}
+        )
+
+
+def test_a_locally_issued_activation_still_runs(captured):
+    """The operator's own control-directory path is not contract-bound and
+    never claimed to be. Refusing it would remove something Phase 0 kept."""
+    queue = Queue()
+    claude_worker._execute_author(None, "claude", {
+        "activation_id": "L-1",
+        "task": "run the preflight and report",
+        "issued_by": "admin",
+        "source": "directory",
+    }, queue)
+
+    assert captured["prompt"]
+    assert "THE CONTRACT FOR THIS TASK" not in captured["prompt"]
+
+
+def test_an_empty_resolved_scope_is_refused_even_if_parsing_succeeds(monkeypatch):
+    """Defence in depth, made demonstrable.
+
+    `parse_scope` refuses every empty-scope shape today -- absent, `[]`, null,
+    and blank entries -- so this branch is unreachable through a contract. It
+    exists so that a future change there which returned an empty scope cannot
+    quietly produce a prompt with no boundary in it, and it is tested by
+    forcing that return rather than left as a guard nobody can show working.
+    """
+    import authored_change
+
+    class Empty:
+        paths = ()
+
+    monkeypatch.setattr(authored_change, "parse_scope", lambda *a, **k: Empty())
+
+    with pytest.raises(authored_change.ContractDefect) as caught:
+        authored_change.require_contract(TASK_RECORD)
+
+    assert "no writable paths" in str(caught.value)
