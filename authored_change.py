@@ -59,6 +59,48 @@ BEGIN = "<<<BEGIN>>>"
 END = "<<<END>>>"
 
 
+def operator_section(context: Optional[dict]) -> List[str]:
+    """What the operator answered, when this activation was issued to act on it.
+
+    Included verbatim and attributed, for the same reason a rejection is: an
+    attempt that is not told what the operator decided is not an attempt at
+    the decision. The escalation happened because the swarm could not settle
+    something itself, and a worker resuming without the answer resumes into
+    exactly the position that raised the question.
+
+    Labelled as the operator's and as an instruction, because that is what it
+    is -- it outranks the objective where the two disagree, which is the whole
+    reason a person was asked.
+    """
+    if not context:
+        return []
+
+    response = str(context.get("response") or "").strip()
+
+    if not response:
+        return []
+
+    action = str(context.get("action") or "").strip()
+    actor = str(context.get("actor") or "operator").strip()
+    version = context.get("task_version")
+    sequence = context.get("event_seq")
+
+    return [
+        "",
+        "-" * 60,
+        "THIS TASK WAS ESCALATED AND THE OPERATOR HAS ANSWERED.",
+        "",
+        f"The operator ({actor}) said:",
+        response,
+        "",
+        f"They directed: {action}" if action else "",
+        f"(task version {version}, event {sequence})",
+        "",
+        "Their answer is an instruction. Where it and the objective disagree, "
+        "follow the operator.",
+    ]
+
+
 def _rejection_section(task: dict) -> List[str]:
     """What the last review sent this task back for, if anything.
 
@@ -429,7 +471,8 @@ def render_author_prompt(
     ] if task.get("allowed_paths") else [])
         + _existing_section(existing or [])
         + _context_section(context or {})
-        + _rejection_section(task))
+        + _rejection_section(task)
+        + operator_section(task.get("operator_context")))
 
 
 

@@ -44,6 +44,8 @@ from __future__ import annotations
 import subprocess
 from typing import Optional
 
+import authored_change
+
 # Generous enough for an ordinary change, small enough that a runaway diff is
 # reported as one instead of silently filling a prompt.
 DEFAULT_DIFF_BUDGET = 60_000
@@ -102,6 +104,7 @@ def build(
     author_summary: str = "",
     test_output: str = "",
     diff_budget: int = DEFAULT_DIFF_BUDGET,
+    operator_context: dict | None = None,
 ) -> dict:
     """Assemble the review evidence for the range `base..candidate`.
 
@@ -169,6 +172,10 @@ def build(
         "task_id": task.get("task_id"),
         "title": task.get("title", ""),
         "objective": task.get("objective", ""),
+        # Carried into the packet so it reaches the prompt. A reviewer resuming
+        # after an escalation has to know what the operator decided, or it
+        # judges the candidate against the question rather than the answer.
+        "operator_context": operator_context,
         "branch": branch,
         "base_sha": base_sha,
         "candidate_sha": candidate_sha,
@@ -199,6 +206,7 @@ def render(packet: dict) -> str:
         "",
         "OBJECTIVE AND ACCEPTANCE CRITERIA",
         packet["objective"] or "(none recorded)",
+        *authored_change.operator_section(packet.get("operator_context")),
         "",
         f"BASE SHA      : {packet['base_sha']}",
         f"CANDIDATE SHA : {packet['candidate_sha']}",

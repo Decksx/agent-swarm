@@ -73,6 +73,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import authored_change
 import controller_client
 import swarm_control
 
@@ -830,8 +831,16 @@ def _execute_author(
         except OSError as exc:
             log.warning("could not record the in-flight marker: %s", exc)
 
+    # The operator's answer goes in front of the task, not after it. A CLI
+    # worker reads its prompt top to bottom and the answer is an instruction
+    # that outranks the task text where the two disagree -- putting it below
+    # would make it a footnote to the thing it was meant to overrule.
+    operator = "\n".join(
+        authored_change.operator_section(activation.get("operator_context"))
+    )
+    instructions = HANDOFF_PREAMBLE + (operator + "\n\n" if operator else "") + task
     started = time.monotonic()
-    output, exit_code = run_task(claude_binary, HANDOFF_PREAMBLE + task)
+    output, exit_code = run_task(claude_binary, instructions)
     elapsed = time.monotonic() - started
 
     log.info(

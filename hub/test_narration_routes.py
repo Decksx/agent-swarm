@@ -231,10 +231,23 @@ def test_an_empty_page_leaves_the_cursor_where_it_was(client, task):
 # --- Authorization matrix ----------------------------------------------------
 
 
-@pytest.mark.parametrize("component", COMPONENTS)
-def test_every_authenticated_component_may_read_the_feed(client, task, component):
-    """Read-only and harmless. The narrator needs it; nobody is harmed by it."""
+@pytest.mark.parametrize("component", ["narrator", "admin", "operator"])
+def test_the_feed_is_readable_by_the_narrator_and_the_operator(
+    client, task, component
+):
     assert as_(client, component, "get", "/controller/events").status_code == 200
+
+
+@pytest.mark.parametrize("component", ["gemini", "chatgpt", "claudecode"])
+def test_a_worker_may_not_read_the_cross_task_feed(client, task, component):
+    """Read-only is not the same as harmless.
+
+    A worker's own activation carries everything it is entitled to act on. The
+    feed would hand it every other task's review verdicts and operator
+    responses, which is work it was never given and evidence it was never
+    meant to weigh.
+    """
+    assert as_(client, component, "get", "/controller/events").status_code == 403
 
 
 def test_an_unauthenticated_caller_may_not_read_the_feed(client, task):

@@ -207,8 +207,8 @@ def test_excluded_events_advance_the_cursor(cursor):
     reaches anything after it."""
     cursor.write(0)
     services = FakeServices(events=[
-        event(seq=1, kind="checkpoint_captured"),
-        event(seq=2, kind="checkpoint_captured"),
+        event(seq=1, kind="reservation_granted"),
+        event(seq=2, kind="note"),
         event(seq=3),
     ])
 
@@ -221,7 +221,7 @@ def test_excluded_events_advance_the_cursor(cursor):
 def test_a_pass_over_only_excluded_events_still_moves_forward(cursor):
     cursor.write(0)
     services = FakeServices(
-        events=[event(seq=n, kind="checkpoint_captured") for n in (1, 2, 3)]
+        events=[event(seq=n, kind="note") for n in (1, 2, 3)]
     )
 
     build(cursor, services).tick()
@@ -323,10 +323,12 @@ def test_a_crash_before_the_cursor_write_repeats_rather_than_loses(cursor):
     assert "1" in delivered(recovered), "seq 1 was lost rather than repeated"
 
 
-def test_an_unreadable_cursor_does_not_replay_the_ledger(cursor):
-    """Zero would replay everything. Never-run seeds at the maximum."""
-    cursor.path.parent.mkdir(parents=True, exist_ok=True)
-    cursor.path.write_text("not-a-sequence", encoding="utf-8")
+def test_a_missing_cursor_seeds_rather_than_replaying_the_ledger(cursor):
+    """Zero would replay everything. A missing file seeds at the maximum.
+
+    A *damaged* file is a different fact and is refused instead -- see
+    `test_narration_hardening`, where conflating the two was its own defect.
+    """
     services = FakeServices(events=events(*range(1, 40)), max_seq=39)
 
     build(cursor, services).tick()

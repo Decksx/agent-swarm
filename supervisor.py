@@ -388,6 +388,18 @@ class Supervisor:
 
         try:
             self.narration.tick()
+        except narrator.CursorUnreadable as exc:
+            # Stopped for the run, not retried. The cursor is damaged, the
+            # file has been left alone for diagnosis, and every further pass
+            # would raise the same thing -- so this says it once and stops,
+            # rather than burying the one line that explains a silent room
+            # under a copy of itself every twenty seconds.
+            log.error("%s", exc)
+            log.error(
+                "narration is stopped for this run; fix or remove the cursor "
+                "and restart the supervisor"
+            )
+            self.narration = None
         except Exception:
             log.error("narration pass failed", exc_info=True)
 
@@ -549,6 +561,17 @@ class Supervisor:
             # before claiming, so a paused swarm is a set of idle processes
             # rather than a torn-down runtime -- and coming back is a file
             # deletion, not a restart.
+            #
+            # Narration continues. A pause stops the swarm starting work; it
+            # does not stop things happening. An operator answering an
+            # escalation, or anything else reaching the controller from
+            # outside, still produces events -- and a pause that hid them
+            # would blind the operator at exactly the moment they are leaning
+            # on the room to decide whether to resume.
+            if now - self.last_tick >= self.interval:
+                self.last_tick = now
+                self.narrate()
+
             return
 
         for child in self.children.values():

@@ -163,6 +163,13 @@ class HostCapacity(BaseModel):
 # contains. Offering it as a free-text action would let an operator believe
 # they had authorized new work when what they had actually supplied was a
 # comment.
+# Who may read the cross-task event feed.
+#
+# The narrator needs it to narrate, and an operator needs it to see what
+# the narrator saw. Nobody else does, and every component that holds a
+# credential is a component that could read it if allowed to.
+FEED_READERS = frozenset({"narrator", "admin", "operator"})
+
 RESUME_ACTIONS = frozenset({
     "return_to_author",
     "return_to_review",
@@ -239,6 +246,17 @@ def build_router(
         thing a new narrator can do is also the thing that does not flood the
         room.
         """
+        # Read-only, and still not for everyone. A worker has no
+        # operational reason to read every other task's events: its own
+        # activation carries everything it is entitled to act on, and a
+        # cross-task stream would hand it operator responses and review
+        # verdicts belonging to work it was never given.
+        if component not in FEED_READERS:
+            raise HTTPException(
+                status_code=403,
+                detail="this component may not read the event feed",
+            )
+
         limit = max(1, min(int(limit), 500))
 
         row = conn.execute("SELECT MAX(seq) AS m FROM events").fetchone()

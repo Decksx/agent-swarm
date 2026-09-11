@@ -88,10 +88,15 @@ ACTORS = {
 # noise that makes an operator stop reading, which is the same as having no
 # narration at all.
 #
-# Heartbeats and idle polls are absent because they are not decisions. A
-# worker proving it is still alive every few seconds, and a progression pass
-# finding nothing ready, are the two highest-volume things the runtime does
-# and neither changes anything.
+# Heartbeats and idle polls are absent because they are not decisions, and
+# they are the two highest-volume things the runtime does: a worker proving it
+# is still alive every few seconds, and a progression pass finding nothing
+# ready. Neither changes anything.
+#
+# "High volume" is the test, not "internal". Checkpoints were excluded here
+# once on the reasoning that they are progress within an attempt, and that was
+# wrong: a checkpoint moves authoring or review into a paused state, which is
+# a status change an operator watching the room needs to see.
 NARRATED = {
     # Work being handed to somebody.
     "author_activation_issued": "authoring",
@@ -113,6 +118,13 @@ NARRATED = {
     "integration_reconciled_landed": "reconciled: landed",
     "integration_reconciled_absent": "reconciled: absent",
     "reconciliation_failed": "reconciliation failed",
+
+    # Paused, which is a state change and not progress within an attempt.
+    # These were excluded as bookkeeping and they are not: each moves
+    # authoring or review into a paused state, which is precisely the status
+    # change an operator is watching the room for.
+    "checkpoint_captured": "paused at a checkpoint",
+    "deadline_checkpointed": "paused at the deadline",
 
     # Failure and exhaustion.
     "validation_failed": "validation failed",
@@ -144,13 +156,15 @@ NARRATED = {
 # Recorded, deliberately unspoken. Named rather than merely omitted so that a
 # reader can tell a decision not to narrate from an oversight.
 NOT_NARRATED = {
-    "checkpoint_captured",       # progress within an attempt, not a handoff
-    "deadline_checkpointed",     # the same, at a boundary
     "contract_validated",        # the uninteresting half of validation
     "queued",                    # bookkeeping; the issue event says the same
     "reservation_granted",       # capacity accounting
     "note",                      # free text with no decision behind it
 }
+
+
+class CursorUnreadable(Exception):
+    """Existing cursor state is damaged. Narration stops rather than guessing."""
 
 
 class NarrationNotConfigured(Exception):
@@ -178,6 +192,36 @@ def credential(env: Optional[dict] = None) -> str:
         )
 
     return secret
+
+
+# One narrated line is one chat message, and a chat transcript is read as a
+# sequence of them. Text arriving from an event payload -- a reviewer's
+# rationale, an operator's question -- is written by a model or a person and
+# can contain anything, so a newline in it would render as a second line that
+# looks like narration nobody produced.
+#
+# Bounded for the same reason in the other direction: a payload carrying a
+# whole diff would become a chat message nobody can scroll past, which costs
+# the operator the room this exists to give them.
+MAX_DETAIL = 240
+MAX_LINE = 900
+
+
+def flatten(text: object, limit: int = MAX_DETAIL) -> str:
+    """One line of at most `limit` characters, with nothing smuggled in it.
+
+    Control characters become spaces rather than being stripped, so that
+    `a
+b` reads as `a b` and not as `ab` -- removing the boundary would join
+    two statements into one that neither half made.
+    """
+    flat = "".join(
+        " " if (character < " " or character == "") else character
+        for character in str(text)
+    )
+    flat = " ".join(flat.split())
+
+    return flat if len(flat) <= limit else flat[: limit - 1].rstrip() + "…"
 
 
 def short(sha: Optional[str], keep: int = 7) -> str:
@@ -219,16 +263,11 @@ def summarize(event: dict) -> str:
             detail.append(f"{label} {short(payload[field])}")
 
     if payload.get("branch"):
-        detail.append(f"branch {payload['branch']}")
+        detail.append(f"branch {flatten(payload['branch'], 120)}")
 
-    if payload.get("reason"):
-        detail.append(str(payload["reason"]))
-
-    if payload.get("question"):
-        detail.append(str(payload["question"]))
-
-    if payload.get("response"):
-        detail.append(str(payload["response"]))
+    for field in ("reason", "question", "response"):
+        if payload.get(field):
+            detail.append(flatten(payload[field]))
 
     to_state = event.get("to_state")
     from_state = event.get("from_state")
@@ -264,7 +303,14 @@ def render(event: dict) -> Optional[str]:
     if stage:
         parts.append(str(stage))
 
-    return f"[{' · '.join(parts)}] {summarize(event)} (seq {seq})"
+    line = f"[{' · '.join(parts)}] {summarize(event)} (seq {seq})"
+
+    # Flattened once more over the whole line, so that nothing assembled here
+    # -- a task id, a branch, an actor -- can reintroduce a break that the
+    # per-field bound did not see. The sequence number is inside the bound
+    # rather than appended after it, because a line truncated past its own
+    # provenance is a line an operator cannot place.
+    return flatten(line, MAX_LINE)
 
 
 class Cursor:
@@ -286,23 +332,44 @@ class Cursor:
         self.path = Path(path)
 
     def read(self) -> Optional[int]:
-        """The last delivered sequence, or None if narration has never run."""
+        """The last delivered sequence, or None if narration has never run.
+
+        None means one thing only: there is no cursor file. Everything else
+        that can go wrong here raises.
+
+        Conflating them silently discards history. A file that cannot be read,
+        or that holds something other than a number, is *existing state that
+        has been damaged* -- and treating it as never-run makes the next pass
+        seed at the current maximum, which skips every event since the last
+        good cursor and reports nothing about having done so. That is the
+        silent gap this whole cursor exists to prevent, arrived at through its
+        own error handling.
+
+        The file is left exactly as it is, because it is the evidence.
+        """
         try:
-            raw = self.path.read_text(encoding="utf-8").strip()
-        except OSError:
+            raw = self.path.read_text(encoding="utf-8")
+        except FileNotFoundError:
             return None
+        except OSError as exc:
+            raise CursorUnreadable(
+                f"the narration cursor at {self.path} exists and could not be "
+                f"read ({exc}). Narration is stopped rather than restarted: "
+                f"seeding at the current sequence would silently skip every "
+                f"event since this cursor was last written. The file has been "
+                f"left alone for diagnosis."
+            ) from exc
 
         try:
-            return int(raw)
+            return int(raw.strip())
         except ValueError:
-            # Unreadable is treated as never-run rather than as zero. Zero
-            # would replay the entire ledger into the room; never-run seeds at
-            # the current maximum and says so.
-            log.error(
-                "narration cursor at %s is unreadable (%r); starting fresh",
-                self.path, raw[:80],
+            raise CursorUnreadable(
+                f"the narration cursor at {self.path} holds {raw.strip()[:80]!r}, "
+                f"which is not a sequence number. Narration is stopped rather "
+                f"than restarted: seeding at the current sequence would "
+                f"silently skip every event since this cursor was last "
+                f"written. The file has been left alone for diagnosis."
             )
-            return None
 
     def write(self, seq: int) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -403,8 +470,21 @@ class Narrator:
             return None
 
         maximum = int(body.get("max_seq") or 0)
+
+        # Posted before it is recorded, like every other line. Writing the
+        # cursor first and ignoring the result meant a hub that was down at
+        # startup lost the announcement permanently: the cursor said the
+        # narrator had begun, so it never announced again. A crash between the
+        # two repeats the startup line instead, which is the same
+        # at-least-once trade every other line already makes.
+        if not self.say(f"Narrator started at seq {maximum}"):
+            log.warning(
+                "narration could not announce its start; it will try again "
+                "on the next pass rather than begin silently"
+            )
+            return None
+
         self.cursor.write(maximum)
-        self.say(f"Narrator started at seq {maximum}")
         log.info("narration started at seq %s", maximum)
 
         return maximum

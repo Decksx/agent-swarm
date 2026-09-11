@@ -135,9 +135,25 @@ def test_a_payload_that_is_not_a_mapping_does_not_raise():
 
 @pytest.mark.parametrize("kind", sorted(narrator.NOT_NARRATED))
 def test_bookkeeping_is_not_narrated(kind):
-    """Heartbeats, checkpoints and idle bookkeeping are the highest-volume
-    things the runtime does, and none of them changes anything."""
+    """Heartbeats, reservations, validation bookkeeping and bare notes are the
+    highest-volume things the runtime does, and none of them changes
+    anything."""
     assert narrator.render(event(kind=kind)) is None
+
+
+@pytest.mark.parametrize("kind,expected", [
+    ("checkpoint_captured", "AUTHOR_PAUSED"),
+    ("deadline_checkpointed", "REVIEW_PAUSED"),
+])
+def test_a_checkpoint_that_pauses_a_task_is_narrated(kind, expected):
+    """Excluded as bookkeeping once, and that was wrong. A checkpoint moves
+    authoring or review into a paused state, which is exactly the status
+    change an operator is watching the room for."""
+    line = narrator.render(event(kind=kind, to_state=expected))
+
+    assert line is not None
+    assert "paused" in line
+    assert expected in line
 
 
 def test_an_unrecognised_kind_is_silent_rather_than_guessed_at():
