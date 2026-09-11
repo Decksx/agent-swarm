@@ -106,12 +106,28 @@ def run_loop(monkeypatch, control, *, queue=None, polls=3, source="controller",
     return invocations, fake_requests
 
 
+# A controller activation as the controller client actually assembles one.
+#
+# `task_record` is not optional decoration: the worker holds Bash authority
+# and refuses to run a contract-bound activation that cannot tell it what it
+# is allowed to touch. A fixture without one was testing a shape the
+# controller never produces.
 ACTIVATION = {
     "activation_id": "act-1",
     "task_id": "T-1",
     "task": "print the date",
     "issued_by": "controller",
     "source": "controller",
+    "task_record": {
+        "task_id": "T-1",
+        "title": "print the date",
+        "objective": "print the date",
+        "current_version": 1,
+        "base_sha": "0" * 40,
+        "proof_mode": "branch_only",
+        "contract_hash": "a" * 64,
+        "contract_yaml": "schema_version: 7\nallowed_paths:\n  - notes\n",
+    },
 }
 
 

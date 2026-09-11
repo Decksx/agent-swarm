@@ -807,6 +807,39 @@ def _execute_author(
                 {"reason": "task text is a worker error envelope"})
         return
 
+    # A contract-bound run is refused before anything else happens if it
+    # has no contract to be bound by.
+    #
+    # Before the marker, before the prompt, before the binary: this worker
+    # holds Bash authority, and the only thing between it and the rest of
+    # the filesystem is a contract it has been shown. A run that reaches
+    # the CLI without one is an unbounded agent that has been told it is
+    # bounded -- told so by the operator section, which states that the
+    # base commit and the allowed paths cannot be changed.
+    #
+    # Controller-sourced only. An activation issued through the local
+    # control directory is an operator typing a task by hand; it has no
+    # task record and never claimed to, and refusing it would remove a
+    # path Phase 0 deliberately kept. What must not happen is a
+    # *controller* activation -- one belonging to a task with a contract --
+    # running as though it had none.
+    contract_scope = None
+
+    if activation.get("source") == "controller":
+        try:
+            contract_scope = authored_change.require_contract(
+                activation.get("task_record")
+            )
+        except authored_change.ContractDefect as defect:
+            log.error(
+                "activation %s is contract-bound and cannot be run: %s",
+                activation_id, defect,
+            )
+            _report(queue, activation_id, "blocked", {
+                "reason": f"contract unusable: {defect}",
+            })
+            return
+
     log.info(
         "ACCEPTED activation %s from %s (%d chars)",
         activation_id,
@@ -831,14 +864,38 @@ def _execute_author(
         except OSError as exc:
             log.warning("could not record the in-flight marker: %s", exc)
 
-    # The operator's answer goes in front of the task, not after it. A CLI
-    # worker reads its prompt top to bottom and the answer is an instruction
-    # that outranks the task text where the two disagree -- putting it below
-    # would make it a footnote to the thing it was meant to overrule.
+    # Contract, then the operator's answer, then the task.
+    #
+    # The contract first because everything after it is bound by it. The
+    # answer before the task because a CLI worker reads top to bottom and an
+    # instruction placed below what it directs is a footnote to it -- and
+    # within the contract, not over it: `operator_section` says the answer
+    # cannot move the base commit, the proof mode or the allowed paths, and
+    # a worker that has never been shown those cannot tell whether it is
+    # being asked to. That is what `contract_section` is for. Handing over
+    # the warning without the thing it warns about was worse than handing
+    # over neither, because it reads as a check somebody has made.
+    #
+    # `activation["task"]` is title and objective only, assembled by the
+    # controller client. The contract fields live in `task_record`, which
+    # the API author renders because its prompt is built from the contract;
+    # this one is handed prose, so the contract has to be written into it.
+    contract = (
+        "\n".join(
+            authored_change.contract_section(
+                activation["task_record"], contract_scope)
+        )
+        if contract_scope is not None else ""
+    )
     operator = "\n".join(
         authored_change.operator_section(activation.get("operator_context"))
     )
-    instructions = HANDOFF_PREAMBLE + (operator + "\n\n" if operator else "") + task
+    instructions = (
+        HANDOFF_PREAMBLE
+        + (contract + "\n\n" if contract else "")
+        + (operator + "\n\n" if operator else "")
+        + task
+    )
     started = time.monotonic()
     output, exit_code = run_task(claude_binary, instructions)
     elapsed = time.monotonic() - started
