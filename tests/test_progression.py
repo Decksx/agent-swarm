@@ -270,3 +270,53 @@ def test_one_task_can_be_advanced_on_its_own(conn):
     records = progression.advance(conn, routing=routing(), task_id="T-A")
 
     assert [r["task_id"] for r in records] == ["T-A"]
+
+
+def test_a_task_the_integrator_would_refuse_is_not_given_an_activation(conn):
+    """Found in the first live run. Four tasks left in READY_INTEGRATION by
+    earlier phases were swept up and given activations, which consumed every
+    slot on the host and blocked the task the run was about.
+
+    None could ever have been integrated: their approvals predate the column
+    that records which candidate was approved. The cost is not the refusal, it
+    is everything issuing does on the way to it -- a real activation, a task
+    moved out of the state it was parked in, and a lease that expires into
+    INTEGRATION_UNCERTAIN.
+    """
+    task = make_task(conn)
+    author(conn, task)
+    issued = only(progression.advance(conn, routing=routing()), task)
+    review(conn, task, issued["activation_id"])
+
+    # As a pre-column approval looks: parked in READY_INTEGRATION, no record
+    # of which candidate was approved.
+    conn.execute(
+        "UPDATE tasks SET approved_candidate_sha = NULL WHERE task_id = ?",
+        (task,),
+    )
+    conn.commit()
+    conn.execute(
+        "UPDATE activations SET status = ? WHERE task_id = ? AND stage = 'integrate'",
+        (activations.ABANDONED, task),
+    )
+    conn.execute(
+        "UPDATE tasks SET state = 'READY_INTEGRATION' WHERE task_id = ?",
+        (task,),
+    )
+    conn.commit()
+
+    record = only(progression.advance(conn, routing=routing()), task)
+
+    assert record["issued"] is False
+    assert "approved_candidate_sha" in record["reason"]
+    assert engine.get_task(conn, task)["state"] == "READY_INTEGRATION"
+
+
+def test_an_approved_task_is_still_advanced(conn):
+    """So the guard is not refusing everything."""
+    task = make_task(conn)
+    author(conn, task)
+    issued = only(progression.advance(conn, routing=routing()), task)
+    review(conn, task, issued["activation_id"])
+
+    assert only(progression.advance(conn, routing=routing()), task)["issued"] is True

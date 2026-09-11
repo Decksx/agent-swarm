@@ -146,7 +146,10 @@ def advance(
     placeholders = ",".join("?" for _ in states)
     params = list(states)
 
-    query = f"SELECT task_id, state FROM tasks WHERE state IN ({placeholders})"
+    query = (
+        f"SELECT task_id, state, approved_candidate_sha FROM tasks "
+        f"WHERE state IN ({placeholders})"
+    )
 
     if task_id:
         query += " AND task_id = ?"
@@ -161,6 +164,29 @@ def advance(
 
         if _has_live_activation(conn, row["task_id"]):
             record["reason"] = "an activation is already live for this task"
+            considered.append(record)
+            continue
+
+        # An integration the integrator would refuse is an integration not
+        # worth issuing. Found in the first live run: four tasks left in
+        # READY_INTEGRATION by earlier phases were swept up and given
+        # activations, which consumed every slot on the host and blocked the
+        # task the run was actually about.
+        #
+        # None of them could ever have been integrated -- their approvals
+        # predate the column that records which candidate was approved, so
+        # `approved_candidate_sha` is NULL and the integrator refuses. Issuing
+        # anyway spent a real activation, moved a task out of the state it had
+        # been parked in, and started a lease that would expire into
+        # INTEGRATION_UNCERTAIN.
+        #
+        # Checked here rather than left to the integrator because the cost is
+        # not the refusal, it is everything issuing does on the way to it.
+        if stage == "integrate" and not (row["approved_candidate_sha"] or ""):
+            record["reason"] = (
+                "no approved_candidate_sha, so the integrator would refuse "
+                "this; not spending an activation to find that out"
+            )
             considered.append(record)
             continue
 
