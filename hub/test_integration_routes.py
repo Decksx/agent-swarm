@@ -378,3 +378,95 @@ def test_the_claim_carries_the_branch_and_candidate_to_the_worker(client):
     assert claimed["expected_branch"] == f"task/{task}"
     assert claimed["expected_candidate"] == CAND
     assert "pr_number" not in claimed
+
+
+# --- proof_mode reaches the worker through the real API ---------------------
+#
+# The worker used to check `task_record["branch_only"]`, a key nothing ever
+# wrote: the controller stores this as `task_versions.proof_mode` and
+# `get_task` did not return that column. So the check was against a field that
+# could only ever be absent, which made every real task publishable-or-blocked
+# and the exception unreachable through the API. Hence a test that goes
+# through it.
+
+
+def created_with(client, task_id, proof_mode):
+    response = client.post("/controller/tasks", auth=ADMIN, json={
+        "task_id": task_id, "title": "t", "objective": "o",
+        "base_sha": "0" * 40, "contract_yaml": "allowed_paths:\n  - notes\n",
+        "proof_mode": proof_mode,
+    })
+
+    assert response.status_code == 200, response.text
+
+    return client.get(f"/controller/tasks/{task_id}", auth=ADMIN).json()
+
+
+def test_a_branch_only_task_reports_its_proof_mode(client):
+    record = created_with(client, "BO-1", "branch_only")
+
+    assert record["proof_mode"] == "branch_only"
+
+
+def test_an_ordinary_task_reports_baseline(client):
+    record = created_with(client, "BL-1", "baseline")
+
+    assert record["proof_mode"] == "baseline"
+
+
+def test_a_branch_only_task_authors_without_publication_configured(
+    client, monkeypatch, tmp_path
+):
+    """The condition the worker actually evaluates, on a record the controller
+    actually produced."""
+    import chatgpt_worker
+
+    record = created_with(client, "BO-2", "branch_only")
+    monkeypatch.setattr(chatgpt_worker, "PUBLISH_REPO_SLUG", "")
+
+    assert str(record.get("proof_mode")) == "branch_only"
+
+
+def test_an_ordinary_task_would_block_before_the_model_call(client):
+    """The other side, so the exception is not simply always taken."""
+    record = created_with(client, "BL-2", "baseline")
+
+    assert str(record.get("proof_mode")) != "branch_only"
+
+
+def test_the_stored_proof_mode_survives_a_migration_from_version_three(tmp_path):
+    """Widening the CHECK meant rebuilding a table three others reference.
+
+    The rows have to come through intact, and the foreign keys with them --
+    enforcement is off during the rebuild, so `foreign_key_check` afterwards is
+    the only honest way to know the result is consistent.
+    """
+    from controller import db, engine, states
+
+    path = str(tmp_path / "old.db")
+    conn = db.connect(path)
+    db.initialize(conn)
+    engine.create_task(
+        conn, task_id="OLD-1", title="t", objective="o",
+        contract_yaml="allowed_paths:\n  - notes\n", base_sha="0" * 40,
+        created_by="admin", proof_mode="sabotage",
+    )
+    conn.execute("PRAGMA user_version = 3")
+    conn.commit()
+    conn.close()
+
+    fresh = db.connect(path)
+    db.migrate(fresh)
+
+    assert fresh.execute("PRAGMA user_version").fetchone()[0] == 4
+    assert engine.get_task(fresh, "OLD-1")["proof_mode"] == "sabotage"
+    assert fresh.execute("PRAGMA foreign_key_check").fetchall() == []
+
+    # And the widened vocabulary is now accepted.
+    engine.create_task(
+        fresh, task_id="NEW-1", title="t", objective="o",
+        contract_yaml="allowed_paths:\n  - notes\n", base_sha="0" * 40,
+        created_by="admin", proof_mode="branch_only",
+    )
+
+    assert engine.get_task(fresh, "NEW-1")["proof_mode"] == "branch_only"

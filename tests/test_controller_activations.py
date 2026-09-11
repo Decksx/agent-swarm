@@ -225,7 +225,12 @@ def test_an_undeclared_host_is_refused_rather_than_treated_as_unlimited(
 
 
 def test_a_draining_host_takes_no_new_activations(conn, ready_task):
-    conn.execute("UPDATE host_capacity SET drain_requested = 1 WHERE host = ?", ("OFFICEPC",))
+    # Canonicalised, because the table is keyed on the canonical spelling and
+    # this statement reaches around the API that would have done it.
+    conn.execute(
+        "UPDATE host_capacity SET drain_requested = 1 WHERE host = ?",
+        (activations.canonical_host("OFFICEPC"),),
+    )
 
     with pytest.raises(activations.HostAtCapacity, match="draining"):
         issue(conn, ready_task)
@@ -234,7 +239,8 @@ def test_a_draining_host_takes_no_new_activations(conn, ready_task):
 def test_an_exclusive_holder_excludes_everything_else(conn, ready_task):
     conn.execute(
         "UPDATE host_capacity SET exclusive_holder_kind = ?, exclusive_holder_id = ? "
-        "WHERE host = ?", ("integration", "I-1", "OFFICEPC"),
+        "WHERE host = ?",
+        ("integration", "I-1", activations.canonical_host("OFFICEPC")),
     )
 
     with pytest.raises(activations.HostAtCapacity, match="exclusively"):

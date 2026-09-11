@@ -88,9 +88,10 @@ class Routing:
         if not self.host:
             lacking.append("host")
 
-        if not self.repo_location:
-            lacking.append("repo_location")
-
+        # `repo_location` is deliberately not here. It is per-task first and
+        # global only as a fallback, so a missing default is not a reason to
+        # decline a task whose own producing activation records one. Checked
+        # after that activation is resolved, against both.
         return lacking
 
 
@@ -227,6 +228,8 @@ def advance(
             considered.append(record)
             continue
 
+        # Resolved before the repository is decided, because the task's own
+        # location lives on it and the global default is only a fallback.
         produced = _producing_activation(conn, row["task_id"])
 
         if produced is None or not produced["expected_branch"]:

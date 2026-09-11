@@ -266,3 +266,90 @@ def test_a_declining_advance_is_not_an_error(db_path):
     ]
 
     assert len(issued) == 1, results
+
+
+# --- One machine, one capacity pool -----------------------------------------
+
+
+def test_host_names_differing_only_in_case_share_one_pool(db_path):
+    """`host_capacity` is keyed on the string and SQLite compares text
+    case-sensitively, so OFFICEPC and officepc were two pools for one machine.
+
+    A live deployment had exactly that: a stale row at 1 beside the real one at
+    3, and an activation issued against the other spelling would have been
+    counted against a limit nobody set.
+    """
+    conn = connect(db_path)
+
+    try:
+        activations.set_host_capacity(conn, host="OFFICEPC", max_concurrent=1)
+
+        rows = conn.execute(
+            "SELECT host, max_concurrent FROM host_capacity"
+        ).fetchall()
+
+        assert len(rows) == 1, [dict(r) for r in rows]
+        assert rows[0]["host"] == "officepc"
+        assert rows[0]["max_concurrent"] == 1
+    finally:
+        conn.close()
+
+
+def test_an_activation_issued_under_another_casing_uses_that_pool(db_path):
+    """Canonicalising registration alone would move the bug rather than fix
+    it: the pool would be created under one spelling and consumed under
+    another."""
+    conn = connect(db_path)
+
+    try:
+        activations.set_host_capacity(conn, host="officepc", max_concurrent=1)
+        activations.issue(
+            conn, task_id="T-1", agent="chatgpt", host="OFFICEPC",
+            stage="author", lease_seconds=LEASE,
+            hard_deadline_seconds=DEADLINE, expected_branch="task/T-1",
+        )
+
+        stored = conn.execute(
+            "SELECT host FROM activations WHERE task_id = 'T-1'"
+        ).fetchone()
+
+        assert stored["host"] == "officepc"
+    finally:
+        conn.close()
+
+
+def test_the_single_slot_is_shared_across_spellings(db_path):
+    """The property that matters: one machine cannot run two things because
+    the second was requested with different capitals."""
+    conn = connect(db_path)
+
+    try:
+        activations.set_host_capacity(conn, host="OfficePC", max_concurrent=1)
+        activations.issue(
+            conn, task_id="T-1", agent="chatgpt", host="officepc",
+            stage="author", lease_seconds=LEASE,
+            hard_deadline_seconds=DEADLINE, expected_branch="task/T-1",
+        )
+
+        engine.create_task(
+            conn, task_id="T-2", title="t", objective="o",
+            contract_yaml="allowed_paths:\n  - notes\n", base_sha="0" * 40,
+            created_by="admin",
+        )
+        for kind in ("contract_validated", "queued"):
+            engine.apply_transition(conn, task_id="T-2", kind=kind,
+                                    actor="admin", authority=states.CONTROLLER)
+
+        with pytest.raises(activations.HostAtCapacity):
+            activations.issue(
+                conn, task_id="T-2", agent="chatgpt", host="OFFICEPC",
+                stage="author", lease_seconds=LEASE,
+                hard_deadline_seconds=DEADLINE, expected_branch="task/T-2",
+            )
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("spelling", ["  officepc  ", "OFFICEPC", "OfficePC"])
+def test_surrounding_whitespace_and_case_all_canonicalise(spelling):
+    assert activations.canonical_host(spelling) == "officepc"

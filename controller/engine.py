@@ -124,7 +124,13 @@ def get_task(conn: sqlite3.Connection, task_id: str) -> dict:
     task = dict(row)
 
     version = conn.execute(
-        "SELECT contract_yaml, contract_hash, base_sha, protocol_schema_version "
+        # proof_mode included because a worker needs it before it calls a
+        # model: `branch_only` is what says a candidate is deliberately not
+        # meant to leave the machine, and a worker that could not see it had to
+        # be told by something else -- which is how a synthetic `branch_only`
+        # key that nothing ever wrote came to be checked.
+        "SELECT contract_yaml, contract_hash, base_sha, "
+        "       protocol_schema_version, proof_mode "
         "FROM task_versions WHERE task_id = ? AND version = ?",
         (task_id, task["current_version"]),
     ).fetchone()
@@ -278,104 +284,103 @@ def apply_transition_within(
     event_id = event_id or uuid.uuid4().hex
     payload_json = json.dumps(payload, sort_keys=True)
 
-    if True:
-        # Idempotency is checked inside the transaction, not before it. Outside,
-        # two concurrent identical deliveries could both find no existing event
-        # and both proceed.
-        existing = _existing_event(conn, event_id)
+    # Idempotency is checked inside the caller's transaction, not before
+    # it. Outside, two concurrent identical deliveries could both find no
+    # existing event and both proceed.
+    existing = _existing_event(conn, event_id)
 
-        if existing is not None:
-            same = (
-                existing["task_id"] == task_id
-                and existing["kind"] == kind
-                and existing["actor"] == actor
-                and existing["payload_json"] == payload_json
-            )
-
-            if not same:
-                raise ConflictingReplay(
-                    f"event_id {event_id!r} already exists with different content"
-                )
-
-            task = get_task(conn, task_id)
-
-            return {
-                "event_id": event_id,
-                "task_id": task_id,
-                "from_state": existing["from_state"],
-                "to_state": existing["to_state"],
-                "state_seq": task["state_seq"],
-                "replayed": True,
-            }
-
-        task = get_task(conn, task_id)
-        from_state = task["state"]
-
-        if expected_state_seq is not None and expected_state_seq != task["state_seq"]:
-            raise StaleState(
-                f"expected state_seq {expected_state_seq}, task is at "
-                f"{task['state_seq']}"
-            )
-
-        if kind in NON_TRANSITIONING_EVENTS:
-            # Advisory. Appends an event, leaves state and state_seq alone --
-            # so a note can never be the reason a task moved.
-            to_state = from_state
-            new_seq = task["state_seq"]
-        else:
-            # No explicit terminal-state check here. There was one, and the
-            # bypass matrix proved it unreachable: TRANSITIONS contains no
-            # entry from a terminal state except COMPLETE -> REVERTED, and
-            # admin_cancelled/superseded are generated only for nonterminal
-            # states, so resolve() already refuses every one of them. A guard
-            # that fails nothing when removed was never load-bearing, and
-            # leaving it would suggest the safety lives here rather than in the
-            # table. It lives in the table, and
-            # test_terminal_states_accept_nothing_except_the_one_allowed_exit
-            # is what holds it there.
-            transition = resolve(from_state, kind, authority)
-            to_state = transition.to_state
-            new_seq = task["state_seq"] + 1
-
-        conn.execute(
-            "INSERT INTO events (event_id, task_id, task_version, activation_id, "
-            "source_event_id, actor, authority, kind, from_state, to_state, "
-            "payload_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                event_id, task_id, task["current_version"], activation_id,
-                source_event_id, actor, authority, kind, from_state, to_state,
-                payload_json, now,
-            ),
+    if existing is not None:
+        same = (
+            existing["task_id"] == task_id
+            and existing["kind"] == kind
+            and existing["actor"] == actor
+            and existing["payload_json"] == payload_json
         )
 
-        if new_seq != task["state_seq"] or to_state != from_state:
-            conn.execute(
-                "UPDATE tasks SET state = ?, state_seq = ? WHERE task_id = ?",
-                (to_state, new_seq, task_id),
+        if not same:
+            raise ConflictingReplay(
+                f"event_id {event_id!r} already exists with different content"
             )
 
-        # Inside the same transaction as the event, for the reason every
-        # projection update here is: a task whose approval moved without an
-        # event, or an event without the matching approval, is
-        # unreconstructable afterwards. Written by a statement after the
-        # commit it could also be interrupted between the two, leaving a task
-        # in READY_INTEGRATION carrying no approval -- or, worse, the previous
-        # one.
-        if kind == APPROVAL_GRANTING:
-            conn.execute(
-                "UPDATE tasks SET approved_candidate_sha = ? WHERE task_id = ?",
-                (_approved_candidate(conn, activation_id), task_id),
-            )
-        elif kind in APPROVAL_CLEARING:
-            # Cleared rather than left to be compared against later. A stale
-            # approval that is merely "not current" still reads as an approval
-            # to anything querying the column, and the point of the column is
-            # that reading it is enough.
-            conn.execute(
-                "UPDATE tasks SET approved_candidate_sha = NULL "
-                "WHERE task_id = ?",
-                (task_id,),
-            )
+        task = get_task(conn, task_id)
+
+        return {
+            "event_id": event_id,
+            "task_id": task_id,
+            "from_state": existing["from_state"],
+            "to_state": existing["to_state"],
+            "state_seq": task["state_seq"],
+            "replayed": True,
+        }
+
+    task = get_task(conn, task_id)
+    from_state = task["state"]
+
+    if expected_state_seq is not None and expected_state_seq != task["state_seq"]:
+        raise StaleState(
+            f"expected state_seq {expected_state_seq}, task is at "
+            f"{task['state_seq']}"
+        )
+
+    if kind in NON_TRANSITIONING_EVENTS:
+        # Advisory. Appends an event, leaves state and state_seq alone --
+        # so a note can never be the reason a task moved.
+        to_state = from_state
+        new_seq = task["state_seq"]
+    else:
+        # No explicit terminal-state check here. There was one, and the
+        # bypass matrix proved it unreachable: TRANSITIONS contains no
+        # entry from a terminal state except COMPLETE -> REVERTED, and
+        # admin_cancelled/superseded are generated only for nonterminal
+        # states, so resolve() already refuses every one of them. A guard
+        # that fails nothing when removed was never load-bearing, and
+        # leaving it would suggest the safety lives here rather than in the
+        # table. It lives in the table, and
+        # test_terminal_states_accept_nothing_except_the_one_allowed_exit
+        # is what holds it there.
+        transition = resolve(from_state, kind, authority)
+        to_state = transition.to_state
+        new_seq = task["state_seq"] + 1
+
+    conn.execute(
+        "INSERT INTO events (event_id, task_id, task_version, activation_id, "
+        "source_event_id, actor, authority, kind, from_state, to_state, "
+        "payload_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            event_id, task_id, task["current_version"], activation_id,
+            source_event_id, actor, authority, kind, from_state, to_state,
+            payload_json, now,
+        ),
+    )
+
+    if new_seq != task["state_seq"] or to_state != from_state:
+        conn.execute(
+            "UPDATE tasks SET state = ?, state_seq = ? WHERE task_id = ?",
+            (to_state, new_seq, task_id),
+        )
+
+    # Inside the same transaction as the event, for the reason every
+    # projection update here is: a task whose approval moved without an
+    # event, or an event without the matching approval, is
+    # unreconstructable afterwards. Written by a statement after the
+    # commit it could also be interrupted between the two, leaving a task
+    # in READY_INTEGRATION carrying no approval -- or, worse, the previous
+    # one.
+    if kind == APPROVAL_GRANTING:
+        conn.execute(
+            "UPDATE tasks SET approved_candidate_sha = ? WHERE task_id = ?",
+            (_approved_candidate(conn, activation_id), task_id),
+        )
+    elif kind in APPROVAL_CLEARING:
+        # Cleared rather than left to be compared against later. A stale
+        # approval that is merely "not current" still reads as an approval
+        # to anything querying the column, and the point of the column is
+        # that reading it is enough.
+        conn.execute(
+            "UPDATE tasks SET approved_candidate_sha = NULL "
+            "WHERE task_id = ?",
+            (task_id,),
+        )
 
     return {
         "event_id": event_id,

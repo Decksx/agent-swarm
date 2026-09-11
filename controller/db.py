@@ -114,7 +114,81 @@ MIGRATIONS = {
     3: [
         "ALTER TABLE tasks ADD COLUMN approved_candidate_sha TEXT",
     ],
+    # A rebuild rather than statements, because SQLite has no way to alter a
+    # CHECK constraint and three tables reference this one.
+    4: lambda conn: _widen_proof_mode(conn),
 }
+
+
+# The vocabulary after migration 4. `branch_only` is a real proof mode and not
+# a flag bolted on beside one: it says how a task's result is to be
+# demonstrated, and "the candidate stays on its branch" is an answer to that
+# question in the same way "baseline" and "sabotage" are.
+PROOF_MODES = ("baseline", "sabotage", "both", "branch_only")
+
+
+def _widen_proof_mode(conn: sqlite3.Connection) -> None:
+    """Rebuild `task_versions` so `proof_mode` may be `branch_only`.
+
+    The documented SQLite procedure for changing a constraint, and every part
+    of it is load-bearing:
+
+    * foreign keys OFF around the whole thing, because three tables reference
+      `task_versions` and `DROP TABLE` with enforcement on is an implicit
+      delete of every row they point at;
+    * the pragma outside the transaction, where it is not a no-op;
+    * `foreign_key_check` afterwards, because turning enforcement off means
+      nothing was checking during the rebuild and the only honest way to know
+      the result is consistent is to ask.
+
+    Idempotent. The version bump is a separate transaction, so a crash between
+    the two leaves this applied and unversioned, and running it again on an
+    already-widened table copies the same rows into a fresh one.
+    """
+    conn.execute("PRAGMA foreign_keys = OFF")
+
+    try:
+        with transaction(conn):
+            conn.execute("DROP TABLE IF EXISTS task_versions_rebuild")
+            conn.execute(
+                "CREATE TABLE task_versions_rebuild ("
+                "  task_id                 TEXT NOT NULL REFERENCES tasks(task_id),"
+                "  version                 INTEGER NOT NULL,"
+                "  contract_yaml           TEXT NOT NULL,"
+                "  contract_hash           TEXT NOT NULL,"
+                "  protocol_schema_version INTEGER NOT NULL,"
+                "  base_sha                TEXT NOT NULL,"
+                "  proof_mode              TEXT NOT NULL"
+                "    CHECK (proof_mode IN "
+                "      ('baseline', 'sabotage', 'both', 'branch_only')),"
+                "  created_at              REAL NOT NULL,"
+                "  created_by              TEXT NOT NULL,"
+                "  PRIMARY KEY (task_id, version)"
+                ")"
+            )
+            conn.execute(
+                "INSERT INTO task_versions_rebuild "
+                "(task_id, version, contract_yaml, contract_hash, "
+                " protocol_schema_version, base_sha, proof_mode, created_at, "
+                " created_by) "
+                "SELECT task_id, version, contract_yaml, contract_hash, "
+                "       protocol_schema_version, base_sha, proof_mode, "
+                "       created_at, created_by FROM task_versions"
+            )
+            conn.execute("DROP TABLE task_versions")
+            conn.execute(
+                "ALTER TABLE task_versions_rebuild RENAME TO task_versions"
+            )
+
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+
+        if violations:
+            raise SchemaVersionMismatch(
+                f"rebuilding task_versions left {len(violations)} foreign key "
+                "violation(s); refusing to report the migration as applied"
+            )
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
 
 
 def migrate(conn: sqlite3.Connection) -> int:
@@ -141,18 +215,34 @@ def migrate(conn: sqlite3.Connection) -> int:
 
     while version < SCHEMA_VERSION:
         target = version + 1
-        statements = MIGRATIONS.get(target)
+        step = MIGRATIONS.get(target)
 
-        if statements is None:
+        if step is None:
             raise SchemaVersionMismatch(
                 f"no migration to schema version {target}; refusing to run"
             )
 
-        with transaction(conn):
-            for statement in statements:
-                conn.execute(statement)
+        if callable(step):
+            # A step that cannot be expressed as statements inside one
+            # transaction. SQLite cannot alter a CHECK constraint, so widening
+            # one means rebuilding the table -- and dropping a table three
+            # others reference needs `PRAGMA foreign_keys=OFF`, which is a
+            # no-op inside a transaction.
+            #
+            # The callable manages that itself and must be idempotent: the
+            # version bump below is a separate transaction, so a crash between
+            # the two leaves the rebuild applied and the version unchanged,
+            # and the next startup runs it again.
+            step(conn)
 
-            conn.execute(f"PRAGMA user_version = {int(target)}")
+            with transaction(conn):
+                conn.execute(f"PRAGMA user_version = {int(target)}")
+        else:
+            with transaction(conn):
+                for statement in step:
+                    conn.execute(statement)
+
+                conn.execute(f"PRAGMA user_version = {int(target)}")
 
         version = target
 

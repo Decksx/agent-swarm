@@ -508,7 +508,15 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
     # -- the MVP demonstrations were exactly that -- but it is a decision
     # somebody makes about a task, not a state a host drifts into by having an
     # unset variable.
-    branch_only = bool(task_record.get("branch_only"))
+    # The task's own proof mode, from the controller. `branch_only` says the
+    # candidate is deliberately not meant to leave this machine.
+    #
+    # This used to read a `branch_only` key, which nothing ever wrote: the
+    # controller stores it as `task_versions.proof_mode` and `get_task` did not
+    # return that column, so the check was against a field that could only ever
+    # be absent -- which made every real task publishable-or-blocked and the
+    # exception unreachable through the API.
+    branch_only = str(task_record.get("proof_mode") or "").strip() == "branch_only"
 
     if not PUBLISH_REPO_SLUG and not branch_only:
         log.error(

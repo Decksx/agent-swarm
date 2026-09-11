@@ -320,3 +320,76 @@ def test_an_approved_task_is_still_advanced(conn):
     review(conn, task, issued["activation_id"])
 
     assert only(progression.advance(conn, routing=routing()), task)["issued"] is True
+
+
+# --- The repository is per-task first, global only as a fallback ------------
+
+
+def author_from(conn, task_id, repo_location):
+    """An author activation recording where this task's work happened."""
+    issued = activations.issue(
+        conn, task_id=task_id, agent="chatgpt", host="officepc",
+        stage="author", lease_seconds=LEASE, hard_deadline_seconds=DEADLINE,
+        expected_branch=f"task/{task_id}", repo_location=repo_location,
+    )
+    activations.claim(conn, activation_id=issued["activation_id"],
+                      agent="chatgpt")
+    activations.submit_author_outcome(
+        conn, activation_id=issued["activation_id"], agent="chatgpt",
+        outcome="candidate", payload={"candidate_sha": CAND},
+    )
+
+
+def test_the_tasks_own_repository_is_used_without_any_global_default(conn):
+    """`missing_for` used to reject an empty PROGRESSION_REPO_LOCATION before
+    the producing activation could supply the task's own, so a correctly
+    configured per-task setup was declined for lacking a default it did not
+    need."""
+    task = make_task(conn, "T-OWN")
+    author_from(conn, task, r"C:\git\its-own-repo")
+
+    record = only(
+        progression.advance(conn, routing=routing(repo_location="")), task
+    )
+
+    assert record["issued"] is True
+    assert record["repo_location"] == r"C:\git\its-own-repo"
+
+
+def test_the_global_default_is_used_when_the_task_records_none(conn):
+    task = make_task(conn, "T-FALLBACK")
+    author_from(conn, task, "")
+
+    record = only(
+        progression.advance(conn, routing=routing(repo_location="/fallback")),
+        task,
+    )
+
+    assert record["issued"] is True
+    assert record["repo_location"] == "/fallback"
+
+
+def test_a_task_with_neither_is_declined(conn):
+    """Declined rather than pointed at somebody else's checkout, which is how
+    tasks from unrelated repositories were swept into one flow."""
+    task = make_task(conn, "T-NEITHER")
+    author_from(conn, task, "")
+
+    record = only(
+        progression.advance(conn, routing=routing(repo_location="")), task
+    )
+
+    assert record["issued"] is False
+    assert "repository location" in record["reason"]
+
+
+def test_the_tasks_own_repository_wins_over_the_default(conn):
+    task = make_task(conn, "T-WINS")
+    author_from(conn, task, r"C:\git\its-own-repo")
+
+    record = only(
+        progression.advance(conn, routing=routing(repo_location="/global")),
+        task,
+    )
+
+    assert record["repo_location"] == r"C:\git\its-own-repo"

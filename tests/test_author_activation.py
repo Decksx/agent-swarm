@@ -134,10 +134,10 @@ def activation(contract, *, base, allowed=None, title="add a note"):
             "contract_yaml": contract,
             "allowed_paths": allowed,
             # These exercise authoring mechanics and never publish. That is
-            # exactly what branch_only names, and saying so keeps the
-            # fail-closed check honest: an unset PUBLISH_REPO_SLUG blocks a
-            # task that was meant to be published, and these were not.
-            "branch_only": True,
+            # exactly what proof_mode branch_only names, and saying so keeps
+            # the fail-closed check honest: an unset PUBLISH_REPO_SLUG blocks
+            # a task that was meant to be published, and these were not.
+            "proof_mode": "branch_only",
         },
     }
 
@@ -580,7 +580,7 @@ def test_an_unpublishable_task_blocks_before_the_model_is_called(
     monkeypatch.setattr(chatgpt_worker, "PUBLISH_REPO_SLUG", "")
     queue = Queue()
     act = activation(CONTRACT, base=base_of(author_repo))
-    act["task_record"]["branch_only"] = False
+    act["task_record"]["proof_mode"] = "baseline"
 
     chatgpt_worker.execute_author(NeverCalled(), act, queue)
 
@@ -610,7 +610,7 @@ def test_a_blocked_publication_config_leaves_no_worktree(
 ):
     monkeypatch.setattr(chatgpt_worker, "PUBLISH_REPO_SLUG", "")
     act = activation(CONTRACT, base=base_of(author_repo))
-    act["task_record"]["branch_only"] = False
+    act["task_record"]["proof_mode"] = "baseline"
 
     chatgpt_worker.execute_author(NeverCalled(), act, Queue())
 
@@ -628,7 +628,7 @@ def test_a_publishable_task_with_configuration_proceeds(
     counted_reply["answer"] = ANSWER
     queue = Queue()
     act = activation(CONTRACT, base=base_of(author_repo))
-    act["task_record"]["branch_only"] = False
+    act["task_record"]["proof_mode"] = "baseline"
 
     chatgpt_worker.execute_author(object(), act, queue)
 
