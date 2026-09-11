@@ -749,6 +749,16 @@ def host(monkeypatch):
         def command_line(self, pid):
             return self.command_lines.get(pid)
 
+        def arguments(self, pid):
+            """Split by the real splitter, so these exercise it rather than
+            standing in for it."""
+            command = self.command_lines.get(pid)
+
+            if command is None:
+                return None
+
+            return swarm_control.split_command_line(command) or None
+
         def terminate(self, pid, timeout=20.0):
             self.killed.append(pid)
             self.live.discard(pid)
@@ -757,6 +767,7 @@ def host(monkeypatch):
     state = Host()
     monkeypatch.setattr(swarm_control, "pid_is_alive", state.alive)
     monkeypatch.setattr(swarm_control, "process_command_line", state.command_line)
+    monkeypatch.setattr(swarm_control, "process_arguments", state.arguments)
     monkeypatch.setattr(swarm_control, "terminate_pid", state.terminate)
     return state
 
@@ -939,3 +950,113 @@ def test_reap_needs_no_credential_and_no_controller(control_dir, spawned, host,
     monkeypatch.delenv("HUB_SECRET", raising=False)
 
     assert supervisor.main(["supervisor.py", "--reap"]) == 0
+
+
+# --- The name has to be the script, not a substring of the command line ------
+#
+# `gemini_worker.py` is a substring of `backup_gemini_worker.py`, of
+# `gemini_worker.py.bak`, and of any command that merely mentions the name.
+# A containment test authorizes a force-kill on all three, which is the same
+# "the number turned up somewhere" reasoning that made a committed lock file
+# dangerous. What is asked instead is which script the process is running.
+
+
+NEAR_MISSES = [
+    "python backup_gemini_worker.py",
+    "python gemini_worker.py.bak",
+    "python gemini_worker.pyc",
+    "python my_gemini_worker.py",
+    "python gemini_worker.py.old",
+    "python gemini_worker.python",
+    r"C:\Python311\python.exe C:\backups\copy_of_gemini_worker.py",
+]
+
+
+@pytest.mark.parametrize("command", NEAR_MISSES)
+def test_a_near_matching_script_name_is_not_killed(
+    control_dir, spawned, host, command
+):
+    adopt(control_dir, host, "gemini", 9999, command)
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+    sup.shutdown()
+
+    assert host.killed == []
+
+
+INCIDENTAL_MENTIONS = [
+    'python other_worker.py --log gemini_worker.py',
+    'python -c "print(\'gemini_worker.py\')"',
+    'python editor.py gemini_worker.py',
+    'grep -r gemini_worker.py .',
+    'python -m pytest tests/test_gemini_worker.py',
+    r'notepad.exe C:\git\claude-agent-hub\gemini_worker.py',
+]
+
+
+@pytest.mark.parametrize("command", INCIDENTAL_MENTIONS)
+def test_a_command_that_merely_mentions_the_script_is_not_killed(
+    control_dir, spawned, host, command
+):
+    """An editor with the file open is not a worker, and neither is a test run
+    named after one."""
+    adopt(control_dir, host, "gemini", 9999, command)
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+    sup.shutdown()
+
+    assert host.killed == []
+
+
+REAL_LAUNCHES = [
+    # How the supervisor spawns one.
+    r"C:\Python311\python.exe C:\git\claude-agent-hub\gemini_worker.py",
+    # How worker_ctl.sh and start_workers.bat launch one.
+    "python gemini_worker.py",
+    # A path with a space in it, which only survives correct quoting.
+    r'"C:\Program Files\Python311\python.exe" "C:\my repo\gemini_worker.py"',
+    # POSIX, for the half of this that is not Windows-specific.
+    "/usr/bin/python3 /home/david/agent-swarm/gemini_worker.py",
+    # Interpreter flags before the script.
+    "python -W ignore gemini_worker.py",
+    # Executed directly rather than handed to an interpreter.
+    "./gemini_worker.py",
+]
+
+
+@pytest.mark.parametrize("command", REAL_LAUNCHES)
+def test_a_real_worker_is_still_stopped(control_dir, spawned, host, command):
+    """The tightening must not refuse the launches the runtime actually uses."""
+    adopt(control_dir, host, "gemini", 9999, command)
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+
+    assert sup.shutdown() == 0
+    assert host.killed == [9999]
+
+
+def test_a_process_running_no_script_at_all_is_not_killed(
+    control_dir, spawned, host
+):
+    adopt(control_dir, host, "gemini", 9999, "svchost.exe -k netsvcs")
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+    sup.shutdown()
+
+    assert host.killed == []
+
+
+def test_an_empty_command_line_is_not_an_identification(
+    control_dir, spawned, host
+):
+    adopt(control_dir, host, "gemini", 9999, "   ")
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+    sup.shutdown()
+
+    assert host.killed == []

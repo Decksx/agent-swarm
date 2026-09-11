@@ -230,3 +230,128 @@ def test_terminate_pid_stops_a_real_process(live_pid):
 def test_terminate_pid_is_satisfied_by_a_process_that_is_already_gone():
     """Nothing to stop is the outcome asked for, not a failure."""
     assert swarm_control.terminate_pid(2 ** 31 - 1) is True
+
+
+# --- Which script a process is running ---------------------------------------
+#
+# The question a shutdown actually has to answer before it terminates
+# something. "Does the command line contain `gemini_worker.py`" is not that
+# question: `backup_gemini_worker.py` contains it, `gemini_worker.py.bak`
+# contains it, and so does a text editor with the file open.
+
+
+def split(command):
+    return swarm_control.split_command_line(command)
+
+
+def test_arguments_are_split_on_whitespace():
+    assert split("python gemini_worker.py") == ["python", "gemini_worker.py"]
+
+
+def test_a_quoted_path_with_a_space_stays_one_argument():
+    command = r'"C:\Program Files\Python311\python.exe" "C:\my repo\gemini_worker.py"'
+
+    assert split(command) == [
+        r"C:\Program Files\Python311\python.exe",
+        r"C:\my repo\gemini_worker.py",
+    ]
+
+
+def test_backslashes_in_a_windows_path_survive_the_split():
+    """POSIX rules would read each one as an escape and eat it, which turns
+    every Windows path into a different string."""
+    command = r"C:\Python311\python.exe C:\git\claude-agent-hub\gemini_worker.py"
+
+    assert split(command)[-1].endswith("gemini_worker.py")
+    assert split(command)[-1].count("\\") >= 2 or "/" in split(command)[-1]
+
+
+def test_an_unbalanced_quote_does_not_raise():
+    """The coarsest possible split yields fewer whole-argument matches, never
+    more, so failing this way cannot authorize anything."""
+    assert split('python "gemini_worker.py') == ["python", "gemini_worker.py"]
+
+
+@pytest.mark.parametrize("command,expected", [
+    ("python gemini_worker.py", "gemini_worker.py"),
+    (r"C:\Python311\python.exe C:\git\agent-swarm\gemini_worker.py",
+     "gemini_worker.py"),
+    ("/usr/bin/python3 /home/david/agent-swarm/gemini_worker.py",
+     "gemini_worker.py"),
+    ("pythonw.exe gemini_worker.py", "gemini_worker.py"),
+    ("python3.11 gemini_worker.py", "gemini_worker.py"),
+    ("python -W ignore gemini_worker.py", "gemini_worker.py"),
+    ("./gemini_worker.py", "gemini_worker.py"),
+])
+def test_the_script_a_python_process_is_running_is_named(command, expected):
+    assert swarm_control.running_python_script(split(command)) == expected
+
+
+@pytest.mark.parametrize("command", [
+    # Not a python process at all. Both name the script as a whole argument.
+    "grep -r gemini_worker.py .",
+    r"notepad.exe C:\git\agent-swarm\gemini_worker.py",
+    "code.exe gemini_worker.py",
+    "tar -cf backup.tar gemini_worker.py",
+    # A python process running no script.
+    'python -c "print(1)"',
+    "python -m pytest tests/",
+    "python",
+])
+def test_a_process_running_no_python_script_names_none(command):
+    assert swarm_control.running_python_script(split(command)) is None
+
+
+@pytest.mark.parametrize("command,expected", [
+    # The script is the first .py after the interpreter. What follows it
+    # belongs to the script and says nothing about what is running.
+    ("python other_worker.py --log gemini_worker.py", "other_worker.py"),
+    ("python -m pytest tests/test_gemini_worker.py", "test_gemini_worker.py"),
+    ("python editor.py gemini_worker.py", "editor.py"),
+])
+def test_only_the_script_counts_and_not_its_arguments(command, expected):
+    assert swarm_control.running_python_script(split(command)) == expected
+
+
+@pytest.mark.parametrize("command", [
+    "python backup_gemini_worker.py",
+    "python my_gemini_worker.py",
+    "python gemini_worker2.py",
+    r"C:\Python311\python.exe C:\backups\copy_of_gemini_worker.py",
+])
+def test_a_near_matching_name_is_a_different_script(command):
+    """Each of these contains `gemini_worker.py`. None of them is it."""
+    running = swarm_control.running_python_script(split(command))
+
+    assert running is not None
+    assert running != "gemini_worker.py"
+
+
+@pytest.mark.parametrize("command", [
+    "python gemini_worker.py.bak",
+    "python gemini_worker.pyc",
+    "python gemini_worker.python",
+])
+def test_a_name_that_is_not_a_python_file_names_no_script(command):
+    """Also a refusal, by a different route: the argument contains the
+    script name and is not a script."""
+    assert swarm_control.running_python_script(split(command)) is None
+
+
+def test_this_process_is_running_this_test_file():
+    """The whole chain against a real pid: arguments, then the script."""
+    arguments = swarm_control.process_arguments(os.getpid())
+
+    assert arguments is not None
+    assert Path(sys.executable).name.lower() in arguments[0].lower()
+
+
+def test_a_dead_pid_has_no_arguments():
+    assert swarm_control.process_arguments(2 ** 31 - 1) is None
+
+
+def test_a_spawned_process_reports_its_arguments(live_pid):
+    arguments = swarm_control.process_arguments(live_pid)
+
+    assert arguments is not None
+    assert any("time.sleep" in argument for argument in arguments)

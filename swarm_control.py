@@ -69,7 +69,9 @@ from __future__ import annotations
 
 import json
 import os
+import posixpath
 import re
+import shlex
 import signal
 import subprocess
 import time
@@ -519,6 +521,120 @@ def process_command_line(pid: int) -> Optional[str]:
 
     text = (result.stdout or "").strip()
     return text or None
+
+
+def process_arguments(pid: int) -> Optional[list]:
+    """The argument vector of `pid`, or None if it cannot be read.
+
+    The list rather than the string, because the decision made from it is
+    "which script is this process running", and that question has no answer in
+    a flat string. `gemini_worker.py` appears inside `backup_gemini_worker.py`,
+    inside `gemini_worker.py.bak`, and inside any command that merely mentions
+    the name -- a substring test authorizes a force-kill on all three.
+
+    Argument boundaries are taken from the operating system where it will give
+    them. `/proc` holds the real argv, NUL-separated, so nothing has to be
+    parsed back out of a rendering of it. Windows keeps only the string, so it
+    is split the way a Windows shell would: `posix=False` leaves backslashes
+    alone, which matters when every path in it is a Windows path.
+    """
+    if pid <= 0:
+        return None
+
+    if os.name != "nt":
+        try:
+            raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+        except OSError:
+            raw = b""
+
+        if raw:
+            decoded = raw.decode("utf-8", "replace")
+            return [arg for arg in decoded.split("\x00") if arg]
+
+    command = process_command_line(pid)
+
+    if command is None:
+        return None
+
+    return split_command_line(command) or None
+
+
+def split_command_line(command: str) -> list:
+    """A command-line string back into arguments, the way its shell would.
+
+    Separate from `process_arguments` because it is the half that can be
+    tested against a command line nobody has to spawn first, and because on
+    Windows it is the only thing standing between a rendered string and a
+    decision to terminate a process.
+
+    `posix=False` leaves backslashes alone: on Windows every path in the
+    string contains them, and the POSIX rules would read each one as an escape
+    and quietly eat it.
+    """
+    try:
+        parts = shlex.split(command, posix=(os.name != "nt"))
+    except ValueError:
+        # An unbalanced quote. Falling back to whitespace is not a guess at
+        # what the command meant -- it is the coarsest possible split, and a
+        # caller matching whole arguments gets fewer matches out of it, never
+        # more.
+        parts = command.split()
+
+    if os.name == "nt":
+        parts = [part.strip('"') for part in parts]
+
+    return [part for part in parts if part]
+
+
+def running_python_script(arguments) -> Optional[str]:
+    """The file name of the script a python process is running, or None.
+
+    Two questions, and both have to be answered before anything is
+    terminated. Is this a python interpreter, and which script did it open?
+
+    The interpreter half is not pedantry. `grep -r gemini_worker.py .` and
+    `notepad.exe gemini_worker.py` both name the script as a whole
+    argument, and neither is a worker -- one is a search, the other is
+    somebody reading the file. Matching a complete argument rules out
+    `backup_gemini_worker.py` and `gemini_worker.py.bak`; it does not rule out
+    every program that can be handed a filename.
+
+    The script half is the first `.py` argument after the interpreter, which
+    for `python [flags] script [script args]` is the script. Anything later
+    belongs to the script and describes nothing about what is running, so
+    `python other_worker.py --log gemini_worker.py` answers `other_worker.py`.
+
+    A python-shaped argv[0] that opened no script -- `python -c "..."`, or
+    `python -m pytest tests/` -- answers None, and a caller that must identify
+    a process before killing it treats that as a refusal.
+    """
+    if not arguments:
+        return None
+
+    names = [
+        posixpath.basename(str(argument).replace("\\", "/").rstrip("/"))
+        for argument in arguments
+    ]
+
+    # Executed directly rather than handed to an interpreter: argv[0] is the
+    # script, and there is no interpreter argument to recognise.
+    if names[0].lower().endswith(".py"):
+        return names[0]
+
+    program = names[0].lower()
+
+    if program.endswith(".exe"):
+        program = program[:-len(".exe")]
+
+    # python, python3, python3.11, pythonw, and the Windows `py` launcher.
+    if not (program.startswith("python") or program in ("py", "pyw")):
+        return None
+
+    for name in names[1:]:
+        if name.lower().endswith(".py"):
+            return name
+
+    return None
 
 
 def terminate_pid(pid: int, *, timeout: float = 20.0) -> bool:

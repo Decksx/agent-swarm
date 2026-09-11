@@ -519,27 +519,45 @@ class Supervisor:
         repository as the working directory, so requiring a path would refuse
         to stop exactly the manually started workers this is for. The lock is
         already checkout-scoped -- it lives in this control directory -- so
-        what is left to rule out is pid reuse, and a recycled pid running
-        `gemini_worker.py` is a gemini worker.
+        what is left to rule out is pid reuse.
 
-        Unreadable means no. A command line this cannot obtain is a process
-        this must not kill.
+        The match is the basename of the script the process is *running*, and
+        it has to be equal. A substring test reads `gemini_worker.py` out of
+        `backup_gemini_worker.py`, out of `gemini_worker.py.bak`, and out of
+        any command that merely mentions the name, and authorizes a force-kill
+        on all three -- which is the same "a number was found somewhere"
+        reasoning that made a committed lock file dangerous in the first
+        place. Asking which script is running also settles the argument case:
+        `python other_worker.py --log gemini_worker.py` runs `other_worker.py`.
+
+        Unreadable means no. A command line this cannot obtain, and one
+        running no script at all, are both processes this must not kill.
         """
         script = WORKERS.get(identity)
 
         if script is None:
             return False
 
-        command = swarm_control.process_command_line(pid)
+        arguments = swarm_control.process_arguments(pid)
 
-        if not command:
+        if not arguments:
             log.error(
                 "cannot read the command line of pid %s holding the %s lock; "
                 "not terminating it", pid, identity,
             )
             return False
 
-        return script.lower() in command.replace("\\", "/").lower()
+        running = swarm_control.running_python_script(arguments)
+
+        if running is None:
+            log.error(
+                "pid %s holding the %s lock is not a python process running "
+                "a script (%s); not terminating it",
+                pid, identity, " ".join(arguments)[:200],
+            )
+            return False
+
+        return running.lower() == script.lower()
 
     def stop_unsupervised(self, identity: str) -> bool:
         """Stop a worker for `identity` that this supervisor did not spawn.

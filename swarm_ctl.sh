@@ -102,8 +102,16 @@ case "${1:-}" in
 
   stop)
     PID="$(cat "$(pidfile)" 2>/dev/null || true)"
+
+    # Whether the supervisor is confirmed gone. Every later step depends on
+    # it: the stop request may only be withdrawn once nothing is left to act
+    # on it, and the reaper may only run once nothing is left to undo its
+    # work.
+    GONE=0
+
     if ! alive "$PID"; then
       echo "supervisor is not running"
+      GONE=1
     else
       # A flag, not a signal. `taskkill` without /F posts WM_CLOSE, which a
       # background console process ignores, and /F terminates without running
@@ -112,21 +120,60 @@ case "${1:-}" in
       # stopped. The supervisor polls for this file and shuts its children
       # down itself, which is the only path that actually stops them.
       mkdir -p "$CONTROL"
-      echo "stop requested by swarm_ctl at $(date -u +%Y-%m-%dT%H:%M:%SZ)"         > "$CONTROL/STOPPING"
+      echo "stop requested by swarm_ctl at $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        > "$CONTROL/STOPPING"
 
       for _ in $(seq 1 45); do
         alive "$PID" || break
         sleep 1
       done
 
-      if alive "$PID"; then
+      if ! alive "$PID"; then
+        GONE=1
+        echo "supervisor stopped (pid $PID)"
+      else
         echo "supervisor did not stop on request; killing it"
         taskkill //PID "$PID" //F >/dev/null 2>&1
-        rm -f "$CONTROL/STOPPING"
-      fi
 
-      echo "supervisor stopped (pid $PID)"
+        # Checked, not assumed. `taskkill` can fail -- a process owned by
+        # another user, or one the system refuses to terminate -- and it says
+        # so on streams this discarded, so the script went on to announce a
+        # stop that had not happened. Its exit status is not enough either: it
+        # reports that the request was accepted, and termination is
+        # asynchronous. The question is whether the pid is still there.
+        for _ in $(seq 1 15); do
+          alive "$PID" || break
+          sleep 1
+        done
+
+        if alive "$PID"; then
+          echo "supervisor (pid $PID) survived taskkill /F"
+        else
+          GONE=1
+          echo "supervisor stopped (pid $PID)"
+        fi
+      fi
     fi
+
+    if [ "$GONE" -ne 1 ]; then
+      # STOPPING stays engaged. Removing it withdrew the shutdown request from
+      # a supervisor that may still be reading it, which does not merely fail
+      # to stop the swarm -- it restarts it, because a supervisor that resumes
+      # ticking spawns a replacement for every worker anything else has just
+      # stopped.
+      #
+      # And no reap, for the same reason. Reaping beside a live supervisor is
+      # a race against the process whose whole purpose is to put those workers
+      # back, so the honest outcome is to stop here and say why.
+      echo "stop failed: the supervisor is still running, so its workers were"
+      echo "not touched and the stop request is left engaged. Kill pid $PID by"
+      echo "hand, then run stop again."
+      exit 1
+    fi
+
+    # Withdrawn only now. Nothing is left to read it, and leaving it would
+    # stop the next supervisor the moment it started.
+    rm -f "$CONTROL/STOPPING"
 
     # Run whether or not a supervisor was found, because the case that leaves
     # workers behind is exactly the case where one is not: a supervisor that
