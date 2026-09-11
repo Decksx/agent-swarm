@@ -270,8 +270,10 @@ def test_no_placeholder_is_ever_rendered_for_the_paths():
     recorded when none was."""
     import authored_change
 
+    scope = authored_change.require_contract(TASK_RECORD)
+
     assert "(none recorded)" not in "\n".join(
-        authored_change.contract_section(TASK_RECORD, ["notes"])
+        authored_change.contract_section(TASK_RECORD, scope)
     )
 
     with pytest.raises(authored_change.ContractDefect):
@@ -307,6 +309,7 @@ def test_an_empty_resolved_scope_is_refused_even_if_parsing_succeeds(monkeypatch
     import authored_change
 
     class Empty:
+        unrestricted = False
         paths = ()
 
     monkeypatch.setattr(authored_change, "parse_scope", lambda *a, **k: Empty())
@@ -315,3 +318,106 @@ def test_an_empty_resolved_scope_is_refused_even_if_parsing_succeeds(monkeypatch
         authored_change.require_contract(TASK_RECORD)
 
     assert "no writable paths" in str(caught.value)
+
+
+# --- An unrestricted contract is authority, not absence ----------------------
+#
+# `parse_scope` represents an explicitly unrestricted contract as
+# `Scope(unrestricted=True, paths=())`: authority over the whole repository,
+# expressed as an empty path list because no list of paths means "everything".
+#
+# Flattening the scope to that list threw the distinction away, so both
+# supported spellings of `allowed_paths: UNRESTRICTED` were refused as
+# contracts authorizing nothing -- the widest authority in the system read as
+# the narrowest.
+
+
+UNRESTRICTED_FORMS = {
+    "scalar": "schema_version: 7\nallowed_paths: UNRESTRICTED\n",
+    "list": "schema_version: 7\nallowed_paths: [UNRESTRICTED]\n",
+}
+
+
+def unrestricted_record(contract):
+    return {**TASK_RECORD, "contract_yaml": contract}
+
+
+@pytest.mark.parametrize("form", sorted(UNRESTRICTED_FORMS),
+                         ids=sorted(UNRESTRICTED_FORMS))
+def test_an_unrestricted_contract_reaches_the_cli(captured, form):
+    prompt = run(captured, task_record=unrestricted_record(UNRESTRICTED_FORMS[form]))
+
+    assert prompt, f"{form}: the run was refused"
+    assert captured["queue"].reports[-1]["outcome"] != "blocked", (
+        captured["queue"].reports
+    )
+
+
+@pytest.mark.parametrize("form", sorted(UNRESTRICTED_FORMS),
+                         ids=sorted(UNRESTRICTED_FORMS))
+def test_the_prompt_states_repository_wide_authority(captured, form):
+    """Unambiguously. A worker with authority over everything must not be left
+    to infer it from the absence of a list."""
+    prompt = run(captured, task_record=unrestricted_record(UNRESTRICTED_FORMS[form]))
+
+    assert "ENTIRE repository" in prompt
+    assert "UNRESTRICTED" in prompt
+    assert "no path restriction" in prompt
+
+
+@pytest.mark.parametrize("form", sorted(UNRESTRICTED_FORMS),
+                         ids=sorted(UNRESTRICTED_FORMS))
+def test_an_unrestricted_prompt_does_not_claim_a_path_list(captured, form):
+    """The failure mode in the other direction: a section that printed the
+    empty `paths` would tell the widest-authority worker it had none."""
+    prompt = run(captured, task_record=unrestricted_record(UNRESTRICTED_FORMS[form]))
+
+    assert "You may only write to these paths" not in prompt
+
+
+@pytest.mark.parametrize("form", sorted(UNRESTRICTED_FORMS),
+                         ids=sorted(UNRESTRICTED_FORMS))
+def test_the_rest_of_the_contract_still_binds(captured, form):
+    """Unrestricted is about paths and nothing else."""
+    prompt = run(captured, task_record=unrestricted_record(UNRESTRICTED_FORMS[form]))
+
+    assert "Every other term of it still binds" in prompt
+    assert "branch_only" in prompt
+    assert TASK_RECORD["base_sha"] in prompt
+    assert "None of the above may be changed" in prompt
+
+
+def test_a_restricted_contract_still_renders_its_exact_paths(captured):
+    """The tightening must not have loosened the ordinary case."""
+    prompt = run(captured, task_record={
+        **TASK_RECORD,
+        "contract_yaml": "schema_version: 7\nallowed_paths:\n  - notes\n  - docs/api\n",
+    })
+
+    assert "You may only write to these paths" in prompt
+    assert "  notes" in prompt
+    assert "  docs/api" in prompt
+    assert "ENTIRE repository" not in prompt
+
+
+def test_a_restricted_contract_with_no_paths_is_still_refused(captured):
+    """Emptiness is a defect only when the scope is restricted, and it still
+    is one."""
+    run(captured, task_record={
+        **TASK_RECORD, "contract_yaml": "schema_version: 7\nallowed_paths: []\n",
+    })
+
+    assert "prompt" not in captured, "the CLI was invoked with no scope at all"
+    assert captured["queue"].reports[-1]["outcome"] == "blocked"
+
+
+def test_the_scope_object_survives_validation():
+    """The flag has to reach rendering, which is what flattening removed."""
+    import authored_change
+
+    scope = authored_change.require_contract(
+        unrestricted_record(UNRESTRICTED_FORMS["scalar"])
+    )
+
+    assert scope.unrestricted is True
+    assert list(scope.paths) == []

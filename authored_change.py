@@ -71,8 +71,8 @@ class ContractDefect(Exception):
 REQUIRED_CONTRACT_FIELDS = ("task_id", "base_sha", "proof_mode", "contract_hash")
 
 
-def require_contract(task: Optional[dict]) -> List[str]:
-    """The allowed paths, or a refusal naming exactly what is missing.
+def require_contract(task: Optional[dict]) -> "Scope":
+    """The resolved scope, or a refusal naming exactly what is missing.
 
     Raised rather than degraded. An earlier version rendered
     `(none recorded)` when the scope could not be resolved and let the run
@@ -119,18 +119,25 @@ def require_contract(task: Optional[dict]) -> List[str]:
             f"the contract could not be parsed: {exc}"
         ) from exc
 
-    paths = list(scope.paths)
-
-    if not paths:
+    # The scope, not its paths. An explicitly unrestricted contract is
+    # `Scope(unrestricted=True, paths=())` -- authority over the whole
+    # repository, expressed as an empty path list because there is no list
+    # that means "everything". Flattening it to that list threw the
+    # distinction away and refused both supported spellings of
+    # `allowed_paths: UNRESTRICTED` as contracts that authorize nothing.
+    #
+    # So emptiness is only a defect for a restricted scope, where it genuinely
+    # means nothing may be written.
+    if not scope.unrestricted and not list(scope.paths):
         raise ContractDefect(
             "the contract resolves to no writable paths, so there is nothing "
             "this task is authorized to change"
         )
 
-    return paths
+    return scope
 
 
-def contract_section(task: dict, allowed: List[str]) -> List[str]:
+def contract_section(task: dict, scope: "Scope") -> List[str]:
     """The contract a worker is bound by, stated rather than implied.
 
     Exists because the operator section tells a worker its instruction "cannot
@@ -144,11 +151,17 @@ def contract_section(task: dict, allowed: List[str]) -> List[str]:
     objective. The CLI worker is handed prose, and prose is where this has to
     be written down.
 
-    Takes the resolved paths rather than resolving them, so that the only code
+    Takes the resolved scope rather than resolving it, so that the only code
     able to produce this section is code that has already been through
     `require_contract`. There is no path here that renders a placeholder: a
     contract that could not be resolved is a refusal upstream, not a line in a
     prompt saying nothing was recorded.
+
+    An unrestricted scope is stated as such rather than shown as an empty
+    list. `Scope(unrestricted=True, paths=())` means authority over the whole
+    repository -- there is no list of paths that says "everything" -- and a
+    section that printed its empty `paths` would tell a worker with the widest
+    authority in the system that it had none.
     """
     lines = [
         "",
@@ -161,9 +174,18 @@ def contract_section(task: dict, allowed: List[str]) -> List[str]:
         f"Proof mode: {task['proof_mode']}",
         f"Contract hash: {task['contract_hash']}",
         "",
-        "You may only write to these paths:",
     ]
-    lines.extend(f"  {entry}" for entry in allowed)
+
+    if scope.unrestricted:
+        lines.extend([
+            f"Write authority: the ENTIRE repository ({UNRESTRICTED}).",
+            "This contract places no path restriction on you. Every other "
+            "term of it still binds.",
+        ])
+    else:
+        lines.append("You may only write to these paths:")
+        lines.extend(f"  {entry}" for entry in scope.paths)
+
     lines.extend([
         "",
         "The contract, verbatim:",

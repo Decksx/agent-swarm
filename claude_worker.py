@@ -823,11 +823,11 @@ def _execute_author(
     # path Phase 0 deliberately kept. What must not happen is a
     # *controller* activation -- one belonging to a task with a contract --
     # running as though it had none.
-    allowed_paths = None
+    contract_scope = None
 
     if activation.get("source") == "controller":
         try:
-            allowed_paths = authored_change.require_contract(
+            contract_scope = authored_change.require_contract(
                 activation.get("task_record")
             )
         except authored_change.ContractDefect as defect:
@@ -883,9 +883,9 @@ def _execute_author(
     contract = (
         "\n".join(
             authored_change.contract_section(
-                activation["task_record"], allowed_paths)
+                activation["task_record"], contract_scope)
         )
-        if allowed_paths is not None else ""
+        if contract_scope is not None else ""
     )
     operator = "\n".join(
         authored_change.operator_section(activation.get("operator_context"))
