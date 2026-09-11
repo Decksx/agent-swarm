@@ -62,9 +62,21 @@ from typing import Any, Mapping, Optional, Sequence
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
 
-# The states from which integration may begin. Exactly one, and it is the one
-# a review moved the task into.
+# The states in which a standing approval is live and may be acted on.
+#
+# Both, and this was a real defect: issuing an integration activation emits
+# `integration_started`, which moves the task to INTEGRATING before the worker
+# has done anything at all. Accepting only READY_INTEGRATION meant the
+# integrator refused every task that had been properly assigned to it, and
+# accepted only ones with no activation -- precisely backwards.
+#
+# INTEGRATING is safe to include because the approval survives it:
+# `integration_started` is not in `engine.APPROVAL_CLEARING`, so
+# `approved_candidate_sha` still holds the commit the review approved. Every
+# event that would invalidate it clears it, and a cleared approval refuses
+# here whatever the state says.
 INTEGRABLE = "READY_INTEGRATION"
+INTEGRABLE_STATES = frozenset({"READY_INTEGRATION", "INTEGRATING"})
 
 
 class IntegrationRefused(Exception):
@@ -157,11 +169,12 @@ def approved_candidate(task: Mapping[str, Any]) -> str:
     task_id = str(task.get("task_id") or "(unknown)")
     state = str(task.get("state") or "").strip()
 
-    if state != INTEGRABLE:
+    if state not in INTEGRABLE_STATES:
         raise IntegrationRefused(
-            f"{task_id} is {state or 'in no state at all'}, not "
-            f"{INTEGRABLE}. Approval is the controller's state and is not "
-            "conferred by anything else."
+            f"{task_id} is {state or 'in no state at all'}, and an approval "
+            f"is only live in {', '.join(sorted(INTEGRABLE_STATES))}. "
+            "Approval is the controller's state and is not conferred by "
+            "anything else."
         )
 
     approved = str(task.get("approved_candidate_sha") or "").strip()
@@ -517,6 +530,65 @@ def merge_pr(plan: Plan, *, repo_slug: str, expected_head: str) -> str:
     return merge_sha
 
 
+def check_merge_parents(plan: Plan, merge_sha: str) -> None:
+    """The merge joined the pinned target to the approved candidate. Exactly.
+
+    This is the answer to the gap `--match-head-commit` leaves open, and the
+    gap is real: that flag pins the PR *head*, so a push to the candidate
+    branch between the last check and the merge is refused -- but nothing pins
+    the *base*. Another merge landing on the target in the same window is
+    accepted, and what lands is a combined tree nobody reviewed.
+
+    There is no base equivalent of `--match-head-commit` to ask for, so this
+    does not try to check harder beforehand. A pre-merge check can always be
+    overtaken; the window cannot be closed by making it smaller.
+
+    Instead the result is proved. A merge commit's first parent is the branch
+    it was merged INTO and its second is what was merged IN, and both are
+    facts about the commit rather than about the moment it was created. If the
+    first parent is not the target this integration pinned, the target moved
+    and the merge combined the candidate with something else -- and that is
+    visible afterwards no matter how the race ran.
+
+    A refusal here means the merge already happened. It is reported so a
+    person reconciles it, which is the same situation an expired integration
+    leaves behind, and it is why saying so precisely matters.
+    """
+    result = _git(plan.repo, "rev-list", "--parents", "-n", "1", merge_sha)
+
+    if result.returncode != 0:
+        raise IntegrationRefused(
+            f"could not read the parents of {merge_sha[:12]}: "
+            f"{(result.stderr or '').strip()}"
+        )
+
+    parts = (result.stdout or "").split()
+
+    if len(parts) != 3:
+        raise IntegrationRefused(
+            f"{merge_sha[:12]} has {max(len(parts) - 1, 0)} parent(s); a merge "
+            "of one candidate into one target has exactly two. What landed is "
+            "not the merge this integration asked for."
+        )
+
+    _, first_parent, second_parent = parts
+
+    if first_parent != plan.target_sha_expected:
+        raise IntegrationRefused(
+            f"{merge_sha[:12]} was merged into {first_parent[:12]}, and this "
+            f"integration pinned {plan.target_sha_expected[:12]}. The target "
+            "moved between the final check and the merge, so what landed "
+            "combines the approved candidate with a commit nobody reviewed "
+            "alongside it. The merge has already happened; reconcile it."
+        )
+
+    if second_parent != plan.candidate_sha:
+        raise IntegrationRefused(
+            f"{merge_sha[:12]} merged in {second_parent[:12]}, not the "
+            f"approved candidate {plan.candidate_sha[:12]}."
+        )
+
+
 def check_tree_identical(plan: Plan, merge_sha: str) -> None:
     """The merged tree is the approved tree, compared rather than assumed.
 
@@ -568,7 +640,8 @@ def run_integration(
         5. target again  unmoved since step 2
         6. merge         naming the head that must still be current
         7. landed        refetch; the target must contain the merge
-        8. tree          the merged tree equals the approved tree
+        8. parents       the merge joined the PINNED target to the approval
+        9. tree          the merged tree equals the approved tree
 
     Returns the ledger record. Raises `IntegrationRefused` at the first step
     that does not hold, having changed nothing -- every step before the merge
@@ -596,6 +669,7 @@ def run_integration(
     merge_sha = merge_pr(plan, repo_slug=repo_slug, expected_head=candidate)
 
     verify_landed(plan, merge_sha)
+    check_merge_parents(plan, merge_sha)
     check_tree_identical(plan, merge_sha)
 
     return ledger_record(

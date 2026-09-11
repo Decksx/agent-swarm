@@ -466,3 +466,108 @@ def test_unreadable_ci_is_not_a_pass(monkeypatch):
 
     with pytest.raises(IntegrationRefused, match="not a build that passed"):
         integrator.ci_evidence(CANDIDATE, repo_slug="o/r")
+
+
+# --- Blocker 3: the base, proved after the fact rather than checked before ---
+#
+# `--match-head-commit` pins the PR *head*, so a push to the candidate branch
+# between the last check and the merge is refused. Nothing pins the *base*.
+# Another merge landing on the target in that same window is accepted, and what
+# lands is a combined tree nobody reviewed.
+#
+# There is no base equivalent to ask the forge for, and a pre-merge check can
+# always be overtaken -- the window cannot be closed by making it smaller. So
+# the result is proved instead: a merge commit's first parent is the branch it
+# was merged INTO, which is a fact about the commit rather than about the
+# moment it was made.
+
+
+def parents(monkeypatch, *shas):
+    monkeypatch.setattr(
+        integrator, "_git",
+        lambda repo, *a: subprocess.CompletedProcess(
+            a, 0, " ".join(shas) + "\n", ""),
+    )
+
+
+def test_a_merge_of_the_pinned_target_and_the_approval_passes(monkeypatch):
+    parents(monkeypatch, MERGED, TARGET, CANDIDATE)
+
+    integrator.check_merge_parents(plan(), MERGED)
+
+
+def test_a_target_that_moved_during_the_merge_is_caught_afterwards(monkeypatch):
+    """The race --match-head-commit cannot close. Visible in the result no
+    matter how it ran."""
+    moved = "9" * 40
+    parents(monkeypatch, MERGED, moved, CANDIDATE)
+
+    with pytest.raises(IntegrationRefused, match="target moved"):
+        integrator.check_merge_parents(plan(), MERGED)
+
+
+def test_the_refusal_says_the_merge_already_happened(monkeypatch):
+    """Which makes it a reconciliation, not a retry -- the same situation an
+    expired integration leaves behind."""
+    parents(monkeypatch, MERGED, "9" * 40, CANDIDATE)
+
+    with pytest.raises(IntegrationRefused, match="already happened"):
+        integrator.check_merge_parents(plan(), MERGED)
+
+
+def test_a_merge_of_the_wrong_candidate_is_caught(monkeypatch):
+    parents(monkeypatch, MERGED, TARGET, "9" * 40)
+
+    with pytest.raises(IntegrationRefused, match="not the"):
+        integrator.check_merge_parents(plan(), MERGED)
+
+
+def test_a_squashed_or_fast_forwarded_result_is_refused(monkeypatch):
+    """One parent is not a merge of one candidate into one target, so the
+    first-parent proof is unavailable and nothing may be concluded."""
+    parents(monkeypatch, MERGED, TARGET)
+
+    with pytest.raises(IntegrationRefused, match="exactly two"):
+        integrator.check_merge_parents(plan(), MERGED)
+
+
+def test_unreadable_parents_are_not_treated_as_correct(monkeypatch):
+    monkeypatch.setattr(
+        integrator, "_git",
+        lambda repo, *a: subprocess.CompletedProcess(a, 1, "", "bad object"),
+    )
+
+    with pytest.raises(IntegrationRefused, match="could not read the parents"):
+        integrator.check_merge_parents(plan(), MERGED)
+
+
+# --- Blocker 1, at the unit level -------------------------------------------
+
+
+def test_an_approval_is_live_in_integrating_too():
+    """Issuing the activation moves the task to INTEGRATING before the worker
+    has done anything. Accepting only READY_INTEGRATION refused every properly
+    assigned task and accepted only ones with no activation."""
+    record = {"task_id": "T-1", "state": "INTEGRATING",
+              "approved_candidate_sha": CANDIDATE}
+
+    assert integrator.approved_candidate(record) == CANDIDATE
+
+
+def test_a_cleared_approval_refuses_in_integrating_as_well():
+    """The state widening does not weaken anything: every event that
+    invalidates an approval clears the column, and a cleared approval refuses
+    whatever the state says."""
+    record = {"task_id": "T-1", "state": "INTEGRATING",
+              "approved_candidate_sha": None}
+
+    with pytest.raises(IntegrationRefused, match="no\s+approved_candidate_sha"):
+        integrator.approved_candidate(record)
+
+
+def test_an_uncertain_task_is_not_integrable():
+    record = {"task_id": "T-1", "state": "INTEGRATION_UNCERTAIN",
+              "approved_candidate_sha": CANDIDATE}
+
+    with pytest.raises(IntegrationRefused, match="only live in"):
+        integrator.approved_candidate(record)

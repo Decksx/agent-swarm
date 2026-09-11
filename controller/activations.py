@@ -1111,6 +1111,21 @@ _RUNNING_STATES = {"AUTHORING", "REVIEWING"}
 
 def _recovery_kind(reason: str, task_state: str) -> Optional[str]:
     """The §8 transition for this reclamation, or None if nothing applies."""
+    # Integration first, because it is the exception to everything below.
+    #
+    # Reclaiming any other stage means putting the task back so it can be
+    # attempted again: nothing an author or reviewer does outside the
+    # controller survives losing its lease. Integration is the one stage whose
+    # work reaches the outside world, so a lapsed lease there leaves a
+    # question -- did the merge land? -- that the controller cannot answer
+    # from its own records.
+    #
+    # Returning it to READY_INTEGRATION would invite a second merge of a
+    # candidate that may already be on the target. So it goes somewhere that
+    # says the outcome is unknown, and stays there until something looks.
+    if task_state == "INTEGRATING":
+        return "integration_outcome_unknown"
+
     if reason == "lease_expired" and task_state in _ASSIGNED_STATES | _RUNNING_STATES:
         return "lease_expired"
 

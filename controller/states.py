@@ -51,6 +51,23 @@ STATES: FrozenSet[str] = frozenset({
     "CHANGES_REQUESTED",
     "READY_INTEGRATION",
     "INTEGRATING",
+    # An integration whose activation expired while it may already have had
+    # external effects. Deliberately not a failure and deliberately not a
+    # retryable state.
+    #
+    # Every other stage can be reclaimed by putting the task back: nothing an
+    # author or a reviewer does outside the controller survives losing its
+    # lease. Integration is the one stage that reaches out and changes
+    # something a later run cannot undo by starting over. A lease that lapses
+    # mid-merge leaves two possibilities -- the merge landed, or it did not --
+    # and the controller cannot tell them apart from its own records.
+    #
+    # Sending such a task back to READY_INTEGRATION would invite a second
+    # merge of a candidate that may already be on the target. Calling it
+    # COMPLETE would claim a landing nobody observed. Both are worse than
+    # saying plainly that the outcome is unknown and must be reconciled
+    # against the remote.
+    "INTEGRATION_UNCERTAIN",
     "REVERTING",
     "NEEDS_HUMAN",
     "COMPLETE",
@@ -159,6 +176,32 @@ TRANSITIONS: Dict[Tuple[str, str], Transition] = {
     ("READY_INTEGRATION", "reservation_granted"): _t("READY_INTEGRATION", CONTROLLER),
 
     ("INTEGRATING", "integration_rejected"): _t("CHANGES_REQUESTED", CONTROLLER, OPERATOR),
+    # The expiry path. Not `lease_expired`, which means "nothing happened,
+    # start again" -- here something may have happened and the point is that
+    # nobody knows.
+    ("INTEGRATING", "integration_outcome_unknown"): _t(
+        "INTEGRATION_UNCERTAIN", CONTROLLER
+    ),
+    # Reconciliation, once somebody or something has looked at the remote.
+    # Two outcomes, because there are exactly two facts it can establish, and
+    # each leads somewhere different.
+    #
+    # `landed`: the merge is on the target. The task is COMPLETE, and it is
+    # reached through this event rather than `integration_completed` so the
+    # ledger distinguishes an integration observed by the integrator from one
+    # reconstructed afterwards. They are not the same evidence.
+    ("INTEGRATION_UNCERTAIN", "integration_reconciled_landed"): _t(
+        "COMPLETE", CONTROLLER, OPERATOR
+    ),
+    # `absent`: nothing landed. Safe to try again, and only now.
+    ("INTEGRATION_UNCERTAIN", "integration_reconciled_absent"): _t(
+        "READY_INTEGRATION", CONTROLLER, OPERATOR
+    ),
+    # And the honest third answer: reconciliation itself could not decide.
+    # A person looks.
+    ("INTEGRATION_UNCERTAIN", "reconciliation_failed"): _t(
+        "NEEDS_HUMAN", CONTROLLER, OPERATOR
+    ),
     ("INTEGRATING", "integration_completed"): _t("COMPLETE", CONTROLLER),
     ("INTEGRATING", "rollback_started"): _t("REVERTING", CONTROLLER, OPERATOR),
 
