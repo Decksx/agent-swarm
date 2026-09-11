@@ -959,3 +959,121 @@ def test_the_prompt_teaches_searching_before_proposing(project, tmp_path, monkey
     assert "needs_search" in prompt
     assert "cli.main(" in prompt
     assert "LITERAL TEXT" in prompt
+
+
+# --- The run ends successfully on a terminal answer -------------------------
+#
+# Reporting "no plan produced" as a failure would teach the next run to invent
+# something, which is precisely what these outcomes exist to stop.
+
+
+def terminal_reply(outcome, **over):
+    body = {
+        "outcome": outcome,
+        "reason": "The implementation and its tests are both present and cover "
+                  "the documented behaviour, so nothing further needs writing.",
+        "examined": ["src/api.py", "docs/design.md"],
+        "review_focus": ["the projection comparison"],
+        "blocking_paths": ["src/api.py", "docs/design.md"],
+        "what_would_unblock": "committing or stashing the outstanding changes",
+    }
+    body.update(over)
+    return f"{plan.BEGIN}\n{json.dumps(body)}\n{plan.END}"
+
+
+def test_milestone_ready_ends_the_run_successfully(
+    project, tmp_path, monkeypatch, capsys
+):
+    scripted(monkeypatch, terminal_reply("milestone_ready"))
+
+    code = run("--project", "demo")
+    out = capsys.readouterr().out
+
+    assert code == 0
+    assert "OUTCOME: MILESTONE_READY" in out
+    assert "success, not an empty result" in out
+
+
+def test_milestone_ready_shows_what_a_reviewer_should_look_at(
+    project, tmp_path, monkeypatch, capsys
+):
+    scripted(monkeypatch, terminal_reply("milestone_ready"))
+    run("--project", "demo")
+
+    out = capsys.readouterr().out
+
+    assert "WHAT A REVIEWER SHOULD LOOK HARDEST AT" in out
+    assert "the projection comparison" in out
+
+
+def test_blocked_ends_the_run_and_names_the_paths(
+    project, tmp_path, monkeypatch, capsys
+):
+    scripted(monkeypatch, terminal_reply("blocked_active_work"))
+
+    code = run("--project", "demo")
+    out = capsys.readouterr().out
+
+    assert code == 0
+    assert "OUTCOME: BLOCKED_ACTIVE_WORK" in out
+    assert "WHAT MUST BE RECONCILED FIRST" in out
+    assert "src/api.py" in out
+
+
+def test_blocked_is_not_reported_as_the_milestone_being_done(
+    project, tmp_path, monkeypatch, capsys
+):
+    scripted(monkeypatch, terminal_reply("blocked_active_work"))
+    run("--project", "demo")
+
+    out = capsys.readouterr().out
+
+    assert "not the same as the milestone being complete" in out
+
+
+def test_create_has_nothing_to_create_on_a_terminal_answer(
+    project, tmp_path, monkeypatch, capsys
+):
+    """An answer, not an empty plan -- and --create must not read it as one."""
+    scripted(monkeypatch, terminal_reply("milestone_ready"))
+
+    code = run("--project", "demo", "--create")
+    out = capsys.readouterr().out
+
+    assert code == 0
+    assert "nothing to create" in out
+
+
+def test_a_terminal_answer_is_written_out_with_its_evidence(
+    project, tmp_path, monkeypatch
+):
+    scripted(monkeypatch, terminal_reply("milestone_ready"))
+    saved = tmp_path / "outcome.json"
+
+    run("--project", "demo", "--out", str(saved))
+    stored = json.loads(saved.read_text(encoding="utf-8"))
+
+    assert stored["outcome"]["outcome"] == "milestone_ready"
+    assert stored["model_calls"] == 1
+    assert stored["base_sha"]
+
+
+def test_a_terminal_answer_can_follow_investigation(
+    project, tmp_path, monkeypatch, capsys
+):
+    """The realistic shape: search, read, then conclude nothing is needed."""
+    searchable(project)
+    scripted(
+        monkeypatch,
+        search_request_reply("api.main()"),
+        context_request("src/helper.py"),
+        terminal_reply("milestone_ready"),
+    )
+
+    code = run("--project", "demo", "--max-calls", "3")
+    out = capsys.readouterr().out
+
+    assert code == 0
+    assert "OUTCOME: MILESTONE_READY" in out
+    assert "searches  1" in out
+    assert "files read 1" in out

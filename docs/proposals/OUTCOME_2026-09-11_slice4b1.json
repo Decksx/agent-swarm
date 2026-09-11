@@ -1,0 +1,80 @@
+{
+  "outcome": {
+    "outcome": "milestone_ready",
+    "reason": "The core modules for Slice 4B1 (`provenance_applied_projection.py` and `provenance_backfill_artifact.py`) are fully implemented, and their companion test suites (`test_provenance_applied_projection.py` and `test_provenance_backfill_artifact.py`) comprehensively cover expected behaviors, design spec alignment, byte-level document framing, and independent shape refusals.",
+    "examined": [
+      "comic_automation/archive/provenance_applied_projection.py",
+      "comic_automation/archive/provenance_backfill_artifact.py",
+      "tests/test_provenance_applied_projection.py",
+      "tests/test_provenance_backfill_artifact.py",
+      "docs/engineering_decisions.md",
+      "CLAUDE.md"
+    ],
+    "review_focus": [
+      "Isolation of `APPLIED_PROJECTION_VERSION` from planner digest and version markers to prevent false positive comparisons.",
+      "Binary CRLF byte-exact digest calculation in `read_plan_artifacts()` to ensure text-mode newline normalization on Windows does not alter verification outcomes.",
+      "Strict field-set enforcement and table-based disambiguation for `None` values (such as `inspector_version` in `archive_inspections`) versus unused columns in `provenance_backfill_artifact.py`.",
+      "Exclusion and counting of `page_inventory` bindings by `select_slice4_bindings()` without discarding them from plan digest verification.",
+      "Immutability enforcement via `_deep_freeze()` and read-only mapping proxies on `LoadedPlan` and `AppliedBinding` to prevent post-verification state mutation."
+    ],
+    "residual_risk": "The test suite was not run in this snapshot environment, and parts of the test files were truncated during context retrieval, though the examined code and test assertions cover all major invariants specified in the milestone design."
+  },
+  "planner": "gemini-3.6-flash",
+  "guidance": "THE ONLY ACCEPTABLE WORK IS COMPLETING OR UNBLOCKING SLICE 4B1.\n\nThis is a hard constraint, not a preference. A task that is technically valid,\nwell grounded, and unrelated to Slice 4B1 will be rejected. That has already\nhappened once and it is the reason this instruction is first.\n\nThe active milestone is the branch\n`slice4b1/artifact-reader-and-applied-projection`, twelve commits ahead of the\nbaseline. Its subject is the slice-4 artifact reader and the applied\nprojection: reading a written plan back by recomputing its digest rather than\ntrusting it, the applied projection as its own comparison format with its own\nmarker, envelope verification, frozen results, and canonical CSV.\n\nPropose only work that:\n\n- completes something Slice 4B1 started and left unfinished, or\n- unblocks Slice 4B1 by removing something in its way, or\n- is required before Slice 4B1 can merge to master.\n\nDo not propose general repository improvement. Do not propose test coverage for\nmodules Slice 4B1 does not touch. Do not propose documentation of subsystems\nthat are already documented. If the most useful honest answer is \"nothing can\nbe responsibly proposed from what I can see\", say that in a needs_search or\nneeds_context request and name what would change it.\n\nTWO PRIOR RUNS WERE REJECTED. LEARN FROM BOTH.\n\nThe first proposed four brand-new standalone files: documentation for a\n553-line module that already documents itself, tests for a suite that already\nhad 21 tests, and a config validator beside `scripts/cbz_routing.py`, which\nalready had `parse()`, `load()` and `RoutingConfigError`. It had been told no\nsource was included, said so, and planned anyway.\n\nThe second was better and still wrong. It read five source files, then proposed\n`tests/test_provenance_backfill_cli.py` on the grounds that CLI exit codes and\nsignal handling \"are not currently exercised\". They are:\n`tests/test_provenance_backfill_planner.py` calls `cli.main()` six times and\ncovers both exit-130 paths. It could not have discovered that by asking for\nfiles by path, because naming that file requires already suspecting the answer.\n\nYOU CAN NOW SEARCH. USE IT FIRST.\n\nBefore proposing anything, search for the thing you believe is missing. A\nsearch for `cli.main(` would have prevented the second rejection outright.\n\nSearch for the symbol, the function call, the error class, the marker string.\nSearch the tests directory specifically before proposing any test. A query that\nreturns NO MATCHES is a real result you may rely on; one whose results were cut\nshort is not, and you must not reason about matches you were not shown.\n\nThen, if the search points at files that matter, request them with\nneeds_context and read them before writing the task.\n\nA single well-grounded task that advances Slice 4B1 is the goal. One is enough.\nZero, with a clear explanation of what you would need to see, is better than\none that is unrelated to the milestone.\n\n======================================================================\n\n# READ-ONLY CENSUS OF UNCOMMITTED WORK IN THE CANONICAL CHECKOUT\n\nTaken 2026-09-11 against C:\\git\\ComicAutomation without modifying,\ncleaning, committing or stashing anything. This is somebody's work in\nprogress. It is NOT in the baseline you are planning against, and a task\nthat writes any path listed here would collide with it.\n\nCheckout HEAD: 0ae92676e26501021c4253cb172cdf8485003e94\nCheckout branch: slice4b1/artifact-reader-and-applied-projection\nStaged entries: 0\n\n## The 14 entries\n\n### Modified, tracked (4) -- 245 insertions, 7 deletions\n```\n apps/cbz_gui.py                 |  31 ++++++++-\n docs/cbz_watcher.md             |  37 ++++++++--\n scripts/cbz_watcher.py          | 145 +++++++++++++++++++++++++++++++++++++++-\n tests/test_gui_tool_commands.py |  39 +++++++++++\n 4 files changed, 245 insertions(+), 7 deletions(-)\n```\n\n### Untracked (10)\n```\nLogs/batch-2026-08-19-a.out\nLogs/batch-2026-08-19-b.out\nLogs/batch-2026-08-19-c.out\nLogs/drain-78-2026-08-18.out\nLogs/relocation-repair-2026-08-18-v2.out\nLogs/relocation-repair-2026-08-18.out\nLogs/relocation-repair-2026-08-19.out\nLogs/relocation-repair-apply-2026-08-18.out\nrouting.json.bak-2026-08-19\ntests/test_watcher_ai_decensor.py\n```\n\nEight are run logs under Logs/ and one is a routing.json backup: output,\nnot source. The tenth is new source:\n\n  tests/test_watcher_ai_decensor.py -- 115 lines, 3 tests\n\n## What this work is about\n\nThe modified hunks in scripts/cbz_watcher.py add AI-decensor invocation\nand startup discovery. The untracked test file tests that the watcher\nvalidates both paths returned across the decensor process boundary. This\nis the CBZ watcher / GUI subsystem.\n\n## Overlap with the Slice 4B1 milestone: NONE\n\nThe five files the milestone branch commits ahead of master:\n```\n  comic_automation/archive/provenance_applied_projection.py\n  comic_automation/archive/provenance_backfill_artifact.py\n  docs/engineering_decisions.md\n  tests/test_provenance_applied_projection.py\n  tests/test_provenance_backfill_artifact.py\n```\n\nThe intersection of those five with the 14 uncommitted entries is EMPTY.\nThe uncommitted work is a different subsystem and is not unlanded Slice\n4B1 work. Planning against this branch head does not risk duplicating it,\nPROVIDED no proposed task writes any of the 14 paths above.\n",
+  "model_calls": 3,
+  "max_calls": 5,
+  "base_sha": "0ae92676e26501021c4253cb172cdf8485003e94",
+  "planning_ref": "refs/heads/slice4b1/artifact-reader-and-applied-projection",
+  "searches_run": [
+    {
+      "query": "provenance_applied_projection",
+      "path": "",
+      "status": "ok",
+      "match_count": 3,
+      "truncated": false,
+      "paths": [
+        "comic_automation/archive/provenance_backfill_artifact.py",
+        "docs/engineering_decisions.md",
+        "tests/test_provenance_applied_projection.py"
+      ]
+    },
+    {
+      "query": "provenance_backfill_artifact",
+      "path": "",
+      "status": "ok",
+      "match_count": 2,
+      "truncated": false,
+      "paths": [
+        "docs/engineering_decisions.md",
+        "tests/test_provenance_backfill_artifact.py"
+      ]
+    },
+    {
+      "query": "APPLIED_PROJECTION_VERSION",
+      "path": "",
+      "status": "ok",
+      "match_count": 12,
+      "truncated": false,
+      "paths": [
+        "comic_automation/archive/provenance_applied_projection.py",
+        "docs/engineering_decisions.md",
+        "tests/test_provenance_applied_projection.py"
+      ]
+    },
+    {
+      "query": "read_plan_artifacts",
+      "path": "",
+      "status": "ok",
+      "match_count": 61,
+      "truncated": true,
+      "paths": [
+        "comic_automation/archive/provenance_backfill_artifact.py",
+        "tests/test_provenance_backfill_artifact.py"
+      ]
+    }
+  ],
+  "context_supplied": [
+    "tests/test_provenance_applied_projection.py",
+    "tests/test_provenance_backfill_artifact.py"
+  ]
+}

@@ -90,6 +90,7 @@ Phase 1 MVP. Four runs have been executed end to end against live models:
 | MVP4 | grounded planning, six refusal paths | [`docs/MVP4_PLANNING_RUN.md`](docs/MVP4_PLANNING_RUN.md) |
 | MVP5 | all four MVP4 proposals rejected as duplicates; `NEEDS_CONTEXT` added | [`docs/MVP5_SEMANTIC_GROUNDING.md`](docs/MVP5_SEMANTIC_GROUNDING.md) |
 | MVP6 | `NEEDS_SEARCH`; the active milestone cannot be planned from the baseline | [`docs/MVP6_SYMBOL_SEARCH.md`](docs/MVP6_SYMBOL_SEARCH.md) |
+| MVP7 | terminal outcomes; the planner declined to invent work and proposed a review | [`docs/MVP7_TERMINAL_OUTCOMES.md`](docs/MVP7_TERMINAL_OUTCOMES.md) |
 
 **Works:** contract-scoped authoring in isolated worktrees; model review against
 acceptance criteria; the full author → review → rejection → correction →

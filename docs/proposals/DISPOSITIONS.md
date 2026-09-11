@@ -87,3 +87,26 @@ for files by path will surface that.
 
 That is the gap `NEEDS_SEARCH` is for, and the reason the next planning run is
 constrained to the active milestone rather than to general improvement.
+
+---
+
+## 2026-09-11 — Slice 4B1: `MILESTONE_READY`, no task proposed
+
+**No task was created; nothing was activated.** The planner concluded that the
+milestone's implementation and tests are complete and that what it needs is a
+review, not more authoring.
+
+Recorded here because it is a disposition like any other, and because it is the
+first run where the useful answer was not a task. Proposal:
+[`REVIEW_2026-09-11_slice4b1.md`](REVIEW_2026-09-11_slice4b1.md). Raw outcome:
+[`OUTCOME_2026-09-11_slice4b1.json`](OUTCOME_2026-09-11_slice4b1.json). Census:
+[`CENSUS_2026-09-11_slice4b1_worktree.md`](CENSUS_2026-09-11_slice4b1_worktree.md).
+
+Reached in three calls — four searches, two files read on top of three
+preloaded — against the branch head rather than master, because
+[MVP6](../MVP6_SYMBOL_SEARCH.md) established that the milestone cannot be
+planned from the baseline.
+
+The judgment is plausible and partial: it rests on 29% of the artifact
+implementation and 40% of its test suite, which the planner flagged itself. The
+review proposal quantifies it. Awaiting a decision on opening the review.

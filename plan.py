@@ -132,6 +132,45 @@ class PlanError(Exception):
     """The plan could not be accepted."""
 
 
+class MilestoneReady(Exception):
+    """The planner's judgment that there is nothing left to author.
+
+    The outcome that had to exist before any of the others could be trusted.
+
+    Every planning run so far offered the planner two ways to finish: propose
+    work, or fail. A model asked "what should be built next" with no way to
+    answer "nothing" is under pressure to invent something, and it will --
+    four fabricated tasks, then one partially-redundant one. The tasks were
+    the symptom; the missing third answer was the cause.
+
+    So this is a success. A milestone whose implementation and tests are
+    complete does not need another task, it needs a review, and a planner that
+    says so has done the most useful thing available to it.
+    """
+
+    def __init__(self, finding: dict):
+        self.finding = finding
+        super().__init__(finding.get("reason") or "the milestone looks complete")
+
+
+class BlockedActiveWork(Exception):
+    """Planning cannot proceed reliably while somebody else's work is in flight.
+
+    Distinct from MILESTONE_READY, and the distinction matters: one says the
+    work is done, the other says the planner cannot tell. Collapsing them would
+    turn "I could not see enough" into "there is nothing to do", which is the
+    most expensive misreading available here.
+
+    Names the specific paths to reconcile. "Something is dirty" is not
+    actionable; "these four files are modified and they are the ones a task
+    would have to write" is.
+    """
+
+    def __init__(self, finding: dict):
+        self.finding = finding
+        super().__init__(finding.get("reason") or "active work blocks planning")
+
+
 class NeedsSearch(Exception):
     """The planner asked where something is, rather than for a file.
 
@@ -424,6 +463,96 @@ def parse_search_request(parsed: dict) -> dict:
         raise PlanError("every search query was a duplicate of another")
 
     return {"outcome": "needs_search", "reason": reason, "queries": queries}
+
+
+def parse_milestone_ready(parsed: dict) -> dict:
+    """A claim that nothing needs authoring, held to a standard.
+
+    Accepting a bare "looks done" would make this the easy way out of a hard
+    question, and a planner under pressure would reach for it exactly as
+    readily as it previously reached for inventing a task. So it must say what
+    it examined and what it expects a reviewer to check -- the same evidence a
+    task's existing_work_checked demands, for the same reason.
+    """
+    reason = str(parsed.get("reason") or "").strip()
+
+    if len(reason) < MIN_WHY_MISSING:
+        raise PlanError(
+            f"milestone_ready with a {len(reason)}-character reason. Saying a "
+            "milestone is complete is a judgment somebody will act on; it "
+            "needs the same evidence a task does."
+        )
+
+    examined = parsed.get("examined") or parsed.get("searched") or []
+
+    if isinstance(examined, str):
+        examined = [examined]
+
+    if not isinstance(examined, list) or not examined:
+        raise PlanError(
+            "milestone_ready without naming what was examined. A conclusion "
+            "that nothing remains, reached without looking, is the same "
+            "failure as a task proposed without looking."
+        )
+
+    entries = [str(item).strip() for item in examined if str(item).strip()]
+
+    if not entries:
+        raise PlanError("milestone_ready: everything examined is empty")
+
+    review = parsed.get("review_focus") or []
+
+    if isinstance(review, str):
+        review = [review]
+
+    return {
+        "outcome": "milestone_ready",
+        "reason": reason,
+        "examined": entries,
+        "review_focus": [str(r).strip() for r in review if str(r).strip()],
+        "residual_risk": str(parsed.get("residual_risk") or "").strip(),
+    }
+
+
+def parse_blocked(parsed: dict) -> dict:
+    """A refusal to plan around work in flight, naming what must be reconciled.
+
+    The requirement is the specificity. "Something is dirty" sends a person to
+    look at everything; "these paths are modified and a task would have to
+    write them" is a next action.
+    """
+    reason = str(parsed.get("reason") or "").strip()
+
+    if len(reason) < MIN_WHY_MISSING:
+        raise PlanError(
+            f"blocked_active_work with a {len(reason)}-character reason. "
+            "Stopping is allowed; stopping without saying what to reconcile "
+            "is not actionable."
+        )
+
+    blocking = parsed.get("blocking_paths") or parsed.get("paths") or []
+
+    if isinstance(blocking, str):
+        blocking = [blocking]
+
+    if not isinstance(blocking, list) or not blocking:
+        raise PlanError(
+            "blocked_active_work without naming the blocking paths. Which "
+            "changes have to be reconciled is the only part of this a person "
+            "can act on."
+        )
+
+    paths = [str(p).strip() for p in blocking if str(p).strip()]
+
+    if not paths:
+        raise PlanError("blocked_active_work: every blocking path is empty")
+
+    return {
+        "outcome": "blocked_active_work",
+        "reason": reason,
+        "blocking_paths": paths,
+        "what_would_unblock": str(parsed.get("what_would_unblock") or "").strip(),
+    }
 
 
 def _existing_work(raw: dict, *, task_id: str) -> dict:
@@ -865,6 +994,12 @@ def parse_reply(
     if isinstance(parsed, dict):
         outcome = str(parsed.get("outcome") or "").strip().lower()
 
+        if outcome in ("milestone_ready", "milestone-ready"):
+            return parse_milestone_ready(parsed)
+
+        if outcome in ("blocked_active_work", "blocked-active-work", "blocked"):
+            return parse_blocked(parsed)
+
         if outcome in ("needs_search", "needs-search"):
             return parse_search_request(parsed)
 
@@ -1264,6 +1399,59 @@ def render_prompt(snapshot_text: str, guidance: str = "") -> str:
         "",
         "Searching before proposing is cheap and is expected. Record the "
         "queries you ran in existing_work_checked.queries.",
+        "",
+        "=" * 70,
+        "YOU ARE NOT REQUIRED TO PRODUCE A TASK",
+        "",
+        "This is the most important instruction here, so it is last.",
+        "",
+        "Every earlier version of this prompt left exactly two ways to finish: "
+        "propose work, or fail. Asked what should be built next with no way to "
+        "answer 'nothing', a planner invents something -- and one did. Four "
+        "fabricated tasks, then one that restated tests already written. The "
+        "tasks were the symptom. The missing answer was the cause.",
+        "",
+        "So there are five ways to finish and three of them are not a plan. "
+        "Choose the true one:",
+        "",
+        "  PLAN                 -- work genuinely remains, and you can name it",
+        "  MILESTONE_READY      -- the implementation and its tests look "
+        "complete; what it needs is review, not another task",
+        "  BLOCKED_ACTIVE_WORK  -- somebody's uncommitted or in-flight work "
+        "makes reliable planning impossible right now",
+        "  NEEDS_SEARCH         -- you need to know whether something exists",
+        "  NEEDS_CONTEXT        -- you need to read particular files",
+        "",
+        "MILESTONE_READY is a success, not a surrender. A finished milestone "
+        "does not need another task; saying so is the most useful thing you "
+        "can do, and inventing work to avoid saying it is the failure this "
+        "system was rebuilt to prevent.",
+        "",
+        "BLOCKED_ACTIVE_WORK is different and the difference matters: "
+        "MILESTONE_READY says the work is done, BLOCKED says you cannot tell. "
+        "Do not use one for the other.",
+        "",
+        "Either shape, in one block:",
+        "",
+        BEGIN,
+        json.dumps({
+            "outcome": "milestone_ready",
+            "reason": "why you believe nothing further needs authoring, in "
+                      "terms of what you examined",
+            "examined": ["the files and tests you actually read"],
+            "review_focus": ["what a reviewer should look hardest at"],
+            "residual_risk": "anything you are unsure of, or empty",
+        }, indent=2),
+        END,
+        "",
+        BEGIN,
+        json.dumps({
+            "outcome": "blocked_active_work",
+            "reason": "why in-flight work prevents planning reliably",
+            "blocking_paths": ["the specific paths that must be reconciled"],
+            "what_would_unblock": "what would have to happen first",
+        }, indent=2),
+        END,
     ]
 
     return "\n".join(parts)

@@ -934,3 +934,110 @@ def test_searched_queries_are_recorded_on_the_task():
 
 def test_queries_are_optional_on_a_task():
     assert parse(task())["tasks"][0]["existing_work_checked"]["queries"] == []
+
+
+# --- A planner must not be required to manufacture a task -------------------
+#
+# Every earlier prompt offered two ways to finish: propose work, or fail. Asked
+# what to build next with no way to answer "nothing", a planner invents
+# something -- four fabricated tasks, then one restating tests already written.
+# The tasks were the symptom; the missing answer was the cause.
+
+
+def terminal(outcome, **over):
+    body = {
+        "outcome": outcome,
+        "reason": "The implementation and its tests are both present and the "
+                  "tests cover the documented behaviour, so nothing further "
+                  "needs authoring before review.",
+        "examined": ["src/api.py", "tests/test_reader.py"],
+        "blocking_paths": ["src/api.py"],
+    }
+    body.update(over)
+    return f"{plan.BEGIN}\n{json.dumps(body)}\n{plan.END}"
+
+
+def test_milestone_ready_is_its_own_outcome():
+    result = plan.parse_reply(terminal("milestone_ready"), snapshot=SNAPSHOT)
+
+    assert result["outcome"] == "milestone_ready"
+    assert result["examined"] == ["src/api.py", "tests/test_reader.py"]
+
+
+def test_blocked_active_work_is_its_own_outcome():
+    result = plan.parse_reply(terminal("blocked_active_work"), snapshot=SNAPSHOT)
+
+    assert result["outcome"] == "blocked_active_work"
+    assert result["blocking_paths"] == ["src/api.py"]
+
+
+def test_the_two_are_not_interchangeable():
+    """One says the work is done; the other says the planner cannot tell.
+
+    Collapsing them turns "I could not see enough" into "there is nothing to
+    do", which is the most expensive misreading available here.
+    """
+    ready = plan.parse_reply(terminal("milestone_ready"), snapshot=SNAPSHOT)
+    blocked = plan.parse_reply(terminal("blocked_active_work"), snapshot=SNAPSHOT)
+
+    assert ready["outcome"] != blocked["outcome"]
+    assert "blocking_paths" not in ready
+    assert "examined" not in blocked
+
+
+@pytest.mark.parametrize("reason", ["", "done", "Looks complete to me."])
+def test_declaring_a_milestone_complete_needs_real_evidence(reason):
+    """Otherwise this becomes the easy way out of a hard question, and a
+    planner under pressure reaches for it as readily as it reached for
+    inventing a task."""
+    with pytest.raises(PlanError, match="milestone_ready"):
+        plan.parse_reply(terminal("milestone_ready", reason=reason), snapshot=SNAPSHOT)
+
+
+def test_milestone_ready_must_say_what_it_examined():
+    """A conclusion that nothing remains, reached without looking, is the same
+    failure as a task proposed without looking."""
+    with pytest.raises(PlanError, match="what was examined"):
+        plan.parse_reply(
+            terminal("milestone_ready", examined=[]), snapshot=SNAPSHOT
+        )
+
+
+def test_blocked_must_name_the_paths_to_reconcile():
+    """"Something is dirty" sends a person to look at everything."""
+    with pytest.raises(PlanError, match="blocking paths"):
+        plan.parse_reply(
+            terminal("blocked_active_work", blocking_paths=[]), snapshot=SNAPSHOT
+        )
+
+
+def test_blocked_needs_a_reason_worth_acting_on():
+    with pytest.raises(PlanError, match="blocked_active_work"):
+        plan.parse_reply(
+            terminal("blocked_active_work", reason="busy"), snapshot=SNAPSHOT
+        )
+
+
+def test_review_focus_and_residual_risk_are_carried():
+    result = plan.parse_reply(
+        terminal("milestone_ready",
+                 review_focus=["the digest recomputation path"],
+                 residual_risk="I could not see the CLI integration."),
+        snapshot=SNAPSHOT,
+    )
+
+    assert result["review_focus"] == ["the digest recomputation path"]
+    assert "CLI integration" in result["residual_risk"]
+
+
+def test_a_plan_is_still_a_plan():
+    """The new outcomes must not swallow the ordinary case."""
+    assert plan.parse_reply(reply(task()), snapshot=SNAPSHOT)["outcome"] == "plan"
+
+
+def test_the_prompt_says_a_task_is_not_required():
+    text = plan.render_prompt("SNAPSHOT", "do something")
+
+    assert "YOU ARE NOT REQUIRED TO PRODUCE A TASK" in text
+    assert "MILESTONE_READY is a success, not a surrender" in text
+    assert "blocked_active_work" in text

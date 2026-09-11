@@ -511,6 +511,96 @@ def render_fulfilment(request: dict, result: dict) -> str:
     return "\n".join(parts)
 
 
+def render_terminal(outcome: dict, resolved, calls: int,
+                    searches, supplied) -> str:
+    """A terminal answer that is not a plan, rendered for a person.
+
+    Given the same weight as a plan report deliberately. These outcomes exist
+    because a planner with no way to say "nothing to do" invents something, and
+    an outcome rendered as a two-line apology would read as a failed run --
+    which teaches exactly the behaviour the outcome was added to remove.
+    """
+    lines = [
+        "=" * 70,
+        f"OUTCOME: {outcome['outcome'].upper()}",
+        "=" * 70,
+        "",
+        f"  project   {resolved.name}",
+        f"  ref       {resolved.ref}",
+        f"  base      {resolved.sha[:12]}",
+        f"  calls     {calls}",
+        f"  searches  {len(searches)}",
+        f"  files read {len(supplied)}",
+        "",
+    ]
+
+    if outcome["outcome"] == "milestone_ready":
+        lines += [
+            "The planner's judgment is that nothing further needs authoring.",
+            "",
+            "WHY",
+            *(f"  {line}" for line in outcome["reason"].splitlines()),
+            "",
+            "WHAT IT EXAMINED TO CONCLUDE THAT",
+            *(f"  {entry}" for entry in outcome["examined"]),
+        ]
+
+        if outcome["review_focus"]:
+            lines += [
+                "",
+                "WHAT A REVIEWER SHOULD LOOK HARDEST AT",
+                *(f"  {entry}" for entry in outcome["review_focus"]),
+            ]
+
+        if outcome["residual_risk"]:
+            lines += [
+                "",
+                "WHAT IT IS UNSURE OF",
+                *(f"  {line}" for line in outcome["residual_risk"].splitlines()),
+            ]
+
+        lines += [
+            "",
+            "-" * 70,
+            "This is a success, not an empty result. A finished milestone "
+            "needs a review, not another task.",
+            "",
+            "The next step is a person deciding whether to open that review. "
+            "This program does not create one: a planner judging its own "
+            "subject complete is evidence, and acting on it automatically "
+            "would make the judgment self-executing.",
+        ]
+
+    else:
+        lines += [
+            "Planning stopped. In-flight work makes it unreliable.",
+            "",
+            "WHY",
+            *(f"  {line}" for line in outcome["reason"].splitlines()),
+            "",
+            "WHAT MUST BE RECONCILED FIRST",
+            *(f"  {entry}" for entry in outcome["blocking_paths"]),
+        ]
+
+        if outcome["what_would_unblock"]:
+            lines += [
+                "",
+                "WHAT WOULD UNBLOCK IT",
+                *(f"  {line}"
+                  for line in outcome["what_would_unblock"].splitlines()),
+            ]
+
+        lines += [
+            "",
+            "-" * 70,
+            "This is not the same as the milestone being complete. It says "
+            "the planner could not tell, which is the more honest answer when "
+            "somebody else's changes are outstanding.",
+        ]
+
+    return "\n".join(lines)
+
+
 def render_report(parsed: dict, grounding: dict, snapshot: dict) -> str:
     """The plan as something a person can decide about in one screen.
 
@@ -956,6 +1046,41 @@ def main(argv) -> int:
         if outcome["outcome"] == "plan":
             parsed = outcome["plan"]
             break
+
+        # The two terminal answers that are not a plan. Both end the run
+        # successfully: a planner that says "this needs review, not another
+        # task" has done the most useful thing available to it, and a run that
+        # reported that as a failure would teach the next one to invent
+        # something instead.
+        if outcome["outcome"] in ("milestone_ready", "blocked_active_work"):
+            report = render_terminal(outcome, resolved, calls, searches_run,
+                                     context_supplied)
+            print()
+            print(report)
+
+            if args.out:
+                Path(args.out).write_text(
+                    json.dumps({
+                        "outcome": outcome, "planner": args.model,
+                        "guidance": guidance, "model_calls": calls,
+                        "max_calls": args.max_calls,
+                        "base_sha": resolved.sha,
+                        "planning_ref": resolved.ref,
+                        "searches_run": searches_run,
+                        "context_supplied": context_supplied,
+                    }, indent=2),
+                    encoding="utf-8",
+                )
+                print(f"\nplan: written to {args.out}")
+
+            if args.create:
+                print(
+                    "\nplan: --create has nothing to create. This run "
+                    "concluded that no task should be authored, which is an "
+                    "answer, not an empty plan."
+                )
+
+            return 0
 
         if outcome["outcome"] == "needs_search":
             print(f"\nplan: the planner asked to search (call {calls})")
