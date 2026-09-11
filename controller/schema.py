@@ -33,7 +33,14 @@ from __future__ import annotations
 # Bumped to 2 on 2026-09-09 for the review-evidence columns. Version 1 is
 # deployed and holds real task state, so this ships with a migration rather
 # than as an edit -- see db.MIGRATIONS.
-SCHEMA_VERSION = 2
+#
+# Bumped to 3 on 2026-09-11 for `approved_candidate_sha`. Additive: one
+# nullable column, no backfill, no rewrite. Every task already in the database
+# gets NULL, which is the correct value for all of them -- none was approved
+# under a rule that recorded which candidate the approval was for, and
+# inventing one retroactively would be exactly the fabrication the integrator
+# refuses to act on.
+SCHEMA_VERSION = 3
 
 SCHEMA_SQL = """
 -- One row per task. `state` and `state_seq` are the projection that the event
@@ -48,6 +55,21 @@ CREATE TABLE IF NOT EXISTS tasks (
   current_version  INTEGER NOT NULL,
   state            TEXT NOT NULL,
   state_seq        INTEGER NOT NULL DEFAULT 0,
+  -- Which candidate a review actually approved. NULL means no live approval,
+  -- and that is the default for every state except READY_INTEGRATION.
+  --
+  -- Named for what it is. A generic `candidate_sha` would be read as "the
+  -- current candidate" by the next person to touch it, and an integrator
+  -- reading that field would merge whatever was last authored rather than
+  -- what was last approved -- which is the whole failure this column exists
+  -- to make impossible.
+  --
+  -- Written by the controller inside the same transaction as
+  -- `review_requirements_satisfied`, from the activation's own
+  -- `expected_candidate`: the commit the controller ISSUED the review
+  -- against, never a value a reviewer or an operator supplied. Cleared by
+  -- every event that invalidates the approval.
+  approved_candidate_sha TEXT,
   enqueued_at      REAL,
   created_at       REAL NOT NULL,
   created_by       TEXT NOT NULL

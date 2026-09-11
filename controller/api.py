@@ -139,6 +139,12 @@ class AuthorOutcome(BaseModel):
     expected_state_seq: Optional[int] = None
 
 
+class IntegrationOutcome(BaseModel):
+    outcome: str
+    payload: Dict[str, Any] = {}
+    expected_state_seq: Optional[int] = None
+
+
 class HostCapacity(BaseModel):
     host: str
     max_concurrent: int = 1
@@ -523,6 +529,84 @@ def build_router(
                 activation_id=activation_id,
                 agent=component,
                 outcome=body.outcome,
+                payload=body.payload,
+                expected_state_seq=body.expected_state_seq,
+            )
+        except Exception as exc:
+            raise _http(exc)
+
+    @router.post("/activations/{activation_id}/integration")
+    def integration(
+        activation_id: str,
+        body: IntegrationOutcome,
+        component: str = Depends(authenticate),
+        conn: sqlite3.Connection = Depends(get_conn),
+    ):
+        """Report how an integration activation ended.
+
+        Its own route rather than a case of /outcome, because the outcomes are
+        not the author's and collapsing them would let a worker submit
+        `integrated` against an author activation. The stage is checked inside
+        the submission, so a mismatch is refused rather than applied to the
+        wrong task.
+
+        Without this route the integration stage could be issued and claimed
+        and then had no way to finish: the activation would sit live until its
+        lease lapsed, and the task would sit in INTEGRATING having possibly
+        already merged. Every check the integrator performs would have run and
+        none of it could be recorded.
+        """
+        try:
+            return activations.submit_integration_outcome(
+                conn,
+                activation_id=activation_id,
+                agent=component,
+                outcome=body.outcome,
+                payload=body.payload,
+                expected_state_seq=body.expected_state_seq,
+            )
+        except Exception as exc:
+            raise _http(exc)
+
+    @router.post("/tasks/{task_id}/reconcile")
+    def reconcile(
+        task_id: str,
+        body: Transition,
+        component: str = Depends(require_admin),
+        conn: sqlite3.Connection = Depends(get_conn),
+    ):
+        """Resolve an integration whose outcome was never observed.
+
+        The way out of INTEGRATION_UNCERTAIN, and the only one. `kind` is the
+        reconciliation event -- landed, absent, or failed -- and it is applied
+        with controller authority because deciding that a merge did or did not
+        happen is a statement about the world that the ledger will be read as
+        having established.
+
+        Admin-gated because reconciling requires looking at the remote, which
+        the controller cannot do. A person or an operator tool establishes the
+        fact; this records it.
+        """
+        allowed = {
+            "integration_reconciled_landed",
+            "integration_reconciled_absent",
+            "reconciliation_failed",
+        }
+
+        if body.kind not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{body.kind!r} is not a reconciliation; "
+                       f"expected one of {sorted(allowed)}",
+            )
+
+        try:
+            return engine.apply_transition(
+                conn,
+                task_id=task_id,
+                kind=body.kind,
+                actor=component,
+                authority=states.CONTROLLER,
                 payload=body.payload,
                 expected_state_seq=body.expected_state_seq,
             )

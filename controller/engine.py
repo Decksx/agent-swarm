@@ -161,6 +161,47 @@ def _existing_event(conn: sqlite3.Connection, event_id: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
+APPROVAL_CLEARING = frozenset({
+    "author_defect",
+    "retry_authorized",
+    "candidate_submitted",
+    "integration_rejected",
+    "environment_defect",
+    "decision_required",
+})
+
+APPROVAL_GRANTING = "review_requirements_satisfied"
+
+
+def _approved_candidate(conn, activation_id):
+    """The commit the controller ISSUED this review against.
+
+    Read from `activations.expected_candidate`, never from the judgment's
+    payload and never from anything an operator typed. That distinction is the
+    security property: a reviewer returning "satisfied" is answering a question
+    the controller asked about a specific commit, and letting the answer carry
+    its own idea of which commit would let a reviewer -- or anything able to
+    shape that payload -- approve a tree nobody looked at.
+
+    A review activation issued without an expected candidate approves nothing.
+    That is a gap in issuance, not a reason to guess.
+    """
+    if not activation_id:
+        return None
+
+    row = conn.execute(
+        "SELECT expected_candidate FROM activations WHERE activation_id = ?",
+        (activation_id,),
+    ).fetchone()
+
+    if row is None:
+        return None
+
+    candidate = (row["expected_candidate"] or "").strip()
+
+    return candidate or None
+
+
 def apply_transition(
     conn: sqlite3.Connection,
     *,
@@ -264,6 +305,29 @@ def apply_transition(
             conn.execute(
                 "UPDATE tasks SET state = ?, state_seq = ? WHERE task_id = ?",
                 (to_state, new_seq, task_id),
+            )
+
+        # Inside the same transaction as the event, for the reason every
+        # projection update here is: a task whose approval moved without an
+        # event, or an event without the matching approval, is
+        # unreconstructable afterwards. Written by a statement after the
+        # commit it could also be interrupted between the two, leaving a task
+        # in READY_INTEGRATION carrying no approval -- or, worse, the previous
+        # one.
+        if kind == APPROVAL_GRANTING:
+            conn.execute(
+                "UPDATE tasks SET approved_candidate_sha = ? WHERE task_id = ?",
+                (_approved_candidate(conn, activation_id), task_id),
+            )
+        elif kind in APPROVAL_CLEARING:
+            # Cleared rather than left to be compared against later. A stale
+            # approval that is merely "not current" still reads as an approval
+            # to anything querying the column, and the point of the column is
+            # that reading it is enough.
+            conn.execute(
+                "UPDATE tasks SET approved_candidate_sha = NULL "
+                "WHERE task_id = ?",
+                (task_id,),
             )
 
     return {

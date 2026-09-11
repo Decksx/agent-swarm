@@ -39,7 +39,7 @@ from typing import Optional
 
 from . import engine
 from .db import transaction
-from .states import AUTHOR, CONTROLLER, VERIFIER
+from .states import AUTHOR, CONTROLLER, OPERATOR, VERIFIER
 
 # Activation statuses. ISSUED and CLAIMED are live; the rest are final.
 ISSUED = "ISSUED"
@@ -56,6 +56,13 @@ LIVE_STATUSES = (ISSUED, CLAIMED)
 STAGE_ROLES = {
     "author": (AUTHOR, "author_activation_issued"),
     "review": (VERIFIER, "review_activation_issued"),
+    # No new role. `integration_started` already accepts OPERATOR authority,
+    # and an integrator is exactly that: something acting on an operator's
+    # decision to land an approved candidate, with no authority to decide
+    # anything about the work itself. Inventing an INTEGRATOR role would put a
+    # fourth actor in the protocol's authority table to describe a capability
+    # the table already covers.
+    "integrate": (OPERATOR, "integration_started"),
 }
 
 
@@ -219,7 +226,13 @@ def issue(
 
         task = engine.get_task(conn, task_id)
 
-        if stage == "review":
+        # Integration needs exactly what review needs, and for the same
+        # reason: the controller has no working copy, so naming the branch and
+        # the immutable candidate is the only way it can point a worker at the
+        # right thing. An integrate activation without them leaves the worker
+        # to work out for itself which pull request it was asked to land,
+        # which is the worker deciding what gets merged.
+        if stage in ("review", "integrate"):
             expected_parent, expected_candidate = _review_evidence(
                 conn,
                 task_id=task_id,
@@ -790,6 +803,56 @@ AUTHOR_OUTCOMES = {
 }
 
 
+# What an integration activation may report.
+#
+# `integrated` is controller authority and not the holder's, for the same
+# reason `review_requirements_satisfied` is: a worker must not be able to
+# declare its own task COMPLETE. The controller applies it on the strength of
+# the worker holding this specific live activation, and the worker only gets
+# to say what it observed.
+#
+# `refused` is every pre-merge check failing -- the approval, the target, the
+# PR, the evidence. Nothing was merged, so the task goes back to
+# CHANGES_REQUESTED with the reason rather than to a failure state that
+# suggests the candidate was tried and found wanting.
+INTEGRATION_OUTCOMES = {
+    "integrated": ("integration_completed", CONTROLLER),
+    "refused": ("integration_rejected", CONTROLLER),
+    "blocked": ("integration_rejected", CONTROLLER),
+}
+
+
+def submit_integration_outcome(
+    conn: sqlite3.Connection,
+    *,
+    activation_id: str,
+    agent: str,
+    outcome: str,
+    payload: Optional[dict] = None,
+    expected_state_seq: Optional[int] = None,
+    now: Optional[float] = None,
+) -> dict:
+    """Report what an integration attempt observed.
+
+    The payload carries the measured figures -- candidate, target before,
+    merge commit, target after -- and the controller records them. It does not
+    carry a verdict the controller then trusts: `integrated` is only accepted
+    because this worker holds this activation, and everything it claims is
+    checked by the worker against the remote before it claims it.
+    """
+    return _submit_stage_outcome(
+        conn,
+        activation_id=activation_id,
+        agent=agent,
+        stage="integrate",
+        outcome=outcome,
+        outcome_map=INTEGRATION_OUTCOMES,
+        payload=payload,
+        expected_state_seq=expected_state_seq,
+        now=now,
+    )
+
+
 def submit_author_outcome(
     conn: sqlite3.Connection,
     *,
@@ -1054,6 +1117,21 @@ _RUNNING_STATES = {"AUTHORING", "REVIEWING"}
 
 def _recovery_kind(reason: str, task_state: str) -> Optional[str]:
     """The §8 transition for this reclamation, or None if nothing applies."""
+    # Integration first, because it is the exception to everything below.
+    #
+    # Reclaiming any other stage means putting the task back so it can be
+    # attempted again: nothing an author or reviewer does outside the
+    # controller survives losing its lease. Integration is the one stage whose
+    # work reaches the outside world, so a lapsed lease there leaves a
+    # question -- did the merge land? -- that the controller cannot answer
+    # from its own records.
+    #
+    # Returning it to READY_INTEGRATION would invite a second merge of a
+    # candidate that may already be on the target. So it goes somewhere that
+    # says the outcome is unknown, and stays there until something looks.
+    if task_state == "INTEGRATING":
+        return "integration_outcome_unknown"
+
     if reason == "lease_expired" and task_state in _ASSIGNED_STATES | _RUNNING_STATES:
         return "lease_expired"
 

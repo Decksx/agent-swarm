@@ -105,6 +105,15 @@ MIGRATIONS = {
         "ALTER TABLE activations ADD COLUMN expected_candidate TEXT",
         "ALTER TABLE activations ADD COLUMN repo_location TEXT",
     ],
+    # Additive and non-destructive: one nullable column. Existing rows get
+    # NULL, which is correct for every one of them -- no task in the deployed
+    # database was approved under a rule that recorded which candidate the
+    # approval was for, and writing a value in for them would manufacture an
+    # approval nobody gave. A NULL here means the integrator refuses, which is
+    # the right behaviour for a task whose approval predates the record of it.
+    3: [
+        "ALTER TABLE tasks ADD COLUMN approved_candidate_sha TEXT",
+    ],
 }
 
 

@@ -579,10 +579,199 @@ def clear_inflight() -> None:
         log.warning("could not clear the in-flight marker: %s", exc)
 
 
+# What this worker knows how to run. An activation naming anything else is
+# refused before a model is called -- the point of checking is that the check
+# happens first.
+KNOWN_STAGES = frozenset({"author", "integrate"})
+
+
 def execute_activation(
     requests: Any, claude_binary: str, activation: dict, queue: Any = None
 ) -> None:
-    """Run one operator-issued activation and post its result.
+    """Dispatch one activation to the path its stage names.
+
+    The stage used to be ignored entirely. Every activation went down the
+    author path: the model was called, a candidate was extracted from whatever
+    came back, and the result was reported through the author outcome route.
+    An integration activation issued to this worker would have spent a model
+    call producing a candidate for a task that already had an approved one,
+    and reported it against the wrong route.
+
+    So the stage is read first and decides everything. An unknown stage is
+    refused here, before any model call, because a worker that does not know
+    what it was asked to do must not do the only thing it knows how to do.
+    """
+    activation_id = activation.get("activation_id")
+    stage = str(activation.get("stage") or "author").strip().lower()
+
+    if stage not in KNOWN_STAGES:
+        log.error(
+            "activation %s has stage %r, which this worker does not run",
+            activation_id, stage,
+        )
+        _report(queue, activation_id, "blocked", {
+            "reason": f"stage {stage!r} is not one this worker runs; "
+                      f"expected one of {sorted(KNOWN_STAGES)}",
+        })
+        return
+
+    if stage == "integrate":
+        # Deliberately never reaches `claude_binary`. Integration is a
+        # sequence of checks against git and the forge, and every one of its
+        # answers is a fact rather than a judgment. A model in this path could
+        # only make it less predictable.
+        execute_integration(activation, queue)
+        return
+
+    _execute_author(requests, claude_binary, activation, queue)
+
+
+def execute_integration(activation: dict, queue: Any = None) -> None:
+    """Land an approved candidate. No model is called anywhere in this path.
+
+    Every question integration asks has a factual answer: is this the approved
+    commit, is the target where it was pinned, did the checks pass, did the
+    push land. A model could only make those answers less predictable, and the
+    one thing an integrator must be is predictable.
+
+    **The authority checks come first and are not negotiable.** A side effect
+    that reaches a real repository needs more than a task that looks ready: it
+    needs a live activation this worker holds, for the integrate stage, on a
+    task the controller has actually moved to INTEGRATING. A bare
+    READY_INTEGRATION task is not sufficient -- that is a task nobody has been
+    told to integrate, and acting on it would mean this worker decided to.
+    """
+    activation_id = activation.get("activation_id")
+    task_record = activation.get("task_record") or {}
+    task_id = activation.get("task_id") or task_record.get("task_id") or "task"
+
+    def refuse(reason: str, outcome: str = "refused", **extra) -> None:
+        log.error("integration %s refused: %s", activation_id, reason)
+        _report_integration(
+            queue, activation_id, outcome, {"reason": reason, **extra}
+        )
+
+    if str(activation.get("stage") or "").lower() != "integrate":
+        refuse("this is not an integrate activation", outcome="blocked")
+        return
+
+    # The controller's own state, not the activation's say-so. An activation
+    # is evidence that something was issued; the task's state is evidence that
+    # the controller applied it.
+    state = str(task_record.get("state") or "").strip()
+
+    if state != "INTEGRATING":
+        refuse(
+            f"{task_id} is {state or 'in no state at all'}, not INTEGRATING. "
+            "An approved task that nobody has been told to integrate is not a "
+            "task to integrate; the activation is what says so, and the state "
+            "is what proves it was issued.",
+            outcome="blocked",
+        )
+        return
+
+    for name in ("INTEGRATION_REPO", "INTEGRATION_TARGET_REF",
+                 "INTEGRATION_REPO_SLUG", "INTEGRATION_WORK_ROOT"):
+        if not os.environ.get(name, "").strip():
+            refuse(f"{name} is not configured on this host", outcome="blocked")
+            return
+
+    # The branch the CONTROLLER issued this activation against. Not a pull
+    # request number: nothing in the controller has ever produced one, and the
+    # worker taking one from its input would mean whoever assembled that input
+    # chose what got merged. The integrator derives the pull request from this
+    # branch, the ledger's approved candidate, and the host's configuration,
+    # and refuses on anything but exactly one open match.
+    branch = str(activation.get("expected_branch") or "").strip()
+
+    if not branch:
+        refuse(
+            "the activation names no expected_branch, so there is nothing to "
+            "find a pull request from. An integrate activation is issued with "
+            "the same evidence a review is.",
+            outcome="blocked",
+        )
+        return
+
+    try:
+        import integrator
+    except ImportError as exc:
+        refuse(f"the integrator is not importable: {exc}", outcome="blocked")
+        return
+
+    log.info(
+        "INTEGRATING activation %s for task %s from %s",
+        activation_id, task_id, branch,
+    )
+
+    try:
+        record = integrator.run_integration(
+            task_record,
+            repo=os.environ["INTEGRATION_REPO"],
+            target_ref=os.environ["INTEGRATION_TARGET_REF"],
+            branch=branch,
+            repo_slug=os.environ["INTEGRATION_REPO_SLUG"],
+            work_root=os.environ["INTEGRATION_WORK_ROOT"],
+            required_suites=[
+                name for name in
+                os.environ.get("INTEGRATION_REQUIRED_SUITES", "").split(",")
+                if name.strip()
+            ],
+            actor=AGENT_IDENTITY,
+        )
+    except integrator.IntegrationRefused as exc:
+        # Every refusal before the push leaves nothing changed. A refusal
+        # after it -- the parent or tree check -- means the merge landed and
+        # does not match, which is a reconciliation and says so in its own
+        # message rather than being flattened into "refused" here.
+        refuse(str(exc))
+        return
+    except Exception as exc:
+        log.error("integration %s failed unexpectedly", activation_id,
+                  exc_info=True)
+        refuse(f"the integration attempt failed: {exc}", outcome="blocked")
+        return
+
+    log.info(
+        "INTEGRATED %s: %s -> %s on %s",
+        task_id, record["candidate_sha"][:12], record["merge_sha"][:12],
+        record["target_ref"],
+    )
+
+    _report_integration(queue, activation_id, "integrated", record)
+
+
+def _report_integration(
+    queue: Any, activation_id: Any, outcome: str, payload: dict
+) -> None:
+    """Report through /integration, never the author route.
+
+    The controller checks the stage, so a misdirected submission is refused
+    rather than applied to the wrong task -- but sending it to the right place
+    is this worker's job, not the controller's to correct.
+    """
+    if queue is None:
+        log.warning(
+            "no controller queue; integration %s outcome %r not reported",
+            activation_id, outcome,
+        )
+        return
+
+    try:
+        queue.report_integration(
+            activation_id, outcome=outcome, payload=payload
+        )
+    except Exception:
+        log.error(
+            "could not report integration %s as %r", activation_id, outcome,
+            exc_info=True,
+        )
+
+
+def _execute_author(
+    requests: Any, claude_binary: str, activation: dict, queue: Any = None
+) -> None:
+    """Run one operator-issued authoring activation and post its result.
 
     `activation` came from the local control directory. It did not come from
     the hub, and no field on it was supplied by a hub client, which is what

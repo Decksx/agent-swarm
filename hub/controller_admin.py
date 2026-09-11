@@ -162,7 +162,7 @@ def main(argv) -> int:
     p.add_argument("task_id")
     p.add_argument("agent")
     p.add_argument("host")
-    p.add_argument("stage", choices=["author", "review"])
+    p.add_argument("stage", choices=["author", "review", "integrate"])
     p.add_argument("--lease-seconds", type=float, default=900.0)
     p.add_argument("--hard-deadline-seconds", type=float, default=5400.0)
     # A review activation without a branch is unreviewable: the controller has

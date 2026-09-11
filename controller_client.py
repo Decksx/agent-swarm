@@ -367,6 +367,28 @@ class ControllerQueue:
             activation_id,
         )
 
+    def report_integration(
+        self,
+        activation_id: str,
+        *,
+        outcome: str,
+        payload: Optional[dict] = None,
+    ) -> Optional[dict]:
+        """Report an integration activation's outcome.
+
+        A separate route from `report`, because integration outcomes are not
+        the author's and the controller checks the stage: submitting
+        `integrated` against an author activation is refused rather than
+        applied to the wrong task. Same retry discipline -- losing the result
+        of an integration is the worst of the three, because the merge may
+        already have happened and the ledger would not say so.
+        """
+        return self._submit(
+            f"/controller/activations/{activation_id}/integration",
+            {"outcome": outcome, "payload": payload or {}},
+            activation_id,
+        )
+
     def _submit(self, path: str, body: dict, activation_id: str) -> Optional[dict]:
         """Deliver one terminal submission, retrying only what retrying helps.
 
