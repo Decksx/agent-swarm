@@ -58,6 +58,7 @@ import json
 import re
 import subprocess
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -481,53 +482,108 @@ def ledger_record(plan: Plan, *, target_before: str, merge_sha: str,
     }
 
 
-def merge_pr(plan: Plan, *, repo_slug: str, expected_head: str) -> str:
-    """Ask the forge to merge, naming the commit that must still be the head.
+def build_merge(plan: Plan, *, work_root: str) -> str:
+    """Construct the exact two-parent merge locally. Nothing is pushed here.
 
-    `--match-head-commit` is the whole safety of this call. Without it the
-    merge is "merge PR #N", and a push landing between the check and the call
-    would be merged instead -- the exact race every check above exists to
-    close, left open at the one moment it matters. With it, the forge refuses
-    rather than merging something else.
+    Built rather than requested, because a merge somebody else performs is a
+    merge whose parents this program learns about afterwards. Constructing it
+    means the first parent is the pinned target by construction -- not by a
+    check that could have been overtaken.
 
-    A merge commit, not a squash or a rebase. Both of those construct a commit
-    whose tree is the merge result but whose history is not the reviewed
-    candidate, so `git diff <candidate> <result>` stops being the check that
-    proves the reviewed tree landed.
+    In an isolated worktree detached at the pinned target. Never the canonical
+    checkout, which is permanently dirty with somebody else's work.
+
+    A conflict is refused and never resolved. The tree that would land after a
+    resolution is not the tree that was reviewed, and resolving one is a
+    judgment no reviewer made.
     """
-    result = _gh(
-        "pr", "merge", str(plan.pr_number), "--repo", repo_slug,
-        "--merge", "--match-head-commit", expected_head,
+    import shutil
+    import tempfile
+
+    root = Path(work_root)
+    root.mkdir(parents=True, exist_ok=True)
+    workspace = Path(tempfile.mkdtemp(prefix="integrate-", dir=str(root)))
+
+    # `git worktree add` refuses an existing directory.
+    shutil.rmtree(workspace, ignore_errors=True)
+
+    added = _git(
+        plan.repo, "worktree", "add", "--detach",
+        str(workspace), plan.target_sha_expected,
     )
 
-    if result.returncode != 0:
+    if added.returncode != 0:
         raise IntegrationRefused(
-            f"the merge of PR #{plan.pr_number} was refused by the forge: "
-            f"{(result.stderr or '').strip()}"
+            f"could not prepare an isolated checkout at "
+            f"{plan.target_sha_expected[:12]}: {(added.stderr or '').strip()}"
         )
 
-    merged = _gh(
-        "pr", "view", str(plan.pr_number), "--repo", repo_slug,
-        "--json", "mergeCommit,state",
+    try:
+        merged = _git(
+            str(workspace), "merge", "--no-ff", "--no-edit",
+            "-m", f"Merge {plan.task_id}: integrate "
+                  f"{plan.candidate_sha[:12]} into {plan.target_ref}",
+            plan.candidate_sha,
+        )
+
+        if merged.returncode != 0:
+            _git(str(workspace), "merge", "--abort")
+            raise IntegrationRefused(
+                f"{plan.candidate_sha[:12]} does not merge cleanly into "
+                f"{plan.target_sha_expected[:12]}: "
+                f"{(merged.stdout or merged.stderr or '').strip()[:400]}. This "
+                "will not resolve it -- the tree that would land afterwards is "
+                "not the tree that was reviewed."
+            )
+
+        head = _git(str(workspace), "rev-parse", "HEAD").stdout.strip()
+
+        if not SHA.match(head):
+            raise IntegrationRefused(
+                f"the merge produced {head!r}, which is not a commit"
+            )
+
+        return head
+    finally:
+        # The commit lives in the shared object store, so the worktree has
+        # done its job either way.
+        _git(plan.repo, "worktree", "remove", "--force", str(workspace))
+
+
+def push_if_target_unmoved(plan: Plan, merge_sha: str) -> None:
+    """Publish the merge, and let the remote refuse it if the target moved.
+
+    **This is the check, and it is the write.** Everything before it is a read
+    that could be overtaken between looking and acting; this cannot, because
+    the condition and the effect are one operation performed by the remote.
+
+    A plain non-force push is exactly the compare-and-swap wanted. `merge_sha`
+    has the pinned target as its first parent, so it is a descendant of that
+    commit and of nothing later. If the target is still where it was pinned,
+    the update is a fast-forward and is accepted. If anything landed in the
+    meantime, the target is no longer an ancestor, the push is not a
+    fast-forward, and the remote rejects it **before anything changes**.
+
+    No `--force`, and no `--force-with-lease` either. Force-with-lease would
+    also express the condition, and it would express it as permission to
+    overwrite -- so a mistake in computing the lease loses somebody's commits.
+    A refused fast-forward cannot lose anything, and the worst outcome of
+    getting it wrong is an integration that did not happen.
+    """
+    pushed = _git(
+        plan.repo, "push", "--no-force", "origin",
+        f"{merge_sha}:{plan.target_ref}",
     )
 
-    if merged.returncode != 0:
+    if pushed.returncode != 0:
+        detail = (pushed.stderr or pushed.stdout or "").strip()
         raise IntegrationRefused(
-            f"merged PR #{plan.pr_number} but could not read the resulting "
-            f"commit: {(merged.stderr or '').strip()}"
+            f"the remote refused the update of {plan.target_ref}: "
+            f"{detail[:400]}. The target moved after it was pinned at "
+            f"{plan.target_sha_expected[:12]}, so the merge was NOT applied "
+            "and nothing landed. Re-run against the new target, with fresh "
+            "evidence."
         )
-
-    body = json.loads(merged.stdout or "{}")
-    merge_sha = str((body.get("mergeCommit") or {}).get("oid") or "").strip()
-
-    if not SHA.match(merge_sha):
-        raise IntegrationRefused(
-            f"PR #{plan.pr_number} reports merge commit {merge_sha!r}, which "
-            "is not a commit. Refusing to report an integration whose result "
-            "cannot be named."
-        )
-
-    return merge_sha
 
 
 def check_merge_parents(plan: Plan, merge_sha: str) -> None:
@@ -623,6 +679,7 @@ def run_integration(
     target_ref: str,
     pr_number: int,
     repo_slug: str,
+    work_root: str,
     required_suites: Sequence[str] = (),
     actor: str = "claudecode",
 ) -> dict:
@@ -637,11 +694,18 @@ def run_integration(
         2. target        pinned from the remote
         3. evidence      from the runner, by commit SHA
         4. PR            open, not draft, head is the approval, no conflict
-        5. target again  unmoved since step 2
-        6. merge         naming the head that must still be current
-        7. landed        refetch; the target must contain the merge
-        8. parents       the merge joined the PINNED target to the approval
-        9. tree          the merged tree equals the approved tree
+        5. target again  unmoved since step 2 -- cheap, and not the guard
+        6. build         construct the merge locally from the pinned target
+        7. push          non-force; the REMOTE refuses if the target moved
+        8. landed        refetch; the target must contain the merge
+        9. parents       the merge joined the pinned target to the approval
+       10. tree          the merged tree equals the approved tree
+
+    Step 7 is where the safety actually lives. Step 5 is a read and can be
+    overtaken between looking and acting, so it exists to fail cheaply rather
+    than to protect anything; steps 9 and 10 confirm afterwards what step 7
+    made true. Only step 7 is a condition and an effect in one operation, and
+    only the remote can perform it.
 
     Returns the ledger record. Raises `IntegrationRefused` at the first step
     that does not hold, having changed nothing -- every step before the merge
@@ -666,7 +730,8 @@ def run_integration(
     check_pr(plan, repo_slug=repo_slug)
     check_target_unmoved(plan)
 
-    merge_sha = merge_pr(plan, repo_slug=repo_slug, expected_head=candidate)
+    merge_sha = build_merge(plan, work_root=work_root)
+    push_if_target_unmoved(plan, merge_sha)
 
     verify_landed(plan, merge_sha)
     check_merge_parents(plan, merge_sha)

@@ -326,60 +326,6 @@ def test_the_record_names_the_before_and_after_separately():
     assert record["target_sha_before"] != record["target_sha_after"]
 
 
-# --- The merge itself, and the race it must not leave open ------------------
-
-
-def test_the_merge_names_the_head_that_must_still_be_current(monkeypatch):
-    """Without --match-head-commit the call is "merge PR #N", and a push
-    landing between the check and the call is merged instead -- the exact race
-    every earlier check exists to close, left open at the one moment it
-    matters."""
-    seen = {}
-
-    def fake_gh(*args):
-        seen.setdefault("calls", []).append(args)
-        if args[0:2] == ("pr", "merge"):
-            return subprocess.CompletedProcess(args, 0, "", "")
-        return subprocess.CompletedProcess(
-            args, 0, json.dumps({"mergeCommit": {"oid": MERGED},
-                                 "state": "MERGED"}), "")
-
-    monkeypatch.setattr(integrator, "_gh", fake_gh)
-
-    assert integrator.merge_pr(
-        plan(), repo_slug="o/r", expected_head=CANDIDATE
-    ) == MERGED
-
-    merge_call = seen["calls"][0]
-
-    assert "--match-head-commit" in merge_call
-    assert CANDIDATE in merge_call
-    assert "--merge" in merge_call
-    assert "--squash" not in merge_call and "--rebase" not in merge_call
-
-
-def test_a_forge_refusal_is_not_reported_as_a_merge(monkeypatch):
-    monkeypatch.setattr(
-        integrator, "_gh",
-        lambda *a: subprocess.CompletedProcess(a, 1, "", "head has changed"),
-    )
-
-    with pytest.raises(IntegrationRefused, match="refused by the forge"):
-        integrator.merge_pr(plan(), repo_slug="o/r", expected_head=CANDIDATE)
-
-
-def test_a_merge_whose_commit_cannot_be_named_is_refused(monkeypatch):
-    def fake_gh(*args):
-        if args[0:2] == ("pr", "merge"):
-            return subprocess.CompletedProcess(args, 0, "", "")
-        return subprocess.CompletedProcess(args, 0, json.dumps({}), "")
-
-    monkeypatch.setattr(integrator, "_gh", fake_gh)
-
-    with pytest.raises(IntegrationRefused, match="cannot be named"):
-        integrator.merge_pr(plan(), repo_slug="o/r", expected_head=CANDIDATE)
-
-
 # --- The merged tree is the approved tree -----------------------------------
 
 
