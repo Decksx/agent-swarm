@@ -69,7 +69,10 @@ from __future__ import annotations
 
 import json
 import os
+import posixpath
 import re
+import shlex
+import signal
 import subprocess
 import time
 import uuid
@@ -456,6 +459,257 @@ def pid_is_alive(pid: int) -> bool:
         return True
 
     return True
+
+
+def process_command_line(pid: int) -> Optional[str]:
+    """The command line `pid` was started with, or None if it cannot be read.
+
+    None means "cannot tell", and every caller treats that as a refusal to act
+    rather than as permission. That direction is the whole point: this exists
+    so that a pid read out of a lock file can be checked against the process
+    actually holding it before anything terminates it, and a check that
+    guesses when it fails is not a check.
+
+    A lock file is not evidence on its own. It records the pid of a worker
+    that was alive when it was written, and pids are reused -- so a worker
+    that died without releasing leaves a number that may by then belong to
+    anything on the host. `pid_is_alive` cannot tell the difference, because
+    the recycled process is genuinely alive.
+    """
+    if pid <= 0:
+        return None
+
+    if os.name == "nt":
+        # PowerShell rather than wmic: wmic is gone from current Windows 11
+        # builds, and this has to work on the host it actually runs on.
+        try:
+            result = subprocess.run(
+                [
+                    "powershell.exe", "-NoProfile", "-NonInteractive",
+                    "-Command",
+                    "(Get-CimInstance Win32_Process -Filter "
+                    f"'ProcessId={pid}').CommandLine",
+                ],
+                capture_output=True, encoding="utf-8", errors="replace",
+                timeout=30, check=False,
+            )
+        except Exception:
+            return None
+
+        text = (result.stdout or "").strip()
+        return text or None
+
+    # /proc first because it needs no subprocess and is exact. Its arguments
+    # are NUL-separated; they are joined with spaces because every caller
+    # matches substrings rather than parsing arguments back out.
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        raw = b""
+
+    if raw:
+        return raw.replace(b"\x00", b" ").decode("utf-8", "replace").strip() or None
+
+    try:
+        result = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "args="],
+            capture_output=True, encoding="utf-8", errors="replace",
+            timeout=15, check=False,
+        )
+    except Exception:
+        return None
+
+    text = (result.stdout or "").strip()
+    return text or None
+
+
+def process_arguments(pid: int) -> Optional[list]:
+    """The argument vector of `pid`, or None if it cannot be read.
+
+    The list rather than the string, because the decision made from it is
+    "which script is this process running", and that question has no answer in
+    a flat string. `gemini_worker.py` appears inside `backup_gemini_worker.py`,
+    inside `gemini_worker.py.bak`, and inside any command that merely mentions
+    the name -- a substring test authorizes a force-kill on all three.
+
+    Argument boundaries are taken from the operating system where it will give
+    them. `/proc` holds the real argv, NUL-separated, so nothing has to be
+    parsed back out of a rendering of it. Windows keeps only the string, so it
+    is split the way a Windows shell would: `posix=False` leaves backslashes
+    alone, which matters when every path in it is a Windows path.
+    """
+    if pid <= 0:
+        return None
+
+    if os.name != "nt":
+        try:
+            raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+        except OSError:
+            raw = b""
+
+        if raw:
+            decoded = raw.decode("utf-8", "replace")
+            return [arg for arg in decoded.split("\x00") if arg]
+
+    command = process_command_line(pid)
+
+    if command is None:
+        return None
+
+    return split_command_line(command) or None
+
+
+def split_command_line(command: str):
+    """A command-line string back into arguments, or None if it will not parse.
+
+    Separate from `process_arguments` because it is the half that can be
+    tested against a command line nobody has to spawn first, and because on
+    Windows it is the only thing standing between a rendered string and a
+    decision to terminate a process.
+
+    `posix=False` leaves backslashes alone: on Windows every path in the
+    string contains them, and the POSIX rules would read each one as an escape
+    and quietly eat it.
+
+    A string that does not parse answers None rather than falling back to
+    splitting on whitespace. The fallback looked conservative and was not:
+    `python -c "import x; y('gemini_worker.py` has no closing quote, and
+    whitespace-splitting it manufactures `'gemini_worker.py` as an argument
+    out of text that was never one. Refusing is the only answer that cannot
+    invent a match.
+    """
+    try:
+        parts = shlex.split(command, posix=(os.name != "nt"))
+    except ValueError:
+        return None
+
+    if os.name == "nt":
+        parts = [part.strip('"') for part in parts]
+
+    return [part for part in parts if part]
+
+
+# python, python3, python3.11, pythonw, and the Windows `py` launcher --
+# matched whole, because `python-helper.exe` and `pythonista` begin with it
+# and are not it.
+_INTERPRETER = re.compile(r"python[0-9]*(?:\.[0-9]+)*w?|pyw?")
+
+
+def is_python_interpreter(name: str) -> bool:
+    """Whether `name` is the file name of a python interpreter."""
+    name = name.lower()
+
+    if name.endswith(".exe"):
+        name = name[:-len(".exe")]
+
+    return _INTERPRETER.fullmatch(name) is not None
+
+
+def running_python_script(arguments):
+    """The file name of the script `python <script>` is running, or None.
+
+    Deliberately narrow: `interpreter script [script arguments]`, and nothing
+    else. That is every shape this repository launches, and there are only
+    four -- the supervisor spawning a worker at an absolute path, `worker_ctl`
+    and `start_workers.bat` launching one by bare name from the repository,
+    and `swarm_ctl` starting `supervisor.py` with flags after it.
+
+    Narrow on purpose rather than for want of effort. A general reading of a
+    python command line has to know which options take a value, that `-c` and
+    `-m` end the options and mean no script is being run at all, and what a
+    `-` argument means -- and each thing it gets wrong is a process this
+    authorizes somebody to kill. `python -m editor gemini_worker.py` runs an
+    editor, `python -c gemini_worker.py` runs that text as source code, and a
+    reading that scans for the first `.py` calls both of them workers.
+
+    So the script is argv[1] and only argv[1]. Anything beginning with `-`
+    there is an interpreter option, which means this is not one of the four
+    shapes, which means None. Two launches this repository does not use --
+    `python -W ignore worker.py` and an executable `./worker.py` -- are
+    refused for the same reason, and refusal costs a worker that is left
+    running and reported, never a process killed by mistake.
+    """
+    if not arguments or len(arguments) < 2:
+        return None
+
+    if not is_python_interpreter(_file_name(arguments[0])):
+        return None
+
+    script = str(arguments[1])
+
+    # An interpreter option, not a script. `-c` and `-m` are the two that
+    # matter -- both consume what follows and run something that is not the
+    # file named after them -- but no option at all belongs in the shapes this
+    # accepts, so all of them are refused together.
+    if script.startswith("-"):
+        return None
+
+    name = _file_name(script)
+
+    return name if name.lower().endswith(".py") else None
+
+
+def _file_name(argument) -> str:
+    """The last path segment of an argument, on either platform's separators."""
+    return posixpath.basename(str(argument).replace("\\", "/").rstrip("/"))
+
+
+def terminate_pid(pid: int, *, timeout: float = 20.0) -> bool:
+    """Stop a process this one did not spawn, and wait. Returns whether it is gone.
+
+    `Popen.terminate` is the right tool for a child, and unavailable for
+    anything else: a worker an operator started by hand, or one an earlier
+    supervisor left behind, is a real process with no handle in this one.
+
+    Reported rather than assumed. The caller's next line is an operator-facing
+    claim about whether the swarm is stopped, and returning True without
+    checking is how that claim becomes false.
+    """
+    if not pid_is_alive(pid):
+        return True
+
+    try:
+        # On Windows this is TerminateProcess, which is what `Popen.terminate`
+        # does to the supervisor's own children -- so an adopted worker is
+        # stopped exactly as hard as a supervised one, not more.
+        os.kill(pid, signal.SIGTERM)
+    except Exception:
+        # Already gone, or not ours to signal. Which one is settled by the
+        # poll below rather than guessed at here, and nothing raised on the
+        # way to stopping one worker may stop the others being stopped.
+        pass
+
+    deadline = time.monotonic() + timeout
+
+    while time.monotonic() < deadline:
+        if not pid_is_alive(pid):
+            return True
+
+        time.sleep(1.0)
+
+    if os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(pid), "/T", "/F"],
+                capture_output=True, timeout=30, check=False,
+            )
+        except Exception:
+            pass
+    else:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+
+    deadline = time.monotonic() + 10.0
+
+    while time.monotonic() < deadline:
+        if not pid_is_alive(pid):
+            return True
+
+        time.sleep(1.0)
+
+    return not pid_is_alive(pid)
 
 
 def record_narration(messages: Iterable[dict]) -> int:
