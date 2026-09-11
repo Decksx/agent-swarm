@@ -67,6 +67,7 @@ through the control directory -- see ``docs/PHASE0_CONTAINMENT.md``.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import posixpath
@@ -392,6 +393,87 @@ class AlreadyRunning(ContainmentError):
     """Another process is already running as this identity."""
 
 
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
+
+
+# How long to wait for another process to leave the acquisition section.
+#
+# Generous, because the section contains an identity check and that check
+# shells out -- reading a Windows process's command line can take seconds. A
+# waiter that gave up in under that would report a conflict that is not one.
+MUTEX_TIMEOUT = 45.0
+
+
+@contextlib.contextmanager
+def _exclusive(path: Path, *, timeout: float = MUTEX_TIMEOUT):
+    """Hold an operating-system lock on `path` for the duration of the block.
+
+    The acquisition section reads the pid file, decides whether its holder is
+    real, removes it if it is not, and creates a new one. Those are four
+    filesystem operations, and comparing the file's contents before removing
+    it does not bind the comparison to the removal: a racer can replace the
+    file in between, and the comparison was about a file that no longer
+    exists. Two workers for one identity got through exactly that gap.
+
+    So the whole sequence runs under a lock the operating system arbitrates,
+    which is the only thing here that is genuinely atomic. `LockFile` on
+    Windows and `flock` on POSIX both attach to the open handle, so a process
+    that is killed rather than shut down has its lock released by the kernel
+    -- there is no stale mutex to inherit, which is the property that makes
+    this safe to hold across a section that can block.
+
+    The mutex file is created and never removed. On POSIX the lock lives on
+    the inode, so a process that unlinked it would leave the next one locking
+    a file nobody else can see; keeping it costs an empty file per identity in
+    a directory that is already per-host runtime state.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+
+    try:
+        deadline = time.monotonic() + timeout
+
+        while True:
+            try:
+                os.lseek(handle, 0, os.SEEK_SET)
+
+                if os.name == "nt":
+                    msvcrt.locking(handle, msvcrt.LK_NBLCK, 1)
+                else:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise AlreadyRunning(
+                        f"could not take the acquisition lock at {path} "
+                        f"within {timeout:.0f}s; another process is holding "
+                        f"it. Refusing to start rather than race for it."
+                    )
+
+                time.sleep(0.05)
+
+        try:
+            yield
+        finally:
+            try:
+                os.lseek(handle, 0, os.SEEK_SET)
+
+                if os.name == "nt":
+                    msvcrt.locking(handle, msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(handle, fcntl.LOCK_UN)
+            except OSError:
+                # Closing the handle below releases it regardless. This is
+                # tidiness, not the guarantee.
+                pass
+    finally:
+        os.close(handle)
+
+
 class SingleInstance:
     """Refuse to start a second worker for the same identity.
 
@@ -422,14 +504,13 @@ class SingleInstance:
         self.identity = identity
         base = CONTROL_DIR if directory is None else Path(directory)
         self.path = base / f"{identity}.pid"
+        # The mutex, not the record. `self.path` stays the lifetime pid file
+        # that every other tool reads; this is held only while that file is
+        # being read, judged and replaced.
+        self.mutex_path = base / f"{identity}.acquire"
 
     def _raw(self) -> Optional[str]:
-        """The lock file's exact contents, or None if there is no file.
-
-        Exact, because `acquire` has to be able to tell whether the file it is
-        about to remove is still the one it judged stale, and a parsed pid
-        cannot answer that -- a racer may have replaced the file in between.
-        """
+        """The lock file's exact contents, or None if there is no file."""
         try:
             return self.path.read_text(encoding="utf-8")
         except OSError:
@@ -497,76 +578,74 @@ class SingleInstance:
     def acquire(self) -> None:
         """Take the lock, or refuse because somebody else genuinely holds it.
 
-        Created exclusively rather than written over. Two workers for one
-        identity starting together both used to read "stale", both write, and
-        both proceed -- a check-then-write with the whole race in the gap. An
-        exclusive create has no gap: one of them makes the file and the other
-        is told it already exists, and the one that is told goes and asks who
-        holds it.
+        The whole decision runs inside an operating-system lock. Reading the
+        pid file, judging its holder, removing it if it is stale and creating
+        the replacement are four separate filesystem operations, and any gap
+        between them is a gap two workers can both walk through.
 
-        Clearing a stale lock is then a deletion followed by another exclusive
-        create, so the racers meet again at the same primitive rather than in
-        the clear. Bounded, because a lock being cleared and retaken by other
-        processes faster than this can act is a lock this should decline
-        rather than spin on.
+        The gap was real and the narrower versions did not close it. A
+        check-then-write let every racer judge one stale lock and all of them
+        write. Creating the file exclusively fixed that and left the clearing
+        step: all of them still judged it stale, all of them removed it, and
+        one removed the lock another had just taken. Comparing the contents
+        before removing looked like it bound the two together and did not --
+        the comparison is about a file that a racer can replace before the
+        removal reaches it. Thirty clean races only measured how narrow that
+        had become.
+
+        Nothing composed out of separate filesystem calls can close it, so the
+        arbiter is the kernel. Inside `_exclusive` there is no interleaving to
+        reason about: one process at a time reads, judges, clears and creates.
         """
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with _exclusive(self.mutex_path):
+            holder = self._holder()
 
-        for _ in range(5):
-            try:
-                handle = os.open(
-                    self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY
+            if holder is not None and holder != os.getpid():
+                raise AlreadyRunning(
+                    f"another {self.identity!r} worker is already running as "
+                    f"pid {holder}; refusing to start a second one. Stop it "
+                    f"first, or remove {self.path} if you are certain it is "
+                    f"gone."
                 )
-            except FileExistsError:
-                stale = self._raw()
-                holder = self._holder()
 
-                if holder is not None and holder != os.getpid():
-                    raise AlreadyRunning(
-                        f"another {self.identity!r} worker is already running "
-                        f"as pid {holder}; refusing to start a second one. "
-                        f"Stop it first, or remove {self.path} if you are "
-                        f"certain it is gone."
-                    )
-
-                # Stale, or ours from an earlier acquire. Removing it puts
-                # this back at the exclusive create, where a racer can lose.
-                #
-                # Removed only if it is still the file this judged. Racers
-                # clearing one stale lock together all decide to remove it at
-                # the same moment, and an unconditional delete lets the second
-                # one remove the lock the first has just legitimately taken --
-                # which is two winners, arrived at through the exclusive
-                # create that was supposed to prevent exactly that. Measured,
-                # not reasoned about: the six-way race produced two.
-                if self._raw() == stale:
-                    try:
-                        self.path.unlink()
-                    except OSError:
-                        pass
-
-                continue
-            except OSError:
-                raise
-
-            with os.fdopen(handle, "w", encoding="utf-8") as stream:
-                stream.write(str(os.getpid()))
-
-            return
-
-        raise AlreadyRunning(
-            f"the {self.identity!r} lock at {self.path} is being taken and "
-            f"cleared faster than this process can claim it; refusing to "
-            f"start rather than race for it."
-        )
-
-    def release(self) -> None:
-        """Give up the lock, but only if it is still ours."""
-        if self._holder() == os.getpid():
+            # Stale, ours from an earlier acquire, or absent. Removed under
+            # the mutex, so the file being removed is necessarily the file
+            # that was just judged -- nothing else can have replaced it.
             try:
                 self.path.unlink()
             except OSError:
                 pass
+
+            handle = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+
+            with os.fdopen(handle, "w", encoding="utf-8") as stream:
+                stream.write(str(os.getpid()))
+
+    def release(self) -> None:
+        """Give up the lock, but only if it is still ours.
+
+        Under the mutex, for the same reason as acquiring. Reading the file
+        and then removing it is the same unbound pair: a worker that checked,
+        was replaced by a racer taking over its stale lock, and then removed
+        the file would delete a lock somebody else legitimately holds -- and
+        the next process would find nothing there and start a duplicate.
+
+        A shorter wait than an acquisition gets, and no deletion at all if the
+        mutex cannot be had. Releasing happens on the way out, often while an
+        operator is waiting for a stop, and a lock file left behind is
+        harmless: it names a process that is about to be gone, and the next
+        acquirer identifies it as stale. Blocking a shutdown to tidy up is the
+        worse trade.
+        """
+        try:
+            with _exclusive(self.mutex_path, timeout=5.0):
+                if self._holder() == os.getpid():
+                    try:
+                        self.path.unlink()
+                    except OSError:
+                        pass
+        except AlreadyRunning:
+            pass
 
 
 def pid_is_alive(pid: int) -> bool:
