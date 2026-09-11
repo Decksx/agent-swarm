@@ -324,3 +324,145 @@ def test_the_record_names_the_before_and_after_separately():
     )
 
     assert record["target_sha_before"] != record["target_sha_after"]
+
+
+# --- The merge itself, and the race it must not leave open ------------------
+
+
+def test_the_merge_names_the_head_that_must_still_be_current(monkeypatch):
+    """Without --match-head-commit the call is "merge PR #N", and a push
+    landing between the check and the call is merged instead -- the exact race
+    every earlier check exists to close, left open at the one moment it
+    matters."""
+    seen = {}
+
+    def fake_gh(*args):
+        seen.setdefault("calls", []).append(args)
+        if args[0:2] == ("pr", "merge"):
+            return subprocess.CompletedProcess(args, 0, "", "")
+        return subprocess.CompletedProcess(
+            args, 0, json.dumps({"mergeCommit": {"oid": MERGED},
+                                 "state": "MERGED"}), "")
+
+    monkeypatch.setattr(integrator, "_gh", fake_gh)
+
+    assert integrator.merge_pr(
+        plan(), repo_slug="o/r", expected_head=CANDIDATE
+    ) == MERGED
+
+    merge_call = seen["calls"][0]
+
+    assert "--match-head-commit" in merge_call
+    assert CANDIDATE in merge_call
+    assert "--merge" in merge_call
+    assert "--squash" not in merge_call and "--rebase" not in merge_call
+
+
+def test_a_forge_refusal_is_not_reported_as_a_merge(monkeypatch):
+    monkeypatch.setattr(
+        integrator, "_gh",
+        lambda *a: subprocess.CompletedProcess(a, 1, "", "head has changed"),
+    )
+
+    with pytest.raises(IntegrationRefused, match="refused by the forge"):
+        integrator.merge_pr(plan(), repo_slug="o/r", expected_head=CANDIDATE)
+
+
+def test_a_merge_whose_commit_cannot_be_named_is_refused(monkeypatch):
+    def fake_gh(*args):
+        if args[0:2] == ("pr", "merge"):
+            return subprocess.CompletedProcess(args, 0, "", "")
+        return subprocess.CompletedProcess(args, 0, json.dumps({}), "")
+
+    monkeypatch.setattr(integrator, "_gh", fake_gh)
+
+    with pytest.raises(IntegrationRefused, match="cannot be named"):
+        integrator.merge_pr(plan(), repo_slug="o/r", expected_head=CANDIDATE)
+
+
+# --- The merged tree is the approved tree -----------------------------------
+
+
+def test_a_merged_tree_identical_to_the_candidate_passes(monkeypatch):
+    monkeypatch.setattr(
+        integrator, "_git",
+        lambda repo, *a: subprocess.CompletedProcess(a, 0, "", ""),
+    )
+
+    integrator.check_tree_identical(plan(), MERGED)
+
+
+def test_a_merged_tree_that_differs_is_refused(monkeypatch):
+    """Catches what nothing else can: a squash that rewrote content, a merge
+    driver that resolved something, a forge setting nobody knew was on."""
+    monkeypatch.setattr(
+        integrator, "_git",
+        lambda repo, *a: subprocess.CompletedProcess(
+            a, 0, "src/api.py\nsrc/other.py\n", ""),
+    )
+
+    with pytest.raises(IntegrationRefused, match="not what was reviewed"):
+        integrator.check_tree_identical(plan(), MERGED)
+
+
+# --- CI evidence comes from the runner, by commit ---------------------------
+
+
+def test_ci_is_asked_for_by_commit_not_by_branch(monkeypatch):
+    """A branch's checks are the checks of whatever its head happens to be
+    now; this integration is about one commit."""
+    seen = {}
+
+    def fake_gh(*args):
+        seen["args"] = args
+        return subprocess.CompletedProcess(
+            args, 0,
+            json.dumps({"name": "build", "conclusion": "success",
+                        "status": "completed", "id": 1}), "")
+
+    monkeypatch.setattr(integrator, "_gh", fake_gh)
+    evidence = integrator.ci_evidence(CANDIDATE, repo_slug="o/r")
+
+    assert CANDIDATE in " ".join(seen["args"])
+    assert evidence[0].name == "ci:build"
+    assert evidence[0].passed == 1
+
+
+def test_a_failing_check_becomes_evidence_of_failure_not_silence(monkeypatch):
+    """Returning only the passes would make a red build indistinguishable from
+    a repository with no CI at all, and those need opposite responses."""
+    monkeypatch.setattr(
+        integrator, "_gh",
+        lambda *a: subprocess.CompletedProcess(
+            a, 0, json.dumps({"name": "build", "conclusion": "failure",
+                              "status": "completed", "id": 1}), ""),
+    )
+
+    evidence = integrator.ci_evidence(CANDIDATE, repo_slug="o/r")
+
+    assert evidence[0].exit_code == 1
+    with pytest.raises(IntegrationRefused):
+        integrator.check_evidence(plan(evidence=evidence), required=["ci:build"])
+
+
+def test_a_still_running_check_is_refused(monkeypatch):
+    """Merging while a check is running is merging on a result nobody has."""
+    monkeypatch.setattr(
+        integrator, "_gh",
+        lambda *a: subprocess.CompletedProcess(
+            a, 0, json.dumps({"name": "build", "conclusion": None,
+                              "status": "in_progress", "id": 1}), ""),
+    )
+
+    with pytest.raises(IntegrationRefused, match="not completed"):
+        integrator.ci_evidence(CANDIDATE, repo_slug="o/r")
+
+
+def test_unreadable_ci_is_not_a_pass(monkeypatch):
+    monkeypatch.setattr(
+        integrator, "_gh",
+        lambda *a: subprocess.CompletedProcess(a, 1, "", "404"),
+    )
+
+    with pytest.raises(IntegrationRefused, match="not a build that passed"):
+        integrator.ci_evidence(CANDIDATE, repo_slug="o/r")

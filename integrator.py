@@ -466,3 +466,143 @@ def ledger_record(plan: Plan, *, target_before: str, merge_sha: str,
         "actor": actor,
         "method": "github_pr_merge",
     }
+
+
+def merge_pr(plan: Plan, *, repo_slug: str, expected_head: str) -> str:
+    """Ask the forge to merge, naming the commit that must still be the head.
+
+    `--match-head-commit` is the whole safety of this call. Without it the
+    merge is "merge PR #N", and a push landing between the check and the call
+    would be merged instead -- the exact race every check above exists to
+    close, left open at the one moment it matters. With it, the forge refuses
+    rather than merging something else.
+
+    A merge commit, not a squash or a rebase. Both of those construct a commit
+    whose tree is the merge result but whose history is not the reviewed
+    candidate, so `git diff <candidate> <result>` stops being the check that
+    proves the reviewed tree landed.
+    """
+    result = _gh(
+        "pr", "merge", str(plan.pr_number), "--repo", repo_slug,
+        "--merge", "--match-head-commit", expected_head,
+    )
+
+    if result.returncode != 0:
+        raise IntegrationRefused(
+            f"the merge of PR #{plan.pr_number} was refused by the forge: "
+            f"{(result.stderr or '').strip()}"
+        )
+
+    merged = _gh(
+        "pr", "view", str(plan.pr_number), "--repo", repo_slug,
+        "--json", "mergeCommit,state",
+    )
+
+    if merged.returncode != 0:
+        raise IntegrationRefused(
+            f"merged PR #{plan.pr_number} but could not read the resulting "
+            f"commit: {(merged.stderr or '').strip()}"
+        )
+
+    body = json.loads(merged.stdout or "{}")
+    merge_sha = str((body.get("mergeCommit") or {}).get("oid") or "").strip()
+
+    if not SHA.match(merge_sha):
+        raise IntegrationRefused(
+            f"PR #{plan.pr_number} reports merge commit {merge_sha!r}, which "
+            "is not a commit. Refusing to report an integration whose result "
+            "cannot be named."
+        )
+
+    return merge_sha
+
+
+def check_tree_identical(plan: Plan, merge_sha: str) -> None:
+    """The merged tree is the approved tree, compared rather than assumed.
+
+    The last check, and the one that catches everything the others cannot: a
+    squash that rewrote content, a merge driver that silently resolved
+    something, a forge setting nobody knew was on. If this differs, the thing
+    on the target is not what was reviewed however clean every earlier step
+    looked.
+    """
+    diff = _git(plan.repo, "diff", "--name-only", plan.candidate_sha, merge_sha)
+
+    if diff.returncode != 0:
+        raise IntegrationRefused(
+            f"could not compare {plan.candidate_sha[:12]} with "
+            f"{merge_sha[:12]}: {(diff.stderr or '').strip()}"
+        )
+
+    changed = [line for line in (diff.stdout or "").splitlines() if line.strip()]
+
+    if changed:
+        raise IntegrationRefused(
+            f"the merged tree differs from the approved candidate in "
+            f"{len(changed)} file(s): {', '.join(changed[:5])}. What landed "
+            "is not what was reviewed."
+        )
+
+
+def run_integration(
+    task: Mapping[str, Any],
+    *,
+    repo: str,
+    target_ref: str,
+    pr_number: int,
+    repo_slug: str,
+    required_suites: Sequence[str] = (),
+    actor: str = "claudecode",
+) -> dict:
+    """One integration attempt, in the only order that is safe.
+
+    The order is the design. Everything derivable is derived before anything
+    is done, the target is re-pinned immediately before the merge rather than
+    trusted from the start, and every claim about the result is checked
+    against the remote afterwards rather than taken from the API's response.
+
+        1. approval      from the controller ledger, never from a caller
+        2. target        pinned from the remote
+        3. evidence      from the runner, by commit SHA
+        4. PR            open, not draft, head is the approval, no conflict
+        5. target again  unmoved since step 2
+        6. merge         naming the head that must still be current
+        7. landed        refetch; the target must contain the merge
+        8. tree          the merged tree equals the approved tree
+
+    Returns the ledger record. Raises `IntegrationRefused` at the first step
+    that does not hold, having changed nothing -- every step before the merge
+    is a read.
+    """
+    candidate = approved_candidate(task)
+
+    plan = Plan(
+        task_id=str(task.get("task_id") or ""),
+        repo=repo,
+        candidate_sha=candidate,
+        target_ref=target_ref,
+        target_sha_expected="",
+        pr_number=pr_number,
+    )
+
+    target_before = pin_target(plan)
+    plan = Plan(**{**plan.__dict__, "target_sha_expected": target_before,
+                   "evidence": ci_evidence(candidate, repo_slug=repo_slug)})
+
+    check_evidence(plan, required=required_suites)
+    check_pr(plan, repo_slug=repo_slug)
+    check_target_unmoved(plan)
+
+    merge_sha = merge_pr(plan, repo_slug=repo_slug, expected_head=candidate)
+
+    verify_landed(plan, merge_sha)
+    check_tree_identical(plan, merge_sha)
+
+    return ledger_record(
+        plan,
+        target_before=target_before,
+        merge_sha=merge_sha,
+        target_after=pin_target(plan),
+        authority="controller",
+        actor=actor,
+    )
