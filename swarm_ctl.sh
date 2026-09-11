@@ -77,7 +77,12 @@ case "${1:-}" in
     # worker_ctl checks it: a runtime started against a stale controller
     # produces evidence about a build nobody has.
     cd "$REPO"
-    if ! "$PYTHON" preflight.py --url "$URL" --agent claudecode; then
+    # Preflight authenticates as the agent it names, so it gets that agent's
+    # credential rather than the supervisor's admin one. Handing it HUB_SECRET
+    # as exported below would check the admin credential against the
+    # claudecode component and fail with a 401 that says nothing about
+    # deployment parity.
+    if ! HUB_SECRET="$CLAUDECODE_HUB_SECRET"          "$PYTHON" preflight.py --url "$URL" --agent claudecode; then
       echo "not starting: preflight failed"
       exit 1
     fi
@@ -100,18 +105,29 @@ case "${1:-}" in
     if ! alive "$PID"; then
       echo "supervisor is not running"
     else
-      # Terminated, not killed: the supervisor's own shutdown is what stops
-      # the workers, and killing it would leave them polling while the
-      # operator believes the swarm is stopped.
-      taskkill //PID "$PID" >/dev/null 2>&1
-      for _ in $(seq 1 25); do
+      # A flag, not a signal. `taskkill` without /F posts WM_CLOSE, which a
+      # background console process ignores, and /F terminates without running
+      # any handler -- so signalling force-killed the supervisor and left all
+      # three workers polling while the operator was told the swarm had
+      # stopped. The supervisor polls for this file and shuts its children
+      # down itself, which is the only path that actually stops them.
+      mkdir -p "$CONTROL"
+      echo "stop requested by swarm_ctl at $(date -u +%Y-%m-%dT%H:%M:%SZ)"         > "$CONTROL/STOPPING"
+
+      for _ in $(seq 1 45); do
         alive "$PID" || break
         sleep 1
       done
 
       if alive "$PID"; then
-        echo "supervisor did not stop; killing"
+        echo "supervisor did not stop on request; killing it and its workers"
         taskkill //PID "$PID" //F >/dev/null 2>&1
+        # Its children are now orphaned, so they are this script's problem.
+        for identity in chatgpt gemini claudecode; do
+          WPID="$(cat "$CONTROL/${identity}.pid" 2>/dev/null || true)"
+          alive "$WPID" && taskkill //PID "$WPID" //F >/dev/null 2>&1
+        done
+        rm -f "$CONTROL/STOPPING"
       fi
 
       echo "supervisor stopped (pid $PID)"

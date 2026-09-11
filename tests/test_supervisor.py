@@ -543,3 +543,73 @@ def test_a_missing_credential_is_not_substituted(control_dir, spawned, monkeypat
                   if e["kwargs"]["env"]["AGENT_IDENTITY"] == "gemini")
 
     assert "HUB_SECRET" not in gemini["kwargs"]["env"]
+
+
+# --- Shutdown is requested by a flag, not a signal ---------------------------
+#
+# The unit tests called `shutdown()` directly and passed, and the first live
+# stop still left three workers polling: `taskkill` without /F posts WM_CLOSE,
+# which a background console process ignores, and /F terminates without running
+# any handler. The operator was told the swarm had stopped and it had not.
+#
+# A file is checked rather than delivered, so it cannot be missed.
+
+
+def test_a_stop_flag_ends_the_loop(control_dir, spawned):
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+    assert not sup.stopping
+
+    (control_dir / supervisor.STOP_FILENAME).write_text("stop", encoding="utf-8")
+    sup.tick(now=101.0)
+
+    assert sup.stopping is True
+
+
+def test_a_stop_flag_stops_before_starting_anything(control_dir, spawned):
+    """So a stop racing a restart does not spawn a worker on the way out."""
+    (control_dir / supervisor.STOP_FILENAME).write_text("stop", encoding="utf-8")
+    sup = build(control_dir, spawned)
+
+    sup.tick(now=100.0)
+
+    assert spawned == []
+
+
+def test_a_stop_flag_stops_advancing(control_dir, spawned):
+    controller = Controller()
+    (control_dir / supervisor.STOP_FILENAME).write_text("stop", encoding="utf-8")
+    sup = build(control_dir, spawned, controller=controller)
+
+    sup.tick(now=100.0)
+
+    assert controller.calls == []
+
+
+def test_the_flag_is_cleared_so_the_next_start_is_not_stopped(
+    control_dir, spawned
+):
+    sup = build(control_dir, spawned)
+    (control_dir / supervisor.STOP_FILENAME).write_text("stop", encoding="utf-8")
+
+    sup.clear_stop_request()
+
+    assert not (control_dir / supervisor.STOP_FILENAME).exists()
+    assert sup.stop_requested() is False
+
+
+def test_the_run_loop_shuts_down_and_clears_on_the_flag(control_dir, spawned):
+    """The whole path the operator actually takes, rather than shutdown()
+    called directly -- which is what passed while the live stop failed."""
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+    assert all(child.running() for child in sup.children.values())
+
+    (control_dir / supervisor.STOP_FILENAME).write_text("stop", encoding="utf-8")
+    sup.tick(now=101.0)
+    sup.shutdown()
+    sup.clear_stop_request()
+
+    assert not any(child.running() for child in sup.children.values())
+    assert all(entry["process"].terminated for entry in spawned)
+    assert not (control_dir / supervisor.STOP_FILENAME).exists()

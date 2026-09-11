@@ -88,6 +88,19 @@ BACKOFF_CEILING = 300.0
 # a worker that crashes every ten minutes keeps its longest delay forever.
 BACKOFF_RESET_AFTER = 120.0
 
+# How an operator asks for shutdown.
+#
+# A file rather than a signal, because a signal does not reliably arrive. On
+# Windows `taskkill` without /F posts WM_CLOSE, which a background console
+# process ignores, and `taskkill /F` terminates without running any handler at
+# all -- so the first live stop force-killed the supervisor and left all three
+# workers polling. The operator was told the swarm had stopped and it had not.
+#
+# The pause flag already worked this way for the same reason. A file is checked
+# rather than delivered, so it cannot be missed, and it survives the supervisor
+# being busy when it is written.
+STOP_FILENAME = "STOPPING"
+
 log = logging.getLogger("supervisor")
 
 
@@ -372,9 +385,26 @@ class Supervisor:
 
         return env
 
+    def stop_requested(self) -> bool:
+        """Whether an operator has asked this to shut down."""
+        return (swarm_control.CONTROL_DIR / STOP_FILENAME).exists()
+
+    def clear_stop_request(self) -> None:
+        """Remove the flag, so the next start is not stopped immediately."""
+        try:
+            (swarm_control.CONTROL_DIR / STOP_FILENAME).unlink()
+        except OSError:
+            pass
+
     def tick(self, now: Optional[float] = None) -> None:
         """One pass: reap, restart, and drive the controller."""
         now = time.time() if now is None else now
+
+        if self.stop_requested():
+            log.info("stop requested")
+            self.stopping = True
+            return
+
         paused = swarm_control.is_paused()
 
         if paused != self._paused:
@@ -421,6 +451,7 @@ class Supervisor:
             time.sleep(1.0)
 
         self.shutdown()
+        self.clear_stop_request()
         return 0
 
     def shutdown(self) -> None:
