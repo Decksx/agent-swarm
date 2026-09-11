@@ -146,6 +146,198 @@ FULFIL_PER_FILE = 20_000
 FULFIL_TOTAL = 80_000
 
 
+
+# Search ceilings. Separate from the fulfilment budget because a search is a
+# different shape of answer: many small excerpts rather than a few whole files,
+# and the failure mode is a query that matches everything rather than one file
+# that is enormous.
+MAX_RESULTS_PER_QUERY = 30
+MAX_RESULTS_TOTAL = 150
+SEARCH_LINE_BUDGET = 240
+SEARCH_TOTAL_BYTES = 40_000
+
+
+def search(repo: str, sha: str, request: dict) -> dict:
+    """Run the planner's literal queries against the base commit.
+
+    Against the **commit**, never the working tree. `git grep <sha>` searches
+    the tree of that commit, so a match is evidence about the same bytes the
+    author and the reviewer will see. Searching the checkout would report on
+    somebody's uncommitted work in progress, which is the one thing in the
+    repository guaranteed not to be what a task will be authored against.
+
+    Nothing is interpolated into a shell. The query travels as one element of
+    an argument list, and `-F` tells git the string is fixed rather than a
+    pattern -- so a query containing a quote, a semicolon, a backtick or a
+    regex metacharacter is a query about those characters and nothing else.
+
+    Zero matches and truncated results are returned as distinct facts, and the
+    distinction is the point. "I searched and found nothing" is a strong
+    statement a planner should act on; "I searched and stopped counting" is
+    not, and a result set that silently conflates them would licence exactly
+    the confident wrong conclusion this whole capability exists to prevent.
+    """
+    import subprocess
+
+    results = []
+    spent = 0
+    total = 0
+
+    for entry in request["queries"]:
+        query = entry["query"]
+
+        argv = [
+            "git", "grep",
+            "--fixed-strings",      # literal, never a pattern
+            "--line-number",
+            "--no-color",
+            "-I",                   # skip binary files
+            "-e", query,
+            sha,
+        ]
+
+        if entry["path"]:
+            argv += ["--", entry["path"]]
+
+        found = subprocess.run(
+            argv, cwd=str(repo), capture_output=True,
+            encoding="utf-8", errors="replace", check=False,
+        )
+
+        # git grep exits 1 for "no matches", which is not an error. Anything
+        # else is, and is reported as such rather than as an empty result --
+        # a failed search that reads as "nothing found" is the worst possible
+        # answer, because absence is what the planner will act on.
+        if found.returncode not in (0, 1):
+            results.append({
+                "query": query,
+                "why": entry["why"],
+                "path": entry["path"],
+                "status": "failed",
+                "detail": (found.stderr or "").strip()[:400],
+                "matches": [],
+                "match_count": 0,
+                "truncated": False,
+            })
+            continue
+
+        lines = [l for l in (found.stdout or "").splitlines() if l.strip()]
+        matches = []
+        truncated = False
+
+        for line in lines:
+            if len(matches) >= MAX_RESULTS_PER_QUERY or total >= MAX_RESULTS_TOTAL:
+                truncated = True
+                break
+
+            if spent >= SEARCH_TOTAL_BYTES:
+                truncated = True
+                break
+
+            # "<sha>:<path>:<lineno>:<text>"
+            rest = line[len(sha) + 1:] if line.startswith(sha + ":") else line
+            path, _, tail = rest.partition(":")
+            lineno, _, text = tail.partition(":")
+            excerpt = text.strip()[:SEARCH_LINE_BUDGET]
+
+            spent += len(excerpt.encode("utf-8"))
+            total += 1
+            matches.append({
+                "path": path,
+                "line": int(lineno) if lineno.isdigit() else 0,
+                "text": excerpt,
+            })
+
+        results.append({
+            "query": query,
+            "why": entry["why"],
+            "path": entry["path"],
+            "status": "ok",
+            "matches": matches,
+            # The number actually returned by git, which is what makes
+            # "truncated" meaningful: 4 of 4 and 30 of 900 are different
+            # answers and must not render identically.
+            "match_count": len(lines),
+            "truncated": truncated or len(matches) < len(lines),
+        })
+
+    return {"results": results, "bytes": spent, "returned": total}
+
+
+def render_search(request: dict, result: dict) -> str:
+    """The search results, appended to the next prompt.
+
+    A query that found nothing gets a line saying so in as many words. It is
+    the most useful result a search can return -- it is the one that licenses
+    writing the task -- and an empty section under a heading would be read as
+    "the search did not run".
+    """
+    parts = [
+        "",
+        "=" * 70,
+        "SEARCH RESULTS",
+        "",
+        "You asked to search because: " + request["reason"],
+        "",
+        f"Searched the tree of the baseline commit. These are literal matches, "
+        f"not patterns. Line numbers are that commit's.",
+    ]
+
+    for item in result["results"]:
+        scope = f" under {item['path']}" if item["path"] else ""
+        parts += ["", "-" * 60, f"QUERY: {item['query']}{scope}"]
+
+        if item["why"]:
+            parts.append(f"(you asked because: {item['why']})")
+
+        if item["status"] == "failed":
+            parts += [
+                "",
+                f"THE SEARCH FAILED: {item['detail']}",
+                "This is not the same as finding nothing. Do not conclude that "
+                "the text is absent.",
+            ]
+            continue
+
+        if item["match_count"] == 0:
+            parts += [
+                "",
+                "NO MATCHES. This text does not appear anywhere in the "
+                "baseline commit. This is a real result and you may rely on "
+                "it.",
+            ]
+            continue
+
+        shown = len(item["matches"])
+        parts.append("")
+
+        if item["truncated"]:
+            parts.append(
+                f"{item['match_count']} matches, showing the first {shown}. "
+                "THE LIST IS CUT SHORT -- do not conclude anything from the "
+                "matches you cannot see, and do not assume the remainder "
+                "resemble these."
+            )
+        else:
+            parts.append(f"{item['match_count']} match(es), all shown:")
+
+        parts.append("")
+        parts += [
+            f"  {m['path']}:{m['line']}: {m['text']}" for m in item["matches"]
+        ]
+
+    parts += [
+        "",
+        "=" * 70,
+        "",
+        "Now answer again. A plan, or a needs_context request for whole files "
+        "these results point at, or another search -- but the call limit is "
+        "strict and may already be reached.",
+    ]
+
+    return "\n".join(parts)
+
+
 def fulfil(repo: str, sha: str, request: dict, already: Optional[dict] = None) -> dict:
     """Read what the planner asked for, at the base commit. Never more.
 
@@ -180,8 +372,11 @@ def fulfil(repo: str, sha: str, request: dict, already: Optional[dict] = None) -
         if not path:
             refused.append({
                 "asked": symbol,
-                "reason": "named a symbol, not a path. This host does not "
-                          "index symbols; ask again with a file path.",
+                "reason": "named a symbol, not a path. needs_context reads "
+                          "files by path. To find out WHERE a symbol is, "
+                          "answer with needs_search and the literal text "
+                          "instead -- that is exactly what it is for, and it "
+                          "will give you the paths to ask for here.",
             })
             continue
 
@@ -687,6 +882,12 @@ def main(argv) -> int:
     # on its third call. Evidence accumulates or the loop cannot converge.
     evidence = []
     already_supplied = {}
+    # Every search run this session, kept as the host's own record. The
+    # planner is asked to list its queries in existing_work_checked, and this
+    # is what that claim is checked against -- a proposal saying it searched
+    # for something nobody ran is a proposal resting on a search that did not
+    # happen.
+    searches_run = []
     parsed = None
     outcome = None
     calls = 0
@@ -756,6 +957,48 @@ def main(argv) -> int:
             parsed = outcome["plan"]
             break
 
+        if outcome["outcome"] == "needs_search":
+            print(f"\nplan: the planner asked to search (call {calls})")
+            print(f"      {outcome['reason']}")
+
+            for entry in outcome["queries"]:
+                scope = f" under {entry['path']}" if entry["path"] else ""
+                print(f"        {entry['query']!r}{scope}")
+
+            if args.from_reply:
+                print(
+                    "\nplan: --from-reply cannot be answered; there is no "
+                    "second saved reply to read. The queries are above."
+                )
+                return 0
+
+            found = search(str(resolved.path), resolved.sha, outcome)
+
+            for item in found["results"]:
+                if item["status"] == "failed":
+                    state = "FAILED"
+                elif item["match_count"] == 0:
+                    state = "no matches"
+                elif item["truncated"]:
+                    state = f"{item['match_count']} matches, {len(item['matches'])} shown"
+                else:
+                    state = f"{item['match_count']} match(es)"
+
+                print(f"        {item['query']!r}: {state}")
+
+            searches_run.extend({
+                "query": item["query"],
+                "path": item["path"],
+                "status": item["status"],
+                "match_count": item["match_count"],
+                "truncated": item["truncated"],
+                "paths": sorted({m["path"] for m in item["matches"]}),
+            } for item in found["results"])
+
+            evidence.append(render_search(outcome, found))
+            attempt_prompt = prompt + "".join(evidence)
+            continue
+
         # NEEDS_CONTEXT. Not a failure -- this is the answer the loop was
         # built to make available, and it is the one the planner is told to
         # prefer over a plan it is not confident in.
@@ -824,6 +1067,7 @@ def main(argv) -> int:
                  "planner": args.model, "guidance": guidance,
                  "model_calls": calls, "max_calls": args.max_calls,
                  "context_supplied": context_supplied,
+                 "searches_run": searches_run,
                  "active_ref": snapshot.get("active_work", {}).get("ref", "")},
                 indent=2,
             ),

@@ -344,6 +344,18 @@ def context_request(*paths, reason=None):
     return f"{plan.BEGIN}\n{json.dumps(body)}\n{plan.END}"
 
 
+def search_request_reply(*queries, reason=None):
+    body = {
+        "outcome": "needs_search",
+        "reason": reason or "checking what already exists before proposing.",
+        "queries": [
+            {"query": q, "why": "to see whether it already exists"}
+            for q in queries
+        ],
+    }
+    return f"{plan.BEGIN}\n{json.dumps(body)}\n{plan.END}"
+
+
 def scripted(monkeypatch, *replies):
     """Answer each call with the next scripted reply, counting the calls."""
     state = {"calls": 0, "prompts": []}
@@ -457,11 +469,14 @@ def test_a_request_for_nothing_that_exists_ends_the_run(
     assert "nothing the planner asked for could be supplied" in out
 
 
-def test_a_symbol_request_is_refused_with_a_reason_not_guessed_at(
+def test_a_symbol_request_is_pointed_at_search_rather_than_guessed_at(
     project, tmp_path, monkeypatch, capsys
 ):
     """Guessing which file a name lives in answers a question nobody asked.
-    A wrong guess costs a plan; saying so costs one call."""
+
+    But refusing without saying what to do instead wastes the round: needs_search
+    answers exactly this question, so the refusal names it.
+    """
     body = {
         "outcome": "needs_context",
         "reason": "I need to know whether this symbol already exists anywhere.",
@@ -480,7 +495,7 @@ def test_a_symbol_request_is_refused_with_a_reason_not_guessed_at(
     out = capsys.readouterr().out
 
     assert "not supplied: Reader" in out
-    assert "does not index symbols" in out
+    assert "needs_search" in out
 
 
 def test_context_is_read_from_the_baseline_not_the_working_tree(
@@ -678,3 +693,269 @@ def test_a_cut_short_file_says_how_much_is_left(project, tmp_path, monkeypatch):
 
     assert "IS CUT SHORT HERE" in second
     assert "returns the NEXT part" in second
+
+
+# --- Running the search: against the commit, never through a shell ----------
+
+
+def searchable(project):
+    """Add files with known contents to search for."""
+    (project / "tests").mkdir(exist_ok=True)
+    (project / "tests" / "test_thing.py").write_text(
+        "from src import api\n\n\ndef test_one():\n    api.main()\n",
+        encoding="utf-8",
+    )
+    (project / "src" / "helper.py").write_text(
+        "def helper():\n    return 1\n", encoding="utf-8"
+    )
+    git(project, "add", "-A")
+    git(project, "commit", "-q", "-m", "searchable content")
+    return git(project, "rev-parse", "HEAD").strip()
+
+
+def query(*queries, path=""):
+    return {
+        "reason": "checking what already exists before proposing anything",
+        "queries": [
+            {"query": q, "why": "to see whether it exists", "path": path}
+            for q in queries
+        ],
+    }
+
+
+def test_a_search_finds_the_matching_line(project):
+    sha = searchable(project)
+
+    result = plan_run.search(str(project), sha, query("api.main()"))
+    match = result["results"][0]["matches"][0]
+
+    assert match["path"] == "tests/test_thing.py"
+    assert match["line"] == 5
+    assert "api.main()" in match["text"]
+
+
+def test_zero_matches_is_distinct_from_truncation(project):
+    """Nothing found is a real result a planner may rely on. Cut short is not,
+    and rendering them the same would license the confident wrong conclusion
+    this capability exists to prevent."""
+    sha = searchable(project)
+
+    result = plan_run.search(str(project), sha, query("no_such_text_anywhere"))
+    item = result["results"][0]
+
+    assert item["match_count"] == 0
+    assert item["truncated"] is False
+
+
+def test_a_truncated_result_says_how_many_there_really_were(project, monkeypatch):
+    lines = "\n".join(f"x = {n}  # marker_text" for n in range(50))
+    (project / "src" / "many.py").write_text(lines, encoding="utf-8")
+    git(project, "add", "-A")
+    git(project, "commit", "-q", "-m", "many matches")
+    sha = git(project, "rev-parse", "HEAD").strip()
+
+    monkeypatch.setattr(plan_run, "MAX_RESULTS_PER_QUERY", 5)
+    result = plan_run.search(str(project), sha, query("marker_text"))
+    item = result["results"][0]
+
+    assert item["truncated"] is True
+    assert len(item["matches"]) == 5
+    assert item["match_count"] == 50
+
+
+def test_the_search_reads_the_commit_not_the_working_tree(project):
+    """The checkout is somebody's work in progress, which is the one thing
+    guaranteed not to be what a task is authored against."""
+    sha = searchable(project)
+    (project / "src" / "helper.py").write_text(
+        "def helper():\n    return 'SABOTAGE'\n", encoding="utf-8"
+    )
+
+    result = plan_run.search(str(project), sha, query("SABOTAGE"))
+
+    assert result["results"][0]["match_count"] == 0
+
+
+def test_a_query_is_literal_text_not_a_pattern(project):
+    """`api.main()` as a regex would match `apiXmain()`. As literal text it
+    matches only itself, so a result is evidence about the string asked about."""
+    sha = searchable(project)
+
+    dots = plan_run.search(str(project), sha, query("api.main()"))
+    regex = plan_run.search(str(project), sha, query("api.main..."))
+
+    assert dots["results"][0]["match_count"] == 1
+    assert regex["results"][0]["match_count"] == 0
+
+
+@pytest.mark.parametrize("hostile", [
+    "'; rm -rf /; echo '", '" && del /f /q * && "', "`whoami`",
+    "$(cat /etc/passwd)", "--output=/tmp/pwned", "-e",
+])
+def test_a_hostile_query_is_searched_for_rather_than_executed(project, hostile):
+    """The query never reaches a shell: subprocess gets an argument list and
+    git is told the string is fixed. A query containing a semicolon is a query
+    about semicolons."""
+    sha = searchable(project)
+
+    result = plan_run.search(str(project), sha, query(hostile))
+
+    assert result["results"][0]["status"] == "ok"
+    assert result["results"][0]["match_count"] == 0
+    assert (project / "src" / "helper.py").exists()
+
+
+def test_a_search_can_be_scoped_to_a_directory(project):
+    sha = searchable(project)
+
+    everywhere = plan_run.search(str(project), sha, query("def "))
+    tests_only = plan_run.search(str(project), sha, query("def ", path="tests"))
+
+    assert tests_only["results"][0]["match_count"] < everywhere["results"][0]["match_count"]
+    assert all(
+        m["path"].startswith("tests/")
+        for m in tests_only["results"][0]["matches"]
+    )
+
+
+def test_a_failed_search_is_not_reported_as_nothing_found(project):
+    """Absence is what a planner acts on, so a search that failed must never
+    render as a search that found nothing."""
+    result = plan_run.search(str(project), "0" * 40, query("anything"))
+    item = result["results"][0]
+
+    assert item["status"] == "failed"
+    assert item["match_count"] == 0
+
+
+def test_the_total_result_ceiling_holds_across_queries(project, monkeypatch):
+    lines = "\n".join(f"x = {n}  # marker_text" for n in range(50))
+    (project / "src" / "many.py").write_text(lines, encoding="utf-8")
+    git(project, "add", "-A")
+    git(project, "commit", "-q", "-m", "many")
+    sha = git(project, "rev-parse", "HEAD").strip()
+
+    monkeypatch.setattr(plan_run, "MAX_RESULTS_TOTAL", 8)
+    result = plan_run.search(
+        str(project), sha, query("marker_text", "x = ", "# marker")
+    )
+
+    assert result["returned"] <= 8
+
+
+# --- The rendered results, which are what the planner actually reads --------
+
+
+def test_no_matches_is_stated_in_words(project):
+    sha = searchable(project)
+    request = query("no_such_text_anywhere")
+    text = plan_run.render_search(request, plan_run.search(str(project), sha, request))
+
+    assert "NO MATCHES" in text
+    assert "you may rely on" in text
+
+
+def test_a_cut_short_list_warns_against_reasoning_from_it(project, monkeypatch):
+    lines = "\n".join(f"x = {n}  # marker_text" for n in range(50))
+    (project / "src" / "many.py").write_text(lines, encoding="utf-8")
+    git(project, "add", "-A")
+    git(project, "commit", "-q", "-m", "many")
+    sha = git(project, "rev-parse", "HEAD").strip()
+
+    monkeypatch.setattr(plan_run, "MAX_RESULTS_PER_QUERY", 3)
+    request = query("marker_text")
+    text = plan_run.render_search(request, plan_run.search(str(project), sha, request))
+
+    assert "CUT SHORT" in text
+    assert "50 matches, showing the first 3" in text
+
+
+# --- The loop -----------------------------------------------------------------
+
+
+def test_a_search_round_feeds_the_next_call(project, tmp_path, monkeypatch):
+    searchable(project)
+    state = scripted(
+        monkeypatch,
+        search_request_reply("api.main()"),
+        reply_text(task()),
+    )
+
+    assert run("--project", "demo") == 0
+    assert state["calls"] == 2
+    assert "SEARCH RESULTS" in state["prompts"][1]
+    assert "tests/test_thing.py" in state["prompts"][1]
+
+
+def test_search_and_context_evidence_accumulate_together(
+    project, tmp_path, monkeypatch
+):
+    searchable(project)
+    state = scripted(
+        monkeypatch,
+        search_request_reply("api.main()"),
+        context_request("src/helper.py"),
+        reply_text(task()),
+    )
+
+    assert run("--project", "demo", "--max-calls", "3") == 0
+
+    third = state["prompts"][2]
+
+    assert "SEARCH RESULTS" in third
+    assert "THE FILES YOU ASKED FOR" in third
+    assert "def helper" in third
+
+
+def test_a_search_counts_against_the_call_ceiling(
+    project, tmp_path, monkeypatch, capsys
+):
+    searchable(project)
+    scripted(
+        monkeypatch,
+        search_request_reply("api.main()"),
+        search_request_reply("def helper"),
+    )
+
+    code = run("--project", "demo", "--max-calls", "2")
+
+    assert code == 1
+    assert "call limit of 2 is reached" in capsys.readouterr().out
+
+
+def test_the_searches_run_are_recorded_in_the_saved_plan(
+    project, tmp_path, monkeypatch
+):
+    """The host's own record. A proposal claiming it searched for something
+    nobody ran is a proposal resting on a search that did not happen."""
+    searchable(project)
+    scripted(monkeypatch, search_request_reply("api.main()"), reply_text(task()))
+    saved = tmp_path / "plan.json"
+
+    run("--project", "demo", "--out", str(saved))
+    stored = json.loads(saved.read_text(encoding="utf-8"))
+
+    assert stored["searches_run"][0]["query"] == "api.main()"
+    assert stored["searches_run"][0]["match_count"] == 1
+    assert "tests/test_thing.py" in stored["searches_run"][0]["paths"]
+
+
+def test_a_saved_reply_asking_to_search_stops_and_says_so(project, tmp_path, capsys):
+    path = tmp_path / "reply.txt"
+    path.write_text(search_request_reply("api.main()"), encoding="utf-8")
+
+    code = run("--project", "demo", "--from-reply", str(path))
+
+    assert code == 0
+    assert "cannot be answered" in capsys.readouterr().out
+
+
+def test_the_prompt_teaches_searching_before_proposing(project, tmp_path, monkeypatch):
+    state = scripted(monkeypatch, reply_text(task()))
+    run("--project", "demo")
+
+    prompt = state["prompts"][0]
+
+    assert "needs_search" in prompt
+    assert "cli.main(" in prompt
+    assert "LITERAL TEXT" in prompt

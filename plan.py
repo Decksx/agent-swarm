@@ -103,6 +103,17 @@ MAX_PATHS_PER_TASK = 20
 # one file at a time, and each round costs a model call.
 MAX_CONTEXT_REQUESTS = 25
 
+# A search is cheaper than a file and is answered from the same commit, so a
+# planner may ask for more of them -- but not without limit. Each query costs
+# a scan of the tree, and a planner issuing forty of them is not narrowing a
+# question, it is grepping the repository through a model.
+MAX_SEARCH_QUERIES = 12
+
+# The shortest query worth running. One or two characters match everything and
+# would return a truncated result set that reads as "this is everywhere",
+# which is the opposite of what a narrow search is for.
+MIN_QUERY_LENGTH = 3
+
 # The shortest explanation of why work is missing that could possibly be one.
 # Not a quality bar -- nothing here can judge quality -- but "N/A", "none" and
 # "it does not exist yet" are all answers that mean the question was not
@@ -119,6 +130,33 @@ MAX_CONTEXT_PATHS_PER_TASK = 40
 
 class PlanError(Exception):
     """The plan could not be accepted."""
+
+
+class NeedsSearch(Exception):
+    """The planner asked where something is, rather than for a file.
+
+    `NEEDS_CONTEXT` answers "show me this file". It cannot answer "does a test
+    for this already exist", and that is the question both rejected planning
+    runs actually needed answered.
+
+    The second run demonstrates the shape of the gap exactly. The planner read
+    `provenance_backfill_cli.py` in full, correctly observed that
+    `tests/test_provenance_backfill_cli.py` does not exist, and proposed
+    writing it -- while `tests/test_provenance_backfill_planner.py` was already
+    calling `cli.main()` six times and asserting both exit-130 paths. No number
+    of requests for files *by path* surfaces that, because the planner would
+    have to already suspect the answer in order to name the file. A search for
+    `cli.main(` finds it immediately.
+
+    So: literal queries, run against the base commit, answered with paths, line
+    numbers and bounded excerpts. Not a plan and not a failure -- a question
+    with a cheap answer, asked before the proposal is written rather than
+    discovered in review afterwards.
+    """
+
+    def __init__(self, request: dict):
+        self.request = request
+        super().__init__(request.get("reason") or "the planner asked to search")
 
 
 class NeedsContext(Exception):
@@ -296,6 +334,98 @@ def parse_context_request(parsed: dict) -> dict:
     }
 
 
+def parse_search_request(parsed: dict) -> dict:
+    """A NEEDS_SEARCH answer, bounded and checked, or raise.
+
+    Queries are **literal text**, never patterns. Two reasons, and the second
+    is the one that matters:
+
+    * a regular expression written by a model is a regular expression nobody
+      reviewed, and a catastrophically backtracking one turns a planning run
+      into a hung process on the host's own repository;
+    * a literal query is the same string the planner would read in the source,
+      so a result it gets back is evidence about the text it asked about,
+      rather than about what its pattern happened to mean.
+
+    The query never reaches a shell. `subprocess` is given an argument list
+    and `git grep -F` is told the string is fixed, so a query containing a
+    quote, a semicolon or a backtick is a query about those characters.
+    """
+    reason = str(parsed.get("reason") or "").strip()
+
+    if len(reason) < 20:
+        raise PlanError(
+            "the planner asked to search without saying what it is trying to "
+            "find out. A search nobody can evaluate cannot be spent."
+        )
+
+    raw_queries = parsed.get("queries")
+
+    if not isinstance(raw_queries, list) or not raw_queries:
+        raise PlanError(
+            "a needs_search answer with no queries. If there is nothing to "
+            "look for, the answer is a plan or a context request."
+        )
+
+    if len(raw_queries) > MAX_SEARCH_QUERIES:
+        raise PlanError(
+            f"{len(raw_queries)} queries; more than {MAX_SEARCH_QUERIES} is "
+            "not narrowing a question, it is grepping the repository through "
+            "a model"
+        )
+
+    queries = []
+    seen = set()
+
+    for index, entry in enumerate(raw_queries):
+        if isinstance(entry, str):
+            entry = {"query": entry, "why": ""}
+
+        if not isinstance(entry, dict):
+            raise PlanError(f"search query {index}: not an object or a string")
+
+        query = str(entry.get("query") or entry.get("symbol") or "").strip()
+        why = str(entry.get("why") or "").strip()
+
+        if len(query) < MIN_QUERY_LENGTH:
+            raise PlanError(
+                f"search query {index}: {query!r} is shorter than "
+                f"{MIN_QUERY_LENGTH} characters. A query that short matches "
+                "everything, and the truncated result would read as 'this is "
+                "everywhere'."
+            )
+
+        if "\n" in query or "\r" in query:
+            # git grep matches within a line. A multi-line query would match
+            # nothing and read as "this does not exist", which is the single
+            # most misleading answer a search can give.
+            raise PlanError(
+                f"search query {index}: contains a newline. Searches match "
+                "within one line; a multi-line query would return no results "
+                "and that is indistinguishable from the text being absent."
+            )
+
+        if query in seen:
+            continue
+
+        seen.add(query)
+
+        # `path` narrows where to look and is optional. Held to the same
+        # containment rules as everything else, because it reaches the same
+        # git invocation.
+        where = str(entry.get("path") or "").strip()
+
+        if where:
+            where = _safe_path(where, task_id=f"query {index}", field="queries")
+
+        queries.append({"query": query, "why": why, "path": where})
+
+    if not queries:
+        raise PlanError("every search query was a duplicate of another")
+
+    return {"outcome": "needs_search", "reason": reason, "queries": queries}
+
+
 def _existing_work(raw: dict, *, task_id: str) -> dict:
     """What was searched before concluding this work is missing, or raise.
 
@@ -346,7 +476,23 @@ def _existing_work(raw: dict, *, task_id: str) -> dict:
             "cover this, in terms of what was found."
         )
 
-    return {"searched": entries, "why_missing": why}
+    # Optional, and checked against what the host actually ran rather than
+    # taken as a claim. A search is the cheapest evidence available here and
+    # the most load-bearing: "no test calls cli.main()" is what licenses
+    # writing one, and it is exactly the statement that was wrong last time.
+    queries = checked.get("queries") or []
+
+    if isinstance(queries, str):
+        queries = [queries]
+
+    if not isinstance(queries, list):
+        raise PlanError(f"{task_id}: existing_work_checked.queries is not a list")
+
+    return {
+        "searched": entries,
+        "why_missing": why,
+        "queries": [str(q).strip() for q in queries if str(q).strip()],
+    }
 
 
 def _one_task(raw: dict, *, index: int, owners: Sequence[str]) -> dict:
@@ -719,8 +865,15 @@ def parse_reply(
     if isinstance(parsed, dict):
         outcome = str(parsed.get("outcome") or "").strip().lower()
 
+        if outcome in ("needs_search", "needs-search"):
+            return parse_search_request(parsed)
+
         if outcome in ("needs_context", "needs-context"):
             return parse_context_request(parsed)
+
+        # Same tolerance as below: the right question in the wrong envelope.
+        if parsed.get("queries") and not parsed.get("tasks"):
+            return parse_search_request(parsed)
 
         # A reply carrying requests but no tasks, whatever it called itself.
         # The planner has answered the right question in the wrong envelope,
@@ -976,6 +1129,7 @@ def render_prompt(snapshot_text: str, guidance: str = "") -> str:
                         "the test file you looked at",
                         "the document you looked at",
                     ],
+                    "queries": ["the literal text you searched for"],
                     "why_missing": "what you found there, and why it does not "
                                    "already cover this",
                 },
@@ -1067,6 +1221,49 @@ def render_prompt(snapshot_text: str, guidance: str = "") -> str:
         "The number of times that can happen is strictly limited, so ask for "
         "what would change your plan rather than everything that might be "
         "interesting.",
+        "",
+        "-" * 60,
+        "IF YOU NEED TO KNOW WHETHER SOMETHING ALREADY EXISTS",
+        "",
+        "Asking for a file by path cannot answer that, because you would have "
+        "to already suspect the answer in order to name the file. This is not "
+        "hypothetical: a planner read a CLI module in full, correctly saw that "
+        "tests/test_provenance_backfill_cli.py did not exist, and proposed "
+        "writing it -- while tests/test_provenance_backfill_planner.py was "
+        "already calling cli.main() six times. A search for 'cli.main(' would "
+        "have found that in one query. The proposal was rejected.",
+        "",
+        f"So you may search. Answer with one {BEGIN} block in this shape:",
+        "",
+        BEGIN,
+        json.dumps({
+            "outcome": "needs_search",
+            "reason": "what you are trying to find out, and what you would "
+                      "conclude from finding it or not finding it",
+            "queries": [
+                {"query": "literal text to look for",
+                 "why": "what its presence or absence would tell you",
+                 "path": "optional directory to search under"},
+            ],
+        }, indent=2),
+        END,
+        "",
+        f"At most {MAX_SEARCH_QUERIES} queries, each at least "
+        f"{MIN_QUERY_LENGTH} characters.",
+        "- Queries are LITERAL TEXT, not regular expressions and not globs. "
+        "Search for the string you would read in the source: a function call, "
+        "a class name, an import line, an error message.",
+        "- Searches match within one line. A query containing a newline is "
+        "refused.",
+        "- You are told the difference between a query that matched nothing "
+        "and one whose results were cut short. Nothing found is a real result "
+        "you may rely on; cut short is not, and you must not reason about the "
+        "matches you were not shown.",
+        "- A search points at files. Use needs_context afterwards to read the "
+        "ones that matter.",
+        "",
+        "Searching before proposing is cheap and is expected. Record the "
+        "queries you ran in existing_work_checked.queries.",
     ]
 
     return "\n".join(parts)

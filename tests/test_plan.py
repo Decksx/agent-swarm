@@ -809,3 +809,128 @@ def test_a_symbol_may_be_requested_without_a_path():
 
     assert result["requests"][0]["symbol"] == "RoutingConfigError"
     assert result["requests"][0]["path"] == ""
+
+
+# --- NEEDS_SEARCH: the question asking for files by path cannot answer ------
+#
+# A planner read provenance_backfill_cli.py in full, correctly observed that
+# tests/test_provenance_backfill_cli.py did not exist, and proposed writing it.
+# tests/test_provenance_backfill_planner.py was already calling cli.main() six
+# times and asserting both exit-130 paths. No number of requests for files by
+# path surfaces that, because naming the file requires already suspecting the
+# answer. One search for "cli.main(" finds it.
+
+
+def search_reply(*queries, reason=None):
+    body = {
+        "outcome": "needs_search",
+        "reason": reason or "I need to know whether this is already tested "
+                            "before proposing a test for it.",
+        "queries": [
+            {"query": q, "why": "to see whether it already exists"}
+            if isinstance(q, str) else q
+            for q in queries
+        ],
+    }
+    return f"{plan.BEGIN}\n{json.dumps(body)}\n{plan.END}"
+
+
+def test_a_search_request_is_its_own_outcome():
+    result = plan.parse_reply(search_reply("cli.main("), snapshot=SNAPSHOT)
+
+    assert result["outcome"] == "needs_search"
+    assert result["queries"][0]["query"] == "cli.main("
+
+
+def test_queries_without_the_outcome_key_are_still_read_as_a_search():
+    body = {
+        "reason": "I need to know whether this is already covered somewhere.",
+        "queries": [{"query": "cli.main(", "why": "to find existing tests"}],
+    }
+    result = plan.parse_reply(
+        f"{plan.BEGIN}\n{json.dumps(body)}\n{plan.END}", snapshot=SNAPSHOT
+    )
+
+    assert result["outcome"] == "needs_search"
+
+
+def test_a_bare_string_query_is_accepted():
+    """The shape a model reaches for first. Refusing it would spend a call to
+    get the same query back wrapped in an object."""
+    body = {
+        "outcome": "needs_search",
+        "reason": "checking whether the helper already exists anywhere",
+        "queries": ["def read_guard"],
+    }
+    result = plan.parse_reply(
+        f"{plan.BEGIN}\n{json.dumps(body)}\n{plan.END}", snapshot=SNAPSHOT
+    )
+
+    assert result["queries"][0]["query"] == "def read_guard"
+
+
+def test_a_search_must_say_what_it_is_trying_to_find_out():
+    with pytest.raises(PlanError, match="cannot be spent|nobody can evaluate"):
+        plan.parse_reply(search_reply("cli.main(", reason="looking"), snapshot=SNAPSHOT)
+
+
+@pytest.mark.parametrize("query", ["", "a", "ab"])
+def test_a_query_too_short_to_narrow_anything_is_refused(query):
+    """One or two characters match everything, and the truncated result would
+    read as "this is everywhere" -- the opposite of what a search is for."""
+    with pytest.raises(PlanError, match="characters"):
+        plan.parse_reply(search_reply(query), snapshot=SNAPSHOT)
+
+
+def test_a_multi_line_query_is_refused():
+    """git grep matches within a line, so it would return nothing -- and
+    nothing is indistinguishable from the text being absent, which is the most
+    misleading answer a search can give."""
+    with pytest.raises(PlanError, match="newline"):
+        plan.parse_reply(search_reply("def a():\n    return 1"), snapshot=SNAPSHOT)
+
+
+def test_the_repository_cannot_be_grepped_through_the_model():
+    many = [f"query_number_{n}" for n in range(plan.MAX_SEARCH_QUERIES + 1)]
+
+    with pytest.raises(PlanError, match="grepping the repository"):
+        plan.parse_reply(search_reply(*many), snapshot=SNAPSHOT)
+
+
+def test_duplicate_queries_are_collapsed():
+    result = plan.parse_reply(
+        search_reply("cli.main(", "cli.main(", "other"), snapshot=SNAPSHOT
+    )
+
+    assert [q["query"] for q in result["queries"]] == ["cli.main(", "other"]
+
+
+def test_a_search_path_is_held_to_the_containment_rules():
+    with pytest.raises(PlanError):
+        plan.parse_reply(
+            search_reply({"query": "anything", "why": "to look",
+                          "path": "../../etc"}),
+            snapshot=SNAPSHOT,
+        )
+
+
+def test_an_empty_query_list_is_refused():
+    with pytest.raises(PlanError, match="no queries"):
+        plan.parse_reply(search_reply(), snapshot=SNAPSHOT)
+
+
+def test_searched_queries_are_recorded_on_the_task():
+    result = parse(task(existing_work_checked={
+        "searched": ["src/api.py"],
+        "queries": ["def read(", "class Reader"],
+        "why_missing": "Neither query found an implementation of the caching "
+                       "behaviour this task adds.",
+    }))
+
+    assert result["tasks"][0]["existing_work_checked"]["queries"] == [
+        "def read(", "class Reader",
+    ]
+
+
+def test_queries_are_optional_on_a_task():
+    assert parse(task())["tasks"][0]["existing_work_checked"]["queries"] == []
