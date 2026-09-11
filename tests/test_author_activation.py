@@ -133,6 +133,11 @@ def activation(contract, *, base, allowed=None, title="add a note"):
             "objective": "add a note",
             "contract_yaml": contract,
             "allowed_paths": allowed,
+            # These exercise authoring mechanics and never publish. That is
+            # exactly what proof_mode branch_only names, and saying so keeps
+            # the fail-closed check honest: an unset PUBLISH_REPO_SLUG blocks
+            # a task that was meant to be published, and these were not.
+            "proof_mode": "branch_only",
         },
     }
 
@@ -561,3 +566,71 @@ def test_a_task_with_no_context_paths_is_unaffected(author_repo, counted_reply):
 
     assert queue.last["outcome"] == "candidate"
     assert "FOR CONTEXT ONLY" not in counted_reply["prompt"]
+
+
+# --- Publication configuration is checked before the model call -------------
+
+
+def test_an_unpublishable_task_blocks_before_the_model_is_called(
+    author_repo, monkeypatch
+):
+    """A candidate nobody can publish is a candidate no reviewer can reach and
+    no CI can run against, so the task stops at READY_REVIEW having spent a
+    model call to get there."""
+    monkeypatch.setattr(chatgpt_worker, "PUBLISH_REPO_SLUG", "")
+    queue = Queue()
+    act = activation(CONTRACT, base=base_of(author_repo))
+    act["task_record"]["proof_mode"] = "baseline"
+
+    chatgpt_worker.execute_author(NeverCalled(), act, queue)
+
+    assert queue.last["outcome"] == "blocked"
+    assert "PUBLISH_REPO_SLUG" in queue.last["payload"]["reason"]
+
+
+def test_a_branch_only_task_authors_without_publication_configured(
+    author_repo, counted_reply, monkeypatch
+):
+    """A candidate deliberately not meant to leave this machine is a real
+    thing. It is a decision somebody makes about a task, not a state a host
+    drifts into by having an unset variable."""
+    monkeypatch.setattr(chatgpt_worker, "PUBLISH_REPO_SLUG", "")
+    counted_reply["answer"] = ANSWER
+    queue = Queue()
+
+    chatgpt_worker.execute_author(
+        object(), activation(CONTRACT, base=base_of(author_repo)), queue
+    )
+
+    assert queue.last["outcome"] == "candidate"
+
+
+def test_a_blocked_publication_config_leaves_no_worktree(
+    author_repo, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(chatgpt_worker, "PUBLISH_REPO_SLUG", "")
+    act = activation(CONTRACT, base=base_of(author_repo))
+    act["task_record"]["proof_mode"] = "baseline"
+
+    chatgpt_worker.execute_author(NeverCalled(), act, Queue())
+
+    assert list((tmp_path / "worktrees").glob("*")) == []
+
+
+def test_a_publishable_task_with_configuration_proceeds(
+    author_repo, counted_reply, monkeypatch
+):
+    monkeypatch.setattr(chatgpt_worker, "PUBLISH_REPO_SLUG", "owner/repo")
+    monkeypatch.setattr(
+        chatgpt_worker.publication, "publish_candidate",
+        lambda *a, **kw: {"pr_number": 7, "pushed": True},
+    )
+    counted_reply["answer"] = ANSWER
+    queue = Queue()
+    act = activation(CONTRACT, base=base_of(author_repo))
+    act["task_record"]["proof_mode"] = "baseline"
+
+    chatgpt_worker.execute_author(object(), act, queue)
+
+    assert queue.last["outcome"] == "candidate"
+    assert queue.last["payload"]["pr_number"] == 7

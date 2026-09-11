@@ -71,6 +71,7 @@ from typing import Any
 
 import authored_change
 import controller_client
+import publication
 import repo_registry
 import swarm_control
 import worktrees
@@ -107,6 +108,15 @@ CONTROLLER_URL = os.environ.get("CONTROLLER_URL", HUB_URL)
 # where a person works, it is normally dirty, and committing on top of that
 # would put somebody's unfinished edits into a model's commit.
 AUTHOR_PROJECT = os.environ.get("AUTHOR_PROJECT", "")
+
+# Where a candidate is published, and what it is proposed against. Both empty
+# by default, and an empty slug means publication is skipped entirely rather
+# than guessed at -- a worker that inferred a remote from the checkout's
+# `origin` would push a model's commit to whatever that happened to be.
+PUBLISH_REPO_SLUG = os.environ.get("PUBLISH_REPO_SLUG", "").strip()
+PUBLISH_TARGET_REF = os.environ.get(
+    "PUBLISH_TARGET_REF", "refs/heads/master"
+).strip()
 
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "3"))
 HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "15"))
@@ -485,6 +495,53 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         "activation %s: worktree %s at %s", activation_id, workspace, base_sha[:12]
     )
 
+    # Fail closed before the model is called, not after.
+    #
+    # A candidate nobody can publish is a candidate no reviewer can reach and
+    # no CI can run against, so the task stops at READY_REVIEW having spent a
+    # model call to get there. Checked here rather than at the publication
+    # step because the cost of the misconfiguration is the call, and the call
+    # is about to happen.
+    #
+    # `branch_only` is the exception, and it has to be explicit. A task whose
+    # candidate is genuinely not meant to leave this machine is a real thing
+    # -- the MVP demonstrations were exactly that -- but it is a decision
+    # somebody makes about a task, not a state a host drifts into by having an
+    # unset variable.
+    # The task's own proof mode, from the controller. `branch_only` says the
+    # candidate is deliberately not meant to leave this machine.
+    #
+    # This used to read a `branch_only` key, which nothing ever wrote: the
+    # controller stores it as `task_versions.proof_mode` and `get_task` did not
+    # return that column, so the check was against a field that could only ever
+    # be absent -- which made every real task publishable-or-blocked and the
+    # exception unreachable through the API.
+    branch_only = str(task_record.get("proof_mode") or "").strip() == "branch_only"
+
+    if not PUBLISH_REPO_SLUG and not branch_only:
+        log.error(
+            "activation %s: PUBLISH_REPO_SLUG is not set and %s is not "
+            "branch_only", activation_id, task_id,
+        )
+
+        try:
+            worktrees.remove(project, activation_id)
+        except worktrees.WorktreeError as exc:
+            log.warning("could not remove the worktree for %s: %s",
+                        activation_id, exc)
+
+        queue.report(activation_id, outcome="blocked", payload={
+            "reason": (
+                "PUBLISH_REPO_SLUG is not configured on this host, so a "
+                "candidate could be authored but not published -- no reviewer "
+                "could reach it and no CI could run against it. Refusing "
+                "before the model call. Set it, or mark the task branch_only "
+                "if the candidate is deliberately not meant to leave this "
+                "machine."
+            ),
+        })
+        return
+
     # What the files it may change look like right now. Without this an author
     # with no shell has to invent the parts of a file it was not shown, and
     # the output format requires the whole file.
@@ -656,9 +713,53 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         len(result["files"]), elapsed,
     )
 
+    # Publish before reporting. A candidate nobody outside this machine can
+    # see is a candidate no reviewer can review and no CI can run against, and
+    # every run so far needed a person to push the branch and open the pull
+    # request between authoring and review. Neither step is a judgment.
+    #
+    # Before the report rather than after, so the ledger's
+    # `candidate_submitted` payload says where the candidate went. A report
+    # that landed first and a push that then failed would leave a task in
+    # READY_REVIEW pointing at a branch that does not exist anywhere a
+    # reviewer can reach.
+    published = {}
+
+    if PUBLISH_REPO_SLUG and not branch_only:
+        try:
+            published = publication.publish_candidate(
+                str(project.path),
+                branch=result["branch"],
+                candidate_sha=result["candidate_sha"],
+                repo_slug=PUBLISH_REPO_SLUG,
+                target_ref=PUBLISH_TARGET_REF,
+                task_id=task_id,
+                title=str(task_record.get("title") or ""),
+                objective=str(task_record.get("objective") or ""),
+                activation_id=str(activation_id),
+            )
+            log.info(
+                "published %s as PR #%s%s",
+                result["branch"], published.get("pr_number"),
+                " (already existed)" if not published.get("created") else "",
+            )
+        except publication.PublicationError as exc:
+            # Blocked, not failed. The candidate is good and committed; what
+            # went wrong is the environment around it, and an operator fixing
+            # a remote is not a reason to make the author write the file again.
+            log.error("could not publish %s: %s", result["branch"], exc)
+            queue.report(activation_id, outcome="blocked", payload={
+                "reason": f"the candidate was authored but could not be "
+                          f"published: {exc}",
+                "elapsed_seconds": round(elapsed, 1),
+                **result,
+            })
+            return
+
     queue.report(activation_id, outcome="candidate", payload={
         "elapsed_seconds": round(elapsed, 1),
         **result,
+        **published,
     })
 
 

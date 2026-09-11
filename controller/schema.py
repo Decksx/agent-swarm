@@ -40,7 +40,7 @@ from __future__ import annotations
 # under a rule that recorded which candidate the approval was for, and
 # inventing one retroactively would be exactly the fabrication the integrator
 # refuses to act on.
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA_SQL = """
 -- One row per task. `state` and `state_seq` are the projection that the event
@@ -86,7 +86,8 @@ CREATE TABLE IF NOT EXISTS task_versions (
   protocol_schema_version INTEGER NOT NULL,
   base_sha                TEXT NOT NULL,
   proof_mode              TEXT NOT NULL
-                          CHECK (proof_mode IN ('baseline', 'sabotage', 'both')),
+                          CHECK (proof_mode IN ('baseline', 'sabotage',
+                                                'both', 'branch_only')),
   created_at              REAL NOT NULL,
   created_by              TEXT NOT NULL,
   PRIMARY KEY (task_id, version)

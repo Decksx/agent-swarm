@@ -125,10 +125,28 @@ def test_the_migration_is_additive(tmp_path):
         "state TEXT, state_seq INTEGER DEFAULT 0, enqueued_at REAL, "
         "created_at REAL, created_by TEXT);"
         "CREATE TABLE activations (activation_id TEXT PRIMARY KEY);"
+        # A real version-2 database always has this, and migration 4 rebuilds
+        # it to widen the proof_mode CHECK. A stub without it is not a
+        # controller database, so leaving it out tested a shape that cannot
+        # exist.
+        "CREATE TABLE task_versions ("
+        "  task_id TEXT NOT NULL, version INTEGER NOT NULL,"
+        "  contract_yaml TEXT NOT NULL, contract_hash TEXT NOT NULL,"
+        "  protocol_schema_version INTEGER NOT NULL, base_sha TEXT NOT NULL,"
+        "  proof_mode TEXT NOT NULL"
+        "    CHECK (proof_mode IN ('baseline', 'sabotage', 'both')),"
+        "  created_at REAL NOT NULL, created_by TEXT NOT NULL,"
+        "  PRIMARY KEY (task_id, version));"
     )
     old.execute(
         "INSERT INTO tasks (task_id, title, objective, current_version, state, "
         "created_at, created_by) VALUES ('OLD-1','t','o',1,'DRAFT',0,'admin')"
+    )
+    old.execute(
+        "INSERT INTO task_versions (task_id, version, contract_yaml, "
+        "contract_hash, protocol_schema_version, base_sha, proof_mode, "
+        "created_at, created_by) "
+        "VALUES ('OLD-1',1,'allowed_paths:','h',7,'0','baseline',0,'admin')"
     )
     old.execute("PRAGMA user_version = 2")
     old.commit()
@@ -143,6 +161,15 @@ def test_the_migration_is_additive(tmp_path):
 
     assert row["task_id"] == "OLD-1"
     assert row["approved_candidate_sha"] is None
+
+    # Migration 4 rebuilt task_versions to widen the proof_mode CHECK; the row
+    # has to come through it, and the foreign keys with it.
+    version = fresh.execute(
+        "SELECT proof_mode FROM task_versions WHERE task_id = 'OLD-1'"
+    ).fetchone()
+
+    assert version["proof_mode"] == "baseline"
+    assert fresh.execute("PRAGMA foreign_key_check").fetchall() == []
 
 
 # --- Set atomically with the approval ---------------------------------------

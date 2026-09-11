@@ -66,6 +66,26 @@ STAGE_ROLES = {
 }
 
 
+def canonical_host(host: str) -> str:
+    """One spelling of a host name, everywhere it is used as a key.
+
+    `host_capacity` is keyed on this string, and SQLite compares text
+    case-sensitively, so `OFFICEPC` and `officepc` were two capacity pools for
+    one machine. A live deployment had exactly that: a stale row at 1 beside
+    the real one at 3, and an activation issued against the other spelling
+    would have been counted against a limit nobody set.
+
+    Case-folded rather than lowercased. `casefold` handles the cases
+    `lower` gets wrong, and a hostname is an identifier being compared rather
+    than text being displayed.
+
+    Applied at registration and at issuance both, because canonicalising only
+    one of them moves the bug rather than fixing it: the pool would be created
+    under one spelling and consumed under another.
+    """
+    return (host or "").strip().casefold()
+
+
 class ActivationError(Exception):
     pass
 
@@ -142,6 +162,13 @@ def get_activation(conn: sqlite3.Connection, activation_id: str) -> dict:
 def set_host_capacity(
     conn: sqlite3.Connection, host: str, max_concurrent: int
 ) -> None:
+    """Declare how much a host may run at once.
+
+    The name is canonicalised here and at issuance both, so one machine has
+    one capacity pool however its name was typed.
+    """
+    host = canonical_host(host)
+
     with transaction(conn):
         conn.execute(
             "INSERT INTO host_capacity (host, max_concurrent) VALUES (?, ?) "
@@ -151,6 +178,7 @@ def set_host_capacity(
 
 
 def _capacity_blocked(conn: sqlite3.Connection, host: str) -> Optional[str]:
+    host = canonical_host(host)
     """Why `host` cannot take another activation, or None.
 
     §6. An unknown host is refused rather than treated as unlimited: capacity
@@ -216,6 +244,9 @@ def issue(
         raise ActivationError(f"unknown stage {stage!r}")
 
     role, transition_kind = STAGE_ROLES[stage]
+    # Canonical from here down: the capacity check, the stored row, and the
+    # event payload all use one spelling of the host.
+    host = canonical_host(host)
     now = time.time() if now is None else now
     activation_id = activation_id or uuid.uuid4().hex
 
@@ -263,16 +294,26 @@ def issue(
             ),
         )
 
-    # Outside the transaction above because apply_transition opens its own, and
-    # nesting is refused. The activation exists but the task has not moved yet;
-    # if this fails the activation is orphaned in ISSUED and reclaimed by the
-    # lease sweep, which is the safe direction -- the alternative is a task
-    # marked ASSIGNED with no activation to claim.
-    engine.apply_transition(
-        conn, task_id=task_id, kind=transition_kind, actor="controller",
-        authority=CONTROLLER, activation_id=activation_id, now=now,
-        payload={"agent": agent, "host": host, "stage": stage},
-    )
+        # Inside the same transaction as the insert, and this is the whole
+        # point of `apply_transition_within`.
+        #
+        # It used to be outside, on the reasoning that an orphaned ISSUED
+        # activation is safer than a task marked ASSIGNED with nothing to
+        # claim. That is true of the failure it was reasoning about and not of
+        # the one it created: with the insert committed and the transition
+        # pending, two concurrent callers could both insert before either
+        # transitioned, and the loser's activation sat live, consuming host
+        # capacity, belonging to nobody, until its lease lapsed.
+        #
+        # Holding one transaction across both removes the seam rather than
+        # choosing which side of it to fail on. The second caller's
+        # transition is refused -- the task has already left the state it
+        # required -- and its insert rolls back with it.
+        engine.apply_transition_within(
+            conn, task_id=task_id, kind=transition_kind, actor="controller",
+            authority=CONTROLLER, activation_id=activation_id, now=now,
+            payload={"agent": agent, "host": host, "stage": stage},
+        )
 
     return {"activation_id": activation_id, "role": role, "attempt_no": attempt}
 
