@@ -24,3 +24,25 @@ __pycache__/
 !.env.example
 *.secret
 secrets.json
+
+# The control directory. Per-host runtime state, and none of it is source.
+#
+# Six of these were committed by accident on the supervisor branch: three
+# `.pid` locks, `narration.jsonl`, `status.json`, and `supervisor.out`. The
+# logs and chat content were the obvious cost. The dangerous one was the pid
+# files. A lock file names a pid that this host is willing to terminate during
+# shutdown, so a committed one hands every other checkout a number pointing at
+# a process that machine never started -- and pids are reused. Cleanup would
+# then kill whatever inherited it.
+#
+# Shutdown now confirms a pid is really that identity's worker before
+# terminating it, so the lock file alone is no longer authority to kill. This
+# keeps the number from travelling in the first place, which is the half that
+# does not depend on a guard being correct.
+#
+# The whole directory rather than a list: activations, consumed activations,
+# the pause and stop flags, status, narration and locks are all written by a
+# running swarm and read by nothing outside this host. Nothing under it has
+# ever been source, so a pattern that has to be extended every time the
+# runtime grows a file is the wrong shape.
+control/

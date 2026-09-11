@@ -120,18 +120,28 @@ case "${1:-}" in
       done
 
       if alive "$PID"; then
-        echo "supervisor did not stop on request; killing it and its workers"
+        echo "supervisor did not stop on request; killing it"
         taskkill //PID "$PID" //F >/dev/null 2>&1
-        # Its children are now orphaned, so they are this script's problem.
-        for identity in chatgpt gemini claudecode; do
-          WPID="$(cat "$CONTROL/${identity}.pid" 2>/dev/null || true)"
-          alive "$WPID" && taskkill //PID "$WPID" //F >/dev/null 2>&1
-        done
         rm -f "$CONTROL/STOPPING"
       fi
 
       echo "supervisor stopped (pid $PID)"
     fi
+
+    # Run whether or not a supervisor was found, because the case that leaves
+    # workers behind is exactly the case where one is not: a supervisor that
+    # had to be force-killed never ran its own shutdown, so its children
+    # outlived it as orphans still holding the identity locks.
+    #
+    # Delegated to supervisor.py rather than done here with taskkill. This
+    # script used to kill whatever pid each lock file named, and a lock file
+    # names a pid that was a worker when it was written -- pids are reused, so
+    # that is a force-kill aimed by a number which may since have become
+    # something else entirely. --reap confirms the process really is that
+    # identity's worker before terminating it, on the same evidence the
+    # supervisor's own shutdown uses.
+    SWARM_CONTROL_DIR="$CONTROL" "$PYTHON" "$REPO/supervisor.py" --reap
+    REAPED=$?
 
     # Whatever the supervisor did or did not manage, the operator asked for
     # zero workers. Reported rather than assumed.
@@ -139,6 +149,17 @@ case "${1:-}" in
       "(Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { \$_.CommandLine -match '_worker' }).Count" \
       2>/dev/null | tr -d '\r\n ')"
     echo "workers still running: ${REMAINING:-unknown}"
+
+    # Nonzero unless the count is a confirmed zero, unknown included. This
+    # printed a nonzero count and still exited successfully, so every caller
+    # that read the exit status rather than the text was told the swarm had
+    # stopped while workers were still polling. An unverifiable count is not a
+    # success either: "cannot tell" and "none left" are different answers, and
+    # only one of them means the operator got what they asked for.
+    if [ "${REMAINING:-unknown}" != "0" ] || [ "$REAPED" -ne 0 ]; then
+      echo "stop did not reach zero workers"
+      exit 1
+    fi
     ;;
 
   status)

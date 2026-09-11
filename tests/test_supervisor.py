@@ -613,3 +613,329 @@ def test_the_run_loop_shuts_down_and_clears_on_the_flag(control_dir, spawned):
     assert not any(child.running() for child in sup.children.values())
     assert all(entry["process"].terminated for entry in spawned)
     assert not (control_dir / supervisor.STOP_FILENAME).exists()
+
+
+# --- A stop that fails must not report success -------------------------------
+#
+# `Child.stop` cleared its process handle whether or not the process died, and
+# `running()` asks that handle -- so every stop looked successful to the only
+# check that ran afterwards. `shutdown` then logged `all workers stopped` over
+# a worker that was still polling, which is the failure the flag-based stop was
+# supposed to have ended.
+
+
+class Unstoppable(FakeProcess):
+    """A child that survives terminate and kill. Real enough: a handle the OS
+    will not let this process touch behaves exactly like this."""
+
+    def terminate(self):
+        self.terminated = True
+
+    def kill(self):
+        self.killed = True
+
+    def wait(self, timeout=None):
+        raise subprocess.TimeoutExpired("worker", timeout or 0)
+
+
+@pytest.fixture
+def survivor(monkeypatch):
+    """Spawns one worker that cannot be stopped, and two ordinary ones."""
+    made = []
+
+    def fake_popen(argv, **kwargs):
+        kind = Unstoppable if not made else FakeProcess
+        process = kind(pid=6000 + len(made))
+        made.append({"argv": argv, "kwargs": kwargs, "process": process})
+        return process
+
+    monkeypatch.setattr(supervisor.subprocess, "Popen", fake_popen)
+    return made
+
+
+def test_a_stop_that_did_not_stop_the_process_says_so(control_dir, survivor):
+    sup = build(control_dir, survivor)
+    sup.tick(now=100.0)
+
+    child = next(c for c in sup.children.values()
+                 if c.process is survivor[0]["process"])
+
+    assert child.stop(timeout=0.0) is False
+    assert child.running() is True
+
+
+def test_a_surviving_worker_is_still_reported_as_running(control_dir, survivor):
+    """The handle is the only remaining way to ask about the process, so a
+    failed stop has to keep it."""
+    sup = build(control_dir, survivor)
+    sup.tick(now=100.0)
+
+    sup.shutdown()
+
+    assert any(child.running() for child in sup.children.values())
+    assert any(w["running"] for w in sup.status()["workers"].values())
+
+
+def test_shutdown_counts_the_workers_that_survived_it(control_dir, survivor):
+    sup = build(control_dir, survivor)
+    sup.tick(now=100.0)
+
+    assert sup.shutdown() == 1
+
+
+def test_shutdown_does_not_claim_success_over_a_surviving_worker(
+    control_dir, survivor, caplog
+):
+    sup = build(control_dir, survivor)
+    sup.tick(now=100.0)
+
+    with caplog.at_level("INFO", logger="supervisor"):
+        sup.shutdown()
+
+    messages = [record.getMessage() for record in caplog.records]
+
+    assert any("still running after shutdown" in m for m in messages)
+    assert not any("all workers stopped" in m for m in messages)
+
+
+def test_the_run_loop_exits_nonzero_when_a_worker_survives(
+    control_dir, survivor, monkeypatch
+):
+    """An operator reads the control script and the control script reads this."""
+    monkeypatch.setattr(supervisor.time, "sleep", lambda _seconds: None)
+    sup = build(control_dir, survivor)
+    sup.tick(now=100.0)
+
+    (control_dir / supervisor.STOP_FILENAME).write_text("stop", encoding="utf-8")
+
+    assert sup.run() == 1
+
+
+def test_the_run_loop_exits_zero_when_every_worker_stopped(
+    control_dir, spawned, monkeypatch
+):
+    monkeypatch.setattr(supervisor.time, "sleep", lambda _seconds: None)
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+
+    (control_dir / supervisor.STOP_FILENAME).write_text("stop", encoding="utf-8")
+
+    assert sup.run() == 0
+
+
+# --- Shutdown leaves zero workers, including ones it did not start ------------
+#
+# `start` leaves an adopted, manually started or orphaned worker alone on
+# purpose: two claimants for one identity is worse than one nobody is watching.
+# That reasoning does not survive the operator asking for zero workers. The
+# graceful path used to stop only this supervisor's own children, and
+# `swarm_ctl stop` reached for the lock files only when the supervisor itself
+# timed out -- so an ordinary, successful stop left an adopted worker polling.
+
+
+@pytest.fixture
+def host(monkeypatch):
+    """A set of live pids the test controls, and the kills aimed at them."""
+
+    class Host:
+        def __init__(self):
+            self.live = set()
+            self.killed = []
+            self.command_lines = {}
+
+        def alive(self, pid):
+            return pid in self.live
+
+        def command_line(self, pid):
+            return self.command_lines.get(pid)
+
+        def terminate(self, pid, timeout=20.0):
+            self.killed.append(pid)
+            self.live.discard(pid)
+            return True
+
+    state = Host()
+    monkeypatch.setattr(swarm_control, "pid_is_alive", state.alive)
+    monkeypatch.setattr(swarm_control, "process_command_line", state.command_line)
+    monkeypatch.setattr(swarm_control, "terminate_pid", state.terminate)
+    return state
+
+
+def adopt(control_dir, host, identity, pid, command_line):
+    """A worker for `identity` that this supervisor did not start."""
+    swarm_control.SingleInstance(identity, directory=control_dir).path.write_text(
+        str(pid), encoding="utf-8",
+    )
+    host.live.add(pid)
+    host.command_lines[pid] = command_line
+
+
+def test_shutdown_stops_a_worker_it_did_not_start(control_dir, spawned, host):
+    adopt(control_dir, host, "gemini", 9999,
+          r"C:\Python311\python.exe C:\git\claude-agent-hub\gemini_worker.py")
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+
+    assert sup.shutdown() == 0
+    assert host.killed == [9999]
+
+
+def test_a_manually_started_worker_is_stopped_too(control_dir, spawned, host):
+    """`worker_ctl.sh` and `start_workers.bat` launch with a bare script name
+    from the repository, so requiring a path would refuse to stop exactly the
+    workers this is for."""
+    adopt(control_dir, host, "chatgpt", 7777, "python chatgpt_worker.py")
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+
+    sup.shutdown()
+
+    assert host.killed == [7777]
+
+
+def test_every_adopted_identity_is_stopped(control_dir, spawned, host):
+    adopt(control_dir, host, "gemini", 111, "python gemini_worker.py")
+    adopt(control_dir, host, "chatgpt", 222, "python chatgpt_worker.py")
+    adopt(control_dir, host, "claudecode", 333, "python claude_worker.py")
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+
+    assert sup.shutdown() == 0
+    assert sorted(host.killed) == [111, 222, 333]
+
+
+def test_an_identity_not_supervised_is_not_touched(control_dir, spawned, host):
+    """`--only gemini` means this supervisor is responsible for gemini."""
+    adopt(control_dir, host, "chatgpt", 7777, "python chatgpt_worker.py")
+
+    sup = build(control_dir, spawned, identities=["gemini"])
+    sup.tick(now=100.0)
+    sup.shutdown()
+
+    assert host.killed == []
+
+
+# --- and never kills a process it cannot identify ----------------------------
+#
+# A lock file records the pid of a worker that was alive when it was written.
+# Pids are reused, so by the time anything reads it the number may belong to
+# something the swarm has never met -- and `pid_is_alive` cheerfully confirms
+# that it is running. Six of these lock files were committed to git, which
+# would have handed a second checkout numbers naming processes on a machine it
+# had never started anything on.
+
+
+def test_a_reused_pid_is_not_killed(control_dir, spawned, host):
+    """The number is live and in the lock file, and it is not a worker."""
+    adopt(control_dir, host, "gemini", 9999,
+          r"C:\Windows\System32\svchost.exe -k netsvcs")
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+    sup.shutdown()
+
+    assert host.killed == []
+
+
+def test_a_pid_holding_the_wrong_identitys_script_is_not_killed(
+    control_dir, spawned, host
+):
+    """Each identity stops its own worker, not whatever python is running."""
+    adopt(control_dir, host, "gemini", 9999, "python chatgpt_worker.py")
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+    sup.shutdown()
+
+    assert host.killed == []
+
+
+def test_a_pid_whose_command_line_cannot_be_read_is_not_killed(
+    control_dir, spawned, host
+):
+    """Unreadable means no. A process this cannot identify is one it must not
+    terminate, however much the operator wants a clean shutdown."""
+    adopt(control_dir, host, "gemini", 9999, "python gemini_worker.py")
+    host.command_lines[9999] = None
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+    sup.shutdown()
+
+    assert host.killed == []
+
+
+def test_a_worker_that_could_not_be_stopped_is_reported_as_remaining(
+    control_dir, spawned, host
+):
+    """Refusing to kill it is right; calling the shutdown clean is not."""
+    adopt(control_dir, host, "gemini", 9999, "svchost.exe -k netsvcs")
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+
+    assert sup.shutdown() == 1
+
+
+def test_an_unstoppable_adopted_worker_is_not_reported_as_stopped(
+    control_dir, spawned, host, caplog
+):
+    adopt(control_dir, host, "gemini", 9999, "svchost.exe -k netsvcs")
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+
+    with caplog.at_level("INFO", logger="supervisor"):
+        sup.shutdown()
+
+    messages = [record.getMessage() for record in caplog.records]
+
+    assert any("9999" in m for m in messages)
+    assert not any("all workers stopped" in m for m in messages)
+
+
+def test_a_stale_lock_is_not_a_remaining_worker(control_dir, spawned, host):
+    """A dead pid in a lock file is a crash's leftovers, not a process."""
+    swarm_control.SingleInstance("gemini", directory=control_dir).path.write_text(
+        str(9999), encoding="utf-8",
+    )
+
+    sup = build(control_dir, spawned)
+    sup.tick(now=100.0)
+
+    assert sup.shutdown() == 0
+    assert host.killed == []
+
+
+# --- The force path uses the same evidence -----------------------------------
+
+
+def test_reap_stops_an_orphan_without_supervising(control_dir, spawned, host):
+    """A supervisor that had to be force-killed never ran its own shutdown, so
+    its children outlive it holding the locks."""
+    adopt(control_dir, host, "gemini", 9999, "python gemini_worker.py")
+
+    assert supervisor.main(["supervisor.py", "--reap"]) == 0
+    assert host.killed == [9999]
+    assert spawned == []
+
+
+def test_reap_refuses_to_kill_what_it_cannot_identify(control_dir, spawned, host):
+    adopt(control_dir, host, "gemini", 9999, "svchost.exe -k netsvcs")
+
+    assert supervisor.main(["supervisor.py", "--reap"]) == 1
+    assert host.killed == []
+
+
+def test_reap_reports_success_when_nothing_is_running(control_dir, spawned, host):
+    assert supervisor.main(["supervisor.py", "--reap"]) == 0
+
+
+def test_reap_needs_no_credential_and_no_controller(control_dir, spawned, host,
+                                                    monkeypatch):
+    """It runs after a force-kill, when nothing else is guaranteed to work."""
+    monkeypatch.delenv("HUB_SECRET", raising=False)
+
+    assert supervisor.main(["supervisor.py", "--reap"]) == 0

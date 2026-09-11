@@ -36,10 +36,29 @@ and leaves the supervisor up, because a pause is an operator saying "stop
 starting work", not "tear down the runtime". Coming back is then a file
 deletion rather than a restart.
 
-**It will not leave children behind.** Shutdown terminates the actual Python
+**It will not leave workers behind.** Shutdown terminates the actual Python
 processes and waits for them, because a supervisor that exits while its
 workers keep polling is worse than one that never started: the operator
 believes the swarm is stopped and it is not.
+
+That covers workers it did not start, too. One it adopted, one an operator
+launched by hand, one orphaned by a supervisor that was killed -- each is left
+alone while *running*, because two claimants for an identity is worse than one
+nobody is watching, and each is stopped while *stopping*, because the operator
+asked for zero workers and got a number.
+
+Before terminating any of them it confirms the pid really is that identity's
+worker. A lock file names a process that was alive when it was written; pids
+are reused, so a lock left by a worker that crashed can point at anything, and
+a force-kill aimed by that number is how a cleanup becomes an outage
+somewhere else. A pid it cannot identify is left alone and reported as
+unstopped, which is the honest answer rather than the convenient one.
+
+What it reports is measured, never assumed. A stop that threw, a process that
+survived being killed, a lock it declined to act on: each leaves a worker
+running, each is counted, and the count is the exit status. Reporting from its
+own bookkeeping is how the previous shutdown logged `all workers stopped`
+while three processes kept polling.
 
 Idle costs nothing
 ------------------
@@ -204,16 +223,24 @@ class Child:
             self.identity, code, uptime, self.backoff, self.restarts,
         )
 
-    def stop(self, timeout: float = 20.0) -> None:
-        """Terminate the actual process and wait for it.
+    def stop(self, timeout: float = 20.0) -> bool:
+        """Terminate the actual process and wait for it. Returns whether it is gone.
 
         Waited on rather than signalled and forgotten. A supervisor that exits
         while its workers keep polling is worse than one that never started:
         the operator believes the swarm is stopped and it is not.
+
+        The handle is dropped only once the process is really gone. Clearing
+        it regardless is how a failed stop became a successful one: `running()`
+        asks the handle, so a `None` handle answers "not running" no matter
+        what happened to the process, and `shutdown` then logged
+        `all workers stopped` over the top of a worker that was still polling.
+        A stop that could not finish has to keep the handle, because that
+        handle is the only remaining way to ask about the process at all.
         """
         if not self.running():
             self.process = None
-            return
+            return True
 
         pid = self.process.pid
         log.info("stopping %s (pid %s)", self.identity, pid)
@@ -223,17 +250,31 @@ class Child:
             self.process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             log.warning("%s did not stop in %.0fs; killing", self.identity, timeout)
-            self.process.kill()
 
             try:
+                self.process.kill()
                 self.process.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 log.error("%s (pid %s) could not be killed", self.identity, pid)
+            except Exception:
+                # `kill` itself can throw -- a handle the OS will not let this
+                # process touch. Swallowed here so the remaining children are
+                # still stopped, and caught by the liveness check below rather
+                # than by assuming it worked.
+                log.error("could not kill %s", self.identity, exc_info=True)
         except Exception:
             log.error("could not stop %s", self.identity, exc_info=True)
 
+        if self.running():
+            log.error(
+                "%s (pid %s) is still running after being stopped",
+                self.identity, pid,
+            )
+            return False
+
         self.process = None
         log.info("stopped %s", self.identity)
+        return True
 
 
 class Supervisor:
@@ -450,22 +491,145 @@ class Supervisor:
 
             time.sleep(1.0)
 
-        self.shutdown()
+        remaining = self.shutdown()
         self.clear_stop_request()
-        return 0
 
-    def shutdown(self) -> None:
+        # Nonzero when the runtime did not actually stop. The control script
+        # reads this, and an operator reads the control script; a clean exit
+        # after a failed shutdown tells both of them the swarm is down when it
+        # is not.
+        return 1 if remaining else 0
+
+    def identifies_worker(self, identity: str, pid: int) -> bool:
+        """Whether `pid` is really this identity's worker, and not a reused number.
+
+        A lock file records the pid of a worker that was alive when it was
+        written. A worker that died without releasing leaves that number
+        behind, and pids are reused -- so by the time anything reads it, it
+        may belong to something else entirely, which `pid_is_alive` happily
+        confirms is running.
+
+        That is survivable while only deciding whether to *start* beside it:
+        the worst case is one worker not started. It is not survivable while
+        deciding what to *terminate*, so the command line is read and has to
+        name this identity's script before anything is killed.
+
+        The script name alone, not the repository path: `worker_ctl.sh` and
+        `start_workers.bat` both launch with a bare script name from the
+        repository as the working directory, so requiring a path would refuse
+        to stop exactly the manually started workers this is for. The lock is
+        already checkout-scoped -- it lives in this control directory -- so
+        what is left to rule out is pid reuse, and a recycled pid running
+        `gemini_worker.py` is a gemini worker.
+
+        Unreadable means no. A command line this cannot obtain is a process
+        this must not kill.
+        """
+        script = WORKERS.get(identity)
+
+        if script is None:
+            return False
+
+        command = swarm_control.process_command_line(pid)
+
+        if not command:
+            log.error(
+                "cannot read the command line of pid %s holding the %s lock; "
+                "not terminating it", pid, identity,
+            )
+            return False
+
+        return script.lower() in command.replace("\\", "/").lower()
+
+    def stop_unsupervised(self, identity: str) -> bool:
+        """Stop a worker for `identity` that this supervisor did not spawn.
+
+        Returns whether the identity is free of workers afterwards.
+
+        `Child.start` leaves an adopted, manually started or orphaned worker
+        alone on purpose, because two claimants for one identity is worse than
+        one that nothing is watching. Leaving it alone while *running* is not
+        leaving it alone while *stopping*: the operator asked for zero
+        workers, and a worker that outlives the supervisor keeps polling and
+        claiming with nothing supervising it -- which is the state the whole
+        branch exists to end.
+        """
+        pid = swarm_control.SingleInstance(identity)._holder()
+
+        if pid is None or pid == os.getpid():
+            return True
+
+        if not self.identifies_worker(identity, pid):
+            log.error(
+                "the %s lock names pid %s, which is not a %s worker; leaving "
+                "it alone and reporting the identity as unstopped",
+                identity, pid, identity,
+            )
+            return False
+
+        log.info(
+            "stopping %s (pid %s), which this supervisor did not start",
+            identity, pid,
+        )
+
+        if swarm_control.terminate_pid(pid):
+            log.info("stopped %s (pid %s)", identity, pid)
+            return True
+
+        log.error("%s (pid %s) could not be stopped", identity, pid)
+        return False
+
+    def remaining_workers(self) -> dict:
+        """Identity -> pid for every supervised identity still running.
+
+        Asked of the host, not of this object's bookkeeping. A child whose
+        termination threw is still a process, and a lock held by a worker this
+        supervisor never spawned is still a worker -- neither is visible in a
+        handle this process happens to hold. Reporting from the handles alone
+        is exactly how a shutdown logged `all workers stopped` while three
+        processes kept polling.
+        """
+        remaining = {}
+
+        for identity, child in self.children.items():
+            if child.running():
+                remaining[identity] = child.pid
+                continue
+
+            holder = swarm_control.SingleInstance(identity)._holder()
+
+            if holder is not None:
+                remaining[identity] = holder
+
+        return remaining
+
+    def shutdown(self) -> int:
+        """Stop every worker for a supervised identity. Returns how many survive.
+
+        Counted rather than asserted, and the count is the return value
+        because the process exit status is built from it. Requirement 6 is
+        zero workers, and a shutdown that cannot reach zero has to say so
+        loudly enough that the operator does not read `stopped` and believe it.
+        """
         log.info("shutting down")
 
         for child in self.children.values():
             child.stop()
 
-        remaining = [c.identity for c in self.children.values() if c.running()]
+        for identity in self.children:
+            self.stop_unsupervised(identity)
+
+        remaining = self.remaining_workers()
 
         if remaining:
-            log.error("workers still running after shutdown: %s", remaining)
+            log.error(
+                "workers still running after shutdown: %s",
+                ", ".join(f"{i} (pid {p})" for i, p in sorted(remaining.items())),
+            )
         else:
             log.info("all workers stopped")
+
+        return len(remaining)
 
     def status(self) -> dict:
         return {
@@ -521,9 +685,48 @@ def main(argv) -> int:
         help="supervise only this identity. Repeatable.",
     )
     parser.add_argument("--log", default=os.environ.get("SUPERVISOR_LOG", ""))
+    parser.add_argument(
+        "--reap", action="store_true",
+        help="stop any surviving worker and exit; does not supervise",
+    )
     args = parser.parse_args(argv[1:])
 
     configure_logging(Path(args.log) if args.log else None)
+
+    if args.reap:
+        # The backstop for the one case the loop cannot cover: a supervisor
+        # that had to be force-killed never ran its own shutdown, so its
+        # children are orphaned and something else has to stop them.
+        #
+        # It is this file rather than a few lines of shell because the shell
+        # would kill whatever pid the lock file names, and that is precisely
+        # the read a recycled pid makes wrong. Reusing `stop_unsupervised`
+        # means the emergency path confirms what it is killing on exactly the
+        # same evidence the ordinary one does.
+        #
+        # No lock is taken: by the time this runs the supervisor is gone, and
+        # a reap that refused to run because of a lock file left behind by the
+        # process it is cleaning up after would be useless.
+        reaper = Supervisor(
+            repo=HERE, python=args.python, controller_url=args.url,
+            admin_secret="", interval=args.interval, identities=args.only,
+            requests_module=None,
+        )
+
+        for identity in reaper.children:
+            reaper.stop_unsupervised(identity)
+
+        remaining = reaper.remaining_workers()
+
+        if remaining:
+            log.error(
+                "workers still running after reap: %s",
+                ", ".join(f"{i} (pid {p})" for i, p in sorted(remaining.items())),
+            )
+            return 1
+
+        log.info("no workers running")
+        return 0
 
     secret = os.environ.get("HUB_SECRET", "").strip()
 

@@ -70,6 +70,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import time
 import uuid
@@ -456,6 +457,126 @@ def pid_is_alive(pid: int) -> bool:
         return True
 
     return True
+
+
+def process_command_line(pid: int) -> Optional[str]:
+    """The command line `pid` was started with, or None if it cannot be read.
+
+    None means "cannot tell", and every caller treats that as a refusal to act
+    rather than as permission. That direction is the whole point: this exists
+    so that a pid read out of a lock file can be checked against the process
+    actually holding it before anything terminates it, and a check that
+    guesses when it fails is not a check.
+
+    A lock file is not evidence on its own. It records the pid of a worker
+    that was alive when it was written, and pids are reused -- so a worker
+    that died without releasing leaves a number that may by then belong to
+    anything on the host. `pid_is_alive` cannot tell the difference, because
+    the recycled process is genuinely alive.
+    """
+    if pid <= 0:
+        return None
+
+    if os.name == "nt":
+        # PowerShell rather than wmic: wmic is gone from current Windows 11
+        # builds, and this has to work on the host it actually runs on.
+        try:
+            result = subprocess.run(
+                [
+                    "powershell.exe", "-NoProfile", "-NonInteractive",
+                    "-Command",
+                    "(Get-CimInstance Win32_Process -Filter "
+                    f"'ProcessId={pid}').CommandLine",
+                ],
+                capture_output=True, encoding="utf-8", errors="replace",
+                timeout=30, check=False,
+            )
+        except Exception:
+            return None
+
+        text = (result.stdout or "").strip()
+        return text or None
+
+    # /proc first because it needs no subprocess and is exact. Its arguments
+    # are NUL-separated; they are joined with spaces because every caller
+    # matches substrings rather than parsing arguments back out.
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        raw = b""
+
+    if raw:
+        return raw.replace(b"\x00", b" ").decode("utf-8", "replace").strip() or None
+
+    try:
+        result = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "args="],
+            capture_output=True, encoding="utf-8", errors="replace",
+            timeout=15, check=False,
+        )
+    except Exception:
+        return None
+
+    text = (result.stdout or "").strip()
+    return text or None
+
+
+def terminate_pid(pid: int, *, timeout: float = 20.0) -> bool:
+    """Stop a process this one did not spawn, and wait. Returns whether it is gone.
+
+    `Popen.terminate` is the right tool for a child, and unavailable for
+    anything else: a worker an operator started by hand, or one an earlier
+    supervisor left behind, is a real process with no handle in this one.
+
+    Reported rather than assumed. The caller's next line is an operator-facing
+    claim about whether the swarm is stopped, and returning True without
+    checking is how that claim becomes false.
+    """
+    if not pid_is_alive(pid):
+        return True
+
+    try:
+        # On Windows this is TerminateProcess, which is what `Popen.terminate`
+        # does to the supervisor's own children -- so an adopted worker is
+        # stopped exactly as hard as a supervised one, not more.
+        os.kill(pid, signal.SIGTERM)
+    except Exception:
+        # Already gone, or not ours to signal. Which one is settled by the
+        # poll below rather than guessed at here, and nothing raised on the
+        # way to stopping one worker may stop the others being stopped.
+        pass
+
+    deadline = time.monotonic() + timeout
+
+    while time.monotonic() < deadline:
+        if not pid_is_alive(pid):
+            return True
+
+        time.sleep(1.0)
+
+    if os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(pid), "/T", "/F"],
+                capture_output=True, timeout=30, check=False,
+            )
+        except Exception:
+            pass
+    else:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+
+    deadline = time.monotonic() + 10.0
+
+    while time.monotonic() < deadline:
+        if not pid_is_alive(pid):
+            return True
+
+        time.sleep(1.0)
+
+    return not pid_is_alive(pid)
 
 
 def record_narration(messages: Iterable[dict]) -> int:

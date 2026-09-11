@@ -18,6 +18,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -180,3 +181,52 @@ def test_an_implausible_pid_is_not_alive():
 @pytest.mark.parametrize("pid", [0, -1, -99999])
 def test_a_nonsense_pid_is_not_alive(pid):
     assert swarm_control.pid_is_alive(pid) is False
+
+
+# --- Identifying the process behind a pid -----------------------------------
+#
+# `pid_is_alive` answers "is something running under this number", which is the
+# right question before starting beside it and the wrong one before killing it.
+# A worker that died without releasing leaves its number in the lock file, the
+# operating system hands that number to something else, and the check passes on
+# a process the swarm has never met. These cover the difference.
+
+
+def test_a_process_reports_the_command_line_it_was_started_with():
+    command = swarm_control.process_command_line(os.getpid())
+
+    assert command is not None
+    assert Path(sys.executable).name.lower() in command.lower()
+
+
+def test_a_spawned_process_is_identifiable_by_its_command_line(live_pid):
+    """The property a shutdown relies on: the pid can be checked, not trusted."""
+    command = swarm_control.process_command_line(live_pid)
+
+    assert command is not None
+    assert "time.sleep" in command
+
+
+def test_a_dead_pid_has_no_command_line():
+    assert swarm_control.process_command_line(2 ** 31 - 1) is None
+
+
+@pytest.mark.parametrize("pid", [0, -1, -99999])
+def test_a_nonsense_pid_has_no_command_line(pid):
+    assert swarm_control.process_command_line(pid) is None
+
+
+# --- Stopping a process this one did not spawn -------------------------------
+
+
+def test_terminate_pid_stops_a_real_process(live_pid):
+    """`Popen.terminate` is unavailable for a worker somebody else started."""
+    assert swarm_control.pid_is_alive(live_pid) is True
+
+    assert swarm_control.terminate_pid(live_pid, timeout=30.0) is True
+    assert swarm_control.pid_is_alive(live_pid) is False
+
+
+def test_terminate_pid_is_satisfied_by_a_process_that_is_already_gone():
+    """Nothing to stop is the outcome asked for, not a failure."""
+    assert swarm_control.terminate_pid(2 ** 31 - 1) is True
