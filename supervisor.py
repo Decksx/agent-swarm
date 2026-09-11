@@ -86,11 +86,12 @@ import swarm_control
 HERE = Path(__file__).resolve().parent
 
 # The identities this supervises, and the script each one runs.
-WORKERS = {
-    "chatgpt": "chatgpt_worker.py",
-    "gemini": "gemini_worker.py",
-    "claudecode": "claude_worker.py",
-}
+# Defined in `swarm_control` and named here, not copied. The lock needs the
+# same mapping to tell a stale pid from a live worker, and a worker that had
+# to import its supervisor to find out would depend on the thing supervising
+# it. Two mappings that can disagree is a lock that protects one name and
+# terminates another.
+WORKERS = swarm_control.WORKER_SCRIPTS
 
 # Restart backoff. Doubling from the floor to the ceiling, per identity.
 #
@@ -125,15 +126,8 @@ log = logging.getLogger("supervisor")
 
 # This file's own name, so the control script can ask whether a pid in
 # `supervisor.pid` is really a supervisor before it treats it as one.
-SUPERVISOR = "supervisor"
-
-
-def script_for(name: str):
-    """The script `name` runs -- a worker identity, or "supervisor"."""
-    if name == SUPERVISOR:
-        return Path(__file__).name
-
-    return WORKERS.get(name)
+SUPERVISOR = swarm_control.SUPERVISOR
+script_for = swarm_control.script_for
 
 
 def identifies_script(pid: int, script: str) -> bool:
@@ -179,12 +173,22 @@ class Child:
         return self.process.poll() is None
 
     def lock_holder(self) -> Optional[int]:
-        """The pid holding this identity's lock, if any is alive.
+        """The pid holding this identity's lock, if any process this identity's is.
 
         The second guard. A worker started outside this supervisor -- by an
         operator, or by an earlier supervisor that was killed without
         stopping its children -- holds the lock, and spawning beside it would
         give one identity two claimants.
+
+        Identity, not liveness, for the same reason `SingleInstance` now asks
+        it: a stale lock whose number the host has reissued reads as a live
+        holder, and this supervisor answered it by never starting that worker
+        again. It logged `already running (not started by this supervisor);
+        leaving it alone` once a tick, about a pid that was by then the
+        claudecode worker it had started itself.
+
+        `SingleInstance._holder` is the one place that question is answered,
+        so this asks it there rather than deciding again here.
         """
         lock = swarm_control.SingleInstance(self.identity)
         return lock._holder()
