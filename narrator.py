@@ -206,6 +206,15 @@ def credential(env: Optional[dict] = None) -> str:
 MAX_DETAIL = 240
 MAX_LINE = 900
 
+# The two ends of a line, bounded separately so the middle can never crowd
+# them out. Together they leave the summary at least half the line.
+MAX_PREFIX = 200
+MAX_SUFFIX = 40
+
+# One identifier inside the prefix -- a task id, an actor, a stage. Bounded
+# individually so that the prefix's own brackets always survive.
+MAX_IDENTIFIER = 48
+
 
 def flatten(text: object, limit: int = MAX_DETAIL) -> str:
     """One line of at most `limit` characters, with nothing smuggled in it.
@@ -297,20 +306,32 @@ def render(event: dict) -> Optional[str]:
     stage = event.get("stage")
     seq = event.get("seq")
 
-    parts = [f"{task} v{version}" if version is not None else str(task)]
-    parts.append(actor_name(event.get("actor")))
+    # Each part bounded on its own rather than the assembled prefix, so the
+    # brackets survive. Bounding the prefix alone let a long enough task id
+    # eat its own closing `]`, which leaves a line whose provenance is not
+    # merely shortened but unparseable.
+    task = flatten(task, MAX_IDENTIFIER)
+    parts = [f"{task} v{flatten(version, 12)}" if version is not None else task]
+    parts.append(flatten(actor_name(event.get("actor")), MAX_IDENTIFIER))
 
     if stage:
-        parts.append(str(stage))
+        parts.append(flatten(stage, MAX_IDENTIFIER))
 
-    line = f"[{' · '.join(parts)}] {summarize(event)} (seq {seq})"
+    # Built in three pieces and bounded in the middle one, because the two
+    # outer pieces are the line's provenance and truncation must never reach
+    # them.
+    #
+    # Truncating the assembled string did reach them. Enough maximum-length
+    # details pushed `(seq N)` past the bound and it was cut off -- and a line
+    # without its sequence is one a repeat cannot be recognised by, which is
+    # the entire mechanism that makes at-least-once delivery safe. The
+    # prefix is bounded too, so a task id long enough to fill the line cannot
+    # squeeze the suffix out from the other side.
+    prefix = flatten(f"[{' · '.join(parts)}] ", MAX_PREFIX)
+    suffix = flatten(f" (seq {seq})", MAX_SUFFIX)
+    room = MAX_LINE - len(prefix) - len(suffix)
 
-    # Flattened once more over the whole line, so that nothing assembled here
-    # -- a task id, a branch, an actor -- can reintroduce a break that the
-    # per-field bound did not see. The sequence number is inside the bound
-    # rather than appended after it, because a line truncated past its own
-    # provenance is a line an operator cannot place.
-    return flatten(line, MAX_LINE)
+    return prefix + flatten(summarize(event), max(room, 1)) + suffix
 
 
 class Cursor:
@@ -461,8 +482,11 @@ class Narrator:
         after it into the room -- which is the flood this exists to avoid,
         arrived at by looking like it was avoiding it.
 
-        Persisted before the announcement, so a crash between the two costs a
-        missing startup line rather than a replayed ledger.
+        Announced before it is persisted, like every other line. Recording
+        first and ignoring the result lost the announcement permanently when
+        the hub was down: the cursor said narration had begun, so it never
+        announced again. A crash between the two repeats the startup line
+        instead, which is the at-least-once trade every other line makes.
         """
         body = self.feed(None)
 

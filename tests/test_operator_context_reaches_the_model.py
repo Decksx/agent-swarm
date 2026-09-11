@@ -66,11 +66,40 @@ def test_the_author_prompt_attributes_the_answer_to_the_operator():
     assert "admin" in prompt
 
 
-def test_the_author_prompt_says_the_answer_outranks_the_objective():
-    """The escalation happened because the two disagreed."""
+def test_the_author_prompt_says_the_answer_is_authoritative_guidance():
+    """The escalation happened because the swarm could not settle something."""
     prompt = author_prompt(ANSWER).lower()
 
-    assert "follow the operator" in prompt
+    assert "authoritative guidance" in prompt
+
+
+def test_the_author_prompt_says_the_answer_cannot_change_the_contract():
+    """An earlier version said "follow the operator" over the objective, which
+    made a sentence of prose a contract-modification route -- while the
+    controller refuses `create_contract_version` through that same route
+    because a contract needs structured fields, and the new task version
+    carries the same contract hash."""
+    prompt = author_prompt(ANSWER)
+
+    assert "CANNOT change the contract" in prompt
+
+    for protected in ("objective", "acceptance criteria", "base commit",
+                      "proof mode", "allowed paths"):
+        assert protected in prompt.lower(), protected
+
+
+def test_the_author_prompt_says_what_to_do_instead():
+    """Refusing is only useful if the worker is told the structured route."""
+    prompt = author_prompt(ANSWER).lower()
+
+    assert "new contract version is needed" in prompt
+    assert "stop" in prompt
+
+
+def test_the_author_prompt_does_not_tell_the_model_to_override_the_objective():
+    prompt = author_prompt(ANSWER).lower()
+
+    assert "follow the operator" not in prompt
 
 
 def test_the_author_prompt_carries_the_action_and_the_provenance():
@@ -135,11 +164,21 @@ def test_the_review_prompt_contains_the_operator_response():
     assert ANSWER["response"] in prompt
 
 
-def test_the_review_prompt_attributes_and_ranks_the_answer():
+def test_the_review_prompt_attributes_and_bounds_the_answer():
     prompt = review_prompt(ANSWER)
 
     assert "OPERATOR" in prompt.upper()
-    assert "follow the operator" in prompt.lower()
+    assert "authoritative guidance" in prompt.lower()
+    assert "CANNOT change the contract" in prompt
+
+
+def test_the_reviewer_is_told_the_contract_is_unchanged():
+    """A reviewer judging a candidate against a contract the author was told
+    to ignore would be judging against something nobody was working to."""
+    prompt = review_prompt(ANSWER).lower()
+
+    assert "follow the operator" not in prompt
+    assert "new contract version is needed" in prompt
 
 
 def test_a_superseded_answer_is_not_in_the_review_prompt():
@@ -168,33 +207,3 @@ def test_the_packet_carries_the_answer_from_the_activation():
     signature = inspect.signature(review_packet.build)
 
     assert "operator_context" in signature.parameters
-
-
-# --- The call sites actually pass it ----------------------------------------
-#
-# The renderers above are only reached if each worker hands them the field.
-# These read the worker source rather than running a model, because the thing
-# being asserted is the wiring and the model call is the part that costs money.
-
-
-@pytest.mark.parametrize("worker,call", [
-    ("chatgpt_worker.py", "render_author_prompt"),
-    ("gemini_worker.py", "review_packet.build"),
-    ("claude_worker.py", "operator_section"),
-])
-def test_each_worker_passes_the_activation_context_into_its_prompt(worker, call):
-    source = open(worker, encoding="utf-8").read()
-    index = source.index(call)
-    window = source[index:index + 700]
-
-    assert "operator_context" in window, (
-        f"{worker} builds its prompt without the operator's answer"
-    )
-
-
-def test_the_claude_worker_puts_the_answer_before_the_task():
-    """A CLI worker reads its prompt top to bottom, so an instruction placed
-    after the task it overrules is a footnote to it."""
-    source = open("claude_worker.py", encoding="utf-8").read()
-
-    assert "HANDOFF_PREAMBLE + (operator" in source

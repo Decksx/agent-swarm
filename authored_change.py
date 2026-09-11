@@ -68,9 +68,23 @@ def operator_section(context: Optional[dict]) -> List[str]:
     something itself, and a worker resuming without the answer resumes into
     exactly the position that raised the question.
 
-    Labelled as the operator's and as an instruction, because that is what it
-    is -- it outranks the objective where the two disagree, which is the whole
-    reason a person was asked.
+    **And it is bounded by the contract.** An earlier version of this said
+    "where it and the objective disagree, follow the operator", which quietly
+    made a sentence of prose a contract-modification route: the controller
+    refuses `create_contract_version` through the response route precisely
+    because a contract needs structured fields, and then this told the model
+    to disregard the objective of a contract whose hash had not changed. The
+    new task version carries the same `contract_hash` -- so a run that
+    followed prose over the contract would produce a candidate that no
+    recorded contract describes, and a reviewer judging it against the
+    contract would be judging it against something the author was told to
+    ignore.
+
+    So the answer is authoritative about *how* to proceed within the contract,
+    and cannot move the contract itself. Where following it would require
+    changing the objective, the acceptance criteria, the base commit, the
+    proof mode or the allowed paths, the worker is told to stop and ask for a
+    contract version -- which is the structured route that exists for it.
     """
     if not context:
         return []
@@ -96,8 +110,15 @@ def operator_section(context: Optional[dict]) -> List[str]:
         f"They directed: {action}" if action else "",
         f"(task version {version}, event {sequence})",
         "",
-        "Their answer is an instruction. Where it and the objective disagree, "
-        "follow the operator.",
+        "How to read this:",
+        "- It is authoritative guidance for how to carry out this task, and "
+        "it settles the question that caused the escalation.",
+        "- It CANNOT change the contract. The objective, the acceptance "
+        "criteria, the base commit, the proof mode and the allowed paths are "
+        "unchanged by it, and this answer did not alter the contract hash.",
+        "- If following it would require changing any of those, do not do it. "
+        "Stop and say that a new contract version is needed, naming which of "
+        "them would have to change and why.",
     ]
 
 

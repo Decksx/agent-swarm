@@ -333,3 +333,75 @@ def test_a_corrupt_cursor_stops_narration_for_the_run(
     assert (control_dir / supervisor.NARRATION_CURSOR).read_text(
         encoding="utf-8"
     ) == "nonsense"
+
+
+# --- Truncation never reaches the provenance ---------------------------------
+#
+# The line was assembled and then truncated as a whole, so enough
+# maximum-length details pushed `(seq N)` past the bound and it was cut off.
+# A line without its sequence is one a repeat cannot be recognised by, which
+# is the entire mechanism that makes at-least-once delivery safe to rely on.
+
+
+FULL = {
+    "reason": "r" * 5_000,
+    "question": "q" * 5_000,
+    "response": "s" * 5_000,
+    "branch": "b" * 5_000,
+    "candidate_sha": "c" * 500,
+    "merge_sha": "m" * 500,
+    "base_sha": "d" * 500,
+}
+
+
+def test_a_maximum_length_line_still_ends_with_its_sequence():
+    line = narrator.render(event(seq=98765, kind="author_defect",
+                                 payload_json=FULL))
+
+    assert len(line) == narrator.MAX_LINE
+    assert line.endswith("(seq 98765)")
+
+
+@pytest.mark.parametrize("seq", [0, 7, 42, 98765, 2 ** 31 - 1])
+def test_every_narrated_line_ends_with_its_complete_sequence(seq):
+    line = narrator.render(event(seq=seq, kind="author_defect",
+                                 payload_json=FULL))
+
+    assert line.endswith(f"(seq {seq})")
+    assert len(line) <= narrator.MAX_LINE
+
+
+@pytest.mark.parametrize("kind", sorted(narrator.NARRATED))
+def test_no_narrated_kind_can_lose_its_sequence(kind):
+    """Every kind, at full payload size. A bound that holds for one summary
+    and not another is a bound nobody can rely on."""
+    line = narrator.render(event(seq=31337, kind=kind, payload_json=FULL))
+
+    assert line.endswith("(seq 31337)")
+    assert len(line) <= narrator.MAX_LINE
+
+
+def test_an_enormous_task_id_cannot_crowd_out_the_sequence():
+    """The prefix is bounded too, so the squeeze cannot come from that side."""
+    line = narrator.render(event(seq=5, task_id="T" * 5_000,
+                                 kind="author_defect", payload_json=FULL))
+
+    assert line.endswith("(seq 5)")
+    assert len(line) <= narrator.MAX_LINE
+
+
+def test_the_prefix_and_the_sequence_both_survive_a_full_payload():
+    line = narrator.render(event(seq=5, kind="author_defect", payload_json=FULL))
+
+    assert line.startswith("[CND-3 v1 · Gemini · review]")
+    assert line.endswith("(seq 5)")
+
+
+def test_a_summary_is_never_squeezed_to_nothing():
+    """Provenance without content is a line that says an event happened and
+    not what it was."""
+    line = narrator.render(event(seq=5, task_id="T" * 5_000,
+                                 kind="author_defect", payload_json=FULL))
+    body = line[line.index("]") + 1:line.rindex("(seq")]
+
+    assert body.strip()
