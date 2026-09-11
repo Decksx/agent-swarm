@@ -184,6 +184,21 @@ def main(argv) -> int:
     p = sub.add_parser("retry")
     p.add_argument("task_id")
 
+    # A proposal that was looked at and turned down needs somewhere to go. It
+    # is not a failure -- nothing was attempted -- and leaving it in DRAFT
+    # records only that nobody got to it, which is the opposite of what
+    # happened. CANCELLED is terminal, so the reason travels with it: a
+    # rejected task whose ledger does not say why is a task somebody proposes
+    # again.
+    p = sub.add_parser("cancel")
+    p.add_argument("task_id")
+    p.add_argument(
+        "--reason", required=True,
+        help="why it was rejected. Required: this is the only record of the "
+             "judgment, and the state alone says a decision was made without "
+             "saying what it was.",
+    )
+
     args = parser.parse_args(argv[1:])
     secret = read_secret(args.env_file, ADMIN)
     url = args.url.rstrip("/")
@@ -260,6 +275,16 @@ def main(argv) -> int:
     if args.command == "retry":
         return show(*call(
             url, secret, "POST", f"/controller/tasks/{args.task_id}/retry"
+        ))
+
+    if args.command == "cancel":
+        # Through the generic transition route, because `admin_cancelled` is
+        # genuinely an admin-authority transition -- unlike `ready`, where the
+        # operator asks and the controller decides. A person rejecting a
+        # proposal is the decision, and the ledger should say so.
+        return show(*call(
+            url, secret, "POST", f"/controller/tasks/{args.task_id}/transition",
+            {"kind": "admin_cancelled", "payload": {"reason": args.reason}},
         ))
 
     if args.command == "repair":

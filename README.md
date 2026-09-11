@@ -88,6 +88,7 @@ Phase 1 MVP. Four runs have been executed end to end against live models:
 | MVP2 | ChatGPT as author under the controller | [`docs/MVP2_CHATGPT_RUN.md`](docs/MVP2_CHATGPT_RUN.md) |
 | MVP3 | reject → retry → approve, rejected candidate preserved | [`docs/MVP3_REVIEW_CYCLE.md`](docs/MVP3_REVIEW_CYCLE.md) |
 | MVP4 | grounded planning, six refusal paths | [`docs/MVP4_PLANNING_RUN.md`](docs/MVP4_PLANNING_RUN.md) |
+| MVP5 | all four MVP4 proposals rejected as duplicates; `NEEDS_CONTEXT` added | [`docs/MVP5_SEMANTIC_GROUNDING.md`](docs/MVP5_SEMANTIC_GROUNDING.md) |
 
 **Works:** contract-scoped authoring in isolated worktrees; model review against
 acceptance criteria; the full author → review → rejection → correction →
@@ -106,6 +107,11 @@ refused whole on any failure.
 - **Execution is fail-safe, not exactly-once.** A crash mid-call cannot be
   distinguished from a call that never happened.
 - **Budget is not metered.**
+- **Semantic grounding is incomplete.** The harness can prove a path exists and
+  that two tasks do not collide. It cannot prove the work is not already done
+  under another name — see MVP5, where four fully-grounded proposals all
+  duplicated existing code. `NEEDS_CONTEXT` narrows this and does not close it;
+  a person still decides whether a proposal is worth doing.
 
 Read `PHASE1_MVP_LIMITS.md` before trusting any of this with something that
 matters. The protocol it implements is [`SWARM_PROTOCOL_v7.md`](SWARM_PROTOCOL_v7.md);

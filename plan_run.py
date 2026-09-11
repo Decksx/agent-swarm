@@ -53,6 +53,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 import plan
 import repo_registry
@@ -132,6 +133,189 @@ def ask_gemini(prompt: str, *, model: str = GEMINI_MODEL) -> str:
     return reply
 
 
+# How many model calls one planning run may ever make, including the first.
+# A hard ceiling rather than a budget somebody tops up: the loop exists so a
+# planner can ask for evidence once or twice, and a planner that has asked
+# three times is not converging on a plan, it is reading the repository one
+# request at a time at a call apiece.
+DEFAULT_MAX_CALLS = 3
+
+# Per fulfilled file. Generous compared with a context path, because a planner
+# that asked for a specific file by name has already narrowed it.
+FULFIL_PER_FILE = 20_000
+FULFIL_TOTAL = 80_000
+
+
+def fulfil(repo: str, sha: str, request: dict, already: Optional[dict] = None) -> dict:
+    """Read what the planner asked for, at the base commit. Never more.
+
+    Only paths. A request naming a symbol rather than a file is reported back
+    unfulfilled with the reason -- this does not index the repository, and
+    guessing which file a name lives in would answer a question the planner did
+    not ask. Saying so lets it ask again with a path, which costs one call and
+    is honest; a wrong guess costs a plan.
+    """
+    import subprocess
+
+    listing = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", sha],
+        cwd=str(repo), capture_output=True, encoding="utf-8",
+        errors="replace", check=False,
+    )
+    tree = [line.strip() for line in (listing.stdout or "").splitlines() if line.strip()]
+
+    # What earlier rounds already handed over: path -> bytes shown. A planner
+    # re-asking for a file it was given in full is told so rather than being
+    # sent it twice; one that was truncated gets the *next* part rather than
+    # the same opening again, which is the only way a second request for a
+    # large file can be worth the call it costs.
+    already = dict(already or {})
+
+    supplied, refused = [], []
+    spent = 0
+
+    for entry in request["requests"]:
+        path, symbol, why = entry["path"], entry["symbol"], entry["why"]
+
+        if not path:
+            refused.append({
+                "asked": symbol,
+                "reason": "named a symbol, not a path. This host does not "
+                          "index symbols; ask again with a file path.",
+            })
+            continue
+
+        matched = [
+            candidate for candidate in tree
+            if candidate == path or candidate.startswith(path.rstrip("/") + "/")
+        ]
+
+        if not matched:
+            refused.append({
+                "asked": path,
+                "reason": f"nothing at that path in {sha[:12]}",
+            })
+            continue
+
+        for candidate in matched:
+            if spent >= FULFIL_TOTAL:
+                refused.append({
+                    "asked": candidate,
+                    "reason": "the fulfilment budget was already spent",
+                })
+                continue
+
+            shown = subprocess.run(
+                ["git", "show", f"{sha}:{candidate}"],
+                cwd=str(repo), capture_output=True, encoding="utf-8",
+                errors="replace", check=False,
+            )
+
+            if shown.returncode != 0:
+                refused.append({"asked": candidate, "reason": "could not be read"})
+                continue
+
+            raw = (shown.stdout or "").encode("utf-8")
+            offset = already.get(candidate, 0)
+
+            if offset >= len(raw):
+                refused.append({
+                    "asked": candidate,
+                    "reason": "already supplied in full in an earlier round; "
+                              "it is still above in this prompt",
+                })
+                continue
+
+            room = min(FULFIL_PER_FILE, max(0, FULFIL_TOTAL - spent))
+            chunk = raw[offset:offset + room]
+            truncated = offset + len(chunk) < len(raw)
+            text = chunk.decode("utf-8", "ignore")
+
+            spent += len(chunk)
+            already[candidate] = offset + len(chunk)
+            supplied.append({
+                "path": candidate, "text": text,
+                "truncated": truncated, "why": why,
+                "continued": offset > 0,
+                "shown_bytes": already[candidate],
+                "total_bytes": len(raw),
+            })
+
+    return {
+        "supplied": supplied, "refused": refused, "bytes": spent,
+        "already": already,
+    }
+
+
+def render_fulfilment(request: dict, result: dict) -> str:
+    """The evidence, appended to the next prompt, with the refusals named.
+
+    A request that could not be met is stated rather than omitted. Silence
+    would read as "this file is empty" or "you did not ask", and the planner
+    would draw a conclusion from an absence that means neither.
+    """
+    parts = [
+        "",
+        "=" * 70,
+        "THE FILES YOU ASKED FOR",
+        "",
+        "You asked for these because: " + request["reason"],
+        "",
+        "They are read from the same commit the snapshot describes. This is "
+        "the evidence you said you were missing; plan against what is actually "
+        "in it, including deciding that something you were going to propose is "
+        "already done.",
+    ]
+
+    for entry in result["supplied"]:
+        header = f"--- {entry['path']}"
+
+        if entry.get("continued"):
+            header += (
+                f" (CONTINUED from byte {entry['shown_bytes'] - len(entry['text'].encode('utf-8')):,})"
+            )
+
+        parts += [
+            "",
+            "-" * 60,
+            header,
+            f"(you asked for this because: {entry['why']})",
+            "",
+            entry["text"].rstrip(),
+        ]
+
+        if entry["truncated"]:
+            parts.append(
+                f"[{entry['path']} IS CUT SHORT HERE -- you have "
+                f"{entry.get('shown_bytes', 0):,} of "
+                f"{entry.get('total_bytes', 0):,} bytes. Do not conclude "
+                "anything about the part you cannot see. Asking for it again "
+                "returns the NEXT part, not this one over again.]"
+            )
+
+    if result["refused"]:
+        parts += ["", "-" * 60, "NOT SUPPLIED:"]
+        parts += [
+            f"  {item['asked']} -- {item['reason']}" for item in result["refused"]
+        ]
+        parts.append(
+            ""
+            "An unfulfilled request is not evidence that the thing does not "
+            "exist. If you still need it, say so rather than planning around it."
+        )
+
+    parts += [
+        "",
+        "=" * 70,
+        "",
+        "Now answer again. A plan if you can now write one, or another "
+        "needs_context request if the evidence changed what you need -- but "
+        "the call limit is strict and may already be reached.",
+    ]
+
+    return "\n".join(parts)
+
+
 def render_report(parsed: dict, grounding: dict, snapshot: dict) -> str:
     """The plan as something a person can decide about in one screen.
 
@@ -185,6 +369,29 @@ def render_report(parsed: dict, grounding: dict, snapshot: dict) -> str:
         if not task["context_paths"]:
             lines.append("    (none -- this task was planned with no reading list)")
 
+        lines.append("  existing work checked:")
+
+        for entry in task["existing_work_checked"]["searched"]:
+            lines.append(f"    {entry}")
+
+        lines += [
+            "    why it is still missing:",
+            *(f"      {line}" for line in
+              task["existing_work_checked"]["why_missing"].splitlines()),
+        ]
+
+        if report["active_work_collisions"]:
+            lines.append("  COLLIDES WITH UNCOMMITTED WORK:")
+            lines += [f"    {entry}" for entry in report["active_work_collisions"]]
+
+        for blind in report["unexamined_directories"]:
+            lines += [
+                f"  UNEXAMINED DIRECTORY: {blind['creates']} would be created "
+                f"in {blind['directory']}, which already holds "
+                f"{blind['existing_siblings']} file(s) that were never read:",
+                *(f"    {name}" for name in blind["examples"]),
+            ]
+
         if task["dependencies"]:
             lines.append(f"  after: {', '.join(task['dependencies'])}")
 
@@ -195,15 +402,35 @@ def render_report(parsed: dict, grounding: dict, snapshot: dict) -> str:
     if grounding["grounded"]:
         lines.append(
             "GROUNDED. Every context path names a file that exists at this "
-            "commit."
+            "commit, nothing overlaps work in progress, and every new file "
+            "goes into a directory whose existing contents were examined."
         )
     else:
-        lines.append(
-            f"NOT GROUNDED. {grounding['missing_context_total']} context "
-            "path(s) name files that do not exist at this commit. The plan was "
-            "written against a tree that is not this one; an author would be "
-            "sent to work with a shorter reading list than it was promised."
-        )
+        lines.append("NOT GROUNDED.")
+
+        if grounding["missing_context_total"]:
+            lines.append(
+                f"  {grounding['missing_context_total']} context path(s) name "
+                "files that do not exist at this commit. The plan was written "
+                "against a tree that is not this one."
+            )
+
+        if grounding.get("active_work_collisions_total"):
+            lines.append(
+                f"  {grounding['active_work_collisions_total']} writable "
+                "path(s) have uncommitted changes in the canonical checkout. "
+                "Somebody is editing them now; a candidate written against "
+                "the baseline would conflict with or discard that work."
+            )
+
+        if grounding.get("unexamined_directories_total"):
+            lines.append(
+                f"  {grounding['unexamined_directories_total']} new file(s) "
+                "would be created in directories whose existing contents were "
+                "never read. This is how four proposals duplicating existing "
+                "implementations and tests were produced: the path was free, "
+                "and the job was already done next to it."
+            )
 
     # Concurrency is proved by parse() -- a plan with a collision does not get
     # here -- so this states what was checked rather than checking it again.
@@ -347,6 +574,24 @@ def main(argv) -> int:
     )
     parser.add_argument("--url", default="http://192.168.42.50:8050")
     parser.add_argument("--run-tests", default=None, metavar="COMMAND")
+    parser.add_argument(
+        "--max-calls", type=int, default=DEFAULT_MAX_CALLS,
+        help="the hard ceiling on model calls for this run, counting the "
+             "first. Reaching it without a plan is a refusal, not a fallback "
+             "to whatever the planner last said.",
+    )
+    parser.add_argument(
+        "--doc", action="append", default=[],
+        help="include this path in the snapshot's documents, ahead of the "
+             "pattern matches. Repeatable. This is the cheaper answer to a "
+             "planner that keeps asking for the same file.",
+    )
+    parser.add_argument(
+        "--active-ref", default=None,
+        help="a branch whose in-flight work the planner should be shown and "
+             "told not to duplicate. Defaults to the canonical checkout's "
+             "current branch, which is where work in progress actually is.",
+    )
     args = parser.parse_args(argv[1:])
 
     # The snapshot quotes documents, and documents contain arrows and accented
@@ -384,7 +629,27 @@ def main(argv) -> int:
             repo_snapshot.run_tests(str(resolved.path), args.run_tests)
             if args.run_tests else None
         )
-        snapshot = repo_snapshot.build(resolved, tests=tests)
+        # The checkout's own branch by default. The baseline is master and
+        # the work is not on master -- that is the normal state of this
+        # repository, and a planner shown only the baseline plans as though
+        # nothing were in flight.
+        active_ref = args.active_ref
+
+        if active_ref is None:
+            current = repo_snapshot._git(
+                str(resolved.path), "rev-parse", "--abbrev-ref", "HEAD",
+                check=False,
+            ).strip()
+            active_ref = (
+                f"refs/heads/{current}"
+                if current and current != "HEAD" and
+                f"refs/heads/{current}" != resolved.ref
+                else ""
+            )
+
+        snapshot = repo_snapshot.build(
+            resolved, tests=tests, documents=args.doc, active_ref=active_ref
+        )
     except repo_snapshot.SnapshotError as exc:
         print(f"plan: {exc}")
         return 1
@@ -400,36 +665,151 @@ def main(argv) -> int:
         file=sys.stderr,
     )
 
-    if args.from_reply:
-        reply = Path(args.from_reply).read_text(encoding="utf-8")
-        print("plan: parsing a saved reply; no model was called", file=sys.stderr)
-    else:
+    # --- The bounded loop ----------------------------------------------------
+    #
+    # A planner that cannot see the source has three options, and before this
+    # loop existed it had two. It could plan against files it could not read,
+    # or produce nothing -- and producing nothing reads as failure, so it
+    # produced work that was safe to author instead of work that was worth
+    # doing. Four proposals, every path valid, all four duplicating code and
+    # tests already in the repository.
+    #
+    # The third option is to ask. Each round costs one call, the ceiling counts
+    # every call including the first, and reaching it without a plan is a
+    # refusal rather than a fallback to whatever the planner said last. A
+    # fallback would restore exactly the behaviour this exists to remove.
+    transcript = []
+    context_supplied = []
+    # Every round's evidence, kept. Rebuilding the prompt from the latest
+    # fulfilment alone made each round discard the last one's files -- so the
+    # planner correctly re-asked for something it had already been given, and
+    # spent a call of a strictly limited budget doing it. A live run hit this
+    # on its third call. Evidence accumulates or the loop cannot converge.
+    evidence = []
+    already_supplied = {}
+    parsed = None
+    outcome = None
+    calls = 0
+    attempt_prompt = prompt
+
+    while True:
+        if args.from_reply:
+            reply = Path(args.from_reply).read_text(encoding="utf-8")
+            print("plan: parsing a saved reply; no model was called", file=sys.stderr)
+        else:
+            if calls >= args.max_calls:
+                # The planner asked again and there is no call left to answer
+                # it with. What it last asked for is printed, because the
+                # useful next move is usually to widen the snapshot's document
+                # set and start over rather than to raise the ceiling.
+                print(
+                    f"\nplan: REFUSED -- the call limit of {args.max_calls} is "
+                    "reached and the planner still has not produced a plan."
+                )
+
+                if outcome and outcome.get("outcome") == "needs_context":
+                    print("      It was still asking for:")
+
+                    for entry in outcome["requests"]:
+                        print(f"        {entry['path'] or entry['symbol']}")
+
+                    print(
+                        "      Consider adding these to the snapshot's "
+                        "documents with --doc and running again, rather than "
+                        "raising --max-calls."
+                    )
+
+                return 1
+
+            try:
+                reply = ask_gemini(attempt_prompt, model=args.model)
+                calls += 1
+            except PlanRunError as exc:
+                print(f"plan: {exc}")
+                return 1
+
+        transcript.append({"call": calls, "prompt": attempt_prompt, "reply": reply})
+
+        if args.reply_out:
+            # Every round, not just the last. A run that ended in a refusal is
+            # only diagnosable from what was actually said, and the request
+            # that preceded a bad plan is usually where the answer is.
+            suffix = "" if calls <= 1 else f".{calls}"
+            Path(args.reply_out + suffix).write_text(reply, encoding="utf-8")
+
         try:
-            reply = ask_gemini(prompt, model=args.model)
-        except PlanRunError as exc:
-            print(f"plan: {exc}")
+            outcome = plan.parse_reply(reply, snapshot=snapshot, owners=OWNERS)
+        except plan.PlanError as exc:
+            # The whole plan, never part of it. The tasks refer to each other,
+            # and a plan minus its third task is a plan nobody wrote.
+            print(f"plan: REFUSED -- {exc}")
+
+            if not args.reply_out:
+                print(
+                    "      Re-run with --reply-out to keep the reply; a "
+                    "refused plan is only diagnosable from what was said."
+                )
+
             return 1
 
-    if args.reply_out:
-        Path(args.reply_out).write_text(reply, encoding="utf-8")
+        if outcome["outcome"] == "plan":
+            parsed = outcome["plan"]
+            break
 
-    try:
-        parsed = plan.parse(reply, snapshot=snapshot, owners=OWNERS)
-    except plan.PlanError as exc:
-        # The whole plan, never part of it. The tasks refer to each other, and
-        # a plan minus its third task is a plan nobody wrote.
-        print(f"plan: REFUSED -- {exc}")
+        # NEEDS_CONTEXT. Not a failure -- this is the answer the loop was
+        # built to make available, and it is the one the planner is told to
+        # prefer over a plan it is not confident in.
+        print(f"\nplan: the planner asked for context (call {calls})")
+        print(f"      {outcome['reason']}")
 
-        if not args.reply_out:
+        for entry in outcome["requests"]:
+            print(f"        {entry['path'] or entry['symbol']} -- {entry['why']}")
+
+        if args.from_reply:
             print(
-                "      Re-run with --reply-out to keep the reply; a refused "
-                "plan is only diagnosable from what was actually said."
+                "\nplan: --from-reply cannot be answered; there is no second "
+                "saved reply to read. The request is above."
             )
+            return 0
 
-        return 1
+        result = fulfil(
+            str(resolved.path), resolved.sha, outcome, already_supplied
+        )
+        already_supplied = result["already"]
+
+        print(
+            f"plan: supplying {len(result['supplied'])} file(s), "
+            f"{result['bytes']:,} bytes"
+            + (f", refusing {len(result['refused'])}" if result["refused"] else "")
+        )
+
+        for item in result["refused"]:
+            print(f"        not supplied: {item['asked']} -- {item['reason']}")
+
+        if not result["supplied"]:
+            # Answering with nothing would spend the next call to be told the
+            # same thing again, and the round after that would be identical.
+            print(
+                "\nplan: REFUSED -- nothing the planner asked for could be "
+                "supplied, so another call would ask the same question of the "
+                "same evidence."
+            )
+            return 1
+
+        evidence.append(render_fulfilment(outcome, result))
+        attempt_prompt = prompt + "".join(evidence)
+        context_supplied.extend(entry["path"] for entry in result["supplied"])
+
+    # The uncommitted paths, as active-work warnings. A task authorised to
+    # write a file somebody is mid-edit on is a task whose candidate was
+    # written against a base that person has already moved past.
+    dirty_paths = [
+        entry[3:].split(" -> ")[-1].strip().strip('"')
+        for entry in snapshot["operational"]["uncommitted"]["entries"]
+    ]
 
     try:
-        grounding = plan.ground(parsed, str(resolved.path))
+        grounding = plan.ground(parsed, str(resolved.path), dirty=dirty_paths)
     except plan.PlanError as exc:
         print(f"plan: could not be grounded -- {exc}")
         return 1
@@ -441,7 +821,10 @@ def main(argv) -> int:
         Path(args.out).write_text(
             json.dumps(
                 {"plan": parsed, "grounding": grounding,
-                 "planner": args.model, "guidance": guidance},
+                 "planner": args.model, "guidance": guidance,
+                 "model_calls": calls, "max_calls": args.max_calls,
+                 "context_supplied": context_supplied,
+                 "active_ref": snapshot.get("active_work", {}).get("ref", "")},
                 indent=2,
             ),
             encoding="utf-8",

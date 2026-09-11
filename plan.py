@@ -98,6 +98,17 @@ UNRESTRICTED = "UNRESTRICTED"
 MAX_TASKS = 12
 MAX_PATHS_PER_TASK = 20
 
+# A context request is bounded because it is a second chance, not an open
+# channel. A planner that could ask for anything would ask for the repository,
+# one file at a time, and each round costs a model call.
+MAX_CONTEXT_REQUESTS = 25
+
+# The shortest explanation of why work is missing that could possibly be one.
+# Not a quality bar -- nothing here can judge quality -- but "N/A", "none" and
+# "it does not exist yet" are all answers that mean the question was not
+# engaged with, and all of them are shorter than this.
+MIN_WHY_MISSING = 40
+
 # Higher than the writable cap on purpose. Reading is cheap and understanding
 # is the thing that was missing, so this is generous -- but not unbounded: a
 # reading list longer than this is a request for the repository, and the
@@ -108,6 +119,33 @@ MAX_CONTEXT_PATHS_PER_TASK = 40
 
 class PlanError(Exception):
     """The plan could not be accepted."""
+
+
+class NeedsContext(Exception):
+    """The planner asked for evidence instead of guessing. Not a failure.
+
+    This exists because of a specific live outcome. Gemini was given a snapshot
+    that declared, accurately, that no source file contents were included. It
+    read that, said so in its summary -- and then planned anyway, proposing four
+    self-contained new files that duplicated implementation and tests already in
+    the repository. Every path resolved. Nothing collided. All four were
+    rejected by a reviewer who could see the source.
+
+    The planner did the only thing available to it. Its options were to plan
+    against files it could not see or to produce nothing, and producing nothing
+    reads as failure, so it produced work that was safe to author rather than
+    work that was worth doing. "Safe to author" and "worth doing" came apart,
+    and nothing in the loop could tell them apart.
+
+    So there is now a third option, and it is the one the planner is told to
+    prefer: ask. `request` carries what it wants and why, the host may fulfil
+    it from the base commit, and planning is re-run with the evidence in hand
+    under a strict call limit.
+    """
+
+    def __init__(self, request: dict):
+        self.request = request
+        super().__init__(request.get("reason") or "the planner asked for context")
 
 
 def _block(text: str) -> str:
@@ -189,6 +227,126 @@ def _safe_path(raw: str, *, task_id: str, field: str = "allowed_paths") -> str:
         )
 
     return candidate
+
+
+def parse_context_request(parsed: dict) -> dict:
+    """A NEEDS_CONTEXT answer, bounded and checked, or raise.
+
+    Bounded in three ways, each because the unbounded version has an obvious
+    abuse: a cap on how many things may be asked for, the same containment
+    rules paths are held to everywhere else, and a required reason per entry.
+    The reason is not decoration -- it is what a person reads when deciding
+    whether to spend another call, and "I need to see the code" is a request
+    nobody can evaluate.
+    """
+    reason = str(parsed.get("reason") or "").strip()
+
+    if len(reason) < 20:
+        raise PlanError(
+            "the planner asked for context without saying what it is missing. "
+            "A request nobody can evaluate cannot be fulfilled."
+        )
+
+    raw_requests = parsed.get("requests")
+
+    if not isinstance(raw_requests, list) or not raw_requests:
+        raise PlanError(
+            "a needs_context answer with no requests. If nothing specific is "
+            "missing, the answer is a plan."
+        )
+
+    if len(raw_requests) > MAX_CONTEXT_REQUESTS:
+        raise PlanError(
+            f"{len(raw_requests)} context requests; more than "
+            f"{MAX_CONTEXT_REQUESTS} is a request for the repository, made one "
+            "file at a time"
+        )
+
+    requests = []
+
+    for index, entry in enumerate(raw_requests):
+        if not isinstance(entry, dict):
+            raise PlanError(f"context request {index}: not an object")
+
+        path = str(entry.get("path") or "").strip()
+        symbol = str(entry.get("symbol") or "").strip()
+        why = str(entry.get("why") or "").strip()
+
+        if not path and not symbol:
+            raise PlanError(
+                f"context request {index}: names neither a path nor a symbol"
+            )
+
+        if len(why) < 15:
+            raise PlanError(
+                f"context request {index} ({path or symbol}): no reason given. "
+                "Every request costs a call to fulfil and somebody decides "
+                "whether to spend it."
+            )
+
+        if path:
+            path = _safe_path(path, task_id=f"request {index}", field="requests")
+
+        requests.append({"path": path, "symbol": symbol, "why": why})
+
+    return {
+        "outcome": "needs_context",
+        "reason": reason,
+        "requests": requests,
+    }
+
+
+def _existing_work(raw: dict, *, task_id: str) -> dict:
+    """What was searched before concluding this work is missing, or raise.
+
+    The check this exists for: four proposals, every path resolving, every one
+    of them duplicating implementation or tests already in the repository. A
+    planner that has only been shown a file *listing* can tell that
+    `scripts/validate_routing_config.py` does not exist. It cannot tell that
+    `scripts/cbz_routing.py`, sitting beside it, already has `parse()`,
+    `load()` and a `RoutingConfigError` -- and it will not find out by looking
+    harder at the listing.
+
+    So a task must state what it looked at. This cannot verify that the
+    conclusion is *right* -- judging whether an existing module already does
+    the job is exactly the semantic judgment the planner failed at, and a
+    parser claiming to make it would be trusted for it. What it can do is
+    refuse a proposal that never looked, and put what was looked at in front of
+    the person who decides.
+    """
+    checked = raw.get("existing_work_checked")
+
+    if not isinstance(checked, dict):
+        raise PlanError(
+            f"{task_id}: no existing_work_checked. A task must say what it "
+            "searched before concluding the behaviour is missing; a proposal "
+            "resting on a path not existing is not evidence that the work is "
+            "not already done."
+        )
+
+    searched = checked.get("searched")
+
+    if not isinstance(searched, list) or not searched:
+        raise PlanError(
+            f"{task_id}: existing_work_checked.searched is empty. Name the "
+            "implementation, tests and documentation that were examined."
+        )
+
+    entries = [str(item).strip() for item in searched if str(item).strip()]
+
+    if not entries:
+        raise PlanError(f"{task_id}: existing_work_checked.searched is all empty")
+
+    why = str(checked.get("why_missing") or "").strip()
+
+    if len(why) < MIN_WHY_MISSING:
+        raise PlanError(
+            f"{task_id}: existing_work_checked.why_missing is "
+            f"{len(why)} characters. Explain why what exists does not already "
+            "cover this, in terms of what was found."
+        )
+
+    return {"searched": entries, "why_missing": why}
 
 
 def _one_task(raw: dict, *, index: int, owners: Sequence[str]) -> dict:
@@ -301,6 +459,8 @@ def _one_task(raw: dict, *, index: int, owners: Sequence[str]) -> dict:
             "given both statements at once."
         )
 
+    existing = _existing_work(raw, task_id=task_id)
+
     depends = raw.get("dependencies") or []
 
     if not isinstance(depends, list):
@@ -315,6 +475,7 @@ def _one_task(raw: dict, *, index: int, owners: Sequence[str]) -> dict:
         "mode": mode,
         "allowed_paths": allowed,
         "context_paths": context,
+        "existing_work_checked": existing,
         "dependencies": [str(entry).strip() for entry in depends if str(entry).strip()],
     }
 
@@ -532,7 +693,51 @@ def parse(
     }
 
 
-def ground(plan: dict, repo: str, *, ls_tree=None) -> dict:
+def parse_reply(
+    text: str,
+    *,
+    snapshot: dict,
+    owners: Sequence[str] = ("chatgpt", "claudecode", "gemini"),
+) -> dict:
+    """One planner reply, which is either a plan or a request for evidence.
+
+    Two outcomes, returned rather than distinguished by the caller inspecting
+    the text. A caller that had to look for `outcome` itself would eventually
+    forget to, and the failure mode of forgetting is treating a request for
+    context as an empty plan.
+
+    Returns `{"outcome": "plan", "plan": {...}}` or the result of
+    `parse_context_request`, which carries `outcome: "needs_context"`.
+    """
+    body = _block(text)
+
+    try:
+        parsed = json.loads(body)
+    except ValueError as exc:
+        raise PlanError(f"the plan block is not valid JSON: {exc}")
+
+    if isinstance(parsed, dict):
+        outcome = str(parsed.get("outcome") or "").strip().lower()
+
+        if outcome in ("needs_context", "needs-context"):
+            return parse_context_request(parsed)
+
+        # A reply carrying requests but no tasks, whatever it called itself.
+        # The planner has answered the right question in the wrong envelope,
+        # and refusing it on a formality would spend another call to get the
+        # same content back with a different key.
+        if parsed.get("requests") and not parsed.get("tasks"):
+            return parse_context_request(parsed)
+
+    return {"outcome": "plan", "plan": parse(text, snapshot=snapshot, owners=owners)}
+
+
+def _directory_of(path: str) -> str:
+    parts = PurePosixPath(path).parts
+    return "/".join(parts[:-1])
+
+
+def ground(plan: dict, repo: str, *, ls_tree=None, dirty=()) -> dict:
     """Check the plan's paths against the tree it claims to be planned against.
 
     `parse` is a parser: it can tell that a path is well formed and that two
@@ -592,8 +797,12 @@ def ground(plan: dict, repo: str, *, ls_tree=None) -> dict:
             "ground a plan against nothing -- every path would report missing."
         )
 
+    dirty_paths = [str(entry).strip() for entry in dirty if str(entry).strip()]
+
     tasks = []
     missing_context = 0
+    collisions = 0
+    unexamined = 0
 
     for task in plan["tasks"]:
         def matched(entry):
@@ -603,6 +812,60 @@ def ground(plan: dict, repo: str, *, ls_tree=None) -> dict:
         creates = [entry for entry in task["allowed_paths"] if not matched(entry)]
         missing_context += len(absent)
 
+        # Somebody is editing these right now. A task authorised to write a
+        # file with uncommitted changes in the canonical checkout is a task
+        # whose candidate was written against a base that person has already
+        # moved past -- and the integration would either conflict or quietly
+        # discard their work. The baseline is a commit precisely so that this
+        # can be checked rather than hoped about.
+        active = sorted({
+            path for path in dirty_paths
+            if any(_covered(path, [entry]) for entry in task["allowed_paths"])
+            or any(_covered(entry, [path]) for entry in task["allowed_paths"])
+        })
+        collisions += len(active)
+
+        # A new file dropped into a populated directory whose existing
+        # contents were never looked at. This is exactly how ROUTING-1 was
+        # produced: `scripts/validate_routing_config.py` proposed beside
+        # `scripts/cbz_routing.py`, which already had parse(), load() and
+        # RoutingConfigError, and which appeared in neither its context nor
+        # its search. The planner could see the path was free. It could not
+        # see that the job was done.
+        #
+        # One examined sibling is enough. Requiring all of them would refuse
+        # every task touching a large directory, which is most of them, and a
+        # check that always fires is a check that gets switched off.
+        examined = set(task["context_paths"]) | set(
+            task["existing_work_checked"]["searched"]
+        )
+        blind = []
+
+        for entry in creates:
+            directory = _directory_of(entry)
+            siblings = [
+                path for path in tree
+                if _directory_of(path) == directory and path != entry
+            ]
+
+            if not siblings:
+                continue
+
+            if any(
+                any(_covered(sibling, [look]) for look in examined)
+                for sibling in siblings
+            ):
+                continue
+
+            blind.append({
+                "creates": entry,
+                "directory": directory or "(repository root)",
+                "existing_siblings": len(siblings),
+                "examples": sorted(siblings)[:5],
+            })
+
+        unexamined += len(blind)
+
         tasks.append({
             "task_id": task["task_id"],
             "missing_context": absent,
@@ -611,13 +874,21 @@ def ground(plan: dict, repo: str, *, ls_tree=None) -> dict:
                 entry for entry in task["allowed_paths"] if matched(entry)
             ],
             "context_files": sum(len(matched(e)) for e in task["context_paths"]),
+            "active_work_collisions": active,
+            "unexamined_directories": blind,
+            "searched": task["existing_work_checked"]["searched"],
         })
 
     return {
         "base_sha": plan["base_sha"],
         "tree_size": len(tree),
-        "grounded": missing_context == 0,
+        "grounded": (
+            missing_context == 0 and collisions == 0 and unexamined == 0
+        ),
         "missing_context_total": missing_context,
+        "active_work_collisions_total": collisions,
+        "unexamined_directories_total": unexamined,
+        "dirty_paths_considered": len(dirty_paths),
         "tasks": tasks,
     }
 
@@ -699,6 +970,15 @@ def render_prompt(snapshot_text: str, guidance: str = "") -> str:
                 "mode": "implement",
                 "allowed_paths": ["path/that/may/be/written"],
                 "context_paths": ["path/that/must/be/read/to/do/it/right.py"],
+                "existing_work_checked": {
+                    "searched": [
+                        "the implementation file you looked at",
+                        "the test file you looked at",
+                        "the document you looked at",
+                    ],
+                    "why_missing": "what you found there, and why it does not "
+                                   "already cover this",
+                },
                 "dependencies": [],
             }],
         }, indent=2),
@@ -736,8 +1016,57 @@ def render_prompt(snapshot_text: str, guidance: str = "") -> str:
         "- Do not state a base_sha. The controller supplies it; it is the "
         "commit the snapshot describes.",
         "",
-        "If the snapshot does not give you enough to plan against, answer with "
-        "a plan containing one task in mode 'investigate' that would get it.",
+        "- existing_work_checked is required and is checked. Name the "
+        "implementation, the tests and the documentation you actually "
+        "examined, and say what you found. \"The file does not exist\" is not "
+        "a reason: a path being free says nothing about whether the job is "
+        "already done somewhere else under another name.",
+        "- Do not propose a new file in a directory whose existing contents "
+        "you have not read. If you are adding to a populated directory, read "
+        "at least one thing already in it first, and list it.",
+        "",
+        "-" * 60,
+        "IF YOU CANNOT SEE ENOUGH TO JUDGE WHAT IS WORTH BUILDING",
+        "",
+        "Then say so, and ask. This is not a failure and it is not a last "
+        "resort -- it is the better answer, and it is preferred over a plan "
+        "you are not confident in.",
+        "",
+        "This has already gone wrong once, and it is worth knowing how. A "
+        "planner was given a snapshot that said plainly that no source file "
+        "contents were included. It read that, said so in its summary, and "
+        "then planned anyway: four tasks, each creating a new self-contained "
+        "file, every path valid, nothing colliding. All four were rejected. "
+        "Each one duplicated an implementation or a test suite that already "
+        "existed in the repository, which the file listing could not show and "
+        "which reading the source would have.",
+        "",
+        "Proposing new files is what 'safe to author' looks like when you "
+        "cannot see the code. It is not what useful looks like.",
+        "",
+        f"So if the evidence is not there, answer with one {BEGIN} block in "
+        f"this shape instead, terminated by {END}:",
+        "",
+        BEGIN,
+        json.dumps({
+            "outcome": "needs_context",
+            "reason": "one or two sentences on what you cannot determine "
+                      "without this, and what you would do with it",
+            "requests": [
+                {"path": "the/file/you/need/to/read.py",
+                 "why": "what you expect to learn from it"},
+                {"symbol": "ClassOrFunctionName",
+                 "why": "what you need to know about it, if you do not know "
+                        "which file it is in"},
+            ],
+        }, indent=2),
+        END,
+        "",
+        f"At most {MAX_CONTEXT_REQUESTS} requests, each with a reason. The "
+        "host may fulfil them and ask you again with the contents included. "
+        "The number of times that can happen is strictly limited, so ask for "
+        "what would change your plan rather than everything that might be "
+        "interesting.",
     ]
 
     return "\n".join(parts)

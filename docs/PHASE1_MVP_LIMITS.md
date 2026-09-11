@@ -72,12 +72,44 @@ would make the ledger say a thing happened that did not.
 No real ComicAutomation milestone is closed until its accepted commits are
 actually integrated and verified.
 
-## 4. Contract validation does nothing
+## 4. There is no general contract linter
 
-`contract_yaml` is stored and hashed but never parsed. There is no linter. The
-route that moves a task out of DRAFT is called `/ready` rather than `/validate`
-for exactly this reason — a route named `validate` would be claiming a check
-that does not exist.
+Two different things were being described by one sentence here, and the
+sentence was the pessimistic one. Stating it that broadly is not a safe
+overstatement: a reader who believes a contract's scope is unenforced will
+either not trust the harness with a real repository, or will add a second
+enforcement layer somewhere else — and a second scope check that can disagree
+with the first is worse than either alone.
+
+**What is not validated: the contract as a schema, at the controller.**
+`contract_yaml` is stored and hashed and never parsed by the controller. It
+does not check that the document is well-formed, that its keys are ones this
+protocol defines, that required fields are present, or that a field it does
+not recognise is absent. The route that moves a task out of `DRAFT` is called
+`/ready` rather than `/validate` for exactly this reason — a route named
+`validate` would be claiming a check that does not exist.
+
+**What is enforced: the execution fields, at the worker, before any model
+call.** `authored_change.parse_scope` reads `allowed_paths` and
+`context_paths` out of the contract, and the task is refused before the model
+is invoked if it cannot. This is real enforcement, not a formality:
+
+- an absent, empty, or unparseable `allowed_paths` raises rather than
+  defaulting to anything — silence is never read as permission, and the
+  earlier behaviour where an unreadable contract meant repository-wide write
+  access is the reason this rule is stated in those words;
+- `UNRESTRICTED` is the only way to authorise the whole tree, is a literal
+  word rather than a glob or an empty list, and a *planner* may not grant it;
+- every path an author writes is checked against the parsed scope at commit
+  time, by path component rather than string prefix;
+- a write to anything in `context_paths` is refused, including under
+  `UNRESTRICTED`.
+
+So the gap is a linter, and its consequence is narrower than "nothing is
+checked": a contract can carry a misspelt or unknown key, or omit a field the
+protocol defines, and nothing will say so until a worker either ignores it or
+blocks on it. A contract whose `allowed_paths` is wrong in a way that *widens*
+authority is not one of the things that gets through.
 
 ## 5. Deferred v7 machinery, present but inert
 

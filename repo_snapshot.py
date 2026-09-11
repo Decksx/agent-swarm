@@ -305,6 +305,52 @@ def branches_ahead(repo: str, sha: str, limit: int = 40) -> list:
     return ahead[:limit]
 
 
+DEFAULT_ACTIVE_DIFF_BUDGET = 12_000
+
+
+def active_work(repo: str, base: str, ref: str, *, budget: int = DEFAULT_ACTIVE_DIFF_BUDGET) -> dict:
+    """What is being built right now on `ref`, relative to `base`.
+
+    A planner shown only the baseline plans as though the baseline were the
+    whole story. It is not: somebody is twelve commits into a slice on another
+    branch, and the most useful plan is the one that does not collide with it
+    or re-propose it. This is the difference between "what exists" and "what is
+    happening", and only the first was ever in the snapshot.
+
+    The diffstat rather than the diff. Four thousand added lines will not fit
+    in a prompt and would crowd out everything else if they did; what a planner
+    needs is which files are moving and how much, so it can ask for the ones
+    that matter through a context request.
+    """
+    if not ref:
+        return {"ref": "", "present": False}
+
+    head = _git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}", check=False).strip()
+
+    if not head or len(head) != 40:
+        return {"ref": ref, "present": False, "reason": f"{ref} does not resolve"}
+
+    ahead = _git(repo, "rev-list", "--count", f"{base}..{head}", check=False).strip()
+    behind = _git(repo, "rev-list", "--count", f"{head}..{base}", check=False).strip()
+    stat = _git(repo, "diff", "--stat", f"{base}...{head}", check=False)
+    names = _git(repo, "diff", "--name-only", f"{base}...{head}", check=False)
+    log = _git(repo, "log", "--oneline", "--no-decorate", f"{base}..{head}", check=False)
+
+    stat_text, stat_truncated = _truncate(stat, budget)
+
+    return {
+        "ref": ref,
+        "present": True,
+        "head": head,
+        "commits_ahead": int(ahead or 0),
+        "commits_behind": int(behind or 0),
+        "files": [line.strip() for line in names.splitlines() if line.strip()],
+        "diffstat": stat_text,
+        "diffstat_truncated": stat_truncated,
+        "commits": [line.strip() for line in log.splitlines() if line.strip()][:40],
+    }
+
+
 def operational_context(repo: str, sha: str, *, dirty_budget: int = DEFAULT_DIRTY_BUDGET) -> dict:
     """What is going on in the checkout right now.
 
@@ -587,6 +633,7 @@ def build(
     total_doc_budget: int = DEFAULT_TOTAL_DOC_BUDGET,
     dirty_budget: int = DEFAULT_DIRTY_BUDGET,
     tests: Optional[dict] = None,
+    active_ref: str = "",
 ) -> dict:
     """Assemble the snapshot of one resolved project at one commit.
 
@@ -626,6 +673,7 @@ def build(
 
     operational = operational_context(str(root), sha, dirty_budget=dirty_budget)
     dirty = operational["uncommitted"]
+    active = active_work(str(root), sha, active_ref) if active_ref else {"present": False, "ref": ""}
 
     # `status --porcelain` lines are "XY path"; the paths are what a document
     # is matched against. Renames arrive as "old -> new" and the new name is
@@ -683,8 +731,20 @@ def build(
     # omission in every snapshot and the easiest one to forget.
     omissions.append(
         "file contents: only the documents listed above were read. No source "
-        "file was included, and nothing here reports what any function does."
+        "file was included, and nothing here reports what any function does. "
+        "This is the single largest gap and the one most likely to make a "
+        "plan wrong: a path being absent from the tree says nothing about "
+        "whether the behaviour already exists somewhere else under another "
+        "name. Ask for the files you need."
     )
+
+    if active.get("present") and active.get("commits_ahead"):
+        omissions.append(
+            f"active work: {active['ref']} is {active['commits_ahead']} "
+            f"commit(s) ahead of the baseline across {len(active['files'])} "
+            "file(s). The diffstat is shown; the contents of those commits "
+            "are not. Work in progress is the likeliest thing to duplicate."
+        )
 
     if tests is None or tests.get("status") == "not_run":
         omissions.append(
@@ -700,6 +760,7 @@ def build(
         "planning_ref": resolved.ref,
         **commit,
         "operational": operational,
+        "active_work": active,
         "tree": listing,
         "documents": docs,
         "tests": dict(tests) if tests else dict(NOT_RUN),
@@ -876,6 +937,41 @@ def render(snapshot: dict) -> str:
 
         if tests["output_truncated"]:
             parts.append("[OUTPUT TRUNCATED -- the tail is shown]")
+
+    # Placed immediately before the omissions, and after everything the
+    # baseline says, because it is the section that qualifies all of it: the
+    # tree above is what exists, and this is what somebody is in the middle of
+    # changing about it. A plan that duplicates work in flight is the most
+    # expensive kind, because both versions get written before anybody notices.
+    active = snapshot.get("active_work") or {}
+
+    if active.get("present"):
+        parts += [
+            "",
+            "WORK IN PROGRESS ON ANOTHER BRANCH",
+            f"  {active['ref']} at {active['head'][:12]}",
+            f"  {active['commits_ahead']} commit(s) ahead of the baseline, "
+            f"{active['commits_behind']} behind",
+            "",
+            "  This is not in the baseline and will not be in what you plan "
+            "against. It is here so you do not propose it again, and do not "
+            "propose anything that collides with it.",
+            "",
+        ]
+
+        if active.get("commits"):
+            parts.append("  Commits:")
+            parts.extend(f"    {line}" for line in active["commits"])
+            parts.append("")
+
+        if active.get("diffstat"):
+            parts.append("  Changed:")
+            parts.extend(
+                f"    {line}" for line in active["diffstat"].rstrip().splitlines()
+            )
+
+            if active.get("diffstat_truncated"):
+                parts.append("    [DIFFSTAT TRUNCATED]")
 
     parts += ["", "OMITTED OR TRUNCATED"]
     parts.extend(f"  - {line}" for line in snapshot["omissions"])
