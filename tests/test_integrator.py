@@ -52,13 +52,14 @@ def plan(**over) -> Plan:
 def test_a_task_not_in_ready_integration_is_refused():
     with pytest.raises(IntegrationRefused, match="READY_INTEGRATION"):
         integrator.check_approval(
-            {"state": "AUTHORING", "candidate_sha": CANDIDATE}, plan()
+            {"state": "AUTHORING", "approved_candidate_sha": CANDIDATE}, plan()
         )
 
 
 def test_an_approved_task_with_the_matching_candidate_passes():
     integrator.check_approval(
-        {"state": "READY_INTEGRATION", "candidate_sha": CANDIDATE}, plan()
+        {"state": "READY_INTEGRATION", "approved_candidate_sha": CANDIDATE},
+        plan(),
     )
 
 
@@ -67,13 +68,22 @@ def test_a_candidate_that_moved_after_approval_is_refused():
     cleanly, and the tree that lands is not the one anybody read."""
     with pytest.raises(IntegrationRefused, match="different tree"):
         integrator.check_approval(
-            {"state": "READY_INTEGRATION", "candidate_sha": "d" * 40}, plan()
+            {"state": "READY_INTEGRATION", "approved_candidate_sha": "d" * 40},
+            plan(),
         )
 
 
 def test_a_task_recording_no_candidate_is_refused_rather_than_assumed():
-    """Refusing to take the branch head as "what was reviewed"."""
-    with pytest.raises(IntegrationRefused, match="records no candidate_sha"):
+    """Refusing to take the branch head as "what was reviewed".
+
+    The field is `approved_candidate_sha`, not a generic `candidate_sha`. The
+    generic name would be read as "the current candidate" by the next person
+    to touch it, and an integrator reading that would merge whatever was last
+    authored rather than what was last approved.
+    """
+    with pytest.raises(
+        IntegrationRefused, match="no\s+approved_candidate_sha"
+    ):
         integrator.check_approval({"state": "READY_INTEGRATION"}, plan())
 
 

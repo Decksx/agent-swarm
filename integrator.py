@@ -134,34 +134,66 @@ def _gh(*args: str) -> subprocess.CompletedProcess:
     )
 
 
-def check_approval(task: Mapping[str, Any], plan: Plan) -> None:
-    """The controller's state is the approval. Nothing else is.
+def approved_candidate(task: Mapping[str, Any]) -> str:
+    """The commit this task's review approved, from the controller. Or refuse.
 
-    Not a flag in a payload, not the presence of a review comment: the task
-    is in READY_INTEGRATION or it is not, because that state is reachable only
-    through `review_requirements_satisfied` applied with controller authority
-    on a live review activation.
+    **Derived, never supplied.** There is deliberately no parameter here for a
+    caller to pass a SHA in and have it agreed with. An operator assembling an
+    integration request is not a source of truth about what a reviewer
+    approved, and a function that accepted one would make the whole column
+    decorative: whoever typed the request would decide what got merged.
+
+    `approved_candidate_sha` is written by the controller inside the same
+    transaction as `review_requirements_satisfied`, from the activation's own
+    `expected_candidate` -- the commit the controller issued the review
+    against. It is cleared by every event that invalidates the approval. So a
+    non-NULL value here means exactly one thing, and reading it is enough.
+
+    NULL is the normal state and the safe one. A task approved before this
+    column existed has NULL, and refusing it is correct: nothing records which
+    candidate that approval was for, and assuming the branch head would be
+    inventing the answer.
     """
+    task_id = str(task.get("task_id") or "(unknown)")
     state = str(task.get("state") or "").strip()
 
     if state != INTEGRABLE:
         raise IntegrationRefused(
-            f"{plan.task_id} is {state or 'in no state at all'}, not "
+            f"{task_id} is {state or 'in no state at all'}, not "
             f"{INTEGRABLE}. Approval is the controller's state and is not "
             "conferred by anything else."
         )
 
-    approved = str(task.get("candidate_sha") or "").strip()
+    approved = str(task.get("approved_candidate_sha") or "").strip()
 
-    # When the task records which candidate was reviewed, it must be this one.
-    # A task that does not record one cannot be checked here, and that is
-    # reported rather than waved through.
     if not approved:
         raise IntegrationRefused(
-            f"{plan.task_id} is {INTEGRABLE} but records no candidate_sha, so "
-            "there is nothing to check the merge against. Refusing to assume "
-            "the branch head is what was reviewed."
+            f"{task_id} is {INTEGRABLE} but carries no "
+            "approved_candidate_sha. Either the approval predates the column, "
+            "or something cleared it -- a rejection, a retry, or a newer "
+            "candidate. Refusing to assume the branch head is what was "
+            "reviewed."
         )
+
+    if not SHA.match(approved):
+        raise IntegrationRefused(
+            f"{task_id}: approved_candidate_sha is {approved!r}, not a commit"
+        )
+
+    return approved
+
+
+def check_approval(task: Mapping[str, Any], plan: Plan) -> None:
+    """The plan lands exactly what the controller says was approved.
+
+    The comparison is one-directional on purpose: `approved_candidate()`
+    establishes the truth from the ledger, and this checks that the plan
+    agrees with it. A plan that disagrees is refused rather than corrected --
+    silently substituting the approved SHA would hide that the request was
+    built against something else, and whatever produced it would go on being
+    wrong.
+    """
+    approved = approved_candidate(task)
 
     if approved != plan.candidate_sha:
         raise IntegrationRefused(
@@ -214,6 +246,64 @@ def check_evidence(plan: Plan, *, required: Sequence[str]) -> None:
                 f"{entry.passed} passing tests. 'Nothing failed' is not "
                 "'something passed'."
             )
+
+
+def ci_evidence(candidate_sha: str, *, repo_slug: str) -> tuple[Evidence, ...]:
+    """The runner's own verdict on this exact commit. Derived, never supplied.
+
+    Asked for **by commit SHA**, not by branch and not by PR. A branch's checks
+    are the checks of whatever its head happens to be now; this integration is
+    about one commit, and the evidence has to be about the same one or it is
+    evidence about something else.
+
+    Every returned check is reported, including failures -- `check_evidence`
+    decides what that means. Returning only the passes would make a red build
+    indistinguishable from a repository with no CI at all, and those need
+    opposite responses.
+    """
+    result = _gh(
+        "api", f"repos/{repo_slug}/commits/{candidate_sha}/check-runs",
+        "--jq", ".check_runs[] | {name, conclusion, status, id}",
+    )
+
+    if result.returncode != 0:
+        raise IntegrationRefused(
+            f"could not read CI for {candidate_sha[:12]}: "
+            f"{(result.stderr or '').strip()}. A build whose status cannot be "
+            "read is not a build that passed."
+        )
+
+    runs = [
+        json.loads(line) for line in (result.stdout or "").splitlines()
+        if line.strip()
+    ]
+
+    evidence = []
+
+    for run in runs:
+        conclusion = str(run.get("conclusion") or "").lower()
+        status = str(run.get("status") or "").lower()
+
+        if status != "completed":
+            raise IntegrationRefused(
+                f"CI check {run.get('name')!r} on {candidate_sha[:12]} is "
+                f"{status!r}, not completed. Merging while a check is still "
+                "running is merging on a result nobody has."
+            )
+
+        # `passed` is 1 for a successful check and 0 otherwise, so a red or
+        # skipped check reaches check_evidence()'s "nothing failed is not
+        # something passed" rule rather than needing a second one here.
+        evidence.append(Evidence(
+            name=f"ci:{run.get('name')}",
+            command=f"github check-run {run.get('id')}",
+            exit_code=0 if conclusion == "success" else 1,
+            passed=1 if conclusion == "success" else 0,
+            failed=0 if conclusion in ("success", "skipped", "neutral") else 1,
+            skipped=1 if conclusion == "skipped" else 0,
+        ))
+
+    return tuple(evidence)
 
 
 def pin_target(plan: Plan) -> str:
