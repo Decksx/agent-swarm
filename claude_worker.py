@@ -831,14 +831,34 @@ def _execute_author(
         except OSError as exc:
             log.warning("could not record the in-flight marker: %s", exc)
 
-    # The operator's answer goes in front of the task, not after it. A CLI
-    # worker reads its prompt top to bottom and the answer is an instruction
-    # that outranks the task text where the two disagree -- putting it below
-    # would make it a footnote to the thing it was meant to overrule.
+    # Contract, then the operator's answer, then the task.
+    #
+    # The contract first because everything after it is bound by it. The
+    # answer before the task because a CLI worker reads top to bottom and an
+    # instruction placed below what it directs is a footnote to it -- and
+    # within the contract, not over it: `operator_section` says the answer
+    # cannot move the base commit, the proof mode or the allowed paths, and
+    # a worker that has never been shown those cannot tell whether it is
+    # being asked to. That is what `contract_section` is for. Handing over
+    # the warning without the thing it warns about was worse than handing
+    # over neither, because it reads as a check somebody has made.
+    #
+    # `activation["task"]` is title and objective only, assembled by the
+    # controller client. The contract fields live in `task_record`, which
+    # the API author renders because its prompt is built from the contract;
+    # this one is handed prose, so the contract has to be written into it.
+    contract = "\n".join(
+        authored_change.contract_section(activation.get("task_record"))
+    )
     operator = "\n".join(
         authored_change.operator_section(activation.get("operator_context"))
     )
-    instructions = HANDOFF_PREAMBLE + (operator + "\n\n" if operator else "") + task
+    instructions = (
+        HANDOFF_PREAMBLE
+        + (contract + "\n\n" if contract else "")
+        + (operator + "\n\n" if operator else "")
+        + task
+    )
     started = time.monotonic()
     output, exit_code = run_task(claude_binary, instructions)
     elapsed = time.monotonic() - started

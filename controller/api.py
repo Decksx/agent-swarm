@@ -170,6 +170,44 @@ class HostCapacity(BaseModel):
 # credential is a component that could read it if allowed to.
 FEED_READERS = frozenset({"narrator", "admin", "operator"})
 
+# Kinds the generic transition route refuses, and where each belongs.
+#
+# Every one of them is reachable another way with checks attached, and
+# reaching it here arrives with none of them. `operator-response` requires a
+# NEEDS_HUMAN task, the version the operator was shown, the text they wrote,
+# and one named resume -- then records the answer, applies the resume, and
+# advances the version in one transaction. Submitting `return_to_author` here
+# instead resumes the task with no answer recorded, no stale-write check, and
+# the version left where it was, so every attempt authorized before the
+# escalation stays valid against a decision that overruled them.
+#
+# `operator_response` itself is refused for the mirror reason: submitted here
+# it records an answer that resumes nothing, leaving a task that reads as
+# answered and is still stuck.
+#
+# `create_contract_version` is refused everywhere prose can reach it. It mints
+# a contract, and a contract is yaml, a base sha and a proof mode.
+#
+# Cancellation and supersession stay generic: they are terminal or superseding
+# moves that carry no evidence and invalidate nothing that needed carrying.
+ROUTED_ELSEWHERE = {
+    "operator_response":
+        "POST /controller/tasks/{task_id}/operator-response",
+    "return_to_author":
+        "POST /controller/tasks/{task_id}/operator-response "
+        "with action=return_to_author",
+    "return_to_review":
+        "POST /controller/tasks/{task_id}/operator-response "
+        "with action=return_to_review",
+    "admin_failed":
+        "POST /controller/tasks/{task_id}/operator-response "
+        "with action=admin_failed",
+    "create_contract_version":
+        "the task version route, with contract_yaml, base_sha and proof_mode; "
+        "it cannot be created from free text",
+}
+
+
 RESUME_ACTIONS = frozenset({
     "return_to_author",
     "return_to_review",
@@ -498,7 +536,29 @@ def build_router(
 
         It is not how workers report work; that is the result route, which
         carries the activation's own authority.
+
+        Five kinds are refused here and directed at the route that checks
+        them. This route applies admin authority to any kind the state table
+        permits, which made it a way around every guard on the escalation
+        path: an operator could resume a task without recording what they
+        answered, without the version they were shown being checked, and
+        without the version advancing to invalidate the attempts the
+        escalation overruled.
         """
+        refused = ROUTED_ELSEWHERE.get((body.kind or "").strip())
+
+        if refused is not None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "this transition has its own route",
+                    "kind": body.kind,
+                    "use": refused,
+                    "why": "applying it here would skip the checks that route "
+                           "exists to make",
+                },
+            )
+
         try:
             return engine.apply_transition(
                 conn,
