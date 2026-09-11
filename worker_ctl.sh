@@ -17,7 +17,39 @@
 set -u
 
 SCRATCH="/c/Users/david/AppData/Local/Temp/claude/C--git-ComicAutomation/79c29907-5e10-4e70-81df-064f20d57600/scratchpad"
-REPO=/c/git/claude-agent-hub
+
+# The checkout this script belongs to, not a checkout named in advance.
+#
+# This was `/c/git/claude-agent-hub`, written out. Everything below `cd`s here
+# before running anything, so every action ran against that one directory
+# however the script had been invoked -- and `deploy_controller.sh`, which
+# derives its own repository from `BASH_SOURCE` and copies from it correctly,
+# handed its closing parity check to this script and got an answer about a
+# different tree. A deploy from a worktree copied the right files, matched
+# every digest, and then reported the build of `main`.
+#
+# `start` had the same defect with a worse outcome: a worker launched from a
+# worktree would run `main`'s script and review `main`'s code, while the
+# operator believed they were exercising the checkout they were standing in.
+#
+# Derived the way `swarm_ctl.sh` and `deploy_controller.sh` already derive
+# theirs, so all three agree on what "this checkout" means.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# The interpreter, chosen once and used for every python this script runs.
+#
+# Precedence, narrowest context first:
+#
+#   DEPLOY_PYTHON  set by `deploy_controller.sh` for the duration of one
+#                  deploy. It wins because the deploy validated its suites
+#                  with that interpreter and its closing parity check has to
+#                  be the same one -- a persistent WORKER_PYTHON in the
+#                  operator's environment must not quietly redirect it.
+#   WORKER_PYTHON  the standalone override, for running this script by hand
+#                  against a particular interpreter.
+#   python         whatever is first on PATH, which is what this did before
+#                  and stays the default so no existing invocation changes.
+PYTHON="${DEPLOY_PYTHON:-${WORKER_PYTHON:-python}}"
 ACTION="${1:-}"
 IDENT="${2:-}"
 
@@ -71,7 +103,7 @@ case "$ACTION" in
 
     cd "$REPO"
     shift 2
-    python preflight.py --url "http://192.168.42.50:8050" --agent "$COMPONENT" "$@"
+    "$PYTHON" preflight.py --url "http://192.168.42.50:8050" --agent "$COMPONENT" "$@"
     ;;
 
   admin)
@@ -85,7 +117,7 @@ case "$ACTION" in
 
     cd "$REPO"
     shift
-    python hub/controller_admin.py --url "http://192.168.42.50:8050" "$@"
+    "$PYTHON" hub/controller_admin.py --url "http://192.168.42.50:8050" "$@"
     ;;
 
   start)
@@ -140,13 +172,13 @@ case "$ACTION" in
     # Deployment parity, before anything is claimed. A worker started against
     # a stale controller produces evidence about a build nobody has, and that
     # evidence looks valid -- which is worse than not running.
-    if ! python preflight.py --url "http://192.168.42.50:8050" --agent "$COMPONENT"; then
+    if ! "$PYTHON" preflight.py --url "http://192.168.42.50:8050" --agent "$COMPONENT"; then
       echo "not starting $IDENT: preflight failed"
       exit 1
     fi
 
     # No exec: the child stays a child so its pid is recordable and killable.
-    python "$SCRIPT" >> "$SCRATCH/${IDENT}.launcher.out" 2>&1 &
+    "$PYTHON" "$SCRIPT" >> "$SCRATCH/${IDENT}.launcher.out" 2>&1 &
     # Deliberately not recording $! -- see the note at the top. The worker
     # writes its own pid to the lock file, and that is the one that is real.
     sleep 4
