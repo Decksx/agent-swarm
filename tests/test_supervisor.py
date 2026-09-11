@@ -1019,10 +1019,6 @@ REAL_LAUNCHES = [
     r'"C:\Program Files\Python311\python.exe" "C:\my repo\gemini_worker.py"',
     # POSIX, for the half of this that is not Windows-specific.
     "/usr/bin/python3 /home/david/agent-swarm/gemini_worker.py",
-    # Interpreter flags before the script.
-    "python -W ignore gemini_worker.py",
-    # Executed directly rather than handed to an interpreter.
-    "./gemini_worker.py",
 ]
 
 
@@ -1060,3 +1056,102 @@ def test_an_empty_command_line_is_not_an_identification(
     sup.shutdown()
 
     assert host.killed == []
+
+
+# --- The supervisor's own pid is checked before it is treated as one ----------
+#
+# The last number still acted on unchecked. `swarm_ctl stop` read
+# supervisor.pid, confirmed only that something was alive under it, and
+# eventually sent `taskkill /F`. A supervisor that died without clearing its
+# file leaves that number for the operating system to hand to anything, and
+# the kill would have landed there.
+#
+# `--identify` is what the control script asks instead, so these are the shell
+# path's tests as much as this file's.
+
+
+def identify(name, pid):
+    return supervisor.main(["supervisor.py", "--identify", name, str(pid)])
+
+
+def test_a_live_supervisor_is_identified(control_dir, host):
+    host.live.add(4321)
+    host.command_lines[4321] = (
+        r"C:\Python311\python C:\git\claude-agent-hub\supervisor.py "
+        r"--url http://192.168.42.50:8050"
+    )
+
+    assert identify("supervisor", 4321) == 0
+
+
+def test_a_recycled_supervisor_pid_is_not_the_supervisor(control_dir, host):
+    """The number is live and it is in supervisor.pid. It is not a supervisor,
+    and a nonzero answer is what keeps `taskkill /F` away from it."""
+    host.live.add(4321)
+    host.command_lines[4321] = r"C:\Windows\System32\svchost.exe -k netsvcs"
+
+    assert identify("supervisor", 4321) == 1
+
+
+@pytest.mark.parametrize("command", [
+    r"C:\Windows\explorer.exe",
+    "python -m editor supervisor.py",
+    "python -c supervisor.py",
+    "python-helper.exe supervisor.py",
+    "notepad.exe supervisor.py",
+    'python "supervisor.py',
+    "python",
+])
+def test_no_other_process_can_pass_as_the_supervisor(control_dir, host, command):
+    host.live.add(4321)
+    host.command_lines[4321] = command
+
+    assert identify("supervisor", 4321) == 1
+
+
+def test_a_dead_supervisor_pid_is_not_the_supervisor(control_dir, host):
+    """A stale file, which is the ordinary case after a crash."""
+    assert identify("supervisor", 4321) == 1
+
+
+def test_an_unreadable_command_line_is_not_the_supervisor(control_dir, host):
+    host.live.add(4321)
+    host.command_lines[4321] = None
+
+    assert identify("supervisor", 4321) == 1
+
+
+def test_a_worker_pid_is_not_the_supervisor(control_dir, host):
+    """Each name identifies its own script, so one cannot stand in for another."""
+    host.live.add(4321)
+    host.command_lines[4321] = "python gemini_worker.py"
+
+    assert identify("supervisor", 4321) == 1
+    assert identify("gemini", 4321) == 0
+    assert identify("chatgpt", 4321) == 1
+
+
+def test_an_unknown_name_is_refused_rather_than_guessed(control_dir, host):
+    host.live.add(4321)
+    host.command_lines[4321] = "python gemini_worker.py"
+
+    assert identify("nonesuch", 4321) == 2
+
+
+@pytest.mark.parametrize("raw", ["", "  ", "not-a-pid", "12x34"])
+def test_a_pid_that_is_not_a_number_is_refused(control_dir, host, raw):
+    assert supervisor.main(
+        ["supervisor.py", "--identify", "supervisor", raw]
+    ) == 2
+
+
+def test_identify_needs_no_credential_and_no_controller(
+    control_dir, host, monkeypatch
+):
+    """`status` and `stop` both ask it, and neither is guaranteed a
+    controller or a secret."""
+    monkeypatch.delenv("HUB_SECRET", raising=False)
+    host.live.add(4321)
+    host.command_lines[4321] = "python gemini_worker.py"
+
+    assert identify("gemini", 4321) == 0

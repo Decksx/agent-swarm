@@ -559,8 +559,8 @@ def process_arguments(pid: int) -> Optional[list]:
     return split_command_line(command) or None
 
 
-def split_command_line(command: str) -> list:
-    """A command-line string back into arguments, the way its shell would.
+def split_command_line(command: str):
+    """A command-line string back into arguments, or None if it will not parse.
 
     Separate from `process_arguments` because it is the half that can be
     tested against a command line nobody has to spawn first, and because on
@@ -570,15 +570,18 @@ def split_command_line(command: str) -> list:
     `posix=False` leaves backslashes alone: on Windows every path in the
     string contains them, and the POSIX rules would read each one as an escape
     and quietly eat it.
+
+    A string that does not parse answers None rather than falling back to
+    splitting on whitespace. The fallback looked conservative and was not:
+    `python -c "import x; y('gemini_worker.py` has no closing quote, and
+    whitespace-splitting it manufactures `'gemini_worker.py` as an argument
+    out of text that was never one. Refusing is the only answer that cannot
+    invent a match.
     """
     try:
         parts = shlex.split(command, posix=(os.name != "nt"))
     except ValueError:
-        # An unbalanced quote. Falling back to whitespace is not a guess at
-        # what the command meant -- it is the coarsest possible split, and a
-        # caller matching whole arguments gets fewer matches out of it, never
-        # more.
-        parts = command.split()
+        return None
 
     if os.name == "nt":
         parts = [part.strip('"') for part in parts]
@@ -586,55 +589,69 @@ def split_command_line(command: str) -> list:
     return [part for part in parts if part]
 
 
-def running_python_script(arguments) -> Optional[str]:
-    """The file name of the script a python process is running, or None.
+# python, python3, python3.11, pythonw, and the Windows `py` launcher --
+# matched whole, because `python-helper.exe` and `pythonista` begin with it
+# and are not it.
+_INTERPRETER = re.compile(r"python[0-9]*(?:\.[0-9]+)*w?|pyw?")
 
-    Two questions, and both have to be answered before anything is
-    terminated. Is this a python interpreter, and which script did it open?
 
-    The interpreter half is not pedantry. `grep -r gemini_worker.py .` and
-    `notepad.exe gemini_worker.py` both name the script as a whole
-    argument, and neither is a worker -- one is a search, the other is
-    somebody reading the file. Matching a complete argument rules out
-    `backup_gemini_worker.py` and `gemini_worker.py.bak`; it does not rule out
-    every program that can be handed a filename.
+def is_python_interpreter(name: str) -> bool:
+    """Whether `name` is the file name of a python interpreter."""
+    name = name.lower()
 
-    The script half is the first `.py` argument after the interpreter, which
-    for `python [flags] script [script args]` is the script. Anything later
-    belongs to the script and describes nothing about what is running, so
-    `python other_worker.py --log gemini_worker.py` answers `other_worker.py`.
+    if name.endswith(".exe"):
+        name = name[:-len(".exe")]
 
-    A python-shaped argv[0] that opened no script -- `python -c "..."`, or
-    `python -m pytest tests/` -- answers None, and a caller that must identify
-    a process before killing it treats that as a refusal.
+    return _INTERPRETER.fullmatch(name) is not None
+
+
+def running_python_script(arguments):
+    """The file name of the script `python <script>` is running, or None.
+
+    Deliberately narrow: `interpreter script [script arguments]`, and nothing
+    else. That is every shape this repository launches, and there are only
+    four -- the supervisor spawning a worker at an absolute path, `worker_ctl`
+    and `start_workers.bat` launching one by bare name from the repository,
+    and `swarm_ctl` starting `supervisor.py` with flags after it.
+
+    Narrow on purpose rather than for want of effort. A general reading of a
+    python command line has to know which options take a value, that `-c` and
+    `-m` end the options and mean no script is being run at all, and what a
+    `-` argument means -- and each thing it gets wrong is a process this
+    authorizes somebody to kill. `python -m editor gemini_worker.py` runs an
+    editor, `python -c gemini_worker.py` runs that text as source code, and a
+    reading that scans for the first `.py` calls both of them workers.
+
+    So the script is argv[1] and only argv[1]. Anything beginning with `-`
+    there is an interpreter option, which means this is not one of the four
+    shapes, which means None. Two launches this repository does not use --
+    `python -W ignore worker.py` and an executable `./worker.py` -- are
+    refused for the same reason, and refusal costs a worker that is left
+    running and reported, never a process killed by mistake.
     """
-    if not arguments:
+    if not arguments or len(arguments) < 2:
         return None
 
-    names = [
-        posixpath.basename(str(argument).replace("\\", "/").rstrip("/"))
-        for argument in arguments
-    ]
-
-    # Executed directly rather than handed to an interpreter: argv[0] is the
-    # script, and there is no interpreter argument to recognise.
-    if names[0].lower().endswith(".py"):
-        return names[0]
-
-    program = names[0].lower()
-
-    if program.endswith(".exe"):
-        program = program[:-len(".exe")]
-
-    # python, python3, python3.11, pythonw, and the Windows `py` launcher.
-    if not (program.startswith("python") or program in ("py", "pyw")):
+    if not is_python_interpreter(_file_name(arguments[0])):
         return None
 
-    for name in names[1:]:
-        if name.lower().endswith(".py"):
-            return name
+    script = str(arguments[1])
 
-    return None
+    # An interpreter option, not a script. `-c` and `-m` are the two that
+    # matter -- both consume what follows and run something that is not the
+    # file named after them -- but no option at all belongs in the shapes this
+    # accepts, so all of them are refused together.
+    if script.startswith("-"):
+        return None
+
+    name = _file_name(script)
+
+    return name if name.lower().endswith(".py") else None
+
+
+def _file_name(argument) -> str:
+    """The last path segment of an argument, on either platform's separators."""
+    return posixpath.basename(str(argument).replace("\\", "/").rstrip("/"))
 
 
 def terminate_pid(pid: int, *, timeout: float = 20.0) -> bool:

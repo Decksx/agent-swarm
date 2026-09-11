@@ -26,6 +26,24 @@ alive() {
   [ -n "$pid" ] && tasklist //FI "PID eq $pid" //NH 2>/dev/null | grep -q "$pid"
 }
 
+# Whether $2 is a live process that really is $1 -- "supervisor", or a worker
+# identity. `alive` answers "is something running under this number", which is
+# a different question: a process that died without clearing its pid file
+# leaves the number for the operating system to hand to anything, so a pid
+# file is a claim about the past and not evidence about now.
+#
+# That gap used to reach the supervisor itself. `stop` read supervisor.pid,
+# confirmed only that the number was in use, and sent `taskkill /F` -- at
+# whatever had inherited it.
+#
+# Delegated to supervisor.py, which already has to identify a process before
+# terminating one, rather than reimplemented here in shell. Two answers to one
+# question is one more than can be kept right.
+is_process() {
+  [ -n "${2:-}" ] || return 1
+  SWARM_CONTROL_DIR="$CONTROL" "$PYTHON" "$REPO/supervisor.py"     --identify "$1" "$2" >/dev/null 2>&1
+}
+
 # One component's hub credential, read from the host's env file.
 fetch_secret() {
   ssh -o BatchMode=yes -o ConnectTimeout=20 tower.local "python3 -c \"
@@ -65,7 +83,7 @@ load_credentials() {
 case "${1:-}" in
   start)
     EXISTING="$(cat "$(pidfile)" 2>/dev/null || true)"
-    if alive "$EXISTING"; then
+    if is_process supervisor "$EXISTING"; then
       echo "supervisor is already running as pid $EXISTING"
       exit 0
     fi
@@ -92,7 +110,7 @@ case "${1:-}" in
     sleep 4
 
     STARTED="$(cat "$(pidfile)" 2>/dev/null || true)"
-    if alive "$STARTED"; then
+    if is_process supervisor "$STARTED"; then
       echo "supervisor started as pid $STARTED"
     else
       echo "supervisor did not take the lock; see $CONTROL/supervisor.out"
@@ -109,8 +127,17 @@ case "${1:-}" in
     # work.
     GONE=0
 
-    if ! alive "$PID"; then
-      echo "supervisor is not running"
+    if ! is_process supervisor "$PID"; then
+      # Either nothing is there, or the number now belongs to something else.
+      # Both mean this repository's supervisor is not running, and neither is
+      # a reason to aim a kill anywhere. The second is said out loud, because
+      # a stale pid file that names a live stranger is worth knowing about.
+      if alive "$PID"; then
+        echo "supervisor is not running; $(pidfile) names pid $PID, which is"
+        echo "a different process and was left alone"
+      else
+        echo "supervisor is not running"
+      fi
       GONE=1
     else
       # A flag, not a signal. `taskkill` without /F posts WM_CLOSE, which a
@@ -128,7 +155,12 @@ case "${1:-}" in
         sleep 1
       done
 
-      if ! alive "$PID"; then
+      # Identity again, not just liveness. The wait above polls the cheap
+      # question once a second; this is the expensive one, asked at the only
+      # moment it decides anything. If the supervisor exited during those 45
+      # seconds and its number was reissued, what is alive now is a stranger,
+      # and the supervisor is gone either way.
+      if ! is_process supervisor "$PID"; then
         GONE=1
         echo "supervisor stopped (pid $PID)"
       else
@@ -146,7 +178,7 @@ case "${1:-}" in
           sleep 1
         done
 
-        if alive "$PID"; then
+        if is_process supervisor "$PID"; then
           echo "supervisor (pid $PID) survived taskkill /F"
         else
           GONE=1
@@ -211,7 +243,7 @@ case "${1:-}" in
 
   status)
     PID="$(cat "$(pidfile)" 2>/dev/null || true)"
-    if alive "$PID"; then
+    if is_process supervisor "$PID"; then
       echo "supervisor: running (pid $PID)"
     else
       echo "supervisor: not running"
@@ -223,9 +255,12 @@ case "${1:-}" in
       echo "pause     : running"
     fi
 
+    # Identity rather than liveness here too. A lock left by a worker that
+    # crashed names a number the host may have reissued, and reporting that as
+    # a running worker is how an operator concludes the swarm is up.
     for identity in chatgpt gemini claudecode; do
       WPID="$(cat "$CONTROL/${identity}.pid" 2>/dev/null || true)"
-      if alive "$WPID"; then
+      if is_process "$identity" "$WPID"; then
         echo "  $identity: running (pid $WPID)"
       else
         echo "  $identity: not running"

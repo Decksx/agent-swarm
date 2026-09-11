@@ -123,6 +123,36 @@ STOP_FILENAME = "STOPPING"
 log = logging.getLogger("supervisor")
 
 
+# This file's own name, so the control script can ask whether a pid in
+# `supervisor.pid` is really a supervisor before it treats it as one.
+SUPERVISOR = "supervisor"
+
+
+def script_for(name: str):
+    """The script `name` runs -- a worker identity, or "supervisor"."""
+    if name == SUPERVISOR:
+        return Path(__file__).name
+
+    return WORKERS.get(name)
+
+
+def identifies_script(pid: int, script: str) -> bool:
+    """Whether `pid` is a live process running `script`.
+
+    The one place the question is answered, because there is more than one
+    place it is asked. A worker's pid comes out of its identity lock and a
+    supervisor's out of `supervisor.pid`, and both files record a number that
+    was right when it was written -- so both can name a process that was
+    recycled into something else, and neither is evidence of anything until
+    the process behind the number is read.
+    """
+    running = swarm_control.running_python_script(
+        swarm_control.process_arguments(pid)
+    )
+
+    return running is not None and running.lower() == script.lower()
+
+
 class Child:
     """One supervised worker, and everything known about its restarts."""
 
@@ -538,26 +568,17 @@ class Supervisor:
         if script is None:
             return False
 
+        if identifies_script(pid, script):
+            return True
+
         arguments = swarm_control.process_arguments(pid)
+        seen = " ".join(arguments)[:200] if arguments else "(unreadable)"
 
-        if not arguments:
-            log.error(
-                "cannot read the command line of pid %s holding the %s lock; "
-                "not terminating it", pid, identity,
-            )
-            return False
-
-        running = swarm_control.running_python_script(arguments)
-
-        if running is None:
-            log.error(
-                "pid %s holding the %s lock is not a python process running "
-                "a script (%s); not terminating it",
-                pid, identity, " ".join(arguments)[:200],
-            )
-            return False
-
-        return running.lower() == script.lower()
+        log.error(
+            "pid %s holding the %s lock is not running %s (%s); "
+            "not terminating it", pid, identity, script, seen,
+        )
+        return False
 
     def stop_unsupervised(self, identity: str) -> bool:
         """Stop a worker for `identity` that this supervisor did not spawn.
@@ -707,9 +728,55 @@ def main(argv) -> int:
         "--reap", action="store_true",
         help="stop any surviving worker and exit; does not supervise",
     )
+    parser.add_argument(
+        "--identify", nargs=2, metavar=("NAME", "PID"), default=None,
+        help="exit 0 if PID is really NAME (a worker identity, or 'supervisor')",
+    )
     args = parser.parse_args(argv[1:])
 
     configure_logging(Path(args.log) if args.log else None)
+
+    if args.identify:
+        # Asked by `swarm_ctl`, which holds pids and no way to check them.
+        #
+        # `supervisor.pid` was the last number still being acted on unchecked:
+        # the control script read it, confirmed only that *something* was
+        # alive under it, and eventually sent `taskkill /F`. A supervisor that
+        # died without clearing its file leaves that number behind for the
+        # operating system to hand to anything, and the kill would land there.
+        #
+        # Answered here rather than in shell because this is where the check
+        # already exists, and a second implementation of it is a second thing
+        # that can be wrong.
+        name, raw = args.identify
+        script = script_for(name)
+
+        if script is None:
+            log.error(
+                "unknown process name %r: expected %s or one of %s",
+                name, SUPERVISOR, ", ".join(sorted(WORKERS)),
+            )
+            return 2
+
+        try:
+            pid = int(str(raw).strip())
+        except ValueError:
+            log.error("not a pid: %r", raw)
+            return 2
+
+        if not swarm_control.pid_is_alive(pid):
+            log.info("pid %s is not running", pid)
+            return 1
+
+        if identifies_script(pid, script):
+            log.info("pid %s is running %s", pid, script)
+            return 0
+
+        log.error(
+            "pid %s is alive but is not running %s; it is not %s",
+            pid, script, name,
+        )
+        return 1
 
     if args.reap:
         # The backstop for the one case the loop cannot cover: a supervisor

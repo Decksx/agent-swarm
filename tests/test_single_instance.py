@@ -266,10 +266,20 @@ def test_backslashes_in_a_windows_path_survive_the_split():
     assert split(command)[-1].count("\\") >= 2 or "/" in split(command)[-1]
 
 
-def test_an_unbalanced_quote_does_not_raise():
-    """The coarsest possible split yields fewer whole-argument matches, never
-    more, so failing this way cannot authorize anything."""
-    assert split('python "gemini_worker.py') == ["python", "gemini_worker.py"]
+@pytest.mark.parametrize("command", [
+    'python "gemini_worker.py',
+    "python 'gemini_worker.py",
+    'python -c "import x; y(\'gemini_worker.py',
+])
+def test_a_command_line_that_will_not_parse_is_refused(command):
+    """Refused, not split on whitespace.
+
+    The old fallback looked conservative and was not: whitespace-splitting an
+    unterminated quote manufactures `'gemini_worker.py` as an argument out of
+    text that was never one, and a caller matching whole arguments then finds
+    a match nobody wrote. Refusing is the only answer that cannot invent one.
+    """
+    assert split(command) is None
 
 
 @pytest.mark.parametrize("command,expected", [
@@ -280,8 +290,6 @@ def test_an_unbalanced_quote_does_not_raise():
      "gemini_worker.py"),
     ("pythonw.exe gemini_worker.py", "gemini_worker.py"),
     ("python3.11 gemini_worker.py", "gemini_worker.py"),
-    ("python -W ignore gemini_worker.py", "gemini_worker.py"),
-    ("./gemini_worker.py", "gemini_worker.py"),
 ])
 def test_the_script_a_python_process_is_running_is_named(command, expected):
     assert swarm_control.running_python_script(split(command)) == expected
@@ -306,7 +314,6 @@ def test_a_process_running_no_python_script_names_none(command):
     # The script is the first .py after the interpreter. What follows it
     # belongs to the script and says nothing about what is running.
     ("python other_worker.py --log gemini_worker.py", "other_worker.py"),
-    ("python -m pytest tests/test_gemini_worker.py", "test_gemini_worker.py"),
     ("python editor.py gemini_worker.py", "editor.py"),
 ])
 def test_only_the_script_counts_and_not_its_arguments(command, expected):
@@ -355,3 +362,81 @@ def test_a_spawned_process_reports_its_arguments(live_pid):
 
     assert arguments is not None
     assert any("time.sleep" in argument for argument in arguments)
+
+
+# --- Only the launch shapes this repository actually uses ---------------------
+#
+# A general reading of a python command line has to know which options take a
+# value, that `-c` and `-m` end the options and mean no script is being run,
+# and what a bare `-` means. Every one it gets wrong is a process somebody is
+# authorized to kill. There are four launch shapes here, all of them
+# `interpreter script [script arguments]`, so that is all that is recognised.
+
+
+# Every way this repository starts a python process, verbatim.
+REPOSITORY_LAUNCHES = [
+    # supervisor.py spawning a worker: [python, str(repo / script)].
+    (r"C:\Python311\python.exe C:\git\claude-agent-hub\gemini_worker.py",
+     "gemini_worker.py"),
+    # worker_ctl.sh: python "$SCRIPT", from the repository.
+    ("python claude_worker.py", "claude_worker.py"),
+    # start_workers.bat: python chatgpt_worker.py, from the repository.
+    ("python chatgpt_worker.py", "chatgpt_worker.py"),
+    # swarm_ctl.sh start: "$PYTHON" "$REPO/supervisor.py" --url ... --log ...
+    (r"C:\Python311\python C:\git\claude-agent-hub\supervisor.py "
+     r"--url http://192.168.42.50:8050 --log C:\git\claude-agent-hub\control\supervisor.log",
+     "supervisor.py"),
+    # swarm_ctl.sh stop: the reaper.
+    (r"C:\Python311\python C:\git\claude-agent-hub\supervisor.py --reap",
+     "supervisor.py"),
+    # A python whose own path has a space in it.
+    (r'"C:\Program Files\Python311\python.exe" "C:\my repo\gemini_worker.py"',
+     "gemini_worker.py"),
+]
+
+
+@pytest.mark.parametrize("command,expected", REPOSITORY_LAUNCHES)
+def test_a_real_launch_is_identified(command, expected):
+    """The narrowing must not refuse the processes it exists to stop."""
+    assert swarm_control.running_python_script(split(command)) == expected
+
+
+# The forms the review named, and the rest of the family they belong to.
+MISIDENTIFIED_FORMS = [
+    # -m runs a module. The .py after it is that module's argument.
+    "python -m editor gemini_worker.py",
+    "python -m http.server gemini_worker.py",
+    # -c runs the next argument as source code, whatever it looks like.
+    "python -c gemini_worker.py",
+    'python -c "import gemini_worker.py"',
+    # Begins with "python" and is not python.
+    "python-helper.exe gemini_worker.py",
+    "python_wrapper.exe gemini_worker.py",
+    "pythonista.exe gemini_worker.py",
+    "py-spy record -- gemini_worker.py",
+    # An interpreter option this repository never uses. Refusing costs a
+    # worker left running and reported; accepting costs a wrong kill.
+    "python -W ignore gemini_worker.py",
+    "python -u gemini_worker.py",
+    # No script at all.
+    "python",
+    "python -i",
+]
+
+
+@pytest.mark.parametrize("command", MISIDENTIFIED_FORMS)
+def test_a_form_that_is_not_a_plain_script_launch_is_refused(command):
+    assert swarm_control.running_python_script(split(command)) is None
+
+
+@pytest.mark.parametrize("command", [
+    'python "gemini_worker.py',
+    "python 'gemini_worker.py",
+    'python gemini_worker.py "--flag',
+])
+def test_a_command_line_that_will_not_parse_identifies_nothing(command):
+    """The refusal has to survive the whole chain, not just the splitter."""
+    arguments = split(command)
+
+    assert arguments is None
+    assert swarm_control.running_python_script(arguments) is None
