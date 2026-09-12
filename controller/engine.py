@@ -144,17 +144,35 @@ def get_task(conn: sqlite3.Connection, task_id: str) -> dict:
     # is not an attempt at the correction -- it is a re-roll. The author is
     # told what the reviewer said, verbatim and labelled as the reviewer's
     # words, so the second attempt can be about the thing that was wrong.
-    rejection = conn.execute(
-        "SELECT payload_json FROM events WHERE task_id = ? AND kind = 'author_defect' "
-        "ORDER BY seq DESC LIMIT 1",
-        (task_id,),
-    ).fetchone()
+    #
+    # The newest `author_defect` is not the answer, and reading it as one lost
+    # a review. `author_defect` is written by two different things: a reviewer
+    # returning a judgment, which carries `rationale`, and the authoring
+    # harness refusing before the model is called -- a branch that already
+    # exists, a dirty worktree -- which carries `reason` and knows nothing
+    # about the work. The second kind arrives later and overwrote the first,
+    # so a retry that failed on a collision erased the verdict it was supposed
+    # to be correcting, and the attempt after it ran blind.
+    #
+    # So: the newest defect that actually says something. A harness failure
+    # now leaves the standing review untouched, which is the only reading
+    # under which a retry is an attempt at the correction rather than a
+    # re-roll with fewer attempts left.
+    task["last_rejection"] = {}
 
-    if rejection is not None:
+    for row in conn.execute(
+        "SELECT payload_json FROM events WHERE task_id = ? "
+        "AND kind = 'author_defect' ORDER BY seq DESC",
+        (task_id,),
+    ):
         try:
-            task["last_rejection"] = json.loads(rejection["payload_json"] or "{}")
+            payload = json.loads(row["payload_json"] or "{}")
         except (TypeError, ValueError):
-            task["last_rejection"] = {}
+            continue
+
+        if isinstance(payload, dict) and str(payload.get("rationale") or "").strip():
+            task["last_rejection"] = payload
+            break
 
     return task
 
