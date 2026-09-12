@@ -92,6 +92,27 @@ def checkout(root: Path, marker: str) -> Path:
         'fetch_secret() { echo "fixture-secret"; return 0; }\n\n_unused_fetch() {',
         1,
     )
+    # The scratch directory too, which is otherwise a real shared path on this
+    # machine. Left alone, `start` appended to the operator's actual launcher
+    # log and consulted the standalone-worker pid files beside it -- so the
+    # suite both wrote to live state and could pass or fail on what happened to
+    # be running. Redirected here rather than in the script, because the
+    # script's own scratch path is deliberately outside this change's scope.
+    scratch = root / "scratch"
+    scratch.mkdir(exist_ok=True)
+    redirected = []
+
+    for line in source.splitlines():
+        if line.startswith("SCRATCH="):
+            line = 'SCRATCH="' + sh(scratch) + '"'
+        redirected.append(line)
+
+    source = "\n".join(redirected) + "\n"
+
+    assert 'SCRATCH="' + sh(scratch) + '"' in source, (
+        "the scratch redirect did not apply"
+    )
+
     (root / "worker_ctl.sh").write_text(source, encoding="utf-8")
 
     def program(kind):
@@ -169,56 +190,54 @@ def test_admin_uses_the_scripts_own_controller_client(trees):
     assert same_path(worktree / "hub" / "controller_admin.py", result.stdout)
 
 
-def scratch_dir() -> Path:
-    """The script's own scratch directory, read from the script.
-
-    Hardcoded there, and deliberately left alone by this fix -- the brief was
-    the checkout root and the interpreter, not the scratch or control
-    directories. Read rather than duplicated so this test cannot drift from it.
-    """
-    for line in (REPO_ROOT / "worker_ctl.sh").read_text(
-        encoding="utf-8"
-    ).splitlines():
-        if line.startswith("SCRATCH="):
-            raw = line.split("=", 1)[1].strip().strip('"')
-
-            if raw.startswith("/") and raw[2:3] == "/":
-                raw = raw[1].upper() + ":" + raw[2:]
-
-            return Path(raw)
-
-    raise AssertionError("worker_ctl.sh declares no SCRATCH")
-
-
 def test_start_launches_the_scripts_own_worker(trees):
     """The defect with the worst outcome: a worker launched from a worktree
     ran `main`'s script and reviewed `main`'s code, while the operator believed
     they were exercising the checkout they were standing in.
 
     Asserted on the launcher output, which is the only place the launched
-    process speaks -- `start` backgrounds it and returns.
+    process speaks -- `start` backgrounds it and returns. That output lands in
+    the fixture's own scratch directory, so this says nothing about, and writes
+    nothing to, whatever else is running on this machine.
     """
     primary, worktree = trees
-    launcher = scratch_dir() / "claudecode.launcher.out"
-    before = launcher.stat().st_size if launcher.exists() else 0
+    launcher = worktree / "scratch" / "claudecode.launcher.out"
 
     run(worktree / "worker_ctl.sh", "start", "claudecode", cwd=primary,
         env={"GEMINI_API_KEY": "k", "OPENAI_API_KEY": "k"})
 
     deadline = time.monotonic() + 60
 
-    while time.monotonic() < deadline:
-        if launcher.exists() and launcher.stat().st_size > before:
-            break
+    while time.monotonic() < deadline and not launcher.exists():
         time.sleep(0.2)
 
-    with io.open(launcher, encoding="utf-8", errors="replace") as handle:
-        handle.seek(before)
-        launched = handle.read()
+    assert launcher.exists(), "start never launched anything"
+
+    launched = launcher.read_text(encoding="utf-8", errors="replace")
 
     assert "WORKTREE-WORKER" in launched, launched[:800]
     assert "PRIMARY-WORKER" not in launched
     assert same_path(worktree / "claude_worker.py", launched)
+
+
+def test_start_touches_only_its_own_scratch(trees):
+    """The other half of hermeticity. `start` consults and writes a pid file
+    beside its launcher log; both belong to the fixture, so the suite cannot
+    pass or fail on what happens to be running on this machine."""
+    primary, worktree = trees
+
+    run(worktree / "worker_ctl.sh", "start", "gemini", cwd=primary,
+        env={"GEMINI_API_KEY": "k", "OPENAI_API_KEY": "k"})
+
+    wrote = sorted(
+        p.name for p in (worktree / "scratch").rglob("*") if p.is_file()
+    )
+    other = sorted(
+        p.name for p in (primary / "scratch").rglob("*") if p.is_file()
+    )
+
+    assert wrote, "start wrote nothing into its own scratch"
+    assert other == [], f"it wrote into the other checkout's scratch: {other}"
 
 
 # --- Paths with spaces --------------------------------------------------------
@@ -336,18 +355,110 @@ def test_a_failing_closing_preflight_makes_the_deploy_exit_nonzero(trees):
     assert "PREFLIGHT FAILED" in result.stdout
 
 
-def test_the_deploy_script_propagates_that_failure(tmp_path):
-    """`deploy_controller.sh` ends with this check, and its own exit status is
-    what any caller keys off."""
+def closing_handoff(root: Path, target: Path) -> Path:
+    """The deploy's last two lines, taken from the real script and made runnable.
+
+    Its error-handling setting and its closing invocation are copied out of
+    `deploy_controller.sh` rather than retyped, so a change to either in the
+    real file changes what this executes. Everything before them -- the ssh,
+    the suites, the container restart -- is what makes running the whole thing
+    impractical here, and none of it is what is being asserted.
+    """
     source = (REPO_ROOT / "deploy_controller.sh").read_text(encoding="utf-8")
 
-    assert '"$REPO/worker_ctl.sh" preflight claudecode' in source
-
-    tail = source[source.index('"$REPO/worker_ctl.sh" preflight claudecode'):]
-
-    assert "set -e" in source or "exit" in tail, (
-        "the closing check's failure must reach the deploy's exit status"
+    errexit = next(
+        line for line in source.splitlines() if line.startswith("set -")
     )
+    closing = next(
+        line for line in source.splitlines()
+        if "worker_ctl.sh" in line and "preflight" in line
+        and not line.strip().startswith("#")
+    )
+
+    script = root / "closing.sh"
+    script.write_text(
+        "#!/usr/bin/env bash\n"
+        + errexit + "\n"
+        + 'REPO="' + sh(target) + '"\n'
+        + 'PYTHON="${DEPLOY_PYTHON:-python}"\n'
+        + closing + "\n"
+        + 'echo "DEPLOY REACHED THE END"\n',
+        encoding="utf-8",
+    )
+
+    return script
+
+
+def test_a_failing_closing_preflight_fails_the_deploy_process(trees, tmp_path):
+    """Executed, not read.
+
+    The previous version of this asserted that `set -e` appeared somewhere in
+    the source, which would have held just as well if the closing invocation
+    had been changed to swallow its status.
+    """
+    primary, _ = trees
+    (primary / "preflight.py").write_text(
+        "import sys\nprint('PREFLIGHT FAILED')\nsys.exit(1)\n", encoding="utf-8"
+    )
+
+    result = run(closing_handoff(tmp_path, primary), cwd=tmp_path)
+
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "PREFLIGHT FAILED" in result.stdout
+    assert "DEPLOY REACHED THE END" not in result.stdout
+
+
+def test_a_passing_closing_preflight_lets_the_deploy_finish(trees, tmp_path):
+    """The other side, so the test above cannot be passing because the harness
+    fails for some unrelated reason."""
+    primary, _ = trees
+
+    result = run(closing_handoff(tmp_path, primary), cwd=tmp_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "PRIMARY-PREFLIGHT" in result.stdout
+    assert "DEPLOY REACHED THE END" in result.stdout
+
+
+def test_the_deploy_hands_its_own_interpreter_to_the_closing_check(
+    trees, tmp_path, decoy_python
+):
+    """No DEPLOY_PYTHON supplied, a conflicting WORKER_PYTHON in the environment.
+
+    The deploy resolves `PYTHON` to `python` and runs its suites with it. If it
+    does not pass that choice on, `worker_ctl.sh` picks up WORKER_PYTHON and
+    the closing check measures a different installation than the one the deploy
+    validated -- the exact drift the interpreter selection exists to prevent.
+    """
+    primary, _ = trees
+    environment = dict(os.environ)
+    environment.pop("DEPLOY_PYTHON", None)
+    environment["WORKER_PYTHON"] = str(decoy_python / "python")
+
+    result = subprocess.run(
+        [BASH, sh(closing_handoff(tmp_path, primary))],
+        cwd=str(tmp_path), capture_output=True, encoding="utf-8",
+        errors="replace", timeout=120, env=environment,
+    )
+    combined = result.stdout + result.stderr
+
+    assert "DECOY PYTHON WAS USED" not in combined, combined[:600]
+    assert "PRIMARY-PREFLIGHT" in result.stdout, combined[:600]
+
+
+def test_an_explicit_deploy_python_still_reaches_the_closing_check(
+    trees, tmp_path, decoy_python
+):
+    primary, _ = trees
+    environment = poisoned(decoy_python)
+    environment["DEPLOY_PYTHON"] = sys.executable
+    environment["WORKER_PYTHON"] = str(decoy_python / "python")
+
+    result = run(closing_handoff(tmp_path, primary), cwd=tmp_path,
+                 env=environment)
+
+    assert "DECOY PYTHON WAS USED" not in result.stdout + result.stderr
+    assert "PRIMARY-PREFLIGHT" in result.stdout
 
 
 # --- The derivation itself ----------------------------------------------------

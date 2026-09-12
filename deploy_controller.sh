@@ -272,4 +272,11 @@ echo "deploy: the hub is answering"
 # --- The only statement that means anything ---------------------------------
 
 echo
-"$REPO/worker_ctl.sh" preflight claudecode
+# The interpreter is passed, not assumed.
+#
+# `worker_ctl.sh` chooses its own python when nobody tells it which one,
+# and a `WORKER_PYTHON` sitting in the operator's environment would win.
+# The suites above ran under $PYTHON; a closing check under a different
+# interpreter is measuring a different installation than the one this
+# deploy validated, which is the drift the check exists to catch.
+DEPLOY_PYTHON="$PYTHON" "$REPO/worker_ctl.sh" preflight claudecode
