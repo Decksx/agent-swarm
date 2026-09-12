@@ -190,6 +190,10 @@ INTEGRATION_VARIABLES = (
     "INTEGRATION_TARGET_REF",
     "INTEGRATION_REPO_SLUG",
     "INTEGRATION_WORK_ROOT",
+    # Not in the worker's required-variable check -- an empty value is legal
+    # there and means "any green check will do". It is required here because
+    # that default is a weaker gate than this swarm wants.
+    "INTEGRATION_REQUIRED_SUITES",
 )
 
 
@@ -227,6 +231,35 @@ def test_the_launcher_provides_exactly_what_the_worker_demands(checkout):
 
     assert demanded <= set(INTEGRATION_VARIABLES)
     assert all(handed.get(name) for name in demanded)
+
+
+def test_the_required_suites_are_named(checkout):
+    """An unnamed requirement is not a requirement.
+
+    `check_evidence` with an empty `required` demands only that some green
+    check-run exists, which a workflow running one trivial job satisfies
+    while proving nothing about the tests. The names turn a missing suite
+    into a refusal.
+    """
+    handed = start(checkout)
+    named = [s for s in handed["INTEGRATION_REQUIRED_SUITES"].split(",") if s.strip()]
+
+    assert len(named) >= 2, f"only {named} required; a single suite is not a gate"
+
+
+def test_the_required_suites_are_check_run_names_not_paths(checkout):
+    """They are matched against GitHub check-run names, not files.
+
+    A path here reads as configured and can never match, so the integrator
+    would refuse every future integration with "required suite has no
+    evidence" and the cause would look like CI rather than this line.
+    """
+    handed = start(checkout)
+
+    for name in handed["INTEGRATION_REQUIRED_SUITES"].split(","):
+        name = name.strip()
+        assert name
+        assert "/" not in name and not name.endswith(".py"), name
 
 
 def test_the_merge_target_is_a_full_ref(checkout):
@@ -280,6 +313,7 @@ def test_a_worker_inherits_what_the_supervisor_was_given(monkeypatch):
     monkeypatch.setenv("INTEGRATION_TARGET_REF", "refs/heads/main")
     monkeypatch.setenv("INTEGRATION_REPO_SLUG", "Decksx/agent-swarm")
     monkeypatch.setenv("INTEGRATION_WORK_ROOT", r"C:\git\.swarm-integration")
+    monkeypatch.setenv("INTEGRATION_REQUIRED_SUITES", "pytest-unit,pytest-bypass")
     monkeypatch.setenv("CHATGPT_HUB_SECRET", "irrelevant")
     monkeypatch.setenv("GEMINI_HUB_SECRET", "irrelevant")
     monkeypatch.setenv("CLAUDECODE_HUB_SECRET", "irrelevant")

@@ -129,6 +129,17 @@ load_credentials() {
   export INTEGRATION_REPO_SLUG="${INTEGRATION_REPO_SLUG:-Decksx/agent-swarm}"
   export INTEGRATION_WORK_ROOT="${INTEGRATION_WORK_ROOT:-C:/git/.swarm-integration}"
 
+  # The suites the integrator requires evidence from, by check-run name.
+  # Left empty, check_evidence only demands that *some* completed green
+  # check exists -- which a workflow running one trivial job would satisfy
+  # while proving nothing about the tests. Naming them makes a missing
+  # suite a refusal rather than a silence.
+  #
+  # These are check-run names, so they must match the job names in
+  # .github/workflows/ci.yml exactly. Changing one without the other is a
+  # refusal reading "required suite ... has no evidence".
+  export INTEGRATION_REQUIRED_SUITES="${INTEGRATION_REQUIRED_SUITES:-pytest-unit,pytest-bypass}"
+
   export SWARM_CONTROL_DIR="$CONTROL"
   export CONTROLLER_URL="$URL"
   return 0
