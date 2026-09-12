@@ -91,6 +91,18 @@ load_credentials() {
   export GEMINI_API_KEY="$(powershell.exe -NoProfile -Command \
     '[Environment]::GetEnvironmentVariable("GEMINI_API_KEY","User")' 2>/dev/null | tr -d '\r\n')"
 
+  # Which project an author resolves when it is handed a task. A name, never
+  # a path: it resolves through repos.json or it does not resolve, which is
+  # the check that catches a checkout repointed at another clone.
+  #
+  # Set here because this is the environment the supervisor hands to each
+  # child, and nothing else was setting it for a supervised worker.
+  # worker_ctl.sh defaults it for a worker started by hand, so the two
+  # paths agreed on the value and disagreed on whether anyone applied it --
+  # and an author without it blocks every task it is given, naming the
+  # variable. A correct refusal, and a standing outage.
+  export AUTHOR_PROJECT="${AUTHOR_PROJECT:-agenthub}"
+
   export SWARM_CONTROL_DIR="$CONTROL"
   export CONTROLLER_URL="$URL"
   return 0

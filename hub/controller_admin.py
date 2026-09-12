@@ -150,6 +150,15 @@ def main(argv) -> int:
              "authority, and a writable file can come back rewritten.",
     )
     p.add_argument(
+        "--proof-mode", default="baseline",
+        choices=["baseline", "sabotage", "both", "branch_only"],
+        help="what the task must produce to be believed. `branch_only` "
+             "stops at a candidate on a branch; the default also requires "
+             "a baseline run. It is stored on the task version, which is "
+             "where a worker reads it -- not in the contract text, so it "
+             "does not move the contract hash.",
+    )
+    p.add_argument(
         "--ready",
         action="store_true",
         help="also move it out of DRAFT to READY_AUTHOR",
@@ -262,6 +271,7 @@ def main(argv) -> int:
             "objective": args.objective,
             "base_sha": args.base_sha,
             "contract_yaml": contract,
+            "proof_mode": args.proof_mode,
         })
 
         if status >= 400 or not args.ready:
