@@ -52,7 +52,7 @@ from pydantic import BaseModel
 from . import activations, build, engine, states
 from .db import transaction
 from . import progression
-from .db import initialize, open_controller_db
+from .db import connect, initialize, open_controller_db
 
 # Controller errors mapped onto the status code that describes them, so a
 # worker can tell "you are not allowed" from "you are too late" from "that does
@@ -249,7 +249,31 @@ def build_router(
     router = APIRouter(prefix="/controller", tags=["controller"])
 
     def get_conn():
-        conn = open_controller_db(db_path)
+        """One connection, for one request, closed when that request is done.
+
+        `same_thread_only=False`, and the reason is FastAPI's lifecycle rather
+        than anything about concurrency. A sync dependency runs in a
+        threadpool, and a generator dependency's two halves are separate
+        scheduling events: the setup half runs on one worker thread, and the
+        cleanup half can resume on another. SQLite's guard then refuses the
+        `conn.close()` below -- after the handler has already done its work --
+        so the request's effect lands and the caller still gets a 500. That
+        produced intermittent failures on `claim` and on the event feed, which
+        were indistinguishable from a real controller fault.
+
+        This is NOT a claim that the connection is safe to share. It is used
+        by exactly one request, sequentially: opened, handed to one handler,
+        closed. Nothing here hands it to a second thread while a first is
+        using it, and nothing caches it -- a module-global connection behind
+        this dependency would turn a lifecycle quirk into genuine concurrent
+        use of one SQLite object, which the guard exists to prevent and which
+        turning the guard off would then hide.
+
+        The schema's rule is unchanged and is what makes this safe at the
+        database level: one process writes, and every projection update and
+        its event append share one `BEGIN IMMEDIATE` transaction.
+        """
+        conn = open_controller_db(db_path, same_thread_only=False)
         try:
             yield conn
         finally:
@@ -1004,9 +1028,16 @@ def ensure_database(db_path: str) -> None:
     per request: a request that has to decide whether to create the schema is a
     request that can race another one doing the same.
     """
-    conn = sqlite3.connect(db_path)
+    # Through `connect`, not `sqlite3.connect`. Opening raw left a fresh
+    # database in SQLite's default `delete` journal mode, because the pragmas
+    # live in `connect` and nothing here ran them -- so the first requests
+    # against a new database each found a non-WAL file and raced to set WAL,
+    # which takes an exclusive lock, and the losers failed the *connect* with
+    # "database is locked". Journal mode is a persistent property of the file,
+    # so setting it once here is both sufficient and the only place it needs
+    # doing.
+    conn = connect(db_path)
     try:
-        conn.row_factory = sqlite3.Row
         initialize(conn)
     finally:
         conn.close()
