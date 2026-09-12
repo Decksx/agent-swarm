@@ -116,13 +116,34 @@ def checkout(root: Path, marker: str) -> Path:
     (root / "worker_ctl.sh").write_text(source, encoding="utf-8")
 
     def program(kind):
-        """A stub that announces which tree and which program it is."""
-        return (
-            "import sys\n"
+        """A stub that announces which tree and which program it is.
+
+        The worker stub also writes its pid where the real worker's
+        `SingleInstance` writes one -- `$SWARM_CONTROL_DIR/$AGENT_IDENTITY.pid`,
+        both exported by `start`. Without that the launcher output was the only
+        thing a start produced, and a test claiming the pid file landed in the
+        fixture would have been asserting something nothing did.
+        """
+        lines = ["import os, pathlib, sys"]
+
+        if kind == "WORKER":
+            lines += [
+                "control = os.environ.get('SWARM_CONTROL_DIR')",
+                "identity = os.environ.get('AGENT_IDENTITY')",
+                "if control and identity:",
+                "    directory = pathlib.Path(control)",
+                "    directory.mkdir(parents=True, exist_ok=True)",
+                "    (directory / (identity + '.pid')).write_text(",
+                "        str(os.getpid()), encoding='utf-8')",
+            ]
+
+        lines += [
             f"print({marker!r} + '-' + {kind!r} + ' ' + "
-            "__file__.replace(chr(92), '/'))\n"
-            "sys.exit(0)\n"
-        )
+            "__file__.replace(chr(92), '/'))",
+            "sys.exit(0)",
+        ]
+
+        return "\n".join(lines) + "\n"
 
     (root / "preflight.py").write_text(program("PREFLIGHT"), encoding="utf-8")
     (root / "hub" / "controller_admin.py").write_text(
@@ -203,8 +224,7 @@ def test_start_launches_the_scripts_own_worker(trees):
     primary, worktree = trees
     launcher = worktree / "scratch" / "claudecode.launcher.out"
 
-    run(worktree / "worker_ctl.sh", "start", "claudecode", cwd=primary,
-        env={"GEMINI_API_KEY": "k", "OPENAI_API_KEY": "k"})
+    run(worktree / "worker_ctl.sh", "start", "claudecode", cwd=primary)
 
     deadline = time.monotonic() + 60
 
@@ -221,23 +241,82 @@ def test_start_launches_the_scripts_own_worker(trees):
 
 
 def test_start_touches_only_its_own_scratch(trees):
-    """The other half of hermeticity. `start` consults and writes a pid file
-    beside its launcher log; both belong to the fixture, so the suite cannot
-    pass or fail on what happens to be running on this machine."""
+    """The other half of hermeticity: the lock as well as the log.
+
+    `claudecode`, not `gemini`. The gemini and chatgpt branches overwrite the
+    key the test supplies with `[Environment]::GetEnvironmentVariable(...,
+    "User")` from the host, so starting gemini here passed only because this
+    machine happens to hold that credential and would exit before launching
+    anything on a clean one. `claudecode` reads no user-level key, which is why
+    the neighbouring launch test already uses it.
+    """
     primary, worktree = trees
 
-    run(worktree / "worker_ctl.sh", "start", "gemini", cwd=primary,
-        env={"GEMINI_API_KEY": "k", "OPENAI_API_KEY": "k"})
+    run(worktree / "worker_ctl.sh", "start", "claudecode", cwd=primary)
 
-    wrote = sorted(
-        p.name for p in (worktree / "scratch").rglob("*") if p.is_file()
-    )
+    pid_file = worktree / "scratch" / "swarm_control" / "claudecode.pid"
+    deadline = time.monotonic() + 60
+
+    while time.monotonic() < deadline and not pid_file.exists():
+        time.sleep(0.2)
+
+    assert pid_file.exists(), "the worker took no lock inside the fixture"
+    assert pid_file.read_text(encoding="utf-8").strip().isdigit()
+
     other = sorted(
-        p.name for p in (primary / "scratch").rglob("*") if p.is_file()
+        p.relative_to(primary).as_posix()
+        for p in (primary / "scratch").rglob("*") if p.is_file()
     )
 
-    assert wrote, "start wrote nothing into its own scratch"
     assert other == [], f"it wrote into the other checkout's scratch: {other}"
+
+
+def test_start_still_launches_when_the_host_holds_no_user_level_key(trees,
+                                                                    tmp_path):
+    """A clean machine, simulated rather than described.
+
+    `powershell.exe` is shadowed by one that returns nothing, which is what
+    `[Environment]::GetEnvironmentVariable(..., "User")` yields where the
+    credential was never set. Starting gemini or chatgpt under this exits
+    before launching anything; claudecode is unaffected, and that is the whole
+    reason this suite uses it.
+    """
+    primary, worktree = trees
+    shadow = tmp_path / "clean-host"
+    shadow.mkdir()
+    (shadow / "powershell.exe").write_text("", encoding="utf-8")
+    (shadow / "powershell").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (shadow / "powershell").chmod(0o755)
+
+    run(worktree / "worker_ctl.sh", "start", "claudecode", cwd=primary,
+        env={"PATH": str(shadow) + os.pathsep + os.environ.get("PATH", "")})
+
+    launcher = worktree / "scratch" / "claudecode.launcher.out"
+    deadline = time.monotonic() + 60
+
+    while time.monotonic() < deadline and not launcher.exists():
+        time.sleep(0.2)
+
+    assert launcher.exists(), "claudecode depended on a host credential after all"
+    assert "WORKTREE-WORKER" in launcher.read_text(encoding="utf-8",
+                                                   errors="replace")
+
+
+def test_start_needs_no_user_level_credential_for_claudecode(trees):
+    """Stated so the choice of identity above cannot quietly drift back.
+
+    Neither the hub credential nor any API key comes from the host for this
+    path: the fixture stubs `fetch_secret`, and `claudecode` has no PowerShell
+    lookup to stub.
+    """
+    source = (REPO_ROOT / "worker_ctl.sh").read_text(encoding="utf-8")
+    lookups = [
+        line for line in source.splitlines()
+        if "GetEnvironmentVariable" in line and not line.strip().startswith("#")
+    ]
+
+    assert lookups, "the lookups this avoids should still exist for the others"
+    assert all("claudecode" not in line for line in lookups)
 
 
 # --- Paths with spaces --------------------------------------------------------
