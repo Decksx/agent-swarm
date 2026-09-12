@@ -185,14 +185,104 @@ def test_an_operator_can_still_say_where_to_review(checkout, tmp_path):
     assert same_path(elsewhere, handed["REVIEW_REPO"])
 
 
+INTEGRATION_VARIABLES = (
+    "INTEGRATION_REPO",
+    "INTEGRATION_TARGET_REF",
+    "INTEGRATION_REPO_SLUG",
+    "INTEGRATION_WORK_ROOT",
+)
+
+
+def test_the_integrator_is_given_every_variable_it_refuses_without(checkout):
+    """All four, or the only stage that reaches a real remote blocks.
+
+    `execute_integration` checks them as a set and refuses on the first
+    absent one, so three out of four is worth exactly as much as none: an
+    integration activation spent to be told the host is not configured.
+    """
+    handed = start(checkout)
+
+    absent = [name for name in INTEGRATION_VARIABLES if not handed.get(name)]
+
+    assert absent == [], f"the integrator would refuse: {absent} not provided"
+
+
+def test_the_launcher_provides_exactly_what_the_worker_demands(checkout):
+    """The list in the script and the list in the worker cannot drift apart.
+
+    Read out of `claude_worker` rather than written down twice. A variable
+    added to that check and not to the launcher is a stage that stops
+    working, and nothing else in the suite would notice.
+    """
+    import re
+
+    source = (REPO_ROOT / "claude_worker.py").read_text(encoding="utf-8")
+    block = source[source.index("def execute_integration"):]
+    block = block[:block.index("refuse(f\"{name} is not configured")]
+    demanded = set(re.findall(r'"(INTEGRATION_[A-Z_]+)"', block))
+
+    assert demanded, "could not find the integrator's required-variable check"
+
+    handed = start(checkout)
+
+    assert demanded <= set(INTEGRATION_VARIABLES)
+    assert all(handed.get(name) for name in demanded)
+
+
+def test_the_merge_target_is_a_full_ref(checkout):
+    """`main` and `refs/heads/main` are not the same thing to git.
+
+    A bare branch name resolves against whatever happens to match first,
+    which for the one stage that pushes to a real remote is not a risk worth
+    carrying for four saved characters.
+    """
+    handed = start(checkout)
+
+    assert handed["INTEGRATION_TARGET_REF"].startswith("refs/")
+
+
+def test_the_integrator_does_not_merge_inside_the_canonical_checkout(checkout):
+    """The work root is somewhere else, on purpose.
+
+    Cloning and merging in the checkout a person is working in means a failed
+    integration leaves their tree to be repaired by hand, and a successful one
+    can race whatever they were editing.
+    """
+    root, _ = checkout
+    handed = start(checkout)
+
+    assert not same_path(root, handed["INTEGRATION_WORK_ROOT"])
+
+
+def test_an_operator_can_still_say_where_integration_lands(checkout, tmp_path):
+    """Every one of them stays overridable, as the other two are."""
+    elsewhere = tmp_path / "other"
+    elsewhere.mkdir()
+
+    handed = start(checkout, {
+        "INTEGRATION_TARGET_REF": "refs/heads/release",
+        "INTEGRATION_REPO_SLUG": "Someone/else",
+        "INTEGRATION_WORK_ROOT": sh(elsewhere),
+    })
+
+    assert handed["INTEGRATION_TARGET_REF"] == "refs/heads/release"
+    assert handed["INTEGRATION_REPO_SLUG"] == "Someone/else"
+    assert same_path(elsewhere, handed["INTEGRATION_WORK_ROOT"])
+
+
 def test_a_worker_inherits_what_the_supervisor_was_given(monkeypatch):
     """The last hop. `child_env` copies the environment; nothing re-adds these."""
     import supervisor
 
     monkeypatch.setenv("AUTHOR_PROJECT", "agenthub")
     monkeypatch.setenv("REVIEW_REPO", r"C:\git\claude-agent-hub")
+    monkeypatch.setenv("INTEGRATION_REPO", r"C:\git\claude-agent-hub")
+    monkeypatch.setenv("INTEGRATION_TARGET_REF", "refs/heads/main")
+    monkeypatch.setenv("INTEGRATION_REPO_SLUG", "Decksx/agent-swarm")
+    monkeypatch.setenv("INTEGRATION_WORK_ROOT", r"C:\git\.swarm-integration")
     monkeypatch.setenv("CHATGPT_HUB_SECRET", "irrelevant")
     monkeypatch.setenv("GEMINI_HUB_SECRET", "irrelevant")
+    monkeypatch.setenv("CLAUDECODE_HUB_SECRET", "irrelevant")
 
     authoring = supervisor.Supervisor.child_env(
         object.__new__(supervisor.Supervisor), "chatgpt"
@@ -201,5 +291,11 @@ def test_a_worker_inherits_what_the_supervisor_was_given(monkeypatch):
         object.__new__(supervisor.Supervisor), "gemini"
     )
 
+    integrating = supervisor.Supervisor.child_env(
+        object.__new__(supervisor.Supervisor), "claudecode"
+    )
+
     assert authoring["AUTHOR_PROJECT"] == "agenthub"
     assert reviewing["REVIEW_REPO"] == r"C:\git\claude-agent-hub"
+    assert all(integrating.get(name) for name in INTEGRATION_VARIABLES)
+    assert integrating["INTEGRATION_TARGET_REF"] == "refs/heads/main"
