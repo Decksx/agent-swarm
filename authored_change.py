@@ -293,7 +293,7 @@ def _rejection_section(task: dict) -> List[str]:
     ]
 
 
-DEFAULT_FILE_VIEW = 12_000
+DEFAULT_FILE_VIEW = 20_000
 DEFAULT_VIEW_BUDGET = 48_000
 
 
