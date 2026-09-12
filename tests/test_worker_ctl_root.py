@@ -62,7 +62,20 @@ def same_path(path: Path, text: str) -> bool:
 
 
 def run(script: Path, *args, cwd: Path, env=None, timeout=120):
+    """Invoke the script with an environment this test controls.
+
+    Both interpreter overrides are cleared unless a test sets one. They are
+    ordinary environment variables, so an ambient value decides what the
+    script does -- and `deploy_controller.sh` exports `DEPLOY_PYTHON` for the
+    duration of a deploy, which is when it runs these suites. Left inherited,
+    the PATH-fallback tests asserted a fallback that the ambient override had
+    already taken, and passed or failed on who invoked them.
+    """
     environment = dict(os.environ)
+
+    for variable in ("DEPLOY_PYTHON", "WORKER_PYTHON"):
+        environment.pop(variable, None)
+
     environment.update(env or {})
 
     return subprocess.run(

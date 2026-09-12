@@ -20,9 +20,11 @@ default is unchanged.
 
 from __future__ import annotations
 
+import queue
 import sqlite3
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -61,42 +63,128 @@ def database(tmp_path):
     return str(path)
 
 
+class Worker(threading.Thread):
+    """A long-lived thread that runs whatever it is handed, one at a time.
+
+    Deliberately not a fresh `ThreadPoolExecutor` per hop. A pool created and
+    shut down for each step leaves its thread dead before the next one starts,
+    and an operating system is free to reuse that thread id -- so "these ran
+    on different threads" would rest on the ids happening not to collide. Two
+    of these are alive simultaneously for the whole test, so their ids cannot
+    be the same and cannot be recycled into each other.
+    """
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self._work = queue.Queue()
+        self.ident_seen = None
+        self.start()
+
+    def run(self):
+        self.ident_seen = threading.get_ident()
+
+        while True:
+            item = self._work.get()
+
+            if item is None:
+                return
+
+            work, outcome = item
+
+            try:
+                outcome.append(("ok", work()))
+            except BaseException as exc:  # re-raised on the calling thread
+                outcome.append(("raised", exc))
+
+    def call(self, work):
+        outcome = []
+        self._work.put((work, outcome))
+
+        while not outcome:
+            time.sleep(0.001)
+
+        kind, value = outcome[0]
+
+        if kind == "raised":
+            raise value
+
+        return value
+
+    def stop(self):
+        self._work.put(None)
+        self.join(timeout=10)
+
+
+@pytest.fixture
+def threads():
+    """Two worker threads, both alive for the whole test."""
+    first, second = Worker(), Worker()
+
+    while first.ident_seen is None or second.ident_seen is None:
+        time.sleep(0.001)
+
+    assert first.ident_seen != second.ident_seen
+    assert first.ident_seen != threading.get_ident()
+    assert second.ident_seen != threading.get_ident()
+
+    try:
+        yield first, second
+    finally:
+        first.stop()
+        second.stop()
+
+
 def on_thread(work):
-    """Run `work` on a thread that is definitely not this one, and return it."""
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(work).result()
+    """Run `work` somewhere that is definitely not this thread.
+
+    Retained for the cases that only need "not here". Where the point is that
+    two *different* live threads are involved, the `threads` fixture is used
+    instead.
+    """
+    worker = Worker()
+
+    try:
+        return worker.call(work)
+    finally:
+        worker.stop()
 
 
 # --- The lifecycle, made deterministic ---------------------------------------
 
 
-def test_a_request_connection_survives_being_closed_on_another_thread(database):
-    """Opened on one thread, used on a second, closed on a third.
+def test_a_request_connection_survives_being_closed_on_another_thread(
+    database, threads
+):
+    """Opened on one thread, used and closed on a second.
 
     That is the shape FastAPI produces; the only difference is that here the
-    threads are chosen rather than scheduled.
+    threads are chosen rather than scheduled -- and both are alive for the
+    whole test, so "different threads" is a fact about two live threads rather
+    than two ids that happened not to collide.
     """
-    opened = {}
+    opener, other = threads
 
-    def open_it():
-        opened["thread"] = threading.get_ident()
+    conn = opener.call(
+        lambda: db.open_controller_db(database, same_thread_only=False)
+    )
 
-        return db.open_controller_db(database, same_thread_only=False)
+    assert other.call(
+        lambda: conn.execute("SELECT COUNT(*) AS n FROM tasks").fetchone()["n"]
+    ) == 0
 
-    conn = on_thread(open_it)
+    other.call(conn.close)
 
-    def use_it():
-        assert threading.get_ident() != opened["thread"]
+    assert opener.ident_seen != other.ident_seen
 
-        return conn.execute("SELECT COUNT(*) AS n FROM tasks").fetchone()["n"]
 
-    assert on_thread(use_it) == 0
+def test_the_two_threads_really_are_distinct_and_both_alive(threads):
+    """The premise every test above rests on, asserted rather than assumed."""
+    opener, other = threads
 
-    def close_it():
-        assert threading.get_ident() != opened["thread"]
-        conn.close()
-
-    on_thread(close_it)
+    assert opener.is_alive() and other.is_alive()
+    assert opener.call(threading.get_ident) == opener.ident_seen
+    assert other.call(threading.get_ident) == other.ident_seen
+    assert opener.ident_seen != other.ident_seen
 
 
 def test_the_old_setting_fails_that_same_sequence(database):
