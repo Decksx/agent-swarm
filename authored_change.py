@@ -113,7 +113,16 @@ def require_contract(task: Optional[dict]) -> "Scope":
     declared = task.get("allowed_paths")
 
     try:
-        scope = parse_scope(contract, declared=declared)
+        # `context_paths` alongside `allowed_paths`, because the controller
+        # records both and honouring one while dropping the other hands the
+        # author its write authority with a shorter reading list than the
+        # plan gave it -- silently, since an absent reading list is a valid
+        # contract and looks like a task that needed none.
+        scope = parse_scope(
+            contract,
+            declared=declared,
+            declared_context=task.get("context_paths"),
+        )
     except Exception as exc:
         raise ContractDefect(
             f"the contract could not be parsed: {exc}"
@@ -146,10 +155,13 @@ def contract_section(task: dict, scope: "Scope") -> List[str]:
     crosses them. A boundary named but not drawn is worse than no boundary at
     all: it reads as a check that has been made.
 
-    The API author never needed this section; its prompt is *built* from the
-    contract, so the allowed paths are in it and the objective is the
-    objective. The CLI worker is handed prose, and prose is where this has to
-    be written down.
+    Both authors need it, and the belief that only one did is what this
+    docstring used to record. The API author's prompt is built from the
+    *objective*, not the contract: it carried the allowed paths and nothing
+    else the contract said, so every acceptance criterion went unseen while
+    the reviewer judged against all of them. `render_author_prompt` renders
+    this section too now, and the CLI worker, which is handed prose, still
+    needs it for the reason it always did.
 
     Takes the resolved scope rather than resolving it, so that the only code
     able to produce this section is code that has already been through
@@ -588,15 +600,33 @@ def render_author_prompt(
     task: dict,
     existing: Optional[List[dict]] = None,
     context: Optional[dict] = None,
+    *,
+    scope: Optional["Scope"] = None,
 ) -> str:
     """The prompt an API author is given.
 
-    Order matters and is not alphabetical. The objective, then the output
-    contract, then the write authority, then the files that authority covers,
-    then the read-only context, then the rejection if there was one. Authority
-    is stated before any file is shown, so that every file below it is read
-    under a rule that has already been given rather than one that arrives
-    afterwards to take something back.
+    Order matters and is not alphabetical. The objective, then the contract
+    that binds it, then the output format, then the write authority, then the
+    files that authority covers, then the read-only context, then the
+    rejection if there was one. Authority is stated before any file is shown,
+    so that every file below it is read under a rule that has already been
+    given rather than one that arrives afterwards to take something back.
+
+    `scope` renders the contract. Without it this prompt printed a heading
+    reading OBJECTIVE AND ACCEPTANCE CRITERIA above the objective alone, and
+    the acceptance criteria were never in it: `contract_yaml` went unread, so
+    every term written there -- what must not be stubbed, what the tests may
+    not build for themselves, what has to be atomic -- was invisible to the
+    author while the reviewer judged against all of it. The author was not
+    ignoring the contract. It had never been shown one, and a heading that
+    names a section it does not contain is worse than no heading, because the
+    absence reads as the contract having nothing more to say.
+
+    Keyword-only, and a resolved `Scope` rather than a task to resolve, for
+    the reason `contract_section` takes one: the only code that can render a
+    contract is code that has already been through `require_contract`. A
+    caller without a scope gets the old bare path list, which is what the
+    operator-issued paths of this module still have.
     """
     return "\n".join([
         "You are producing one change to a repository. You cannot run "
@@ -606,6 +636,7 @@ def render_author_prompt(
         "",
         "OBJECTIVE AND ACCEPTANCE CRITERIA",
         (task.get("objective") or "").strip() or "(none recorded)",
+    ] + (contract_section(task, scope) if scope is not None else []) + [
         "",
         "-" * 60,
         "Answer with one or more file blocks and nothing else. Exactly this "
@@ -630,7 +661,7 @@ def render_author_prompt(
         "You may only write to these paths. Anything else is refused and your "
         "whole answer is discarded:",
         *(f"  {entry}" for entry in task.get("allowed_paths") or []),
-    ] if task.get("allowed_paths") else [])
+    ] if scope is None and task.get("allowed_paths") else [])
         + _existing_section(existing or [])
         + _context_section(context or {})
         + _rejection_section(task)

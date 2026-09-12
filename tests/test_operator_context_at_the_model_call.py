@@ -127,11 +127,16 @@ def author_activation(repo, operator_context=None):
         "expected_branch": "task/T-1-a1",
         "operator_context": operator_context,
         "task_record": {
+            "task_id": "T-1",
             "title": "add a note",
             "base_sha": git(repo, "rev-parse", "HEAD").strip(),
             "objective": "add a note",
             "contract_yaml": "task_id: T-1\nallowed_paths:\n  - notes\n",
             "proof_mode": "branch_only",
+            # The author now states the contract it is bound by, so the
+            # record has to carry what a controller record carries.
+            "current_version": 1,
+            "contract_hash": "c" * 64,
         },
     }
 

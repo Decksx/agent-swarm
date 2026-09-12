@@ -458,16 +458,22 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
     # unrestricted -- turned every parser gap into repository-wide write
     # access. AUTHOR_BLOCKED rather than failed, because the fix is a human
     # editing the contract, not a retry.
+    #
+    # `require_contract` rather than `parse_scope`, which is what this used to
+    # call: the paths are not the whole contract. The prompt now states the
+    # base commit, the proof mode and the contract hash the author is bound
+    # by, and those come from the task record rather than the contract text.
+    # Parsing only the paths left a record missing any of them to reach the
+    # renderer and fail there, mid-activation, on a field nobody had checked.
+    # The same check the CLI author already makes, and fail-closed for the
+    # same reason: a task whose proof mode nobody recorded must not be
+    # authored under a guess at one.
     try:
-        scope = authored_change.parse_scope(
-            task_record.get("contract_yaml", ""),
-            declared=task_record.get("allowed_paths"),
-            declared_context=task_record.get("context_paths"),
-        )
-    except authored_change.ContractError as exc:
-        log.error("activation %s has no usable scope: %s", activation_id, exc)
+        scope = authored_change.require_contract(task_record)
+    except authored_change.ContractDefect as exc:
+        log.error("activation %s has no usable contract: %s", activation_id, exc)
         queue.report(activation_id, outcome="blocked", payload={
-            "reason": f"the contract does not authorise any paths: {exc}",
+            "reason": f"contract unusable: {exc}",
         })
         return
 
@@ -619,6 +625,7 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
          "operator_context": activation.get("operator_context")},
         existing,
         context,
+        scope=scope,
     )
 
     log.info("AUTHORING activation %s for task %s", activation_id, task_id)

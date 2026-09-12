@@ -128,8 +128,14 @@ def activation(contract, *, base, allowed=None, title="add a note"):
         "task_id": "T-1",
         "expected_branch": "task/T-1-a1",
         "task_record": {
+            "task_id": "T-1",
             "title": title,
             "base_sha": base,
+            # A real controller record always carries these; the worker now
+            # states them in the prompt, so a fixture without them is not a
+            # smaller record, it is one the controller could not produce.
+            "current_version": 1,
+            "contract_hash": "c" * 64,
             "objective": "add a note",
             "contract_yaml": contract,
             "allowed_paths": allowed,
@@ -175,7 +181,16 @@ def test_an_unusable_contract_blocks_before_the_model_is_called(
     chatgpt_worker.execute_author(NeverCalled(), activation(contract, base=base_of(author_repo)), queue)
 
     assert queue.last["outcome"] == "blocked"
-    assert "authorise" in queue.last["payload"]["reason"]
+
+    # The refusal has to say which contract term failed, not merely that one
+    # did. "authorise" was asserted here while the only possible defect was
+    # the path list; the check now covers the base commit, the proof mode and
+    # the hash as well, so a message naming paths would be wrong for most of
+    # what it now refuses.
+    reason = queue.last["payload"]["reason"]
+
+    assert "contract" in reason
+    assert reason.rstrip().rstrip(".") != "contract unusable"
 
 
 def test_a_blocked_contract_leaves_the_repository_untouched(author_repo):
