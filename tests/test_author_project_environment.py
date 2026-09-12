@@ -1,21 +1,28 @@
-"""An author reaches its project, or it blocks on every task it is given.
+"""A worker reaches the repository it works in, or it blocks on everything.
 
 `chatgpt_worker` reads `AUTHOR_PROJECT` at import and refuses to author
-without it. `worker_ctl.sh` defaults it for a worker started by hand, so a
-worker started that way has always had it -- and the supervisor path, which is
-how the runtime actually starts, set it nowhere. The two launchers agreed on
-the value and disagreed on whether anybody applied it, which is the shape of
+without it; `gemini_worker` reads `REVIEW_REPO` and refuses to review without
+it. `worker_ctl.sh` defaults both for a worker started by hand, so a worker
+started that way has always had them -- and the supervisor path, which is how
+the runtime actually starts, set neither. The two launchers agreed on the
+values and disagreed on whether anybody applied them, which is the shape of
 defect that survives a reading of either file alone.
 
-The consequence was not a degraded author. It was an author that accepted
+The consequence was not a degraded worker. It was a worker that accepted
 activations, blocked each one naming the variable, and kept doing so: a
 correct refusal repeated indefinitely, which reads in the ledger as the task
-being wrong rather than the host.
+being wrong rather than the host. The reviewer's half is the worse of the
+two, because a task whose review comes back blocked still reads as a task
+under review, and nothing about the state says nobody is coming.
+
+They are tested together because they are one defect with two names. Fixing
+the author's and not the reviewer's is exactly the mistake that happened, so
+a test that covered only one would have passed through it.
 
 So this runs the real `swarm_ctl.sh start` against a fixture checkout whose
 supervisor is a stub that records the environment it was handed, and asserts
 on what the process actually received -- not on the presence of a line in the
-script. The last test follows the same value one hop further, through
+script. The last test follows the same values one hop further, through
 `child_env`, because the supervisor is what a worker inherits from.
 """
 
@@ -74,6 +81,16 @@ def sh(path: Path) -> str:
     return text
 
 
+def same_path(path: Path, text: str) -> bool:
+    """Whether `text` names `path`.
+
+    Compared with separators normalised and case folded, because the shell
+    says `/c/Users/...` and python says `C:/Users/...` for the same directory,
+    and what is asserted is which checkout was named, not how it was spelled.
+    """
+    return Path(text).resolve() == Path(path).resolve()
+
+
 @pytest.fixture
 def checkout(tmp_path):
     """A copy of the real control script, with everything it calls stubbed."""
@@ -105,6 +122,7 @@ def start(checkout, extra_env=None):
     env["SUPERVISOR_PYTHON"] = sh(Path(sys.executable))
     env["SWARM_CONTROL_DIR"] = str(control)
     env.pop("AUTHOR_PROJECT", None)
+    env.pop("REVIEW_REPO", None)
     env.update(extra_env or {})
 
     finished = subprocess.run(
@@ -144,15 +162,44 @@ def test_the_default_names_a_project_that_resolves(checkout):
     repo_registry.get(start(checkout)["AUTHOR_PROJECT"])
 
 
+def test_the_supervisor_is_started_knowing_where_to_review(checkout):
+    """The reviewer's half of the same defect.
+
+    Asserted as the checkout the script belongs to rather than a literal,
+    because `REPO` is derived from `BASH_SOURCE`: a supervisor started from a
+    worktree must review that worktree, not whichever path was written down.
+    """
+    root, _ = checkout
+    handed = start(checkout)
+
+    assert same_path(root, handed["REVIEW_REPO"])
+
+
+def test_an_operator_can_still_say_where_to_review(checkout, tmp_path):
+    """The default is a default, exactly as it is for the project name."""
+    elsewhere = tmp_path / "another-checkout"
+    elsewhere.mkdir()
+
+    handed = start(checkout, {"REVIEW_REPO": sh(elsewhere)})
+
+    assert same_path(elsewhere, handed["REVIEW_REPO"])
+
+
 def test_a_worker_inherits_what_the_supervisor_was_given(monkeypatch):
-    """The last hop. `child_env` copies the environment; nothing re-adds this."""
+    """The last hop. `child_env` copies the environment; nothing re-adds these."""
     import supervisor
 
     monkeypatch.setenv("AUTHOR_PROJECT", "agenthub")
+    monkeypatch.setenv("REVIEW_REPO", r"C:\git\claude-agent-hub")
     monkeypatch.setenv("CHATGPT_HUB_SECRET", "irrelevant")
+    monkeypatch.setenv("GEMINI_HUB_SECRET", "irrelevant")
 
-    handed = supervisor.Supervisor.child_env(
+    authoring = supervisor.Supervisor.child_env(
         object.__new__(supervisor.Supervisor), "chatgpt"
     )
+    reviewing = supervisor.Supervisor.child_env(
+        object.__new__(supervisor.Supervisor), "gemini"
+    )
 
-    assert handed["AUTHOR_PROJECT"] == "agenthub"
+    assert authoring["AUTHOR_PROJECT"] == "agenthub"
+    assert reviewing["REVIEW_REPO"] == r"C:\git\claude-agent-hub"

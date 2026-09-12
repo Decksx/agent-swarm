@@ -103,6 +103,18 @@ load_credentials() {
   # variable. A correct refusal, and a standing outage.
   export AUTHOR_PROJECT="${AUTHOR_PROJECT:-agenthub}"
 
+  # Where the reviewer reads. It only reads -- rev-parse, diff, log -- so it
+  # can point at the canonical checkout directly; nothing it runs touches a
+  # working tree.
+  #
+  # The twin of AUTHOR_PROJECT above, and missing for the same reason: it was
+  # set in worker_ctl.sh for a worker started by hand and nowhere on the path
+  # the runtime actually starts. A reviewer without it does not review badly,
+  # it returns a blocked judgment naming the variable -- so a candidate waits
+  # for a verdict that is never coming, and the ledger records the task as
+  # under review.
+  export REVIEW_REPO="${REVIEW_REPO:-$REPO}"
+
   export SWARM_CONTROL_DIR="$CONTROL"
   export CONTROLLER_URL="$URL"
   return 0
