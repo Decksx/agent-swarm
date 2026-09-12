@@ -33,13 +33,27 @@ class SchemaVersionMismatch(RuntimeError):
     """The database on disk is not the schema this build understands."""
 
 
-def connect(path: str | Path, *, timeout: float = 10.0) -> sqlite3.Connection:
+def connect(
+    path: str | Path,
+    *,
+    timeout: float = 10.0,
+    same_thread_only: bool = True,
+) -> sqlite3.Connection:
     """Open the controller database with the pragmas it depends on.
 
     `timeout` is how long a writer waits for a competing write lock before
     raising. It is deliberately generous: the alternative to waiting is an
     operation failing under momentary contention, and every write here is
     short.
+
+    `same_thread_only` keeps SQLite's own thread-affinity guard, and defaults
+    to on. Every caller outside the HTTP layer opens a connection and uses it
+    on the thread that opened it, and for those the guard is free insurance
+    against a connection escaping into a thread nobody meant it to reach.
+
+    The one caller that turns it off is the request-scoped connection FastAPI
+    manages; `api.get_conn` says why. Turning it off is emphatically not a
+    claim that the connection is safe to *share* -- see that note.
     """
     conn = sqlite3.connect(
         str(path),
@@ -47,6 +61,7 @@ def connect(path: str | Path, *, timeout: float = 10.0) -> sqlite3.Connection:
         # Transactions are opened explicitly by transaction(); autocommit
         # mode here means sqlite3 does not start a deferred one behind our back.
         isolation_level=None,
+        check_same_thread=same_thread_only,
     )
     conn.row_factory = sqlite3.Row
 
@@ -56,7 +71,16 @@ def connect(path: str | Path, *, timeout: float = 10.0) -> sqlite3.Connection:
 
     # WAL lets readers run while a write is in progress, which is what keeps a
     # status query from blocking behind a transition.
-    conn.execute("PRAGMA journal_mode = WAL")
+    #
+    # Set only when it is not already set. Changing `journal_mode` takes a
+    # brief exclusive lock, and this runs on every connection open -- which
+    # the HTTP layer does once per request. Concurrent opens then collide and
+    # one of them fails the *connect* with "database is locked", producing a
+    # 500 that has nothing to do with the work it was about to do. Reading the
+    # mode first costs one shared-lock query and makes the common case -- an
+    # existing WAL database -- take no write lock at all.
+    if (conn.execute("PRAGMA journal_mode").fetchone()[0] or "").lower() != "wal":
+        conn.execute("PRAGMA journal_mode = WAL")
 
     # FULL rather than NORMAL: NORMAL can lose the last commits on power loss,
     # and a task recorded as COMPLETE that is not actually complete is exactly
@@ -344,9 +368,16 @@ def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
     conn.execute("COMMIT")
 
 
-def open_controller_db(path: str | Path) -> sqlite3.Connection:
-    """Open, initialize if needed, and verify. The normal entry point."""
-    conn = connect(path)
+def open_controller_db(
+    path: str | Path, *, same_thread_only: bool = True
+) -> sqlite3.Connection:
+    """Open, initialize if needed, and verify. The normal entry point.
+
+    `same_thread_only` is passed through to `connect` and defaults to the safe
+    value, so a caller has to ask for the guard to be dropped rather than
+    inherit that from here.
+    """
+    conn = connect(path, same_thread_only=same_thread_only)
     initialize(conn)
     # Between the two: initialize() creates a fresh database already stamped
     # at the current version and leaves an existing one alone, so migrate()
