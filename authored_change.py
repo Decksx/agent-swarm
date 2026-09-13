@@ -305,8 +305,8 @@ def _rejection_section(task: dict) -> List[str]:
     ]
 
 
-DEFAULT_FILE_VIEW = 20_000
-DEFAULT_VIEW_BUDGET = 48_000
+DEFAULT_FILE_VIEW = 50_000
+DEFAULT_VIEW_BUDGET = 100_000
 
 
 def existing_in_scope(
@@ -381,7 +381,7 @@ def existing_in_scope(
     return files
 
 
-DEFAULT_CONTEXT_BUDGET = 48_000
+DEFAULT_CONTEXT_BUDGET = 100_000
 
 
 def context_at(
