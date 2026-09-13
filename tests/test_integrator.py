@@ -620,3 +620,132 @@ def test_an_unreadable_listing_is_not_an_empty_one(monkeypatch):
 
     with pytest.raises(IntegrationRefused, match="could not list"):
         find()
+
+
+# --- The ancestry precondition, and reaching it --------------------------------
+#
+# There was no end-to-end `run_integration` test in this file before these,
+# which is why three authored attempts at them failed the same way: each
+# stubbed `_git` and stopped, so the run died at step 2 in `find_pull_request`
+# and never arrived at the check it meant to exercise. Every step before the
+# one under test has to be replaced, and `drive_to_ancestry` is that list
+# written down once so the next test does not have to rediscover it.
+
+
+def drive_to_ancestry(monkeypatch, *, target_in_candidate: bool):
+    """Stub steps 1-6 so `run_integration` reaches the ancestry check.
+
+    Returns the recorder that says whether the merge was built. `merge-base`
+    is answered from `target_in_candidate`; every other `_git` call succeeds,
+    because none of them is what these tests are about.
+    """
+    built = []
+
+    def fake_git(repo, *args):
+        if args[:2] == ("merge-base", "--is-ancestor"):
+            return subprocess.CompletedProcess(
+                args, 0 if target_in_candidate else 1, "", ""
+            )
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    def fake_build_merge(plan, *, work_root):
+        built.append(plan.candidate_sha)
+        return MERGED
+
+    monkeypatch.setattr(integrator, "_git", fake_git)
+    monkeypatch.setattr(integrator, "find_pull_request", lambda **kw: 91)
+    monkeypatch.setattr(integrator, "pin_target", lambda p: TARGET)
+    monkeypatch.setattr(
+        integrator, "ci_evidence",
+        lambda candidate, *, repo_slug: (
+            Evidence(name="ci:unit", command="pytest", exit_code=0, passed=53),
+        ),
+    )
+    monkeypatch.setattr(integrator, "check_evidence", lambda p, *, required: None)
+    monkeypatch.setattr(integrator, "check_pr", lambda p, *, repo_slug: {})
+    monkeypatch.setattr(integrator, "check_target_unmoved", lambda p: TARGET)
+
+    # Steps 8-11. Stubbed so the fresh case can run to completion; the stale
+    # case must never reach any of them, which is what `built` records.
+    monkeypatch.setattr(integrator, "build_merge", fake_build_merge)
+    monkeypatch.setattr(integrator, "push_if_target_unmoved", lambda p, m: None)
+    monkeypatch.setattr(integrator, "verify_landed", lambda p, m: None)
+    monkeypatch.setattr(integrator, "check_merge_parents", lambda p, m: None)
+    monkeypatch.setattr(integrator, "check_tree_identical", lambda p, m: None)
+
+    return built
+
+
+def integrate():
+    return integrator.run_integration(
+        {"task_id": "T-1", "state": "READY_INTEGRATION",
+         "approved_candidate_sha": CANDIDATE},
+        repo="/nonexistent",
+        target_ref="refs/heads/master",
+        branch="task/T-1-a1",
+        repo_slug="o/r",
+        work_root="/nonexistent/work",
+    )
+
+
+def test_the_harness_reaches_the_ancestry_check(monkeypatch):
+    """The precondition of the two tests below, asserted rather than assumed.
+
+    Three authored attempts wrote tests that raised before reaching step 6b
+    and still looked like tests of it. This fails loudly if the stubbing
+    stops working, instead of quietly testing `find_pull_request` again.
+    """
+    asked = []
+
+    built = drive_to_ancestry(monkeypatch, target_in_candidate=True)
+
+    real_git = integrator._git
+
+    def watching_git(repo, *args):
+        if args[:2] == ("merge-base", "--is-ancestor"):
+            asked.append(args)
+        return real_git(repo, *args)
+
+    monkeypatch.setattr(integrator, "_git", watching_git)
+    integrate()
+
+    assert asked, "run_integration never reached the ancestry check"
+    assert asked[0][2:] == (TARGET, CANDIDATE), (
+        "the check was asked in the wrong order: it must ask whether the "
+        "TARGET is an ancestor of the CANDIDATE"
+    )
+    assert built == [CANDIDATE]
+
+
+def test_a_stale_candidate_is_refused_before_the_merge_is_built(monkeypatch):
+    """The defect this exists to prevent, stated as the thing that must not happen.
+
+    Asserting only the exception would pass on a check placed after the push,
+    which is precisely the arrangement that merged T-INFRA-03 and then
+    recorded it as rejected. So the assertion that matters is `built == []`.
+    """
+    built = drive_to_ancestry(monkeypatch, target_in_candidate=False)
+
+    with pytest.raises(IntegrationRefused) as refused:
+        integrate()
+
+    message = str(refused.value)
+
+    assert "is not an ancestor of the candidate" in message
+    assert TARGET[:12] in message and CANDIDATE[:12] in message
+    assert built == [], "the merge was built despite the candidate being stale"
+
+
+def test_a_fresh_candidate_passes_the_ancestry_check(monkeypatch):
+    """The guard must not refuse a candidate that contains the target.
+
+    A check that refused everything would satisfy the test above and break
+    every integration, so the healthy direction is asserted too.
+    """
+    built = drive_to_ancestry(monkeypatch, target_in_candidate=True)
+
+    record = integrate()
+
+    assert built == [CANDIDATE]
+    assert record["merge_sha"] == MERGED
+    assert record["candidate_sha"] == CANDIDATE
