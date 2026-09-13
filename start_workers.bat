@@ -27,7 +27,7 @@ REM throttles are gone. They braked a chat-driven loop that can no longer form;
 REM setting them now has no effect. See docs/PHASE0_CONTAINMENT.md.
 REM
 REM To stop them: close each window, press Ctrl+C in each, or from PowerShell:
-REM     Get-Process python ^| Where-Object { $_.CommandLine -match 'claude-agent-hub' } ^| Stop-Process -Force
+REM     Get-Process python ^| Where-Object { $_.CommandLine -match 'agent-swarm' } ^| Stop-Process -Force
 REM ===========================================================================
 
 setlocal

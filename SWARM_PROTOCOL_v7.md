@@ -2,7 +2,7 @@
 
 **Status:** implementation candidate
 **Supersedes:** `SWARM_PROTOCOL_v5.md` and the incomplete `SWARM_PROTOCOL_v6.md`
-**Control-plane repo:** `claude-agent-hub`
+**Control-plane repo:** `agent-swarm` (`Decksx/agent-swarm`)
 **Target repo:** `ComicAutomation`
 **Control plane:** Tower `agent-hub` service
 **Execution host:** `OFFICEPC`

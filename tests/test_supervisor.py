@@ -800,7 +800,7 @@ def adopt(control_dir, host, identity, pid, command_line):
 
 def test_shutdown_stops_a_worker_it_did_not_start(control_dir, spawned, host):
     adopt(control_dir, host, "gemini", 9999,
-          r"C:\Python311\python.exe C:\git\claude-agent-hub\gemini_worker.py")
+          r"C:\Python311\python.exe C:\gitgent-swarm\gemini_worker.py")
 
     sup = build(control_dir, spawned)
     sup.tick(now=100.0)
@@ -1041,7 +1041,7 @@ INCIDENTAL_MENTIONS = [
     'python editor.py gemini_worker.py',
     'grep -r gemini_worker.py .',
     'python -m pytest tests/test_gemini_worker.py',
-    r'notepad.exe C:\git\claude-agent-hub\gemini_worker.py',
+    r'notepad.exe C:\gitgent-swarm\gemini_worker.py',
 ]
 
 
@@ -1062,7 +1062,7 @@ def test_a_command_that_merely_mentions_the_script_is_not_killed(
 
 REAL_LAUNCHES = [
     # How the supervisor spawns one.
-    r"C:\Python311\python.exe C:\git\claude-agent-hub\gemini_worker.py",
+    r"C:\Python311\python.exe C:\gitgent-swarm\gemini_worker.py",
     # How worker_ctl.sh and start_workers.bat launch one.
     "python gemini_worker.py",
     # A path with a space in it, which only survives correct quoting.
@@ -1127,7 +1127,7 @@ def identify(name, pid):
 def test_a_live_supervisor_is_identified(control_dir, host):
     host.live.add(4321)
     host.command_lines[4321] = (
-        r"C:\Python311\python C:\git\claude-agent-hub\supervisor.py "
+        r"C:\Python311\python C:\gitgent-swarm\supervisor.py "
         r"--url http://192.168.42.50:8050"
     )
 

@@ -363,7 +363,7 @@ def test_a_quoted_path_with_a_space_stays_one_argument():
 def test_backslashes_in_a_windows_path_survive_the_split():
     """POSIX rules would read each one as an escape and eat it, which turns
     every Windows path into a different string."""
-    command = r"C:\Python311\python.exe C:\git\claude-agent-hub\gemini_worker.py"
+    command = r"C:\Python311\python.exe C:\gitgent-swarm\gemini_worker.py"
 
     assert split(command)[-1].endswith("gemini_worker.py")
     assert split(command)[-1].count("\\") >= 2 or "/" in split(command)[-1]
@@ -479,18 +479,18 @@ def test_a_spawned_process_reports_its_arguments(live_pid):
 # Every way this repository starts a python process, verbatim.
 REPOSITORY_LAUNCHES = [
     # supervisor.py spawning a worker: [python, str(repo / script)].
-    (r"C:\Python311\python.exe C:\git\claude-agent-hub\gemini_worker.py",
+    (r"C:\Python311\python.exe C:\gitgent-swarm\gemini_worker.py",
      "gemini_worker.py"),
     # worker_ctl.sh: python "$SCRIPT", from the repository.
     ("python claude_worker.py", "claude_worker.py"),
     # start_workers.bat: python chatgpt_worker.py, from the repository.
     ("python chatgpt_worker.py", "chatgpt_worker.py"),
     # swarm_ctl.sh start: "$PYTHON" "$REPO/supervisor.py" --url ... --log ...
-    (r"C:\Python311\python C:\git\claude-agent-hub\supervisor.py "
-     r"--url http://192.168.42.50:8050 --log C:\git\claude-agent-hub\control\supervisor.log",
+    (r"C:\Python311\python C:\gitgent-swarm\supervisor.py "
+     r"--url http://192.168.42.50:8050 --log C:\gitgent-swarm\control\supervisor.log",
      "supervisor.py"),
     # swarm_ctl.sh stop: the reaper.
-    (r"C:\Python311\python C:\git\claude-agent-hub\supervisor.py --reap",
+    (r"C:\Python311\python C:\gitgent-swarm\supervisor.py --reap",
      "supervisor.py"),
     # A python whose own path has a space in it.
     (r'"C:\Program Files\Python311\python.exe" "C:\my repo\gemini_worker.py"',
