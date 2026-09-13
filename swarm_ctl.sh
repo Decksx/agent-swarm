@@ -135,10 +135,18 @@ load_credentials() {
   # while proving nothing about the tests. Naming them makes a missing
   # suite a refusal rather than a silence.
   #
-  # These are check-run names, so they must match the job names in
+  # These are matched against the names integrator.ci_evidence() builds,
+  # which are the GitHub job name with a "ci:" prefix, so the job
+  # pytest-unit arrives as ci:pytest-unit. The prefix is not decoration
+  # and omitting it is not close enough: the first real integration
+  # refused with "required suite 'pytest-unit' has no evidence.
+  # Supplied: ci:pytest-bypass, ci:pytest-unit" -- the same suites under
+  # names that did not match.
+  #
+  # The part after the prefix must still match the job name in
   # .github/workflows/ci.yml exactly. Changing one without the other is a
   # refusal reading "required suite ... has no evidence".
-  export INTEGRATION_REQUIRED_SUITES="${INTEGRATION_REQUIRED_SUITES:-pytest-unit,pytest-bypass}"
+  export INTEGRATION_REQUIRED_SUITES="${INTEGRATION_REQUIRED_SUITES:-ci:pytest-unit,ci:pytest-bypass}"
 
   export SWARM_CONTROL_DIR="$CONTROL"
   export CONTROLLER_URL="$URL"

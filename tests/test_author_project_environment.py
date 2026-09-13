@@ -247,6 +247,53 @@ def test_the_required_suites_are_named(checkout):
     assert len(named) >= 2, f"only {named} required; a single suite is not a gate"
 
 
+def test_the_required_suites_carry_the_prefix_the_integrator_builds(checkout):
+    """`ci_evidence` labels every check-run `ci:<job name>`, and the match is exact.
+
+    Read out of `integrator.py` rather than written down here, because writing
+    it down here is what went wrong: the value was set to the bare job names,
+    which look right next to the workflow and match nothing. The first real
+    integration refused with "required suite 'pytest-unit' has no evidence.
+    Supplied: ci:pytest-bypass, ci:pytest-unit" -- the same two suites, under
+    names that did not match, after every other gate had been satisfied.
+    """
+    import re
+
+    source = (REPO_ROOT / "integrator.py").read_text(encoding="utf-8")
+    built = re.search(r'name=f"(?P<prefix>[a-z]*:)\{run', source)
+
+    assert built, "could not find how ci_evidence names a check-run"
+
+    prefix = built.group("prefix")
+    handed = start(checkout)
+
+    for name in handed["INTEGRATION_REQUIRED_SUITES"].split(","):
+        assert name.strip().startswith(prefix), (
+            f"{name.strip()!r} will never match anything ci_evidence supplies, "
+            f"which it names {prefix}<job>"
+        )
+
+
+def test_the_required_suites_name_the_workflow_jobs_after_the_prefix(checkout):
+    """The half after the prefix is a job name, and the workflow must define it.
+
+    The prefix alone is not enough: `ci:pytest-unti` carries it and matches
+    nothing. Asserted against the committed workflow so a renamed job fails
+    here rather than at the next integration.
+    """
+    workflow = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+
+    if not workflow.exists():
+        pytest.skip("no CI workflow in this checkout")
+
+    text = workflow.read_text(encoding="utf-8")
+    handed = start(checkout)
+
+    for entry in handed["INTEGRATION_REQUIRED_SUITES"].split(","):
+        job = entry.strip().split(":", 1)[-1]
+        assert f"\n  {job}:" in text, f"no job named {job!r} in ci.yml"
+
+
 def test_the_required_suites_are_check_run_names_not_paths(checkout):
     """They are matched against GitHub check-run names, not files.
 
