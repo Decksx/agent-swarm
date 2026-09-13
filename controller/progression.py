@@ -111,6 +111,28 @@ def _has_live_activation(conn: sqlite3.Connection, task_id: str) -> bool:
     return row is not None
 
 
+def _review_activation_with_approved_sha(conn: sqlite3.Connection, task_id: str, approved_sha: str) -> Optional[dict]:
+    """Resolve the branch and repo location from the review activation.
+
+    The review activation whose `expected_candidate` equals the task's `approved_candidate_sha` is used.
+    """
+    row = conn.execute(
+        "SELECT activation_id, expected_branch, repo_location "
+        "FROM activations "
+        "WHERE task_id = ? AND expected_candidate = ?",
+        (task_id, approved_sha),
+    ).fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        "activation_id": row["activation_id"],
+        "expected_branch": (row["expected_branch"] or "").strip(),
+        "repo_location": (row["repo_location"] or "").strip()
+    }
+
+
 def _producing_activation(conn: sqlite3.Connection, task_id: str) -> Optional[dict]:
     """The author activation that produced the candidate now approved.
 
@@ -226,6 +248,67 @@ def advance(
                 f"{', '.join(lacking)}"
             )
             considered.append(record)
+            continue
+
+        # For integration, resolve the branch and repo location from the review activation.
+        if stage == "integrate":
+            approved_sha = row["approved_candidate_sha"] or ""
+            review_activation = _review_activation_with_approved_sha(conn, row["task_id"], approved_sha)
+            
+            if review_activation is not None:
+                branch = review_activation["expected_branch"]
+                repo_location = (
+                    review_activation["repo_location"] or routing.repo_location
+                )
+                
+                if not repo_location:
+                    record["reason"] = (
+                        "neither the review activation nor the routing names a "
+                        "repository location for this task"
+                    )
+                    considered.append(record)
+                    continue
+                
+                try:
+                    issued = activations.issue(
+                        conn,
+                        task_id=row["task_id"],
+                        agent=routing.agent_for(stage),
+                        host=routing.host,
+                        stage=stage,
+                        lease_seconds=routing.lease_seconds,
+                        hard_deadline_seconds=routing.hard_deadline_seconds,
+                        expected_branch=branch,
+                        expected_candidate=approved_sha or None,
+                        repo_location=repo_location,
+                        now=now,
+                    )
+                except activations.HostAtCapacity as exc:
+                    # Not an error. The host is busy and this task will be advanced by
+                    # a later call, which is exactly what a queue does.
+                    record["reason"] = str(exc)
+                    considered.append(record)
+                    continue
+                except Exception as exc:
+                    record["reason"] = f"{type(exc).__name__}: {exc}"
+                    considered.append(record)
+                    continue
+
+                record.update({
+                    "issued": True,
+                    "activation_id": issued["activation_id"],
+                    "agent": routing.agent_for(stage),
+                    "expected_branch": branch,
+                    "repo_location": repo_location,
+                    "from_activation": review_activation["activation_id"],
+                })
+                considered.append(record)
+            else:
+                record["reason"] = (
+                    f"no review activation matches the approved candidate "
+                    f"{approved_sha[:12]}"
+                )
+                considered.append(record)
             continue
 
         # Resolved before the repository is decided, because the task's own

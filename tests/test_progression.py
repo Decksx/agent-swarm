@@ -393,3 +393,62 @@ def test_the_tasks_own_repository_wins_over_the_default(conn):
     )
 
     assert record["repo_location"] == r"C:\git\its-own-repo"
+
+
+# --- Operator-staged tasks --------------------------------------------------
+
+
+def test_operator_staged_advance_to_integration(conn):
+    """Test that an operator-staged task advances using the review activation's details."""
+
+    task = make_task(conn)
+    # Author activation on one branch but not carrying the approved candidate
+    author(conn, task, candidate="b" * 40)
+
+    # Review activation on a different branch carrying the approved candidate
+    approved_candidate = CAND
+    issued = activations.issue(
+        conn, task_id=task, agent="gemini", host="officepc", stage="review",
+        lease_seconds=LEASE, hard_deadline_seconds=DEADLINE,
+        expected_branch=f"task/different-branch", expected_candidate=approved_candidate
+    )
+    activations.claim(conn, activation_id=issued["activation_id"], agent="gemini")
+    activations.submit_review_judgment(
+        conn, activation_id=issued["activation_id"], agent="gemini",
+        judgment="satisfied",
+    )
+
+    # Update task to simulate the approval of this candidate
+    conn.execute(
+        "UPDATE tasks SET approved_candidate_sha = ? WHERE task_id = ?",
+        (approved_candidate, task),
+    )
+    conn.commit()
+
+    # Advance to integration
+    record = only(progression.advance(conn, routing=routing()), task)
+
+    assert record["issued"] is True
+    assert record["stage"] == "integrate"
+    assert record["expected_branch"] == "task/different-branch"
+
+def test_operator_staged_no_matching_review_activation(conn):
+    """Test refusal when there's no matching review activation for the approved candidate."""
+    
+    task = make_task(conn)
+    # Author activation on one branch
+    author(conn, task)
+
+    # No review activation carrying the approved candidate
+    approved_candidate = "a" * 40
+    conn.execute(
+        "UPDATE tasks SET approved_candidate_sha = ? WHERE task_id = ?",
+        (approved_candidate, task),
+    )
+    conn.commit()
+
+    # Attempt to advance to integration
+    record = only(progression.advance(conn, routing=routing()), task)
+
+    assert record["issued"] is False
+    assert approved_candidate[:12] in record["reason"]
