@@ -63,17 +63,12 @@ def author(conn, task_id, candidate=CAND):
     return issued["activation_id"]
 
 
-def review(conn, task_id, activation_id, expected_branch=None, expected_candidate=None, repo_location="/repo"):
+def review(conn, task_id, activation_id):
     activations.claim(conn, activation_id=activation_id, agent="gemini")
     activations.submit_review_judgment(
         conn, activation_id=activation_id, agent="gemini",
         judgment="satisfied",
     )
-    conn.execute(
-        "INSERT INTO activations (task_id, stage, expected_branch, expected_candidate, repo_location) VALUES (?, 'review', ?, ?, ?)",
-        (task_id, expected_branch or f"task/{task_id}", expected_candidate or CAND, repo_location),
-    )
-    conn.commit()
 
 
 def only(records, task_id):
@@ -101,7 +96,7 @@ def test_an_approval_gets_its_integration_issued(conn):
     task = make_task(conn)
     author(conn, task)
     issued = only(progression.advance(conn, routing=routing()), task)
-    review(conn, task, issued["activation_id"], expected_branch=f"task/{task}", expected_candidate=CAND)
+    review(conn, task, issued["activation_id"])
 
     record = only(progression.advance(conn, routing=routing()), task)
 
@@ -117,7 +112,7 @@ def test_the_whole_handoff_runs_without_an_operator(conn):
     author(conn, task)
 
     first = only(progression.advance(conn, routing=routing()), task)
-    review(conn, task, first["activation_id"], expected_branch=f"task/{task}", expected_candidate=CAND)
+    review(conn, task, first["activation_id"])
     second = only(progression.advance(conn, routing=routing()), task)
 
     assert first["stage"] == "review"
@@ -291,7 +286,7 @@ def test_a_task_the_integrator_would_refuse_is_not_given_an_activation(conn):
     task = make_task(conn)
     author(conn, task)
     issued = only(progression.advance(conn, routing=routing()), task)
-    review(conn, task, issued["activation_id"], expected_branch=f"task/{task}", expected_candidate=CAND)
+    review(conn, task, issued["activation_id"])
 
     # As a pre-column approval looks: parked in READY_INTEGRATION, no record
     # of which candidate was approved.
@@ -322,7 +317,7 @@ def test_an_approved_task_is_still_advanced(conn):
     task = make_task(conn)
     author(conn, task)
     issued = only(progression.advance(conn, routing=routing()), task)
-    review(conn, task, issued["activation_id"], expected_branch=f"task/{task}", expected_candidate=CAND)
+    review(conn, task, issued["activation_id"])
 
     assert only(progression.advance(conn, routing=routing()), task)["issued"] is True
 
@@ -400,41 +395,87 @@ def test_the_tasks_own_repository_wins_over_the_default(conn):
     assert record["repo_location"] == r"C:\git\its-own-repo"
 
 
-def test_integration_with_no_review_activation_declines(conn):
-    """Ensure integration won't proceed without a matching review activation."""
+# --- An integration follows the review that approved its candidate ---------
+
+
+REPAIR = "2" * 40
+
+
+def test_an_operator_staged_review_is_what_the_integration_follows(conn):
+    """A candidate repaired by hand is reviewed on an activation the operator
+    staged, and the task's latest `candidate_submitted` still names the
+    author's original. The integration has to be pointed at what the review
+    approved, not at what the author last produced."""
     task = make_task(conn)
     author(conn, task)
-    
-    # Skip creating a review so that there is no matching activation
+    staged = activations.issue(
+        conn, task_id=task, agent="gemini", host="officepc", stage="review",
+        lease_seconds=LEASE, hard_deadline_seconds=DEADLINE,
+        expected_branch=f"task/{task}-repair", expected_candidate=REPAIR,
+        repo_location=r"C:\git\repaired",
+    )
+    review(conn, task, staged["activation_id"])
+
+    record = only(progression.advance(conn, routing=routing()), task)
+
+    assert record["issued"] is True
+    assert record["stage"] == "integrate"
+    assert record["from_activation"] == staged["activation_id"]
+    assert record["expected_branch"] == f"task/{task}-repair"
+    assert record["repo_location"] == r"C:\git\repaired"
+
+    integration = conn.execute(
+        "SELECT expected_candidate FROM activations WHERE activation_id = ?",
+        (record["activation_id"],),
+    ).fetchone()
+
+    assert integration["expected_candidate"] == REPAIR
+
+
+def test_an_approval_no_review_was_issued_against_is_declined(conn):
+    task = make_task(conn)
+    author(conn, task)
+    issued = only(progression.advance(conn, routing=routing()), task)
+    review(conn, task, issued["activation_id"])
+
     conn.execute(
-        "UPDATE tasks SET state = 'READY_INTEGRATION', approved_candidate_sha = ? WHERE task_id = ?",
-        (CAND, task)
+        "UPDATE tasks SET approved_candidate_sha = ? WHERE task_id = ?",
+        (REPAIR, task),
     )
     conn.commit()
 
     record = only(progression.advance(conn, routing=routing()), task)
 
     assert record["issued"] is False
-    assert CAND in record["reason"]
+    assert REPAIR in record["reason"]
+    assert engine.get_task(conn, task)["state"] == "READY_INTEGRATION"
 
 
-def test_integration_respects_stage_filter(conn):
-    """Ensure that the activation resolves correctly to the review, not integrate."""
+def test_an_earlier_integration_is_not_mistaken_for_the_review(conn):
+    """An integrate activation carries the same candidate as the review it
+    came from. Made the newest row and pointed somewhere else, only the stage
+    filter keeps the next integration from inheriting its branch."""
     task = make_task(conn)
     author(conn, task)
-    issued = only(progression.advance(conn, routing=routing()), task)
-    review(conn, task, issued["activation_id"], expected_branch=f"task/{task}", expected_candidate=CAND)
+    reviewed = only(progression.advance(conn, routing=routing()), task)
+    review(conn, task, reviewed["activation_id"])
+    first = only(progression.advance(conn, routing=routing()), task)
 
-    # Add an integrate activation with the same expected candidate
     conn.execute(
-        "INSERT INTO activations (task_id, stage, expected_branch, expected_candidate, repo_location) VALUES (?, 'integrate', ?, ?, ?)",
-        (task, f"task/{task}", CAND, "/repo"),
+        "UPDATE activations SET status = ?, expected_branch = 'wrong/branch', "
+        "repo_location = '/wrong', issued_at = issued_at + 3600 "
+        "WHERE activation_id = ?",
+        (activations.ABANDONED, first["activation_id"]),
+    )
+    conn.execute(
+        "UPDATE tasks SET state = 'READY_INTEGRATION' WHERE task_id = ?",
+        (task,),
     )
     conn.commit()
 
-    record = only(progression.advance(conn, routing=routing()), task)
-    
-    assert record["issued"] is True
-    assert record["stage"] == "integrate"
-    assert record["expected_branch"] == f"task/{task}"
-    assert engine.get_task(conn, task)["state"] == "INTEGRATING"
+    second = only(progression.advance(conn, routing=routing()), task)
+
+    assert second["issued"] is True
+    assert second["from_activation"] == reviewed["activation_id"]
+    assert second["expected_branch"] == f"task/{task}"
+    assert second["repo_location"] == "/repo"

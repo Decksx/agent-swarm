@@ -289,23 +289,6 @@ def advance(
                 considered.append(record)
                 continue
 
-            # For an integration, the approval must be about the candidate this
-            # activation will be pointed at. They are the same value whenever the
-            # ledger is consistent, and checking is how an inconsistent one is
-            # caught before an integrator acts on it rather than after.
-            if stage == "integrate":
-                approved = (row["approved_candidate_sha"] or "").strip()
-
-                if produced["candidate_sha"] and produced["candidate_sha"] != approved:
-                    record["reason"] = (
-                        f"the approval names {approved[:12]} and the latest "
-                        f"candidate on {branch} is "
-                        f"{produced['candidate_sha'][:12]}; refusing to point an "
-                        "integration at a commit the review did not approve"
-                    )
-                    considered.append(record)
-                    continue
-
         try:
             issued = activations.issue(
                 conn,
