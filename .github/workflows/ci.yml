@@ -21,8 +21,16 @@ jobs:
       - name: Install dependencies
         run: pip install pytest fastapi uvicorn pydantic requests httpx tzdata
       
+      # shell: bash, because the default on a windows runner is
+      # PowerShell, which takes a multi-command step's exit status from
+      # the LAST command only. The two invocations below ran under that
+      # rule and a failing first one was masked by a passing second: the
+      # step reported success with 16 tests failing, and the integrator's
+      # evidence gate reads the conclusion, not the log.
       - name: Run pytest-unit
+        shell: bash
         run: |
+          set -euo pipefail
           pytest tests/ -k "not bypass"
           pytest hub/
 
@@ -40,5 +48,10 @@ jobs:
       - name: Install dependencies
         run: pip install pytest fastapi uvicorn pydantic requests httpx tzdata
       
+      # One command today, but pinned to bash for the same reason: a
+      # second line added later must not be able to mask the first.
       - name: Run pytest-bypass
-        run: pytest tests/ -k "bypass"
+        shell: bash
+        run: |
+          set -euo pipefail
+          pytest tests/ -k "bypass"
