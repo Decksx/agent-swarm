@@ -620,3 +620,52 @@ def test_an_unreadable_listing_is_not_an_empty_one(monkeypatch):
 
     with pytest.raises(IntegrationRefused, match="could not list"):
         find()
+
+
+# --- Stale candidate refusal ------------------------------------------------
+
+
+def test_stale_candidate_refusal(monkeypatch):
+    """A candidate without the target as an ancestor is rejected."""
+    def mock_git(repo, *args):
+        if args[0] == "merge-base":
+            return subprocess.CompletedProcess(args, 1, "", "")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(integrator, "_git", mock_git)
+
+    with pytest.raises(
+        IntegrationRefused, match=r"is not an ancestor of the candidate"
+    ):
+        integrator.run_integration(
+            {"state": "READY_INTEGRATION", "approved_candidate_sha": CANDIDATE},
+            repo="/nonexistent",
+            target_ref="refs/heads/master",
+            branch="task/T-1",
+            repo_slug="o/r",
+            work_root="/nonexistent/work",
+        )
+
+
+def test_non_stale_candidate_passes(monkeypatch):
+    """A candidate with the target as an ancestor is accepted."""
+    def mock_git(repo, *args):
+        if args[0] == "merge-base":
+            return subprocess.CompletedProcess(args, 0, "", "")
+        if args[0] == "ls-remote":
+            return subprocess.CompletedProcess(args, 0, f"{TARGET}\trefs/heads/master\n", "")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(integrator, "_git", mock_git)
+    monkeypatch.setattr(integrator, "pin_target", lambda p: TARGET)
+
+    result = integrator.run_integration(
+        {"state": "READY_INTEGRATION", "approved_candidate_sha": CANDIDATE},
+        repo="/nonexistent",
+        target_ref="refs/heads/master",
+        branch="task/T-1",
+        repo_slug="o/r",
+        work_root="/nonexistent/work",
+    )
+
+    assert result is not None  # Simplified check just to ensure no exception was raised.

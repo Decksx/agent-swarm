@@ -819,6 +819,15 @@ def run_integration(
     check_pr(plan, repo_slug=repo_slug)
     check_target_unmoved(plan)
 
+    # New Step - Fast-Forward Ancestry Check
+    is_ancestor = _git(plan.repo, "merge-base", "--is-ancestor",
+                       plan.target_sha_expected, plan.candidate_sha)
+    if is_ancestor.returncode != 0:
+        raise IntegrationRefused(
+            f"The pinned target {plan.target_sha_expected[:12]} is not an "
+            f"ancestor of the candidate {plan.candidate_sha[:12]}."
+        )
+
     merge_sha = build_merge(plan, work_root=work_root)
     push_if_target_unmoved(plan, merge_sha)
 
