@@ -155,6 +155,21 @@ def _producing_activation(conn: sqlite3.Connection, task_id: str) -> Optional[di
     }
 
 
+def _resolve_review_activation(
+    conn: sqlite3.Connection, task_id: str, approved_candidate_sha: str
+) -> Optional[dict]:
+    """Resolve the review activation matching the approved candidate."""
+    row = conn.execute(
+        "SELECT activation_id, expected_branch, repo_location "
+        "FROM activations WHERE task_id = ? AND expected_candidate = ? "
+        "AND stage = 'review' "
+        "ORDER BY issued_at DESC, activation_id DESC LIMIT 1",
+        (task_id, approved_candidate_sha),
+    ).fetchone()
+
+    return dict(row) if row else None
+
+
 def advance(
     conn: sqlite3.Connection,
     *,
@@ -228,49 +243,48 @@ def advance(
             considered.append(record)
             continue
 
-        # Resolved before the repository is decided, because the task's own
-        # location lives on it and the global default is only a fallback.
-        produced = _producing_activation(conn, row["task_id"])
-
-        if produced is None or not produced["expected_branch"]:
-            # Without it a review activation cannot be issued at all, and an
-            # integration would have nothing to find a pull request from.
-            record["reason"] = (
-                "no author activation with a branch produced a candidate for "
-                "this task"
-            )
-            considered.append(record)
-            continue
-
-        branch = produced["expected_branch"]
-
-        # The repository this task's work actually happened in, carried from
-        # the activation that did it. Falls back to the routing default only
-        # when the producing activation recorded none, and a task with neither
-        # is not advanced rather than pointed at somebody else's checkout.
-        repo_location = produced["repo_location"] or routing.repo_location
-
-        if not repo_location:
-            record["reason"] = (
-                "neither the producing activation nor the routing names a "
-                "repository location for this task"
-            )
-            considered.append(record)
-            continue
-
-        # For an integration, the approval must be about the candidate this
-        # activation will be pointed at. They are the same value whenever the
-        # ledger is consistent, and checking is how an inconsistent one is
-        # caught before an integrator acts on it rather than after.
         if stage == "integrate":
-            approved = (row["approved_candidate_sha"] or "").strip()
+            approved_candidate = (row["approved_candidate_sha"] or "").strip()
 
-            if produced["candidate_sha"] and produced["candidate_sha"] != approved:
+            review_activation = _resolve_review_activation(
+                conn, row["task_id"], approved_candidate
+            )
+
+            if not review_activation:
                 record["reason"] = (
-                    f"the approval names {approved[:12]} and the latest "
-                    f"candidate on {branch} is "
-                    f"{produced['candidate_sha'][:12]}; refusing to point an "
-                    "integration at a commit the review did not approve"
+                    f"no review activation matches the approval candidate "
+                    f"{approved_candidate}"
+                )
+                considered.append(record)
+                continue
+
+            branch = review_activation["expected_branch"]
+            repo_location = review_activation["repo_location"] or routing.repo_location
+        else:
+            produced = _producing_activation(conn, row["task_id"])
+
+            if produced is None or not produced["expected_branch"]:
+                # Without it a review activation cannot be issued at all, and an
+                # integration would have nothing to find a pull request from.
+                record["reason"] = (
+                    "no author activation with a branch produced a candidate for "
+                    "this task"
+                )
+                considered.append(record)
+                continue
+
+            branch = produced["expected_branch"]
+
+            # The repository this task's work actually happened in, carried from
+            # the activation that did it. Falls back to the routing default only
+            # when the producing activation recorded none, and a task with neither
+            # is not advanced rather than pointed at somebody else's checkout.
+            repo_location = produced["repo_location"] or routing.repo_location
+
+            if not repo_location:
+                record["reason"] = (
+                    "neither the producing activation nor the routing names a "
+                    "repository location for this task"
                 )
                 considered.append(record)
                 continue
@@ -308,7 +322,7 @@ def advance(
             "agent": routing.agent_for(stage),
             "expected_branch": branch,
             "repo_location": repo_location,
-            "from_activation": produced["activation_id"],
+            "from_activation": review_activation["activation_id"] if stage == "integrate" else produced["activation_id"],
         })
         considered.append(record)
 
