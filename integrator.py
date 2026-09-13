@@ -777,6 +777,10 @@ def run_integration(
         4. evidence      from the runner, by commit SHA
         5. PR            open, not draft, head is the approval, no conflict
         6. target again  unmoved since step 3 -- cheap, and not the guard
+        6b. ancestry     the pinned target is already contained in the
+                         candidate. Unnumbered because it came later and
+                         renumbering would silently change what the
+                         paragraph below refers to
         7. build         construct the merge locally from the pinned target
         8. push          non-force; the REMOTE refuses if the target moved
         9. landed        refetch; the target must contain the merge
@@ -788,6 +792,13 @@ def run_integration(
     than to protect anything; steps 10 and 11 confirm afterwards what step 8
     made true. Only step 8 is a condition and an effect in one operation, and
     only the remote can perform it.
+
+    Step 6b is the same kind of cheap read, and it is here because step 11
+    is not cheap: a candidate whose target has advanced cannot produce the
+    approved tree, and finding that out at step 11 means finding it out
+    after the merge has landed. The condition is the same one either way;
+    asking it early costs one ancestry query and asking it late costs a
+    merge nobody can take back.
 
     Returns the ledger record. Raises `IntegrationRefused` at the first step
     that does not hold, having changed nothing -- every step before the merge
@@ -818,6 +829,26 @@ def run_integration(
     check_evidence(plan, required=required_suites)
     check_pr(plan, repo_slug=repo_slug)
     check_target_unmoved(plan)
+
+    # The target has to be IN the candidate, not merely related to it.
+    # Step 6 asks whether the target moved since step 3; this asks the
+    # different question that step 11 will answer far too late -- whether
+    # merging can produce the approved tree at all. It can only do so when
+    # the candidate already contains the target, so anything else is a
+    # candidate approved against a target that has since advanced.
+    #
+    # Placed here because every step above is a read and this one is too.
+    # Left to step 11 the same divergence is caught, but after the merge
+    # has landed on the remote -- which is how T-INFRA-03 ended up merged
+    # and recorded as rejected in the same breath.
+    is_ancestor = _git(plan.repo, "merge-base", "--is-ancestor",
+                       plan.target_sha_expected, plan.candidate_sha)
+
+    if is_ancestor.returncode != 0:
+        raise IntegrationRefused(
+            f"The pinned target {plan.target_sha_expected[:12]} is not an "
+            f"ancestor of the candidate {plan.candidate_sha[:12]}."
+        )
 
     merge_sha = build_merge(plan, work_root=work_root)
     push_if_target_unmoved(plan, merge_sha)
