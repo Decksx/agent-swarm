@@ -42,8 +42,62 @@ BASH = shutil.which("bash") or r"C:\Program Files\Git\bin\bash.exe"
 
 sys.path.insert(0, str(REPO_ROOT))
 
-pytestmark = pytest.mark.skipif(
-    not Path(BASH).exists(), reason="this exercises the shell script directly"
+def _stubs_shadow_real_binaries() -> bool:
+    """Whether a stub on PATH is what the script will actually run.
+
+    These tests work by putting an `ssh` on PATH that returns a fake
+    credential, so `load_credentials` succeeds without reaching Tower. That
+    only holds where an extensionless script early on PATH wins over the real
+    `ssh` the machine has. Where it does not, `fetch_secret` calls the real
+    binary, gets nothing, and the script exits with "missing: admin
+    credential" -- which is what happened on the hosted CI runner, and which
+    says nothing at all about the launcher these tests exist to check.
+
+    Probed rather than assumed from the platform name. "Is this a CI runner"
+    is a guess about why; this is the condition itself, so the day a runner
+    starts resolving PATH the way a workstation does, these run there too.
+    """
+    import subprocess
+    import tempfile
+
+    if not Path(BASH).exists():
+        return False
+
+    try:
+        home = Path(tempfile.mkdtemp())
+        stub = home / "ssh"
+        stub.write_text("#!/usr/bin/env bash\necho -n MARKER_OK\n",
+                        encoding="utf-8", newline="")
+        stub.chmod(0o755)
+
+        env = dict(os.environ)
+        env["PATH"] = str(home) + os.pathsep + env["PATH"]
+
+        probe = subprocess.run(
+            [BASH, "-c", "ssh probe"], env=env, capture_output=True,
+            encoding="utf-8", errors="replace", timeout=60,
+        )
+    except Exception:
+        return False
+
+    return probe.stdout.strip() == "MARKER_OK"
+
+
+HOST_RUNS_THE_LAUNCHER = _stubs_shadow_real_binaries()
+
+# Only the tests that actually start the script are guarded. The ones that
+# read a value out of `child_env`, or compare the launcher's configuration
+# against what a worker demands, run anywhere -- and leaving those ungated
+# matters: a file that skips in its entirety exits 0 having verified nothing,
+# and `check_evidence` refuses a suite reporting zero passes for exactly that
+# reason. A blanket skip here would have turned one red suite into a green
+# suite that proves nothing.
+needs_host = pytest.mark.skipif(
+    not HOST_RUNS_THE_LAUNCHER,
+    reason=(
+        "needs a host where a stub early on PATH shadows the real binary, so "
+        "swarm_ctl.sh can be run with its credential fetch stubbed out"
+    ),
 )
 
 
@@ -141,16 +195,19 @@ def start(checkout, extra_env=None):
     return json.loads(recorded.read_text(encoding="utf-8"))
 
 
+@needs_host
 def test_the_supervisor_is_started_knowing_which_project_to_author(checkout):
     assert start(checkout)["AUTHOR_PROJECT"] == "agenthub"
 
 
+@needs_host
 def test_an_operator_can_still_say_which_project(checkout):
     """The default is a default. A host pointed elsewhere keeps its answer."""
     handed = start(checkout, {"AUTHOR_PROJECT": "comicautomation"})
     assert handed["AUTHOR_PROJECT"] == "comicautomation"
 
 
+@needs_host
 def test_the_default_names_a_project_that_resolves(checkout):
     """A name the registry does not know would block exactly as an absent one.
 
@@ -162,6 +219,7 @@ def test_the_default_names_a_project_that_resolves(checkout):
     repo_registry.get(start(checkout)["AUTHOR_PROJECT"])
 
 
+@needs_host
 def test_the_supervisor_is_started_knowing_where_to_review(checkout):
     """The reviewer's half of the same defect.
 
@@ -175,6 +233,7 @@ def test_the_supervisor_is_started_knowing_where_to_review(checkout):
     assert same_path(root, handed["REVIEW_REPO"])
 
 
+@needs_host
 def test_an_operator_can_still_say_where_to_review(checkout, tmp_path):
     """The default is a default, exactly as it is for the project name."""
     elsewhere = tmp_path / "another-checkout"
@@ -197,6 +256,7 @@ INTEGRATION_VARIABLES = (
 )
 
 
+@needs_host
 def test_the_integrator_is_given_every_variable_it_refuses_without(checkout):
     """All four, or the only stage that reaches a real remote blocks.
 
@@ -211,6 +271,7 @@ def test_the_integrator_is_given_every_variable_it_refuses_without(checkout):
     assert absent == [], f"the integrator would refuse: {absent} not provided"
 
 
+@needs_host
 def test_the_launcher_provides_exactly_what_the_worker_demands(checkout):
     """The list in the script and the list in the worker cannot drift apart.
 
@@ -233,6 +294,7 @@ def test_the_launcher_provides_exactly_what_the_worker_demands(checkout):
     assert all(handed.get(name) for name in demanded)
 
 
+@needs_host
 def test_the_required_suites_are_named(checkout):
     """An unnamed requirement is not a requirement.
 
@@ -247,6 +309,7 @@ def test_the_required_suites_are_named(checkout):
     assert len(named) >= 2, f"only {named} required; a single suite is not a gate"
 
 
+@needs_host
 def test_the_required_suites_carry_the_prefix_the_integrator_builds(checkout):
     """`ci_evidence` labels every check-run `ci:<job name>`, and the match is exact.
 
@@ -274,6 +337,7 @@ def test_the_required_suites_carry_the_prefix_the_integrator_builds(checkout):
         )
 
 
+@needs_host
 def test_the_required_suites_name_the_workflow_jobs_after_the_prefix(checkout):
     """The half after the prefix is a job name, and the workflow must define it.
 
@@ -294,6 +358,7 @@ def test_the_required_suites_name_the_workflow_jobs_after_the_prefix(checkout):
         assert f"\n  {job}:" in text, f"no job named {job!r} in ci.yml"
 
 
+@needs_host
 def test_the_required_suites_are_check_run_names_not_paths(checkout):
     """They are matched against GitHub check-run names, not files.
 
@@ -309,6 +374,7 @@ def test_the_required_suites_are_check_run_names_not_paths(checkout):
         assert "/" not in name and not name.endswith(".py"), name
 
 
+@needs_host
 def test_the_merge_target_is_a_full_ref(checkout):
     """`main` and `refs/heads/main` are not the same thing to git.
 
@@ -321,6 +387,7 @@ def test_the_merge_target_is_a_full_ref(checkout):
     assert handed["INTEGRATION_TARGET_REF"].startswith("refs/")
 
 
+@needs_host
 def test_the_integrator_does_not_merge_inside_the_canonical_checkout(checkout):
     """The work root is somewhere else, on purpose.
 
@@ -334,6 +401,7 @@ def test_the_integrator_does_not_merge_inside_the_canonical_checkout(checkout):
     assert not same_path(root, handed["INTEGRATION_WORK_ROOT"])
 
 
+@needs_host
 def test_an_operator_can_still_say_where_integration_lands(checkout, tmp_path):
     """Every one of them stays overridable, as the other two are."""
     elsewhere = tmp_path / "other"
