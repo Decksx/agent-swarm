@@ -423,8 +423,8 @@ def test_a_worker_inherits_what_the_supervisor_was_given(monkeypatch):
     import supervisor
 
     monkeypatch.setenv("AUTHOR_PROJECT", "agenthub")
-    monkeypatch.setenv("REVIEW_REPO", r"C:\git\claude-agent-hub")
-    monkeypatch.setenv("INTEGRATION_REPO", r"C:\git\claude-agent-hub")
+    monkeypatch.setenv("REVIEW_REPO", r"C:\gitgent-swarm")
+    monkeypatch.setenv("INTEGRATION_REPO", r"C:\gitgent-swarm")
     monkeypatch.setenv("INTEGRATION_TARGET_REF", "refs/heads/main")
     monkeypatch.setenv("INTEGRATION_REPO_SLUG", "Decksx/agent-swarm")
     monkeypatch.setenv("INTEGRATION_WORK_ROOT", r"C:\git\.swarm-integration")
@@ -445,6 +445,6 @@ def test_a_worker_inherits_what_the_supervisor_was_given(monkeypatch):
     )
 
     assert authoring["AUTHOR_PROJECT"] == "agenthub"
-    assert reviewing["REVIEW_REPO"] == r"C:\git\claude-agent-hub"
+    assert reviewing["REVIEW_REPO"] == r"C:\gitgent-swarm"
     assert all(integrating.get(name) for name in INTEGRATION_VARIABLES)
     assert integrating["INTEGRATION_TARGET_REF"] == "refs/heads/main"
