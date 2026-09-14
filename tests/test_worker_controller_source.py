@@ -18,7 +18,7 @@ import pytest
 
 import claude_worker
 import controller_client
-from conftest import FakeRequests
+from conftest import FakeRequests, stub_author_worktree
 
 
 class LoopFinished(Exception):
@@ -82,13 +82,14 @@ def run_loop(monkeypatch, control, *, queue=None, polls=3, source="controller",
     monkeypatch.setattr(claude_worker, "ensure_requests", lambda: fake_requests)
     monkeypatch.setattr(claude_worker.shutil, "which", lambda _n: "/fake/claude")
 
-    def record_task(binary, task):
+    def record_task(binary, task, cwd=None):
         invocations.append(task)
         return ("stub output", 0)
 
     # A test that supplies its own stub gets it; the default only records.
     # Patching unconditionally here would silently override the test's.
     monkeypatch.setattr(claude_worker, "run_task", run_task or record_task)
+    stub_author_worktree(monkeypatch, control.CONTROL_DIR)
 
     if queue is not None:
         monkeypatch.setattr(
@@ -217,7 +218,7 @@ def test_a_failing_run_is_reported_as_failed_not_as_a_candidate(
     """A worker that could only report success would strand every failure."""
     queue = StubQueue([ACTIVATION])
     run_loop(monkeypatch, control, queue=queue, polls=3,
-             run_task=lambda b, t: ("boom", 1))
+             run_task=lambda b, t, cwd=None: ("boom", 1))
 
     assert queue.reports[0][1] == "failed"
 
@@ -276,7 +277,7 @@ def test_the_marker_is_written_before_the_model_runs(monkeypatch, control):
     marker = control.CONTROL_DIR / "inflight"
     seen = {}
 
-    def record_task(binary, task):
+    def record_task(binary, task, cwd=None):
         seen["marker_existed"] = marker.exists()
         seen["contents"] = marker.read_text(encoding="utf-8") if marker.exists() else None
         return ("out", 0)
@@ -335,7 +336,7 @@ def test_chat_still_cannot_reach_a_model_on_the_controller_source(
     monkeypatch.setattr(claude_worker.shutil, "which", lambda _n: "/fake/claude")
     monkeypatch.setattr(
         claude_worker, "run_task",
-        lambda b, t: invocations.append(t) or ("x", 0),
+        lambda b, t, cwd=None: invocations.append(t) or ("x", 0),
     )
     monkeypatch.setattr(
         claude_worker.controller_client, "ControllerQueue",
@@ -635,7 +636,7 @@ def run_loop_slept(monkeypatch, control, queue, slept):
     monkeypatch.setattr(claude_worker, "save_last_seen_id", lambda _id: None)
     monkeypatch.setattr(claude_worker, "ensure_requests", lambda: fake_requests)
     monkeypatch.setattr(claude_worker.shutil, "which", lambda _n: "/fake/claude")
-    monkeypatch.setattr(claude_worker, "run_task", lambda b, t: ("x", 0))
+    monkeypatch.setattr(claude_worker, "run_task", lambda b, t, cwd=None: ("x", 0))
     monkeypatch.setattr(
         claude_worker.controller_client, "ControllerQueue", lambda *a, **k: queue
     )

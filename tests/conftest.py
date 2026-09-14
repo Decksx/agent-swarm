@@ -94,6 +94,48 @@ HOSTILE_MESSAGES = [
 ]
 
 
+def stub_author_worktree(monkeypatch, path):
+    """Stand in for `claude_author_worktree` in tests about something else.
+
+    A controller activation now authors in a real worktree of a registered
+    project (#37), which the containment and prompt tests have no reason to
+    build. The isolation itself is tested against real repositories in
+    `test_claude_author_worktree.py`; this only keeps the rest honest about
+    what they are testing. Returns the calls, so a test can see it was used.
+    """
+    from types import SimpleNamespace
+
+    import claude_author_worktree as isolation
+
+    calls = {"opened": [], "settled": [], "closed": []}
+
+    def open_for(activation, project_name):
+        workspace = isolation.Workspace(
+            project=SimpleNamespace(name="demo", path=Path(path)),
+            name=str(activation.get("activation_id")),
+            path=Path(path),
+            base_sha=str((activation.get("task_record") or {}).get("base_sha")),
+            branch=activation.get("expected_branch") or "task/test-a1",
+            canonical=("0" * 40, "main"),
+        )
+        calls["opened"].append(workspace)
+        return workspace
+
+    def settle(workspace, exit_code):
+        calls["settled"].append(exit_code)
+
+        if exit_code:
+            return "failed", {"reason": f"the author exited {exit_code}"}
+
+        return "candidate", {"candidate_sha": "c" * 40,
+                             "branch": workspace.branch}
+
+    monkeypatch.setattr(isolation, "open_for", open_for)
+    monkeypatch.setattr(isolation, "settle", settle)
+    monkeypatch.setattr(isolation, "close", calls["closed"].append)
+    return calls
+
+
 @pytest.fixture
 def hostile_messages():
     """Copies, so a test mutating one cannot leak into the next."""

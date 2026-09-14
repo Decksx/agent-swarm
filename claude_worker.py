@@ -74,6 +74,7 @@ from pathlib import Path
 from typing import Any
 
 import authored_change
+import claude_author_worktree
 import claude_integration
 import claude_rate_guard
 import controller_client
@@ -128,6 +129,8 @@ ACTIVATION_SOURCE = os.environ.get("ACTIVATION_SOURCE", "directory").strip().low
 VALID_SOURCES = ("directory", "controller")
 
 CONTROLLER_URL = os.environ.get("CONTROLLER_URL", HUB_URL)
+# The repos.json project a controller activation is authored in (#37).
+AUTHOR_PROJECT = os.environ.get("AUTHOR_PROJECT", "").strip()
 
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "3"))
 HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "15"))
@@ -362,8 +365,8 @@ def record_rate_limit_alert_sent() -> None:
     _rate_limit_alert_sent = True
 
 
-def run_task(claude_binary: str, task: str) -> tuple[str, int]:
-    """Run one task through the Claude CLI and return (output, exit code).
+def run_task(claude_binary: str, task: str, cwd: Any = None) -> tuple[str, int]:
+    """Run one task through the Claude CLI in `cwd` (default WORKSPACE).
 
     `task` is a single argv element. It is never concatenated into a shell
     string, so its quoting and metacharacters are inert.
@@ -400,7 +403,7 @@ def run_task(claude_binary: str, task: str) -> tuple[str, int]:
             encoding="utf-8",
             errors="replace",
             timeout=TASK_TIMEOUT,
-            cwd=str(WORKSPACE),
+            cwd=str(cwd or WORKSPACE),
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
@@ -673,7 +676,7 @@ def _execute_author(
     # path Phase 0 deliberately kept. What must not happen is a
     # *controller* activation -- one belonging to a task with a contract --
     # running as though it had none.
-    contract_scope = None
+    contract_scope = workspace = None
 
     if activation.get("source") == "controller":
         try:
@@ -688,6 +691,16 @@ def _execute_author(
             _report(queue, activation_id, "blocked", {
                 "reason": f"contract unusable: {defect}",
             })
+            return
+
+        # Its own worktree on its own branch, never the canonical checkout
+        # (#37); see `claude_author_worktree`.
+        try:
+            workspace = claude_author_worktree.open_for(
+                activation, AUTHOR_PROJECT)
+        except claude_author_worktree.Refused as refused:
+            log.error("activation %s: %s", activation_id, refused)
+            _report(queue, activation_id, "blocked", {"reason": str(refused)})
             return
 
     log.info(
@@ -740,44 +753,57 @@ def _execute_author(
     operator = "\n".join(
         authored_change.operator_section(activation.get("operator_context"))
     )
+    where = claude_author_worktree.briefing(workspace) if workspace else ""
     instructions = (
         HANDOFF_PREAMBLE
         + (contract + "\n\n" if contract else "")
+        + (where + "\n\n" if where else "")
         + (operator + "\n\n" if operator else "")
         + task
     )
-    started = time.monotonic()
-    output, exit_code = run_task(claude_binary, instructions)
-    elapsed = time.monotonic() - started
 
-    log.info(
-        "COMPLETED activation %s exit=%s in %.1fs",
-        activation_id,
-        exit_code,
-        elapsed,
-    )
+    try:
+        started = time.monotonic()
+        output, exit_code = run_task(
+            claude_binary, instructions,
+            cwd=workspace.path if workspace else WORKSPACE)
+        elapsed = time.monotonic() - started
 
-    # Redacted before it is logged or posted. The task ran with Bash, so the
-    # output can contain anything the shell could print, including the
-    # environment this process was started with.
-    post_reply(requests, swarm_control.redact(output), exit_code, activation_id)
+        log.info(
+            "COMPLETED activation %s exit=%s in %.1fs",
+            activation_id,
+            exit_code,
+            elapsed,
+        )
 
-    # The controller is told the outcome; chat is told the story. Only the
-    # first can move a task, which is why the narration above can be lossy and
-    # this cannot.
-    _report(
-        queue,
-        activation_id,
-        "candidate" if exit_code == 0 else "failed",
-        {
+        # Redacted before it is logged or posted. The task ran with Bash, so
+        # the output can contain anything the shell could print, including
+        # the environment this process was started with.
+        post_reply(requests, swarm_control.redact(output), exit_code,
+                   activation_id)
+
+        # Named fields, read from git rather than the author's prose, so a
+        # reviewer is pointed at a commit. A worktree run is also checked:
+        # the expected branch, a clean commit beyond base, and a canonical
+        # checkout that did not move.
+        if workspace:
+            outcome, found = claude_author_worktree.settle(workspace, exit_code)
+        else:
+            outcome = "candidate" if exit_code == 0 else "failed"
+            found = candidate_from_workspace()
+
+        # The controller is told the outcome; chat is told the story. Only
+        # the first can move a task, which is why the narration above can be
+        # lossy and this cannot.
+        _report(queue, activation_id, outcome, {
             "exit_code": exit_code,
             "elapsed_seconds": round(elapsed, 1),
             "output_excerpt": swarm_control.redact(output)[:2000],
-            # Named fields, so a reviewer is pointed at a commit rather than
-            # left to find one in the author's prose.
-            **candidate_from_workspace(),
-        },
-    )
+            **found,
+        })
+    finally:
+        if workspace:
+            claude_author_worktree.close(workspace)
 
     clear_inflight()
 
