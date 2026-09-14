@@ -73,6 +73,7 @@ _STATUS_FOR = {
     activations.ConflictingResult: 409,
     activations.HostAtCapacity: 409,
     activations.EvidenceNotDurable: 409,
+    activations.InvalidClaimStages: 422,
     engine.StaleState: 409,
     engine.ConflictingReplay: 409,
     states.UndefinedTransition: 409,
@@ -117,6 +118,11 @@ class IssueActivation(BaseModel):
     expected_parent: Optional[str] = None
     expected_candidate: Optional[str] = None
     repo_location: Optional[str] = None
+
+
+class ClaimRequest(BaseModel):
+    """Optional body for a claim. No body, or `stages` omitted, claims any stage."""
+    stages: Optional[List[str]] = None
 
 
 class Transition(BaseModel):
@@ -784,6 +790,7 @@ def build_router(
 
     @router.post("/activations/claim")
     def claim(
+        body: Optional[ClaimRequest] = Body(default=None),
         component: str = Depends(authenticate),
         conn: sqlite3.Connection = Depends(get_conn),
     ):
@@ -795,13 +802,25 @@ def build_router(
         An empty queue is a 200 with `activation: null` rather than a 404: for
         a polling worker, having no work is the normal case and not an error,
         and a 404 would be indistinguishable from a misrouted URL.
+
+        An optional `stages` list limits the claim to those stages (#23). The
+        response then also carries `applied_stages`, the filter in canonical
+        form, so a worker can tell a controller that honoured its filter from
+        one that ignored it. Without a filter the response is unchanged.
         """
+        stages = body.stages if body is not None else None
+
         try:
-            claimed = activations.claim_next(conn, agent=component)
+            claimed = activations.claim_next(conn, agent=component, stages=stages)
         except Exception as exc:
             raise _http(exc)
 
-        return {"agent": component, "activation": claimed}
+        response = {"agent": component, "activation": claimed}
+
+        if stages is not None:
+            response["applied_stages"] = list(activations.claim_stages(stages))
+
+        return response
 
     @router.post("/activations/{activation_id}/heartbeat")
     def heartbeat(

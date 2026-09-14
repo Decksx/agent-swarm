@@ -24,6 +24,20 @@ from pathlib import Path
 
 log = logging.getLogger("claude_worker")
 
+# Stages whose execution never invokes the model (#23). Integration is git and
+# the forge, checked fact by fact; a hold-off on model usage has no reason to
+# stop it, and stopping it strands approved work in INTEGRATING.
+MODEL_FREE_STAGES = frozenset({"integrate"})
+
+
+def claim_stages(held: bool) -> tuple[str, ...] | None:
+    """What a claim may take: None for anything, or only model-free stages when held.
+
+    A sorted tuple rather than the frozenset, so what crosses the HTTP boundary
+    is deterministic.
+    """
+    return tuple(sorted(MODEL_FREE_STAGES)) if held else None
+
 
 def read_holdoff(ratelimit_path: Path) -> float:
     """The epoch time the current hold-off ends, or 0.0 if there is none."""

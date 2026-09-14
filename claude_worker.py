@@ -975,11 +975,24 @@ def main() -> int:
         # run. The controller hands out an activation on claim, so a worker
         # that claims and then declines has consumed work it already knew it
         # would not do -- and the task waits out a whole lease to find out.
-        paused = swarm_control.pause_reason() or rate_limit_reason()
+        # A pause stops everything and is checked first, so while paused the
+        # rate guard is not consulted and its state does not move. A rate hold
+        # stops only model work: from the controller the worker still claims
+        # model-free stages (#23). The local directory cannot filter, so there
+        # a rate hold still stops everything.
+        pause = swarm_control.pause_reason()
+        held = None if pause is not None else rate_limit_reason()
+        paused = pause or held
+        stages = claude_rate_guard.claim_stages(held is not None)
+        claiming = pause is None and (held is None or queue is not None)
 
         if paused is not None:
             if was_paused != paused:
-                log.warning("HOLDING: %s; starting no new work", paused)
+                log.warning(
+                    "HOLDING: %s; %s", paused,
+                    f"claiming only {list(stages)}" if claiming
+                    else "starting no new work",
+                )
                 was_paused = paused
 
                 # Alerted once per hold-off rather than once per process, so a
@@ -991,11 +1004,11 @@ def main() -> int:
                         f"claude_worker is holding off: {paused}. It will "
                         "resume by itself; no restart is needed.",
                     )
-        else:
-            if was_paused is not None:
-                log.info("hold released; accepting activations again")
-                was_paused = None
+        elif was_paused is not None:
+            log.info("hold released; accepting activations again")
+            was_paused = None
 
+        if claiming:
             # Checked before the claim, so a pause engaged mid-poll leaves the
             # queue intact rather than consuming the work it declined to run.
             # True of both sources: the controller hands out an activation on
@@ -1003,7 +1016,20 @@ def main() -> int:
             # renaming the directory record would.
             if queue is not None:
                 try:
-                    activation = queue.claim()
+                    activation = (
+                        queue.claim() if stages is None
+                        else queue.claim(stages=stages)
+                    )
+                except controller_client.StageFilterNotHonoured as exc:
+                    # Build parity at startup should make this impossible.
+                    # If it happens, nothing outside the filter is run: an
+                    # activation handed out is reported blocked, not left to
+                    # expire and not executed.
+                    log.error("claim filter not honoured: %s", exc)
+                    if exc.activation is not None:
+                        _report(queue, exc.activation.get("activation_id"),
+                                "blocked", {"reason": f"claim filter not honoured: {exc}"})
+                    activation = None
                 except (
                     controller_client.Unauthenticated,
                     controller_client.ClaimForbidden,

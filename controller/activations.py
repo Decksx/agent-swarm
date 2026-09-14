@@ -35,7 +35,7 @@ import re
 import sqlite3
 import time
 import uuid
-from typing import Optional
+from typing import Any, Optional
 
 from . import engine
 from .db import transaction
@@ -120,6 +120,10 @@ class EvidenceNotDurable(ActivationError):
 
 class ConflictingResult(ActivationError):
     """A different result was already submitted for this activation."""
+
+
+class InvalidClaimStages(ActivationError):
+    """A claim's stage filter names no stage, or a stage that does not exist."""
 
 
 def _canonical_hash(payload: dict) -> str:
@@ -539,11 +543,40 @@ def claim(
     }
 
 
+def claim_stages(stages: Optional[Any]) -> Optional[tuple]:
+    """A claim's stage filter in canonical form: None, or sorted unique stages.
+
+    None means no filter, which is how every caller claimed before stage
+    filters existed. A filter must be a list of known stage names. An empty
+    one, a bare string, or an unknown name is refused rather than read as
+    "claim nothing": a worker whose filter matched no stage would poll forever
+    and never learn why.
+    """
+    if stages is None:
+        return None
+
+    if isinstance(stages, (str, bytes)) or not isinstance(stages, (list, tuple, set, frozenset)):
+        raise InvalidClaimStages(f"stages must be a list of stage names, not {type(stages).__name__}")
+
+    if not stages:
+        raise InvalidClaimStages("stages is empty; omit it to claim any stage")
+
+    unknown = sorted(str(s) for s in stages if not isinstance(s, str) or s not in STAGE_ROLES)
+
+    if unknown:
+        raise InvalidClaimStages(
+            f"unknown stages {unknown}; expected any of {sorted(STAGE_ROLES)}"
+        )
+
+    return tuple(sorted(set(stages)))
+
+
 def claim_next(
     conn: sqlite3.Connection,
     *,
     agent: str,
     now: Optional[float] = None,
+    stages: Optional[Any] = None,
 ) -> Optional[dict]:
     """Claim this agent's oldest live issued activation, or None.
 
@@ -556,14 +589,28 @@ def claim_next(
     Expired-but-unswept rows are skipped rather than handed out. The sweep is
     what recovers them for the task, and returning one here would give a worker
     a lease that was already dead.
+
+    `stages`, when given, limits the claim to activations for those stages,
+    still oldest first. It exists for a worker that may not call a model right
+    now but can still do work that calls none (#23): it claims only those
+    stages and leaves the rest ISSUED for later, instead of taking one it would
+    have to decline. Validated by `claim_stages` before anything is read.
     """
     now = time.time() if now is None else now
+    wanted = claim_stages(stages)
 
-    rows = conn.execute(
+    query = (
         "SELECT activation_id FROM activations WHERE agent = ? AND status = ? "
         "AND lease_expires_at > ? AND hard_deadline_at > ? "
-        "ORDER BY issued_at ASC, activation_id ASC",
-        (agent, ISSUED, now, now),
+    )
+    params: list = [agent, ISSUED, now, now]
+
+    if wanted is not None:
+        query += f"AND stage IN ({', '.join('?' for _ in wanted)}) "
+        params.extend(wanted)
+
+    rows = conn.execute(
+        query + "ORDER BY issued_at ASC, activation_id ASC", params,
     ).fetchall()
 
     for row in rows:

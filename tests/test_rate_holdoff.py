@@ -242,10 +242,12 @@ def test_an_unparseable_deadline_does_not_hold_forever(guard, junk):
 
 
 def test_the_guard_is_consulted_before_any_claim(monkeypatch, control):
-    """A guarded worker must take no activation at all.
+    """A guarded worker takes no activation that would call the model.
 
     Claiming and then declining consumes work it already knew it would not do,
-    and the task then waits out a whole lease to find out.
+    and the task then waits out a whole lease to find out. Since #23 the guard
+    narrows the claim rather than skipping it: only model-free stages are asked
+    for, so an author activation stays queued for when the hold-off ends.
     """
     import controller_client  # noqa: F401
     from test_worker_controller_source import StubQueue, run_loop
@@ -258,13 +260,15 @@ def test_the_guard_is_consulted_before_any_claim(monkeypatch, control):
 
     activation = {
         "activation_id": "act-1", "task_id": "T-1", "task": "do a thing",
-        "issued_by": "controller", "source": "controller",
+        "issued_by": "controller", "source": "controller", "stage": "author",
     }
     queue = StubQueue([activation])
 
     invocations, _ = run_loop(monkeypatch, control, queue=queue, polls=3)
 
-    assert queue.claims == 0, "a guarded worker asked for work"
+    assert queue.claim_stages and set(queue.claim_stages) == {("integrate",)}, (
+        "a guarded worker asked for work a model would have to do"
+    )
     assert invocations == [], "a guarded worker called the model"
     assert queue.pending == [activation], "the activation was consumed"
 

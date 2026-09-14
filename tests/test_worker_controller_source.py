@@ -35,6 +35,7 @@ class StubQueue:
     def __init__(self, activations=(), claim_raises=None):
         self.pending = list(activations)
         self.claims = 0
+        self.claim_stages = []
         self.reports = []
         self.claim_raises = claim_raises
         # The real queue carries both, and the worker reads them to pace its
@@ -42,11 +43,16 @@ class StubQueue:
         self.retry_after = 0.0
         self.backoff = controller_client.Backoff(5.0, 60.0)
 
-    def claim(self):
+    def claim(self, stages=None):
+        """Oldest first, limited to `stages` when given -- as the controller does."""
         self.claims += 1
+        self.claim_stages.append(stages)
         if self.claim_raises is not None:
             raise self.claim_raises
-        return self.pending.pop(0) if self.pending else None
+        for index, activation in enumerate(self.pending):
+            if stages is None or activation.get("stage", "author") in stages:
+                return self.pending.pop(index)
+        return None
 
     def report(self, activation_id, *, outcome, payload=None):
         self.reports.append((activation_id, outcome, payload or {}))
