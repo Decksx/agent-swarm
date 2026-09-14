@@ -173,6 +173,41 @@ def create_draft(
     return _row_to_draft(stored)
 
 
+def ensure_draft(
+    conn: sqlite3.Connection,
+    content: Mapping,
+    *,
+    draft_id: str,
+    created_by: str,
+    now: Optional[float] = None,
+) -> tuple:
+    """Store a draft under `draft_id` unless it exists; return (draft, created).
+
+    For callers whose id is derived from the content, so a repeated submission
+    of the same content must land on the same row instead of adding a second
+    one. An existing row with a different hash is refused, never overwritten:
+    two different contents under one id means the id did not identify them.
+    """
+    now = time.time() if now is None else now
+    content_json = canonical_content(content)
+    digest = draft_hash(content)
+
+    with transaction(conn):
+        inserted = conn.execute(
+            "INSERT OR IGNORE INTO task_drafts (draft_id, content_json, "
+            "draft_hash, status, created_at, created_by) VALUES (?,?,?,?,?,?)",
+            (draft_id, content_json, digest, PENDING, now, created_by),
+        ).rowcount
+        stored = conn.execute(_SELECT_DRAFT, (draft_id,)).fetchone()
+
+    draft = _row_to_draft(stored)
+
+    if draft["draft_hash"] != digest:
+        raise DraftHashMismatch(draft_id, digest, draft["draft_hash"])
+
+    return draft, bool(inserted)
+
+
 def get_draft(conn: sqlite3.Connection, draft_id: str) -> dict:
     stored = conn.execute(_SELECT_DRAFT, (draft_id,)).fetchone()
 
