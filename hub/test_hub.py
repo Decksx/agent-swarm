@@ -469,3 +469,102 @@ def test_the_ui_no_longer_claims_to_be_admin(client):
     page = client.get("/", headers=basic("admin", "admin-secret")).text
 
     assert "sender: 'Admin'" not in page
+
+
+# --- Chat-command ingress ------------------------------------------------------
+
+INGRESS_BASE = "6edf2a1a6e9d4ca2633944fd1e2f6eaeb9e818e7"
+INGRESS_COMMAND = (
+    "@swarm Show stage filters on the status page\n"
+    "project: agenthub\n"
+    f"base: {INGRESS_BASE}\n"
+    "paths: hub/hub.py\n"
+    "\n"
+    "Add the applied claim stages to the status page."
+)
+
+
+@pytest.fixture
+def ingress_env(monkeypatch):
+    monkeypatch.setenv("INGRESS_PROJECTS", "agenthub=C:/git/agent-swarm")
+    monkeypatch.setenv("PROGRESSION_VERIFIER", "gemini")
+    monkeypatch.setenv("PROGRESSION_INTEGRATOR", "claudecode")
+    monkeypatch.setenv("PROGRESSION_HOST", "officepc")
+
+
+def chat_rows(hub):
+    conn = sqlite3.connect(hub.DB_PATH)
+    try:
+        return conn.execute("SELECT sender, target, content FROM messages ORDER BY id").fetchall()
+    finally:
+        conn.close()
+
+
+def controller_count(hub, table):
+    conn = sqlite3.connect(hub.CONTROLLER_DB)
+    try:
+        return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+    finally:
+        conn.close()
+
+
+def test_an_admin_command_is_stored_then_answered_by_the_controller(hub, client, ingress_env):
+    response = client.post("/send", json={"target": "@swarm", "content": INGRESS_COMMAND},
+                           headers=basic("admin", "admin-secret"))
+
+    assert response.status_code == 200
+    assert set(response.json()) == {"status", "id"}
+    rows = chat_rows(hub)
+    assert [r[0] for r in rows] == ["admin", "controller"]
+    assert rows[1][1] == "@Admin" and rows[1][2].startswith("Draft CMD-")
+    assert "@swarm confirm CMD-" in rows[1][2]
+    assert controller_count(hub, "task_drafts") == 1
+    assert controller_count(hub, "tasks") == 0
+
+
+def test_a_worker_posting_the_same_text_is_only_chat(hub, client, ingress_env):
+    client.post("/send", json={"target": "@swarm", "content": INGRESS_COMMAND},
+                headers=basic("claudecode", "claude-secret"))
+
+    assert [r[0] for r in chat_rows(hub)] == ["claudecode"]
+    assert controller_count(hub, "task_drafts") == 0
+
+
+def test_ordinary_admin_chat_gets_no_reply(hub, client, ingress_env):
+    client.post("/send", json={"target": "@Gemini", "content": "thanks, looks good"},
+                headers=basic("admin", "admin-secret"))
+
+    assert [r[0] for r in chat_rows(hub)] == ["admin"]
+
+
+def test_a_confirmation_through_the_route_creates_one_task_even_when_resent(hub, client, ingress_env):
+    headers = basic("admin", "admin-secret")
+    client.post("/send", json={"target": "@swarm", "content": INGRESS_COMMAND}, headers=headers)
+    draft_id = next(t for t in chat_rows(hub)[1][2].split() if t.startswith("CMD-"))
+    conn = sqlite3.connect(hub.CONTROLLER_DB)
+    conn.execute("INSERT OR REPLACE INTO host_capacity (host, max_concurrent) VALUES ('officepc', 3)")
+    conn.commit()
+    conn.close()
+
+    for _ in range(2):
+        client.post("/send", json={"target": "@swarm", "content": f"@swarm confirm {draft_id}"}, headers=headers)
+
+    replies = [r[2] for r in chat_rows(hub) if r[0] == "controller"]
+    assert replies[1].startswith(f"Confirmed {draft_id} as T-{draft_id}")
+    assert replies[2].startswith(f"{draft_id} was already confirmed")
+    assert controller_count(hub, "tasks") == 1
+    assert controller_count(hub, "activations") == 1
+
+
+def test_an_ingress_failure_is_reported_in_chat_not_as_a_500(hub, client, ingress_env, monkeypatch):
+    def broken(*a, **k):
+        raise RuntimeError("controller unavailable")
+
+    monkeypatch.setattr(hub.controller_ingress, "handle_message", broken)
+
+    response = client.post("/send", json={"target": "@swarm", "content": INGRESS_COMMAND},
+                           headers=basic("admin", "admin-secret"))
+
+    assert response.status_code == 200
+    reply = chat_rows(hub)[-1]
+    assert reply[0] == "controller" and "RuntimeError: controller unavailable" in reply[2]

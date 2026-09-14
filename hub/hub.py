@@ -285,7 +285,50 @@ def send_message(req: SendRequest, component: str = Depends(authenticate)):
         )
         conn.commit()
         msg_id = cur.lastrowid
+
+    # Chat-command ingress. After the message is stored, never instead of it,
+    # and only for admin senders: a worker's message is never parsed, and the
+    # reply is posted as `controller`, which is not an admin, so a reply can
+    # never be read as a command.
+    if component in ADMIN_COMPONENTS:
+        reply = _ingress_reply(component, req.content)
+
+        if reply:
+            with get_db() as conn:
+                conn.execute(
+                    "INSERT INTO messages (sender, target, content, timestamp) VALUES (?, ?, ?, ?)",
+                    (controller_ingress.REPLY_SENDER, "@Admin", reply, time.time()),
+                )
+                conn.commit()
+
     return {"status": "ok", "id": msg_id}
+
+
+def _ingress_reply(component: str, content: str) -> Optional[str]:
+    """What the controller answers to a command, or None for ordinary chat.
+
+    Configuration is read per message, like the progression routes read theirs,
+    so a changed `hub.env` takes effect on the next recreate without a code path
+    that caches a stale map. Any failure becomes a reply rather than a 500: the
+    message is already stored, and the operator needs to see why nothing happened.
+    """
+    try:
+        projects = controller_ingress.parse_projects(os.environ.get("INGRESS_PROJECTS", ""))
+        routing = controller_progression.Routing(
+            verifier=os.environ.get("PROGRESSION_VERIFIER", ""),
+            integrator=os.environ.get("PROGRESSION_INTEGRATOR", ""),
+            host=os.environ.get("PROGRESSION_HOST", ""),
+            repo_location=os.environ.get("PROGRESSION_REPO_LOCATION", ""),
+        )
+        conn = controller_db.open_controller_db(CONTROLLER_DB, same_thread_only=False)
+        try:
+            return controller_ingress.handle_message(
+                conn, sender=component, content=content, projects=projects, routing=routing,
+            )
+        finally:
+            conn.close()
+    except Exception as exc:  # noqa: BLE001 -- reported to the operator, not swallowed
+        return f"Not accepted: the controller could not process this command ({type(exc).__name__}: {exc})"
 
 class PauseRequest(BaseModel):
     reason: Optional[str] = None
@@ -639,6 +682,9 @@ HTML_TEMPLATE = """
 # This import is why the container bind-mounts the application *directory*
 # rather than hub.py alone.
 from controller import api as controller_api  # noqa: E402
+from controller import db as controller_db  # noqa: E402
+from controller import ingress as controller_ingress  # noqa: E402
+from controller import progression as controller_progression  # noqa: E402
 
 CONTROLLER_DB = os.environ.get("CONTROLLER_DB", "/data/controller.db")
 

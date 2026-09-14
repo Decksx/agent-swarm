@@ -152,7 +152,21 @@ MIGRATIONS = {
     # A rebuild rather than statements, because SQLite has no way to alter a
     # CHECK constraint and three tables reference this one.
     4: lambda conn: _widen_proof_mode(conn),
+    # A new table for chat-command drafts. `CREATE TABLE IF NOT EXISTS`, so
+    # a crash between this and the version bump re-runs harmlessly.
+    6: lambda conn: _create_task_drafts(conn),
 }
+
+
+def _create_task_drafts(conn: sqlite3.Connection) -> None:
+    """Create `task_drafts` from its one definition in `drafts`.
+
+    Imported here rather than at module top: `drafts` imports `transaction`
+    from this module, so a top-level import would be circular.
+    """
+    from . import drafts
+
+    drafts.create_drafts_table(conn)
 
 
 # The vocabulary after migration 4. `branch_only` is a real proof mode and not
@@ -321,6 +335,12 @@ def initialize(conn: sqlite3.Connection) -> None:
             # an int constant from this package rather than anything a caller
             # supplies, so interpolating it is not an injection path.
             conn.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
+
+    # Outside the block above: `create_drafts_table` opens its own
+    # transaction, and nesting is refused. Unconditional and idempotent, like
+    # every statement in SCHEMA_SQL: a fresh database needs it, and on an
+    # existing one it is `CREATE TABLE IF NOT EXISTS` and changes nothing.
+    _create_task_drafts(conn)
 
 
 def check_schema_version(conn: sqlite3.Connection) -> int:

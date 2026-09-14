@@ -47,7 +47,12 @@ from __future__ import annotations
 # an activation's inputs are allowed to live -- recording the answer in the
 # event log and expecting each worker to go and find it would make every one
 # of them decide for itself which event counted.
-SCHEMA_VERSION = 5
+#
+# Bumped to 6 on 2026-09-14 for `task_drafts`, which chat-command ingress
+# stores commands in until they are confirmed. Additive: a new table, nothing
+# existing touched. Its one definition stays in `drafts.DRAFTS_TABLE_SQL`;
+# `db.initialize` and migration 6 both create it through `create_drafts_table`.
+SCHEMA_VERSION = 6
 
 SCHEMA_SQL = """
 -- One row per task. `state` and `state_seq` are the projection that the event
