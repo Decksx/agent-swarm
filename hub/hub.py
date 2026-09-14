@@ -35,6 +35,7 @@ Adding an import outside that set means the hub does not survive a restart.
 
 import base64
 import hmac
+import html
 import json
 import os
 import sqlite3
@@ -497,7 +498,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
   <header>
-    <div><strong>Autonomous Swarm Hub</strong> | Live Feed</div>
+    <div><strong>Autonomous Swarm Hub</strong> <span id="build-id" style="color: #565f89; font-size: 0.85rem;">build __BUILD_ID__</span> | Live Feed</div>
     <div id="status" style="color: #9ece6a; font-size: 0.85rem;">● Connected</div>
   </header>
   
@@ -697,6 +698,7 @@ HTML_TEMPLATE = """
 # This import is why the container bind-mounts the application *directory*
 # rather than hub.py alone.
 from controller import api as controller_api  # noqa: E402
+from controller import build as controller_build  # noqa: E402
 from controller import db as controller_db  # noqa: E402
 from controller import ingress as controller_ingress  # noqa: E402
 from controller import progression as controller_progression  # noqa: E402
@@ -724,5 +726,10 @@ def index(component: str = Depends(authenticate)):
     The browser prompts for Basic credentials and caches them, so the page's
     own fetch() calls to /messages and /send authenticate without any login
     form or cookie handling here.
+
+    The header shows the same build id /controller/status reports as
+    loaded_build_id, so the page says which build is actually running.
     """
-    return HTML_TEMPLATE
+    build_id = html.escape(controller_build.loaded()["build_id"])
+
+    return HTML_TEMPLATE.replace("__BUILD_ID__", build_id)
