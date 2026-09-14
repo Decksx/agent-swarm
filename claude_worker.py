@@ -75,6 +75,7 @@ from typing import Any
 
 import authored_change
 import claude_integration
+import claude_rate_guard
 import controller_client
 import swarm_control
 
@@ -164,11 +165,8 @@ RATE_LIMIT_WARN_SECONDS = float(
     os.environ.get("RATE_LIMIT_WARN_SECONDS", str(4.5 * 3600))
 )
 
-# After the window trips, the worker waits this long and then resumes by
-# itself. Previously it stopped accepting work until somebody restarted it,
-# which is a manual step in a system whose whole point is not needing one --
-# and an operator who did not notice would find a worker that looked healthy
-# and had quietly stopped working hours earlier.
+# After the window trips, the worker waits this long, then resumes by itself
+# (see claude_rate_guard).
 RATE_LIMIT_COOLDOWN_SECONDS = float(
     os.environ.get("RATE_LIMIT_COOLDOWN_SECONDS", str(5 * 3600))
 )
@@ -301,122 +299,62 @@ _process_usage_window: list[tuple[float, float]] = []
 _rate_limit_alert_sent = False
 
 
+# The guard's logic is in claude_rate_guard. These keep its names here and
+# pass the state above in at call time, so patches on this module still apply.
 def _read_holdoff() -> float:
-    """The epoch time the current hold-off ends, or 0.0 if there is none."""
-    try:
-        return float(RATELIMIT_PATH.read_text(encoding="utf-8").strip())
-    except (OSError, ValueError):
-        # Missing is the ordinary case; unreadable is treated the same way
-        # rather than as an indefinite hold, because a file nothing can parse
-        # would otherwise stop this worker forever.
-        return 0.0
+    return claude_rate_guard.read_holdoff(RATELIMIT_PATH)
 
 
 def _read_usage() -> list[tuple[float, float]]:
-    """Persisted (started, seconds) records. Missing is empty; malformed warns."""
-    try:
-        raw = json.loads(USAGE_PATH.read_text(encoding="utf-8"))
-        if not isinstance(raw, list):
-            raise TypeError(type(raw).__name__)
-        return [(float(started), float(seconds)) for started, seconds in raw]
-    except FileNotFoundError:
-        return []
-    except (OSError, TypeError, ValueError):
-        log.warning("could not read usage file; treating as empty")
-        return []
+    return claude_rate_guard.read_usage(USAGE_PATH)
 
 
 def _write_usage(usage_window: list[tuple[float, float]]) -> None:
-    """Persist the rolling window of usage seconds."""
-    try:
-        with open(USAGE_PATH, "w", encoding="utf-8") as f:
-            json.dump(usage_window, f)
-    except OSError as exc:
-        log.error("could not persist usage: %s", exc)
+    claude_rate_guard.write_usage(USAGE_PATH, usage_window)
 
 
 def _purge_old_usage(now: float) -> None:
-    """Remove usage outside the rolling window."""
     global _process_usage_window
-    cutoff = now - RATE_LIMIT_COOLDOWN_SECONDS
-    _process_usage_window = [
-        (timestamp, usage) for (timestamp, usage) in _process_usage_window
-        if timestamp >= cutoff
-    ]
+    _process_usage_window = claude_rate_guard.purge_old_usage(
+        _process_usage_window, now, RATE_LIMIT_COOLDOWN_SECONDS
+    )
 
 
 def _current_usage_total(now: float) -> float:
-    """Return the total usage seconds within the rolling window."""
-    _purge_old_usage(now)
-    return sum(usage for _, usage in _process_usage_window)
+    global _process_usage_window
+    _process_usage_window, total = claude_rate_guard.current_usage_total(
+        _process_usage_window, now, RATE_LIMIT_COOLDOWN_SECONDS
+    )
+    return total
 
 
 def _record_usage(start_time: float, elapsed_time: float) -> None:
-    """Record model usage."""
     global _process_usage_window
-    _process_usage_window.append((start_time, elapsed_time))
-    _purge_old_usage(start_time)
-    _write_usage(_process_usage_window)
+    _process_usage_window = claude_rate_guard.record_usage(
+        USAGE_PATH, _process_usage_window, start_time, elapsed_time,
+        RATE_LIMIT_COOLDOWN_SECONDS,
+    )
 
 
 def _begin_holdoff(now: float) -> float:
-    """Start a hold-off and return when it ends."""
-    until = now + RATE_LIMIT_COOLDOWN_SECONDS
-
-    try:
-        RATELIMIT_PATH.write_text(f"{until:.0f}", encoding="utf-8")
-    except OSError as exc:
-        log.error("could not persist the rate hold-off: %s", exc)
-
-    return until
+    return claude_rate_guard.begin_holdoff(
+        RATELIMIT_PATH, now, RATE_LIMIT_COOLDOWN_SECONDS
+    )
 
 
 def _end_holdoff() -> None:
-    """Clear the hold-off."""
-    try:
-        RATELIMIT_PATH.unlink()
-    except FileNotFoundError:
-        pass
-    except OSError as exc:
-        log.warning("could not clear the rate hold-off: %s", exc)
+    claude_rate_guard.end_holdoff(RATELIMIT_PATH)
 
 
 def rate_limit_reason(now: float | None = None) -> str | None:
-    """Why no new work should be claimed right now, or None to proceed.
-
-    Recovers on its own. When the hold-off deadline passes, the deadline is
-    cleared, and work resumes with no restart and no operator action.
-
-    Deliberately returns a reason rather than calling anything: this is
-    consulted before the claim, so a guarded worker takes no activation and
-    makes no provider call at all. Claiming and then refusing would consume
-    work it had already decided not to do.
-    """
-    now = time.time() if now is None else now
-    until = _read_holdoff()
-
-    if until:
-        if now < until:
-            return (
-                f"rate hold-off until {time.strftime('%H:%M:%S', time.localtime(until))} "
-                f"({(until - now) / 60:.0f} min remaining)"
-            )
-
-        _end_holdoff()
-        log.info("rate hold-off has expired; accepting work again")
-        return None
-
-    total_usage = _current_usage_total(now)
-
-    if total_usage >= RATE_LIMIT_WARN_SECONDS:
-        until = _begin_holdoff(now)
-        return (
-            f"worker usage {total_usage/3600:.1f}h reached the "
-            f"{RATE_LIMIT_WARN_SECONDS / 3600:.1f}h window; holding off for "
-            f"{RATE_LIMIT_COOLDOWN_SECONDS / 3600:.1f}h"
-        )
-
-    return None
+    """Why no new work should be claimed now, or None; see claude_rate_guard."""
+    global _process_usage_window
+    reason, _process_usage_window = claude_rate_guard.rate_limit_reason(
+        now, ratelimit_path=RATELIMIT_PATH, usage_window=_process_usage_window,
+        warn_seconds=RATE_LIMIT_WARN_SECONDS,
+        cooldown_seconds=RATE_LIMIT_COOLDOWN_SECONDS,
+    )
+    return reason
 
 
 def record_rate_limit_alert_sent() -> None:
