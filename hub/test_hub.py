@@ -568,3 +568,46 @@ def test_an_ingress_failure_is_reported_in_chat_not_as_a_500(hub, client, ingres
     assert response.status_code == 200
     reply = chat_rows(hub)[-1]
     assert reply[0] == "controller" and "RuntimeError: controller unavailable" in reply[2]
+
+
+# --- The chat box can send a command ---------------------------------------------
+
+
+def test_the_chat_box_is_multi_line_so_commands_keep_their_fields(client):
+    """An <input> drops line breaks, so a command's fields arrived on one line
+    and were refused as "`project:` is required". The box must be a textarea."""
+    page = client.get("/", headers=basic("admin", "admin-secret")).text
+
+    assert '<textarea id="prompt"' in page
+    assert '<input id="prompt"' not in page
+    assert "onkeydown=\"if(event.key==='Enter') sendMsg()\"" not in page
+
+
+def test_enter_sends_and_shift_enter_is_a_new_line(client):
+    page = client.get("/", headers=basic("admin", "admin-secret")).text
+    handler = page[page.index("function promptKey(event)"):page.index("async function sendMsg()")]
+
+    assert 'onkeydown="promptKey(event)"' in page
+    assert "event.key === 'Enter'" in handler
+    assert "!event.shiftKey" in handler
+    assert "!event.isComposing" in handler
+    assert "event.preventDefault();" in handler and "sendMsg();" in handler
+
+
+def test_the_box_value_is_sent_with_its_line_breaks(client):
+    """sendMsg posts the textarea value as content; nothing flattens it."""
+    page = client.get("/", headers=basic("admin", "admin-secret")).text
+    send = page[page.index("async function sendMsg()"):page.index("function escapeHtml")]
+
+    assert "const val = input.value.trim();" in send
+    assert "content: val" in send
+    assert "replace(/\n" not in send and "split('\n')" not in send
+
+
+def test_a_multi_line_command_through_the_route_is_drafted(hub, client, ingress_env):
+    client.post("/send", json={"target": "@swarm", "content": INGRESS_COMMAND},
+                headers=basic("admin", "admin-secret"))
+
+    stored = chat_rows(hub)
+    assert stored[0][2] == INGRESS_COMMAND
+    assert stored[1][2].startswith("Draft CMD-")

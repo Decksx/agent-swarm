@@ -136,6 +136,17 @@ def parse_task_command(content: str, *, author: str, projects: dict) -> dict:
     if not title:
         raise IngressRefused("the first line needs a title after the mention")
 
+    # The commonest mistake, named: every field typed on the title line, as a
+    # one-line chat box forces. Checked before the title's length, which such a
+    # line usually exceeds, so the refusal points at the actual fix.
+    second = lines[1] if len(lines) > 1 else ""
+    field_re = r"(?i)(?:^|\s)(?:project|base|paths|context|proof):"
+    if re.search(field_re, title) and not re.match(r"(?i)\s*(?:project|base|paths|context|proof)\s*:", second):
+        raise IngressRefused(
+            "put `project:`, `base:` and `paths:` each on its own line below the title "
+            "(Shift+Enter in the chat box), then a blank line and the objective"
+        )
+
     if len(title) > MAX_TITLE:
         raise IngressRefused(f"the title is longer than {MAX_TITLE} characters")
 

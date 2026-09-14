@@ -349,3 +349,23 @@ def test_projects_are_parsed_from_name_equals_location():
 def test_a_malformed_project_entry_is_an_error_not_a_skip(value):
     with pytest.raises(ValueError):
         ingress.parse_projects(value)
+
+
+# --- A command typed on one line ------------------------------------------------------
+
+
+def test_fields_typed_on_the_title_line_get_a_refusal_that_names_the_fix(conn):
+    one_line = COMMAND.split("\n\n")[0].replace("\n", " ") + "  " + COMMAND.split("\n\n")[1]
+
+    reply = send(conn, one_line)
+
+    assert reply.startswith("Not accepted:")
+    assert "each on its own line below the title" in reply and "Shift+Enter" in reply
+    assert count(conn, "task_drafts") == 0
+
+
+def test_a_title_that_mentions_a_field_name_is_fine_when_the_fields_follow(conn):
+    reply = send(conn, COMMAND.replace("Show stage filters on the status page", "Fix base: handling in the status page", 1))
+
+    assert reply.startswith("Draft CMD-")
+    assert "title:       Fix base: handling in the status page" in reply
