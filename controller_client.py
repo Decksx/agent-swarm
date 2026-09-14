@@ -74,6 +74,21 @@ class ClaimForbidden(ControllerError):
     """
 
 
+class StageFilterNotHonoured(ControllerError):
+    """A filtered claim came back without the filter applied.
+
+    Either `applied_stages` is missing or differs from what was asked, or the
+    activation handed out is for a stage outside the filter. Build parity is
+    what keeps a worker off a controller that predates filters; this is the
+    check for when that fails. `activation` is the one handed out, if any, so
+    the worker can report it rather than run it or leave it to expire.
+    """
+
+    def __init__(self, message: str, activation: Optional[dict] = None) -> None:
+        super().__init__(message)
+        self.activation = activation
+
+
 class RateLimited(ControllerError):
     """The hub asked this worker to wait a specific amount of time."""
 
@@ -229,16 +244,24 @@ class ControllerQueue:
 
     # --- queue ---------------------------------------------------------------
 
-    def claim(self) -> Optional[dict]:
+    def claim(self, stages: Optional[Any] = None) -> Optional[dict]:
         """Claim this worker's next activation, or None.
 
         Returns None both when the queue is empty and when the controller
         cannot be reached. Those are different for logging -- the second backs
         off and the first does not -- but identical for the caller, which has
         nothing to run either way.
+
+        `stages` limits the claim to those stages. It is sent as a sorted JSON
+        list, and the reply must say it applied exactly that filter and hand
+        out nothing outside it; otherwise StageFilterNotHonoured is raised.
+        Without `stages` no body is sent, exactly as before filters existed.
         """
+        requested = None if stages is None else sorted(set(stages))
+        payload = None if requested is None else {"stages": requested}
+
         try:
-            body = self._call("POST", "/controller/activations/claim")
+            body = self._call("POST", "/controller/activations/claim", payload)
         except Unauthenticated:
             # Raised, not swallowed. The worker exits on this.
             raise
@@ -264,6 +287,18 @@ class ControllerQueue:
         self.retry_after = 0.0
         self.backoff.reset()
         activation = body.get("activation")
+
+        if requested is not None:
+            if body.get("applied_stages") != requested:
+                raise StageFilterNotHonoured(
+                    f"asked for stages {requested}, controller applied "
+                    f"{body.get('applied_stages')!r}", activation,
+                )
+            if activation is not None and activation.get("stage") not in requested:
+                raise StageFilterNotHonoured(
+                    f"asked for stages {requested}, controller handed out a "
+                    f"{activation.get('stage')!r} activation", activation,
+                )
 
         if activation is None:
             return None

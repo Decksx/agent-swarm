@@ -435,3 +435,57 @@ def test_status_no_longer_reports_one_ambiguous_build_id(client):
     body = as_(client, "claudecode", "get", "/controller/status").json()
 
     assert "build_id" not in body
+
+
+# --- Stage-filtered claims (#23) ---------------------------------------------
+
+
+def issue_author(client):
+    as_(client, "admin", "post", "/controller/activations", json={
+        "task_id": "T-1", "agent": "claudecode", "host": "OFFICEPC",
+        "stage": "author",
+    })
+
+
+def test_a_filter_that_excludes_the_only_activation_claims_nothing_and_says_so(client, queued_task):
+    issue_author(client)
+
+    response = as_(client, "claudecode", "post", "/controller/activations/claim",
+                   json={"stages": ["integrate"]})
+
+    assert response.status_code == 200
+    assert response.json() == {"agent": "claudecode", "activation": None,
+                               "applied_stages": ["integrate"]}
+    left = as_(client, "claudecode", "post", "/controller/activations/claim").json()
+    assert left["activation"]["stage"] == "author", "the filtered claim consumed it"
+
+
+def test_a_filter_that_matches_claims_and_reports_the_canonical_filter(client, queued_task):
+    issue_author(client)
+
+    body = as_(client, "claudecode", "post", "/controller/activations/claim",
+               json={"stages": ["integrate", "author", "author"]}).json()
+
+    assert body["activation"]["stage"] == "author"
+    assert body["applied_stages"] == ["author", "integrate"]
+
+
+def test_an_empty_body_or_omitted_stages_is_an_unfiltered_claim(client, queued_task):
+    issue_author(client)
+
+    body = as_(client, "claudecode", "post", "/controller/activations/claim", json={}).json()
+
+    assert body["activation"]["stage"] == "author"
+    assert "applied_stages" not in body
+
+
+@pytest.mark.parametrize("stages", [[], ["bogus"], "integrate", [1]])
+def test_a_filter_that_could_match_nothing_is_a_422(client, queued_task, stages):
+    issue_author(client)
+
+    response = as_(client, "claudecode", "post", "/controller/activations/claim",
+                   json={"stages": stages})
+
+    assert response.status_code == 422
+    left = as_(client, "claudecode", "post", "/controller/activations/claim").json()
+    assert left["activation"] is not None, "a refused claim consumed an activation"
