@@ -24,14 +24,45 @@ import claude_worker
 def guard(tmp_path, monkeypatch):
     """A worker whose rate state lives in a tmpdir, with a short window."""
     monkeypatch.setattr(claude_worker, "RATELIMIT_PATH", tmp_path / "rl")
+    monkeypatch.setattr(claude_worker, "USAGE_PATH", tmp_path / "usage")
     monkeypatch.setattr(claude_worker, "RATE_LIMIT_WARN_SECONDS", 100.0)
     monkeypatch.setattr(claude_worker, "RATE_LIMIT_COOLDOWN_SECONDS", 50.0)
-    monkeypatch.setattr(claude_worker, "_process_started_at", time.monotonic())
+    # Set initial usage to some example values
+    usage_example = [(time.monotonic() - 60, 30.0), (time.monotonic() - 30, 70.0)]
+    claude_worker._write_usage(usage_example)
     return claude_worker
 
 
 NOW = 1_000_000.0
 
+# --- New tests for rolling window and usage ----------------------------------
+
+def test_idle_and_paused_time_accrues_no_usage(guard):
+    """Verify that time outside model invocation does not increase usage."""
+    initial_usage = claude_worker._current_usage_total(NOW)
+    # Simulate idle time
+    time.sleep(0.1)
+    usage_after_idle = claude_worker._current_usage_total(NOW + 0.1)
+    assert usage_after_idle == initial_usage, "Idle time increased usage"
+
+def test_usage_older_than_rolling_window_is_purged(guard, monkeypatch):
+    """Verify that usage outside of the rolling window is excluded."""
+    monkeypatch.setattr(guard, "_process_usage_window", [(NOW - 60, 25.0)])
+    total_usage = guard._current_usage_total(NOW)
+    assert total_usage == 0.0, "Outdated usage was not purged from the rolling window"
+
+def test_a_corrupt_usage_file_does_not_hold_off(guard, monkeypatch, tmp_path):
+    """Verify behavior with a corrupt usage file."""
+    monkeypatch.setattr(guard, "USAGE_PATH", tmp_path / "corrupt_usage")
+    tmp_path.joinpath("corrupt_usage").write_text("not-a-json", encoding="utf-8")
+
+    # Act: Check if the system starts with new usage
+    total_usage = guard._current_usage_total(NOW)
+    assert total_usage == 0.0, "Non-zero total usage despite corrupt usage file (should default to 0)"
+
+    # No hold-off should still be in place
+    reason = guard.rate_limit_reason(now=NOW)
+    assert reason is None, f"Unexpected hold-off state: {reason}"
 
 # --- Tripping ---------------------------------------------------------------
 
@@ -42,8 +73,9 @@ def test_a_fresh_worker_is_not_held_off(guard):
 
 def test_crossing_the_window_starts_a_hold_off(guard, monkeypatch):
     monkeypatch.setattr(
-        guard, "_process_started_at", time.monotonic() - 200.0
+        guard, "_process_usage_window", [(NOW - 200.0, 130.0)]
     )
+    guard._write_usage(guard._process_usage_window)
 
     reason = guard.rate_limit_reason(now=NOW)
 
@@ -58,7 +90,10 @@ def test_the_deadline_is_recorded_on_disk(guard, monkeypatch):
     Restarting a process to escape a rate limit is exactly what should not
     work, and an in-memory deadline would make it work.
     """
-    monkeypatch.setattr(guard, "_process_started_at", time.monotonic() - 200.0)
+    monkeypatch.setattr(
+        guard, "_process_usage_window", [(NOW - 200.0, 130.0)]
+    )
+    guard._write_usage(guard._process_usage_window)
     guard.rate_limit_reason(now=NOW)
 
     recorded = float(guard.RATELIMIT_PATH.read_text(encoding="utf-8"))
@@ -67,9 +102,9 @@ def test_the_deadline_is_recorded_on_disk(guard, monkeypatch):
 
 
 def test_a_hold_off_survives_a_restart(guard, monkeypatch):
-    """Simulated by resetting the uptime baseline, which is what a restart does."""
+    """Simulated by resetting the usage baseline, which is what a restart does."""
     guard.RATELIMIT_PATH.write_text(str(NOW + 50.0), encoding="utf-8")
-    monkeypatch.setattr(guard, "_process_started_at", time.monotonic())
+    monkeypatch.setattr(guard, "_process_usage_window", [])
 
     assert guard.rate_limit_reason(now=NOW) is not None
 
@@ -92,7 +127,7 @@ def test_releasing_restarts_the_window_rather_than_tripping_again(guard, monkeyp
     a release that did not reset the baseline would immediately re-trip and the
     worker would never accept work again.
     """
-    monkeypatch.setattr(guard, "_process_started_at", time.monotonic() - 5000.0)
+    monkeypatch.setattr(guard, "_process_usage_window", [(NOW - 5000.0, 0.0)])
     guard.RATELIMIT_PATH.write_text(str(NOW), encoding="utf-8")
 
     assert guard.rate_limit_reason(now=NOW + 1) is None
@@ -155,3 +190,4 @@ def test_the_guard_is_consulted_before_any_claim(monkeypatch, control):
     assert queue.claims == 0, "a guarded worker asked for work"
     assert invocations == [], "a guarded worker called the model"
     assert queue.pending == [activation], "the activation was consumed"
+
