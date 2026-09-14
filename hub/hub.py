@@ -470,14 +470,18 @@ HTML_TEMPLATE = """
       display: flex;
       gap: 0.5rem;
     }
-    input {
+    #prompt {
       flex: 1;
       background: #131620;
       border: 1px solid var(--border);
       color: #fff;
       padding: 0.6rem 1rem;
       font-family: inherit;
+      font-size: inherit;
+      line-height: 1.4;
       border-radius: 4px;
+      resize: vertical;
+      min-height: 2.6rem;
     }
     button {
       background: #7aa2f7;
@@ -500,7 +504,9 @@ HTML_TEMPLATE = """
   <div id="chat-log"></div>
 
   <footer>
-    <input id="prompt" placeholder="Directive (e.g. @ClaudeCode or @ChatGPT)..." onkeydown="if(event.key==='Enter') sendMsg()"/>
+    <!-- A textarea, not an input: a command puts each field on its own line,
+         and an <input> drops line breaks. Enter sends; Shift+Enter is a new line. -->
+    <textarea id="prompt" rows="3" placeholder="Message, or a command such as @swarm <title> (Shift+Enter for a new line)" onkeydown="promptKey(event)"></textarea>
     <button onclick="sendMsg()">Send</button>
   </footer>
 
@@ -602,6 +608,15 @@ HTML_TEMPLATE = """
         }
       } catch (err) {
         console.error(err);
+      }
+    }
+
+    // Enter sends; Shift+Enter inserts a line break. Skipped while an input
+    // method is composing, so Enter that confirms an IME candidate does not send.
+    function promptKey(event) {
+      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        sendMsg();
       }
     }
 
