@@ -46,3 +46,10 @@ secrets.json
 # ever been source, so a pattern that has to be extended every time the
 # runtime grows a file is the wrong shape.
 control/
+
+# Runtime usage tracking file. Per-host state, not source.
+# This file tracks model usage for rate limiting.
+claude_worker.usage
+
+# Rate limit hold-off marker. Per-host state, not source.
+claude_worker.ratelimit

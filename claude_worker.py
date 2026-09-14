@@ -103,6 +103,9 @@ STATE_FILE = HERE / "claude_worker.state"
 # restarting to escape a rate limit is precisely what should not work.
 RATELIMIT_PATH = HERE / "claude_worker.ratelimit"
 
+# Model-time records; see rate_limit_reason.
+USAGE_PATH = HERE / "claude_worker.usage"
+
 # Written before a model is invoked and removed after the result is reported.
 # Its presence at startup means the process died mid-task. See main().
 INFLIGHT_PATH = HERE / "claude_worker.inflight"
@@ -152,18 +155,10 @@ HANDOFF_PREAMBLE = (
 
 # --- 5-hour usage guardrail -------------------------------------------------
 #
-# Anthropic's usage limits are enforced server-side and this worker cannot
-# see them directly; what it CAN see is its own wall-clock uptime, which is
-# a coarse but honest proxy since every accepted task spends real time
-# running `claude -p`. Once continuous uptime crosses the warn threshold,
-# new tasks stop being accepted (a task already running is unaffected) and
-# the hub gets a single alert. Restarting the process is what clears this,
-# matching the "restart to clear a stuck throttle" pattern used elsewhere in
-# this swarm.
-# How long this worker will run before it holds off, and how long it holds off
-# for. The window is a proxy: Anthropic enforces a rolling limit server-side
-# and this process cannot see it, but every accepted task spends real time in
-# `claude -p`, so continuous uptime is a coarse and honest stand-in.
+# Anthropic's limits are server-side, so the proxy is time inside `claude -p`,
+# which run_task records to USAGE_PATH. When model time in the rolling window
+# reaches this, new work stops and a hold-off is persisted. A restart clears
+# neither; idle time records nothing.
 RATE_LIMIT_WARN_SECONDS = float(
     os.environ.get("RATE_LIMIT_WARN_SECONDS", str(4.5 * 3600))
 )
@@ -300,10 +295,8 @@ def save_last_seen_id(message_id: int) -> None:
 # The 5-hour usage guard below is NOT part of that and still applies -- it
 # bounds spend against a real external limit, which containment does not.
 
-# Set once at import, which for this daemon is process start -- there is no
-# earlier "first API call" to anchor to, since accepting a task IS the API
-# call.
-_process_started_at = time.monotonic()
+# (started, seconds) records, loaded by main().
+_process_usage_window: list[tuple[float, float]] = []
 _rate_limit_alert_sent = False
 
 
@@ -316,6 +309,53 @@ def _read_holdoff() -> float:
         # rather than as an indefinite hold, because a file nothing can parse
         # would otherwise stop this worker forever.
         return 0.0
+
+
+def _read_usage() -> list[tuple[float, float]]:
+    """Persisted (started, seconds) records. Missing is empty; malformed warns."""
+    try:
+        raw = json.loads(USAGE_PATH.read_text(encoding="utf-8"))
+        if not isinstance(raw, list):
+            raise TypeError(type(raw).__name__)
+        return [(float(started), float(seconds)) for started, seconds in raw]
+    except FileNotFoundError:
+        return []
+    except (OSError, TypeError, ValueError):
+        log.warning("could not read usage file; treating as empty")
+        return []
+
+
+def _write_usage(usage_window: list[tuple[float, float]]) -> None:
+    """Persist the rolling window of usage seconds."""
+    try:
+        with open(USAGE_PATH, "w", encoding="utf-8") as f:
+            json.dump(usage_window, f)
+    except OSError as exc:
+        log.error("could not persist usage: %s", exc)
+
+
+def _purge_old_usage(now: float) -> None:
+    """Remove usage outside the rolling window."""
+    global _process_usage_window
+    cutoff = now - RATE_LIMIT_COOLDOWN_SECONDS
+    _process_usage_window = [
+        (timestamp, usage) for (timestamp, usage) in _process_usage_window
+        if timestamp >= cutoff
+    ]
+
+
+def _current_usage_total(now: float) -> float:
+    """Return the total usage seconds within the rolling window."""
+    _purge_old_usage(now)
+    return sum(usage for _, usage in _process_usage_window)
+
+
+def _record_usage(start_time: float, elapsed_time: float) -> None:
+    """Record model usage."""
+    global _process_usage_window
+    _process_usage_window.append((start_time, elapsed_time))
+    _purge_old_usage(start_time)
+    _write_usage(_process_usage_window)
 
 
 def _begin_holdoff(now: float) -> float:
@@ -331,9 +371,7 @@ def _begin_holdoff(now: float) -> float:
 
 
 def _end_holdoff() -> None:
-    """Clear the hold-off and start the uptime window again."""
-    global _process_started_at
-
+    """Clear the hold-off."""
     try:
         RATELIMIT_PATH.unlink()
     except FileNotFoundError:
@@ -341,17 +379,12 @@ def _end_holdoff() -> None:
     except OSError as exc:
         log.warning("could not clear the rate hold-off: %s", exc)
 
-    # The window restarts from now, not from process start. Without this the
-    # worker would trip again on its very next check and hold off forever.
-    _process_started_at = time.monotonic()
-
 
 def rate_limit_reason(now: float | None = None) -> str | None:
     """Why no new work should be claimed right now, or None to proceed.
 
     Recovers on its own. When the hold-off deadline passes, the deadline is
-    cleared, the uptime window restarts, and work resumes with no restart and
-    no operator action.
+    cleared, and work resumes with no restart and no operator action.
 
     Deliberately returns a reason rather than calling anything: this is
     consulted before the claim, so a guarded worker takes no activation and
@@ -372,12 +405,12 @@ def rate_limit_reason(now: float | None = None) -> str | None:
         log.info("rate hold-off has expired; accepting work again")
         return None
 
-    elapsed = time.monotonic() - _process_started_at
+    total_usage = _current_usage_total(now)
 
-    if elapsed >= RATE_LIMIT_WARN_SECONDS:
+    if total_usage >= RATE_LIMIT_WARN_SECONDS:
         until = _begin_holdoff(now)
         return (
-            f"worker uptime {elapsed / 3600:.1f}h reached the "
+            f"worker usage {total_usage/3600:.1f}h reached the "
             f"{RATE_LIMIT_WARN_SECONDS / 3600:.1f}h window; holding off for "
             f"{RATE_LIMIT_COOLDOWN_SECONDS / 3600:.1f}h"
         )
@@ -409,6 +442,9 @@ def run_task(claude_binary: str, task: str) -> tuple[str, int]:
         "text",
     ]
 
+    # Persisted start: wall clock (compared to time.time()). Duration: monotonic.
+    start_time = time.time()
+    started = time.monotonic()
     try:
         completed = subprocess.run(
             command,
@@ -432,14 +468,20 @@ def run_task(claude_binary: str, task: str) -> tuple[str, int]:
         partial = (exc.stdout or "") + (exc.stderr or "")
         if isinstance(partial, bytes):
             partial = partial.decode("utf-8", "replace")
+        elapsed_time = time.monotonic() - started
+        _record_usage(start_time, elapsed_time)
         return (
             f"[timed out after {TASK_TIMEOUT:.0f}s]\n{partial}",
             124,
         )
     except OSError as exc:
+        elapsed_time = time.monotonic() - started
+        _record_usage(start_time, elapsed_time)
         return (f"[could not execute {claude_binary}: {exc}]", 127)
 
     output = completed.stdout or ""
+    elapsed_time = time.monotonic() - started
+    _record_usage(start_time, elapsed_time)
 
     if completed.stderr:
         output = f"{output}\n[stderr]\n{completed.stderr}"
@@ -961,6 +1003,9 @@ def main() -> int:
         log.error("%s", exc)
         return 1
 
+    # Load usage state
+    global _process_usage_window
+    _process_usage_window = _read_usage()
 
     # Containment invariant, checked at startup rather than assumed.
     #
@@ -976,7 +1021,6 @@ def main() -> int:
             "but this worker has no audited path for chat-driven activation"
         )
         return 2
-
 
     # Resolved rather than invoked by bare name: on Windows the CLI is
     # usually a .cmd shim, which a non-shell subprocess will not find on
@@ -1058,7 +1102,7 @@ def main() -> int:
     log.info("chat        : narration only; it cannot start work")
     log.info("handoff    : %s", HANDOFF_PATH)
     log.info(
-        "rate guard : pause new tasks after %.1fh continuous uptime",
+        "rate guard : pause new tasks after %.1fh model usage",
         RATE_LIMIT_WARN_SECONDS / 3600,
     )
 
