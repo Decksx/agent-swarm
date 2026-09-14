@@ -27,9 +27,9 @@ def guard(tmp_path, monkeypatch):
     monkeypatch.setattr(claude_worker, "USAGE_PATH", tmp_path / "usage")
     monkeypatch.setattr(claude_worker, "RATE_LIMIT_WARN_SECONDS", 100.0)
     monkeypatch.setattr(claude_worker, "RATE_LIMIT_COOLDOWN_SECONDS", 50.0)
-    # Set initial usage to some example values
-    usage_example = [(time.monotonic() - 60, 30.0), (time.monotonic() - 30, 70.0)]
-    claude_worker._write_usage(usage_example)
+    # Every test starts from an empty in-memory window, so usage recorded by
+    # one test cannot leak into the next through the module global.
+    monkeypatch.setattr(claude_worker, "_process_usage_window", [])
     return claude_worker
 
 
@@ -64,6 +64,83 @@ def test_a_corrupt_usage_file_does_not_hold_off(guard, monkeypatch, tmp_path):
     reason = guard.rate_limit_reason(now=NOW)
     assert reason is None, f"Unexpected hold-off state: {reason}"
 
+
+# --- What a restart does and does not clear ---------------------------------
+
+
+def _restart(guard, monkeypatch):
+    """What a new process sees: an empty window, then whatever main() loads."""
+    monkeypatch.setattr(guard, "_process_usage_window", [])
+    monkeypatch.setattr(guard, "_process_usage_window", guard._read_usage())
+
+
+def test_unexpired_usage_survives_a_restart_and_still_trips(guard, monkeypatch):
+    """The restart escape the uptime guard had: a new process began at zero."""
+    guard._record_usage(NOW - 10.0, 150.0)
+
+    _restart(guard, monkeypatch)
+
+    assert guard._current_usage_total(NOW) == pytest.approx(150.0)
+    reason = guard.rate_limit_reason(now=NOW)
+    assert reason is not None and "holding off" in reason
+
+
+def test_expired_usage_reloaded_after_a_restart_no_longer_blocks(guard, monkeypatch):
+    guard._record_usage(NOW - 60.0, 150.0)  # older than the 50s window
+
+    _restart(guard, monkeypatch)
+
+    assert guard._current_usage_total(NOW) == 0.0
+    assert guard.rate_limit_reason(now=NOW) is None
+
+
+def test_run_task_records_wall_clock_time_a_later_process_can_compare(guard, monkeypatch):
+    """The defect this repair exists for.
+
+    Timestamps taken from time.monotonic() were compared against time.time()
+    cutoffs, so every record was already outside the window and purged: the
+    guard could never trip.
+    """
+    import subprocess
+
+    monkeypatch.setattr(
+        guard.subprocess, "run",
+        lambda *a, **kw: subprocess.CompletedProcess(a[0], 0, stdout="ok", stderr=""),
+    )
+    before = time.time()
+
+    guard.run_task("claude", "a task")
+
+    after = time.time()
+    (started, seconds), = guard._read_usage()
+    assert before <= started <= after
+    assert seconds >= 0.0
+    _restart(guard, monkeypatch)
+    assert guard._process_usage_window == [(started, seconds)]
+    assert guard._current_usage_total(after) == pytest.approx(seconds)
+
+
+# --- Missing is normal, malformed is survivable ------------------------------
+
+
+def test_a_missing_usage_file_is_empty_and_says_nothing(guard, caplog):
+    with caplog.at_level("WARNING"):
+        assert guard._read_usage() == []
+
+    assert not [r for r in caplog.records if r.levelname == "WARNING"]
+
+
+@pytest.mark.parametrize("junk", ["not-a-json", "{", "{}", "[1, 2]", '[["a", 1]]', "5"])
+def test_a_malformed_usage_file_warns_and_does_not_hold_off(guard, monkeypatch, caplog, junk):
+    guard.USAGE_PATH.write_text(junk, encoding="utf-8")
+
+    with caplog.at_level("WARNING"):
+        _restart(guard, monkeypatch)
+
+    assert guard._process_usage_window == []
+    assert [r for r in caplog.records if r.levelname == "WARNING"]
+    assert guard.rate_limit_reason(now=NOW) is None
+
 # --- Tripping ---------------------------------------------------------------
 
 
@@ -73,7 +150,7 @@ def test_a_fresh_worker_is_not_held_off(guard):
 
 def test_crossing_the_window_starts_a_hold_off(guard, monkeypatch):
     monkeypatch.setattr(
-        guard, "_process_usage_window", [(NOW - 200.0, 130.0)]
+        guard, "_process_usage_window", [(NOW - 10.0, 130.0)]  # inside the 50s window
     )
     guard._write_usage(guard._process_usage_window)
 
@@ -91,7 +168,7 @@ def test_the_deadline_is_recorded_on_disk(guard, monkeypatch):
     work, and an in-memory deadline would make it work.
     """
     monkeypatch.setattr(
-        guard, "_process_usage_window", [(NOW - 200.0, 130.0)]
+        guard, "_process_usage_window", [(NOW - 10.0, 130.0)]  # inside the 50s window
     )
     guard._write_usage(guard._process_usage_window)
     guard.rate_limit_reason(now=NOW)
