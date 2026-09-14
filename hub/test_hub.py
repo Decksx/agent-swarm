@@ -604,6 +604,18 @@ def test_the_box_value_is_sent_with_its_line_breaks(client):
     assert "replace(/\n" not in send and "split('\n')" not in send
 
 
+def test_the_header_shows_the_loaded_controller_build_id(client):
+    """The page names the same build /controller/status reports as loaded."""
+    from controller import build
+
+    page = client.get("/", headers=basic("admin", "admin-secret")).text
+    build_id = build.loaded()["build_id"]
+
+    assert build_id
+    assert f'<span id="build-id" style="color: #565f89; font-size: 0.85rem;">build {build_id}</span>' in page
+    assert "__BUILD_ID__" not in page
+
+
 def test_a_multi_line_command_through_the_route_is_drafted(hub, client, ingress_env):
     client.post("/send", json={"target": "@swarm", "content": INGRESS_COMMAND},
                 headers=basic("admin", "admin-secret"))
