@@ -281,7 +281,7 @@ def test_the_launcher_provides_exactly_what_the_worker_demands(checkout):
     """
     import re
 
-    source = (REPO_ROOT / "claude_worker.py").read_text(encoding="utf-8")
+    source = (REPO_ROOT / "claude_integration.py").read_text(encoding="utf-8")
     block = source[source.index("def execute_integration"):]
     block = block[:block.index("refuse(f\"{name} is not configured")]
     demanded = set(re.findall(r'"(INTEGRATION_[A-Z_]+)"', block))
