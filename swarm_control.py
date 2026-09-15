@@ -214,7 +214,9 @@ def load_credential(env_var: str, *, env: dict | None = None) -> str:
 # backstop, not a licence to pass secrets around: nothing in this repository
 # should be constructing a string containing a key in the first place.
 _SECRET_RE = re.compile(
-    r"(sk-proj-[A-Za-z0-9_\-]{8,}|sk-[A-Za-z0-9_\-]{8,}|AIza[A-Za-z0-9_\-]{8,})"
+    r"(sk-proj-[A-Za-z0-9_\-]{8,}|sk-[A-Za-z0-9_\-]{8,}|AIza[A-Za-z0-9_\-]{8,}"
+    # GitHub tokens, now that workers push and open pull requests (#32).
+    r"|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})"
 )
 
 

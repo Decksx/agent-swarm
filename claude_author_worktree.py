@@ -20,17 +20,22 @@ So a controller activation now gets what the API author already had:
 * a snapshot of the canonical checkout's HEAD and branch, compared after the
   run -- a session that reached out of its worktree is caught, not trusted;
 * a candidate that is reported only if it is a clean commit beyond the base,
-  on exactly the expected branch.
+  on exactly the expected branch;
+* and, when the project publishes (#32), that candidate pushed and its pull
+  request opened before it is reported, so CI runs while review happens.
 
 Refusals before the run are `blocked`: the fix is an operator repairing the
 environment, not the author trying again. A moved canonical checkout is also
 `blocked`, whatever the run's exit code, because somebody has to look at it.
 A run that left its work anywhere but a clean commit on the expected branch
 is `failed` -- that is the author's mistake, and a retry is the right answer.
+A good candidate that cannot be published is `blocked`: the remote or the
+forge needs a person, not the author.
 
-This module never calls a model and never writes to the canonical checkout.
-The branch ref it creates lives in the shared object store, which is how a
-reviewer reading the canonical repository finds the candidate.
+This module never calls a model and never writes to the canonical checkout's
+working tree or HEAD. The branch ref it creates lives in the shared object
+store, which is how a reviewer reading the canonical repository finds the
+candidate, and publishing pushes from there by SHA.
 """
 
 from __future__ import annotations
@@ -38,9 +43,11 @@ from __future__ import annotations
 import logging
 import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
+import publication
 import repo_registry
 import worktrees
 
@@ -61,6 +68,8 @@ class Workspace:
     base_sha: str
     branch: str
     canonical: tuple
+    publish: Optional[publication.Target] = None
+    record: dict = field(default_factory=dict)
 
 
 def _git(repo, *args: str) -> subprocess.CompletedProcess:
@@ -114,6 +123,13 @@ def open_for(activation: dict, project_name: str) -> Workspace:
     except worktrees.WorktreeError as exc:
         raise Refused(str(exc)) from exc
 
+    # Decided before the model is called: a task that must be published and
+    # has nowhere to go is refused now, not after the call has been spent.
+    try:
+        target = publication.target_for(project, record.get("proof_mode"))
+    except publication.PublicationError as exc:
+        raise Refused(str(exc)) from exc
+
     canonical = snapshot(project.path)
 
     try:
@@ -135,7 +151,8 @@ def open_for(activation: dict, project_name: str) -> Workspace:
         )
 
     log.info("authoring in %s on %s at %s", path, branch, base[:12])
-    return Workspace(project, name, Path(path), base, branch, canonical)
+    return Workspace(project, name, Path(path), base, branch, canonical,
+                     publish=target, record=dict(record))
 
 
 def briefing(ws: Workspace) -> str:
@@ -199,7 +216,29 @@ def settle(ws: Workspace, exit_code: int) -> tuple:
             "entries; the commit is not the whole of the change"
         )}
 
-    return "candidate", {"candidate_sha": head, "branch": ws.branch}
+    found = {"candidate_sha": head, "branch": ws.branch}
+
+    if ws.publish is None:
+        return "candidate", found
+
+    # Before the report, so `candidate_submitted` names the pull request, and
+    # a failure is reported as what it is. The authored commit is named under
+    # another key: only a submitted candidate carries `candidate_sha`.
+    try:
+        published = publication.publish_for(
+            ws.project, ws.publish, branch=ws.branch, candidate_sha=head,
+            task_record=ws.record, activation_id=ws.name,
+        )
+    except publication.PublicationError as exc:
+        log.error("could not publish %s: %s", ws.branch, exc)
+        return "blocked", {
+            "reason": f"the candidate was authored but could not be "
+                      f"published: {exc}",
+            "authored_sha": head, "branch": ws.branch,
+        }
+
+    log.info("published %s as PR #%s", ws.branch, published.get("pr_number"))
+    return "candidate", {**published, **found}
 
 
 def _remove(project, name: str, *, force: bool = True) -> None:

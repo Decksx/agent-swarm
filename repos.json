@@ -9,6 +9,10 @@
     "path": "C:\\git\\agent-swarm",
     "repo_id": "0dc8a2e4d227ab03",
     "planning_ref": "refs/heads/main",
-    "worktree_root": "C:\\git\\.swarm-worktrees\\agenthub"
+    "worktree_root": "C:\\git\\.swarm-worktrees\\agenthub",
+    "publish": {
+      "repo_slug": "Decksx/agent-swarm",
+      "target_ref": "refs/heads/main"
+    }
   }
 }

@@ -509,43 +509,27 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
     # step because the cost of the misconfiguration is the call, and the call
     # is about to happen.
     #
-    # `branch_only` is the exception, and it has to be explicit. A task whose
-    # candidate is genuinely not meant to leave this machine is a real thing
-    # -- the MVP demonstrations were exactly that -- but it is a decision
-    # somebody makes about a task, not a state a host drifts into by having an
-    # unset variable.
-    # The task's own proof mode, from the controller. `branch_only` says the
-    # candidate is deliberately not meant to leave this machine.
-    #
-    # This used to read a `branch_only` key, which nothing ever wrote: the
-    # controller stores it as `task_versions.proof_mode` and `get_task` did not
-    # return that column, so the check was against a field that could only ever
-    # be absent -- which made every real task publishable-or-blocked and the
-    # exception unreachable through the API.
-    branch_only = str(task_record.get("proof_mode") or "").strip() == "branch_only"
-
-    if not PUBLISH_REPO_SLUG and not branch_only:
-        log.error(
-            "activation %s: PUBLISH_REPO_SLUG is not set and %s is not "
-            "branch_only", activation_id, task_id,
+    # Where the candidate goes is `publication.target_for`: the project's
+    # `publish` block in repos.json, else this host's PUBLISH_REPO_SLUG, else
+    # nowhere -- which only a `branch_only` task may accept (#32). The proof
+    # mode is the task's own, from the controller's `task_versions`.
+    try:
+        publish_target = publication.target_for(
+            project, task_record.get("proof_mode"),
+            fallback_slug=PUBLISH_REPO_SLUG,
+            fallback_target_ref=PUBLISH_TARGET_REF,
         )
+    except publication.PublicationError as exc:
+        log.error("activation %s: %s", activation_id, exc)
 
         try:
             worktrees.remove(project, activation_id)
-        except worktrees.WorktreeError as exc:
+        except worktrees.WorktreeError as rm_exc:
             log.warning("could not remove the worktree for %s: %s",
-                        activation_id, exc)
+                        activation_id, rm_exc)
 
-        queue.report(activation_id, outcome="blocked", payload={
-            "reason": (
-                "PUBLISH_REPO_SLUG is not configured on this host, so a "
-                "candidate could be authored but not published -- no reviewer "
-                "could reach it and no CI could run against it. Refusing "
-                "before the model call. Set it, or mark the task branch_only "
-                "if the candidate is deliberately not meant to leave this "
-                "machine."
-            ),
-        })
+        queue.report(activation_id, outcome="blocked",
+                     payload={"reason": str(exc)})
         return
 
     # What the files it may change look like right now. Without this an author
@@ -736,17 +720,13 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
     # reviewer can reach.
     published = {}
 
-    if PUBLISH_REPO_SLUG and not branch_only:
+    if publish_target is not None:
         try:
-            published = publication.publish_candidate(
-                str(project.path),
+            published = publication.publish_for(
+                project, publish_target,
                 branch=result["branch"],
                 candidate_sha=result["candidate_sha"],
-                repo_slug=PUBLISH_REPO_SLUG,
-                target_ref=PUBLISH_TARGET_REF,
-                task_id=task_id,
-                title=str(task_record.get("title") or ""),
-                objective=str(task_record.get("objective") or ""),
+                task_record={**task_record, "task_id": task_id},
                 activation_id=str(activation_id),
             )
             log.info(

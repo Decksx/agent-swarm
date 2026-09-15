@@ -42,12 +42,79 @@ guarantee it runs once.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
+from dataclasses import dataclass
 from typing import Optional
+
+import swarm_control
 
 
 class PublicationError(Exception):
     """The candidate could not be published, and why."""
+
+
+@dataclass(frozen=True)
+class Target:
+    """Where one project's candidates go: a forge repository and its branch."""
+
+    repo_slug: str
+    target_ref: str
+
+
+def target_for(
+    project, proof_mode: str, *, fallback_slug: str = "",
+    fallback_target_ref: str = "",
+) -> Optional[Target]:
+    """Where this task's candidate is published, None to keep it local, or refuse.
+
+    The project's `publish` block in repos.json decides first (#32): where a
+    repository's candidates go is a property of the repository, so a project
+    that publishes publishes every candidate, `branch_only` included. That is
+    what lets a chat-started task reach review with its pull request already
+    open and CI already running.
+
+    A host's `PUBLISH_REPO_SLUG` is the fallback, for projects with no block.
+    With neither, a `branch_only` task stays on this machine as it always
+    has, and any other task is refused -- before the model is called, which
+    is when callers ask -- because a candidate that must be published and
+    cannot be is a model call spent on something nobody can review.
+    """
+    slug = getattr(project, "publish_repo_slug", "") or ""
+
+    if slug:
+        return Target(slug, project.publish_target_ref)
+
+    if fallback_slug:
+        return Target(fallback_slug, fallback_target_ref)
+
+    if str(proof_mode or "").strip() == "branch_only":
+        return None
+
+    raise PublicationError(
+        f"project {getattr(project, 'name', project)!r} has no publish block "
+        "in repos.json and PUBLISH_REPO_SLUG is not configured on this host, "
+        "so a candidate could be authored but not published -- no reviewer "
+        "could reach it and no CI could run against it. Refusing before the "
+        "model call. Configure one, or mark the task branch_only if the "
+        "candidate is deliberately not meant to leave this machine."
+    )
+
+
+# Userinfo in a URL -- `https://user:token@host/` -- as git prints it when a
+# remote was configured with credentials in it.
+_URL_USERINFO = re.compile(r"(\b[a-z][a-z0-9+.-]*://)[^/@\s]+@", re.IGNORECASE)
+
+
+def scrub(text: str, limit: int = 400) -> str:
+    """Forge output made safe to log or report: no credentials, bounded.
+
+    git and gh print remote URLs in their errors, and a remote configured
+    with a token in its URL prints the token with it. Applied to every
+    message this module raises, so a caller never has to remember to.
+    """
+    cleaned = _URL_USERINFO.sub(r"\1[REDACTED]@", str(text or ""))
+    return swarm_control.redact(cleaned).strip()[:limit]
 
 
 def _git(repo: str, *args: str) -> subprocess.CompletedProcess:
@@ -188,6 +255,41 @@ def ensure_pull_request(
         )
 
     return {"pr_number": number, "pr_url": url, "created": True}
+
+
+def publish_for(
+    project,
+    target: Target,
+    *,
+    branch: str,
+    candidate_sha: str,
+    task_record: dict,
+    activation_id: str = "",
+) -> dict:
+    """Publish one verified candidate of `project` to `target`. Or refuse.
+
+    The one publishing call both authors make, after their own verification
+    and before they report, so the `candidate_submitted` payload records the
+    pull request. Pushed from the canonical checkout's object store by SHA,
+    which reads no working tree and moves no HEAD. Every refusal's message is
+    scrubbed of credentials.
+    """
+    record = task_record or {}
+
+    try:
+        return publish_candidate(
+            str(project.path),
+            branch=branch,
+            candidate_sha=candidate_sha,
+            repo_slug=target.repo_slug,
+            target_ref=target.target_ref,
+            task_id=str(record.get("task_id") or ""),
+            title=str(record.get("title") or ""),
+            objective=str(record.get("objective") or ""),
+            activation_id=str(activation_id or ""),
+        )
+    except PublicationError as exc:
+        raise PublicationError(scrub(str(exc))) from None
 
 
 def publish_candidate(
