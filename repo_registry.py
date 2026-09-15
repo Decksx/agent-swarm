@@ -34,6 +34,12 @@ What each entry states
                      warning nobody reads. A full refname cannot be ambiguous.
 * `worktree_root` -- where task execution happens. Never inside the canonical
                      checkout, which is dirty and stays that way.
+* `publish`       -- optional. `{"repo_slug": "owner/name", "target_ref":
+                     "refs/heads/main"}`: where this project's candidates are
+                     pushed and proposed as pull requests (#32). A property of
+                     the repository, not of a task, so every candidate for the
+                     project is published whatever its proof mode. Absent means
+                     nothing is published unless a host says otherwise.
 * `plannable`     -- optional, defaults to true. False means no new work may be
                      planned against this project. Resolution still succeeds:
                      a task already in flight can be authored, reviewed and
@@ -74,6 +80,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
@@ -113,9 +120,11 @@ class Project:
     planning_ref: str
     worktree_root: Path
     plannable: bool = True
+    publish_repo_slug: str = ""
+    publish_target_ref: str = ""
 
     def as_dict(self) -> dict:
-        return {
+        entry = {
             "name": self.name,
             "path": str(self.path),
             "repo_id": self.repo_id,
@@ -123,6 +132,12 @@ class Project:
             "worktree_root": str(self.worktree_root),
             "plannable": self.plannable,
         }
+
+        if self.publish_repo_slug:
+            entry["publish"] = {"repo_slug": self.publish_repo_slug,
+                                "target_ref": self.publish_target_ref}
+
+        return entry
 
 
 @dataclass(frozen=True)
@@ -143,6 +158,11 @@ class Resolved:
 
 
 REQUIRED = ("path", "repo_id", "planning_ref", "worktree_root")
+
+# `owner/name`, as GitHub spells it. Checked rather than passed through,
+# because the slug is handed to `gh --repo` and a value like `--help` or
+# `a/b/c` would be an argument or a different endpoint instead of a repository.
+REPO_SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9_.-]+$")
 
 
 def _is_inside(child: Path, parent: Path) -> bool:
@@ -194,6 +214,8 @@ def parse(name: str, entry: dict) -> Project:
             f"{name}: plannable is {plannable!r}; it must be true or false"
         )
 
+    slug, target_ref = _parse_publish(name, entry.get("publish"))
+
     if _is_inside(worktree_root, path):
         raise RegistryError(
             f"{name}: worktree_root {worktree_root} is inside the canonical "
@@ -208,7 +230,47 @@ def parse(name: str, entry: dict) -> Project:
         planning_ref=ref,
         worktree_root=worktree_root,
         plannable=plannable,
+        publish_repo_slug=slug,
+        publish_target_ref=target_ref,
     )
+
+
+def _parse_publish(name: str, block) -> tuple:
+    """(repo_slug, target_ref) from an entry's `publish` block, or two blanks.
+
+    Strict, because this is the setting that lets a worker push to a real
+    remote: no unknown keys, no bare branch names, no half-filled block. A
+    typo that silently turned publishing off -- or on, somewhere else -- is
+    the failure it exists to prevent.
+    """
+    if block is None:
+        return "", ""
+
+    if not isinstance(block, dict):
+        raise RegistryError(f"{name}: publish must be an object")
+
+    unknown = sorted(set(block) - {"repo_slug", "target_ref"})
+
+    if unknown:
+        raise RegistryError(f"{name}: publish has unknown keys {unknown}")
+
+    slug = block.get("repo_slug")
+    ref = block.get("target_ref")
+
+    if not isinstance(slug, str) or not REPO_SLUG.match(slug):
+        raise RegistryError(
+            f"{name}: publish.repo_slug must be owner/name, not {slug!r}"
+        )
+
+    branch = ref[len("refs/heads/"):] if isinstance(ref, str) else ""
+
+    if not isinstance(ref, str) or not ref.startswith("refs/heads/") or not branch:
+        raise RegistryError(
+            f"{name}: publish.target_ref must be a full branch refname such "
+            f"as refs/heads/main, not {ref!r}"
+        )
+
+    return slug, ref
 
 
 def load(path: Optional[Path] = None) -> Dict[str, Project]:
