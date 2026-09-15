@@ -84,6 +84,33 @@ def execute_integration(
         )
         return
 
+    # How long to wait for the candidate's CI before refusing (#32), how
+    # often to look, and the lease each look renews. Refused when unreadable
+    # rather than defaulted: a typo must not turn the wait off, or into one
+    # that outlives the lease.
+    try:
+        ci_wait = float(os.environ.get("INTEGRATION_CI_WAIT_SECONDS", "1500"))
+        ci_poll = float(os.environ.get("INTEGRATION_CI_POLL_SECONDS", "30"))
+        lease = float(os.environ.get("INTEGRATION_LEASE_SECONDS", "900"))
+    except ValueError as exc:
+        refuse(f"an INTEGRATION_CI_* setting is not a number: {exc}",
+               outcome="blocked")
+        return
+
+    if ci_wait < 0 or not 0 < ci_poll < lease:
+        refuse(
+            f"INTEGRATION_CI_WAIT_SECONDS={ci_wait:g} must not be negative, and "
+            f"INTEGRATION_CI_POLL_SECONDS={ci_poll:g} must be above zero and "
+            f"below INTEGRATION_LEASE_SECONDS={lease:g}, or the lease lapses "
+            "between heartbeats",
+            outcome="blocked",
+        )
+        return
+
+    def heartbeat() -> None:
+        if queue is not None and hasattr(queue, "heartbeat"):
+            queue.heartbeat(activation_id, lease)
+
     try:
         import integrator
     except ImportError as exc:
@@ -91,8 +118,8 @@ def execute_integration(
         return
 
     log.info(
-        "INTEGRATING activation %s for task %s from %s",
-        activation_id, task_id, branch,
+        "INTEGRATING activation %s for task %s from %s (waiting up to %gs "
+        "for CI)", activation_id, task_id, branch, ci_wait,
     )
 
     try:
@@ -109,6 +136,9 @@ def execute_integration(
                 if name.strip()
             ],
             actor=actor,
+            ci_wait_seconds=ci_wait,
+            ci_poll_seconds=ci_poll,
+            heartbeat=heartbeat,
         )
     except integrator.IntegrationRefused as exc:
         # Every refusal before the push leaves nothing changed. A refusal
