@@ -56,6 +56,16 @@ DEFAULT_DIFF_BUDGET = 60_000
 REMOVAL_LINE_BUDGET = 200
 HUNK_HEADER = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@")
 
+# Configuration a change starts reading, and how far the packet chases it (#34).
+CONFIG_NAME_BUDGET = 20
+CONFIG_SAMPLE_PATHS = 4
+CONFIG_READS = (
+    re.compile(r"""os\.environ\.get\(\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*(?:,\s*([^)]*))?\)"""),
+    re.compile(r"""os\.getenv\(\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*(?:,\s*([^)]*))?\)"""),
+    re.compile(r"""os\.environ\[\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*\]"""),
+    re.compile(r"""process\.env\.([A-Za-z_][A-Za-z0-9_]*)"""),
+)
+
 
 class PacketError(Exception):
     """The repository could not answer a question the packet needs."""
@@ -151,6 +161,87 @@ def pure_deletions(repo: str, base_sha: str, candidate_sha: str) -> tuple:
     return [hunk for hunk in found if hunk["lines"]], truncated
 
 
+def _added_lines(diff_text: str) -> list:
+    """The lines a diff adds, read by hunk count so content is never a header."""
+    added, removing, adding = [], 0, 0
+
+    for line in diff_text.splitlines():
+        if removing or adding:
+            if line.startswith("-") and removing:
+                removing -= 1
+            elif line.startswith("+") and adding:
+                adding -= 1
+                added.append(line[1:])
+            continue
+
+        header = HUNK_HEADER.match(line)
+
+        if header:
+            removing = int(header.group(2) if header.group(2) is not None else 1)
+            adding = int(header.group(3) if header.group(3) is not None else 1)
+
+    return added
+
+
+def configuration_reads(repo: str, base_sha: str, candidate_sha: str) -> list:
+    """[{name, default, elsewhere, only_tests}] for configuration the change starts reading.
+
+    T-CMD-614eafb32c asked for the controller's build id in the hub header.
+    The candidate read `os.environ.get("CONTROLLER_BUILD_ID", "unknown")` --
+    a variable nothing in the repository sets, so the page would have shown
+    "unknown" forever -- and its test passed because the test supplied the
+    value. The review named the broken test and an unrelated deletion, not
+    that.
+
+    A name is looked for everywhere else at the candidate commit, and where it
+    is found is reported rather than judged: the packet cannot see a
+    deployment's own environment, so "nowhere else in the repository" is a
+    question for the reviewer, not a verdict. Finding it only under tests is
+    the case above, and is marked.
+    """
+    diff_text = _git(repo, "diff", "-U0", "--no-color", "--no-ext-diff",
+                     f"{base_sha}..{candidate_sha}")
+    changed = {
+        line.split("\t")[-1].strip()
+        for line in _git(repo, "diff", "--name-only", f"{base_sha}..{candidate_sha}").splitlines()
+        if line.strip()
+    }
+
+    found: dict = {}
+
+    for line in _added_lines(diff_text):
+        for pattern in CONFIG_READS:
+            for match in pattern.finditer(line):
+                name = match.group(1)
+                default = ""
+
+                if pattern.groups > 1 and match.lastindex and match.lastindex > 1:
+                    default = (match.group(2) or "").strip()
+
+                if name not in found and len(found) < CONFIG_NAME_BUDGET:
+                    found[name] = default
+
+    reads = []
+
+    for name, default in found.items():
+        hits = _git(repo, "grep", "-l", "--fixed-strings", "-e", name, candidate_sha,
+                    check=False).splitlines()
+        elsewhere = sorted({
+            hit.split(":", 1)[1] for hit in hits if ":" in hit
+        } - changed)
+        reads.append({
+            "name": name,
+            "default": default,
+            "elsewhere": elsewhere[:CONFIG_SAMPLE_PATHS],
+            "elsewhere_count": len(elsewhere),
+            "only_tests": bool(elsewhere) and all(
+                path.startswith("tests/") or "test_" in path for path in elsewhere
+            ),
+        })
+
+    return reads
+
+
 def build(
     repo: str,
     *,
@@ -226,6 +317,7 @@ def build(
         diff = diff.encode("utf-8")[:diff_budget].decode("utf-8", "ignore")
 
     removals, removals_truncated = pure_deletions(repo, base_sha, candidate_sha)
+    reads = configuration_reads(repo, base_sha, candidate_sha)
 
     return {
         "task_id": task.get("task_id"),
@@ -244,6 +336,7 @@ def build(
         "diff_truncated": truncated,
         "pure_deletions": removals,
         "pure_deletions_truncated": removals_truncated,
+        "configuration_reads": reads,
         "author_summary": author_summary,
         "test_output": test_output,
     }
@@ -309,6 +402,29 @@ def render(packet: dict) -> str:
         if packet.get("pure_deletions_truncated"):
             parts += ["", "  [more removed lines are not listed here; see the full diff]"]
 
+    if packet.get("configuration_reads"):
+        parts += [
+            "",
+            "CONFIGURATION THIS CHANGE STARTS READING",
+            "Where each name appears elsewhere at the candidate commit. A name "
+            "nothing else provides means the production path runs on its default, "
+            "whatever the tests do; a name provided only by tests means the test "
+            "supplies the value the code reads, which proves nothing about "
+            "production. Either is CHANGES_REQUESTED unless the objective or the "
+            "acceptance criteria say who sets it -- the repository cannot show a "
+            "deployment's own environment, so say which you are relying on.",
+        ]
+
+        for read in packet["configuration_reads"]:
+            default = f' (default {read["default"]})' if read["default"] else ""
+            extra = read["elsewhere_count"] - len(read["elsewhere"])
+            where = ", ".join(read["elsewhere"]) + (f" (+{extra} more)" if extra > 0 else "")
+            parts.append(
+                f"  {read['name']}{default} -- "
+                + ("named nowhere else in the repository" if not read["elsewhere"]
+                   else ("only in tests: " if read["only_tests"] else "also in: ") + where)
+            )
+
     parts += [
         "",
         "TEST RESULTS",
@@ -324,7 +440,12 @@ def render(packet: dict) -> str:
         "VERDICT: <APPROVE|CHANGES_REQUESTED|BLOCKED>",
         "RATIONALE: <one to five sentences saying why, citing the diff>",
         "",
-        "APPROVE means the diff meets the objective and acceptance criteria.",
+        "APPROVE means the diff meets the objective and acceptance criteria "
+        "through the code path that runs in production, not only under test. A "
+        "test that supplies the value the code reads proves nothing about "
+        "production, and a mock, placeholder or simulated value standing in for "
+        "the real source is CHANGES_REQUESTED -- name the real source when the "
+        "diff or the packet shows it.",
         "CHANGES_REQUESTED means it does not, and the author should try again.",
         "BLOCKED means you could not judge it -- missing evidence, a truncated "
         "diff you cannot work around, or something wrong with the packet "
