@@ -666,7 +666,8 @@ def handle_message(conn: sqlite3.Connection, *, sender: str, content: str, proje
                         "when a candidate is ready; nothing was started.")
             raise IngressRefused(
                 "@Gemini reviews through the pipeline and cannot start new work. "
-                "Start work with @swarm, @ChatGPT or @ClaudeCode, or ask `@Gemini status T-<id>`."
+                "Start work with @swarm, @ChatGPT or @ClaudeCode, ask `@Gemini status T-<id>`, "
+                "`@swarm retry T-<id>` or `@swarm cancel T-<id> <reason>`."
             )
 
         word = tokens[1].lower() if len(tokens) >= 2 else ""
