@@ -361,6 +361,14 @@ def test_a_lifecycle_command_is_one_line(conn, rejected):
     assert len(author_rows(conn, rejected)) == 1
 
 
+def test_the_gemini_refusal_names_retry_and_cancel(conn, rejected):
+    reply = send(conn, f"@Gemini retry {rejected}")
+
+    assert reply.startswith("Not accepted:")
+    assert "`@swarm retry T-<id>`" in reply
+    assert "`@swarm cancel T-<id> <reason>`" in reply
+
+
 def test_a_multi_line_task_titled_retry_still_drafts(conn):
     reply = send(conn, COMMAND.replace("Show stage filters", "retry flaky status test"))
 
