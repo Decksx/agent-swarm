@@ -92,7 +92,7 @@ def test_the_heading_is_not_a_promise_the_prompt_breaks(scope):
 
     heading = prompt.index("OBJECTIVE AND ACCEPTANCE CRITERIA")
     criteria = prompt.index("No placeholder.")
-    answer_rules = prompt.index("Answer with one or more file blocks")
+    answer_rules = prompt.index("Answer with one or more blocks")
 
     assert heading < criteria < answer_rules
 

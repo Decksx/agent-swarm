@@ -70,6 +70,7 @@ from pathlib import Path
 from typing import Any
 
 import authored_change
+import authored_edits
 import controller_client
 import publication
 import repo_registry
@@ -615,29 +616,63 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
     log.info("AUTHORING activation %s for task %s", activation_id, task_id)
     started = time.monotonic()
 
-    reply = generate_reply(
-        client,
-        [{"sender": "controller", "target": "@" + AGENT_IDENTITY, "content": prompt}],
-    )
-    elapsed = time.monotonic() - started
+    conversation = [
+        {"sender": "controller", "target": "@" + AGENT_IDENTITY, "content": prompt},
+    ]
+    reply = generate_reply(client, conversation)
+    repaired = False
 
-    if reply is None:
-        log.warning("no reply for activation %s after %.1fs", activation_id, elapsed)
-        queue.report(activation_id, outcome="blocked",
-                     payload={"reason": "the model returned nothing"})
-        return
+    while True:
+        elapsed = time.monotonic() - started
 
-    try:
-        files = authored_change.parse_files(reply)
-    except authored_change.AuthoringError as exc:
+        if reply is None:
+            log.warning("no reply for activation %s after %.1fs", activation_id, elapsed)
+            queue.report(activation_id, outcome="blocked",
+                         payload={"reason": "the model returned nothing"})
+            return
+
+        # Existing files change only through EDIT blocks, resolved against the
+        # base before anything is written (#35); see `authored_edits`.
+        try:
+            files = authored_edits.resolve(
+                str(workspace), base_sha, authored_edits.parse_answer(reply), scope)
+            break
+        except authored_edits.EditRefused as exc:
+            if repaired:
+                failure = f"{exc} (after one repair)"
+            else:
+                # Once, inside this activation. A SEARCH copied with the wrong
+                # indentation is a transcription slip, not a verdict on the
+                # change, and should not cost an author attempt; the second
+                # answer that cannot be applied does.
+                log.warning("activation %s: answer not applicable, asking once "
+                            "more: %s", activation_id, exc)
+                conversation += [
+                    {"sender": AGENT_IDENTITY, "target": "@controller", "content": reply},
+                    {"sender": "controller", "target": "@" + AGENT_IDENTITY,
+                     "content": authored_edits.repair_prompt(exc, str(workspace), base_sha)},
+                ]
+                reply = generate_reply(client, conversation)
+                repaired = True
+                continue
+        except authored_change.AuthoringError as exc:
+            failure = str(exc)
+
         # `failed` rather than `blocked`: the model answered, and the answer
         # was not usable. That is a fact about the attempt, which is what
         # CHANGES_REQUESTED is for.
-        log.error("activation %s produced an unusable answer: %s", activation_id, exc)
+        log.error("activation %s produced an unusable answer: %s", activation_id, failure)
+
+        try:
+            worktrees.remove(project, activation_id)
+        except worktrees.WorktreeError as rm_exc:
+            log.warning("could not remove the worktree for %s: %s", activation_id, rm_exc)
+
         queue.report(activation_id, outcome="failed", payload={
-            "reason": str(exc),
+            "reason": failure,
             "reply_excerpt": swarm_control.redact(reply)[:1000],
             "elapsed_seconds": round(elapsed, 1),
+            "repaired": repaired,
         })
         return
 
