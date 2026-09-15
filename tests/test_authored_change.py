@@ -237,7 +237,9 @@ def test_the_prompt_carries_the_objective_and_the_contract():
     assert "Create notes/hello.txt with one line." in prompt
     assert authored_change.BEGIN in prompt
     assert authored_change.END in prompt
-    assert "COMPLETE contents" in prompt
+    # Existing files change through EDIT blocks, never a whole-file rewrite (#35).
+    assert "<<<SEARCH>>>" in prompt and "<<<REPLACE>>>" in prompt
+    assert "A FILE block for a file that exists is refused" in prompt
 
 
 # --- allowed_paths ----------------------------------------------------------

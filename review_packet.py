@@ -41,6 +41,7 @@ where the reviewer will see it rather than hidden.
 
 from __future__ import annotations
 
+import re
 import subprocess
 from typing import Optional
 
@@ -49,6 +50,11 @@ import authored_change
 # Generous enough for an ordinary change, small enough that a runaway diff is
 # reported as one instead of silently filling a prompt.
 DEFAULT_DIFF_BUDGET = 60_000
+
+# How much of the removed-lines report the reviewer is shown (#35). The full
+# diff already carries every line; this is the part a reviewer must not miss.
+REMOVAL_LINE_BUDGET = 200
+HUNK_HEADER = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@")
 
 
 class PacketError(Exception):
@@ -92,6 +98,57 @@ def is_reachable_from(repo: str, commit: str, ref: str) -> bool:
     )
 
     return result.returncode == 0
+
+
+def pure_deletions(repo: str, base_sha: str, candidate_sha: str) -> tuple:
+    """([{path, start, lines}], truncated): hunks that remove lines and add none.
+
+    The shape of the defect #35 is about. An author regenerating a file drops
+    a block it was never asked to touch, and in the diff that block is a hunk
+    with minus lines and no plus lines -- easy to scroll past in a long diff,
+    and deterministic to find. A hunk that replaces lines is not listed: the
+    replacement is the change, and the diff shows it.
+    """
+    text = _git(repo, "diff", "-U0", "--no-color", "--no-ext-diff",
+                f"{base_sha}..{candidate_sha}")
+    found, path, current, budget = [], "", None, REMOVAL_LINE_BUDGET
+    truncated = False
+    removing = adding = 0
+
+    for line in text.splitlines():
+        # Inside a hunk the header's counts say what each line is, so a
+        # removed line that itself begins "-- " is never read as a file header.
+        if removing or adding:
+            if line.startswith("-") and removing:
+                removing -= 1
+
+                if current is not None:
+                    if budget > 0:
+                        current["lines"].append(line[1:])
+                        budget -= 1
+                    else:
+                        truncated = True
+            elif line.startswith("+") and adding:
+                adding -= 1
+            continue
+
+        if line.startswith("--- "):
+            path = line[4:].strip()
+            path = path[2:] if path.startswith("a/") else path
+            continue
+
+        header = HUNK_HEADER.match(line)
+
+        if header:
+            removing = int(header.group(2) if header.group(2) is not None else 1)
+            adding = int(header.group(3) if header.group(3) is not None else 1)
+            current = None
+
+            if removing and not adding:
+                current = {"path": path, "start": int(header.group(1)), "lines": []}
+                found.append(current)
+
+    return [hunk for hunk in found if hunk["lines"]], truncated
 
 
 def build(
@@ -168,6 +225,8 @@ def build(
     if truncated:
         diff = diff.encode("utf-8")[:diff_budget].decode("utf-8", "ignore")
 
+    removals, removals_truncated = pure_deletions(repo, base_sha, candidate_sha)
+
     return {
         "task_id": task.get("task_id"),
         "title": task.get("title", ""),
@@ -183,6 +242,8 @@ def build(
         "changed_files": changed,
         "diff": diff,
         "diff_truncated": truncated,
+        "pure_deletions": removals,
+        "pure_deletions_truncated": removals_truncated,
         "author_summary": author_summary,
         "test_output": test_output,
     }
@@ -229,6 +290,24 @@ def render(packet: dict) -> str:
             "judge the change from what is shown, answer BLOCKED and say so "
             "rather than approving what you have not seen.]",
         ]
+
+    if packet.get("pure_deletions"):
+        parts += [
+            "",
+            "LINES REMOVED WITH NOTHING ADDED IN THEIR PLACE",
+            "Each block below is deleted outright by this change. Unless the "
+            "objective or acceptance criteria require removing it, that is a reason "
+            "for CHANGES_REQUESTED: an author can drop lines it was never asked to "
+            "touch, and this is what that looks like.",
+        ]
+
+        for hunk in packet["pure_deletions"]:
+            end = hunk["start"] + len(hunk["lines"]) - 1
+            parts += ["", f"  {hunk['path']}, base lines {hunk['start']}-{end}:",
+                      *(f"    - {line}" for line in hunk["lines"])]
+
+        if packet.get("pure_deletions_truncated"):
+            parts += ["", "  [more removed lines are not listed here; see the full diff]"]
 
     parts += [
         "",

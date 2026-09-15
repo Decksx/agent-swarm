@@ -577,8 +577,9 @@ def _existing_section(existing: List[dict]) -> List[str]:
         "THE FILES YOU MAY CHANGE, AS THEY ARE NOW",
         "",
         "This is their current content at the commit you are working from. To "
-        "modify one, return its COMPLETE new content -- the parts you are not "
-        "changing included, byte for byte as they appear here.",
+        "modify one, use EDIT blocks whose SEARCH lines are copied exactly from "
+        "here. Never return an existing file's whole content: a FILE block for "
+        "a file shown here is refused.",
     ]
 
     for entry in existing:
@@ -639,18 +640,34 @@ def render_author_prompt(
     ] + (contract_section(task, scope) if scope is not None else []) + [
         "",
         "-" * 60,
-        "Answer with one or more file blocks and nothing else. Exactly this "
-        "form, repeated per file:",
+        "Answer with one or more blocks and nothing else. To change a file that "
+        "already exists, one EDIT block per change:",
+        "",
+        "EDIT: relative/path/from/the/repository/root.txt",
+        "<<<SEARCH>>>",
+        "the existing lines to replace, copied exactly",
+        "<<<REPLACE>>>",
+        "the lines that replace them",
+        END,
+        "",
+        "To create a new file:",
         "",
         "FILE: relative/path/from/the/repository/root.txt",
         BEGIN,
-        "the complete new contents of that file",
+        "the complete contents of the new file",
         END,
         "",
         "Rules:",
         "- Paths are relative to the repository root. Absolute paths, '..' and "
         "anything under .git are refused and your answer will be discarded.",
-        "- Give the COMPLETE contents of each file. Fragments, diffs and "
+        "- An existing file is changed only with EDIT blocks. A FILE block for a "
+        "file that exists is refused. Lines outside every SEARCH stay exactly as "
+        "they are.",
+        "- SEARCH is whole lines copied exactly, whitespace included, and must "
+        "match one place only: include neighbouring lines until it does. Several "
+        "EDIT blocks for one file apply in order, each to the result of the one "
+        "before. An empty REPLACE deletes the SEARCH lines.",
+        "- A new file's FILE block holds its complete contents. Fragments and "
         "'unchanged' placeholders cannot be applied.",
         "- Write no explanation outside the blocks. Anything outside them is "
         "ignored.",
