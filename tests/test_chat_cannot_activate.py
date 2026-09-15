@@ -47,7 +47,7 @@ def run_worker_loop(worker, monkeypatch, control, message_batches, *, polls=3):
         monkeypatch.setattr(worker, "ensure_requests", lambda: fake_requests)
         monkeypatch.setattr(worker.shutil, "which", lambda _n: "/fake/claude")
 
-        def record_task(binary, task):
+        def record_task(binary, task, cwd=None):
             invocations.append(task)
             return ("stub output", 0)
 

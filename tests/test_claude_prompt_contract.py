@@ -23,6 +23,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import claude_worker  # noqa: E402
+from conftest import stub_author_worktree  # noqa: E402
 
 
 CONTRACT_YAML = (
@@ -58,7 +59,7 @@ def captured(monkeypatch, tmp_path):
     """Runs the real author path and keeps what `run_task` was handed."""
     seen = {}
 
-    def recorder(binary, instructions):
+    def recorder(binary, instructions, cwd=None):
         seen["binary"] = binary
         seen["prompt"] = instructions
 
@@ -66,6 +67,7 @@ def captured(monkeypatch, tmp_path):
 
     monkeypatch.setattr(claude_worker, "run_task", recorder)
     monkeypatch.setattr(claude_worker, "INFLIGHT_PATH", tmp_path / "inflight")
+    stub_author_worktree(monkeypatch, tmp_path)
 
     return seen
 
