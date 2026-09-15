@@ -57,9 +57,10 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
 
@@ -77,6 +78,16 @@ SHA = re.compile(r"^[0-9a-f]{40}$")
 # event that would invalidate it clears it, and a cleared approval refuses
 # here whatever the state says.
 INTEGRABLE = "READY_INTEGRATION"
+
+# A completed check with one of these conclusions has finished without failing.
+# Anything else completed -- failure, cancelled, timed_out, action_required,
+# startup_failure, stale -- is a red build, and waiting longer will not turn it
+# green.
+FINISHED_CLEAN = frozenset({"success", "skipped", "neutral"})
+
+# Read at call time, so tests can drive the wait without real seconds passing.
+_sleep = time.sleep
+_clock = time.monotonic
 INTEGRABLE_STATES = frozenset({"READY_INTEGRATION", "INTEGRATING"})
 
 
@@ -262,6 +273,115 @@ def check_evidence(plan: Plan, *, required: Sequence[str]) -> None:
             )
 
 
+def _read_check_runs(candidate_sha: str, *, repo_slug: str) -> list:
+    """Every check run GitHub reports for this exact commit, or refuse."""
+    result = _gh(
+        "api", f"repos/{repo_slug}/commits/{candidate_sha}/check-runs",
+        "--jq", ".check_runs[] | {name, conclusion, status, id}",
+    )
+
+    if result.returncode != 0:
+        raise IntegrationRefused(
+            f"could not read CI for {candidate_sha[:12]}: "
+            f"{(result.stderr or '').strip()}. A build whose status cannot be "
+            "read is not a build that passed."
+        )
+
+    try:
+        return [
+            json.loads(line) for line in (result.stdout or "").splitlines()
+            if line.strip()
+        ]
+    except ValueError as exc:
+        raise IntegrationRefused(
+            f"unreadable CI listing for {candidate_sha[:12]}: {exc}"
+        )
+
+
+def await_ci(
+    candidate_sha: str,
+    *,
+    repo_slug: str,
+    required: Sequence[str] = (),
+    wait_seconds: float,
+    poll_seconds: float = 30.0,
+    heartbeat: Optional[Callable[[], Any]] = None,
+) -> None:
+    """Wait, within a bound, for this commit's CI to finish. Or refuse.
+
+    Why it waits (#32): the pull request is opened when the candidate is
+    submitted, CI starts then and takes minutes, and review takes seconds. So
+    integration is issued while the checks are still running, and refusing
+    on "not completed" -- which `ci_evidence` rightly does -- sent a good
+    candidate back to CHANGES_REQUESTED for being quick.
+
+    Returns once every check reported for the commit has completed cleanly
+    and every `required` suite is among them. Refuses at once on a check that
+    completed red, naming it: waiting will not change it. Refuses when
+    `wait_seconds` pass first, naming what was still pending or missing.
+
+    Only reads, so nothing has been changed whichever way it ends, and
+    `ci_evidence` re-reads afterwards: this decides when to look, never what
+    the evidence says. `heartbeat` is called before every sleep so the
+    activation's lease outlives the wait; the controller never lets a
+    heartbeat extend the hard deadline, which stays the outer bound.
+
+    A failed read during the wait is retried on the next poll -- one network
+    blip is not a verdict on the build -- and named if the wait runs out.
+    """
+    deadline = _clock() + wait_seconds
+    pending: list = []
+    missing: list = sorted(required)
+    last_error = ""
+
+    while True:
+        try:
+            runs = _read_check_runs(candidate_sha, repo_slug=repo_slug)
+            last_error = ""
+        except IntegrationRefused as exc:
+            runs, last_error = None, str(exc)
+
+        if runs is not None:
+            by_name = {f"ci:{run.get('name')}": run for run in runs}
+            done = {
+                name: str(run.get("conclusion") or "").lower()
+                for name, run in by_name.items()
+                if str(run.get("status") or "").lower() == "completed"
+            }
+            red = sorted(n for n, c in done.items() if c not in FINISHED_CLEAN)
+
+            if red:
+                raise IntegrationRefused(
+                    f"CI for {candidate_sha[:12]} finished red: "
+                    + ", ".join(f"{n} ({done[n] or 'no conclusion'})" for n in red)
+                    + ". An approved candidate whose checks fail is not "
+                    "integrable, whatever the review said."
+                )
+
+            pending = sorted(set(by_name) - set(done))
+            missing = sorted(set(required) - set(by_name))
+
+            if by_name and not pending and not missing:
+                return
+
+        now = _clock()
+
+        if now >= deadline:
+            raise IntegrationRefused(
+                f"CI for {candidate_sha[:12]} did not finish within "
+                f"{wait_seconds:.0f}s. Still running: "
+                f"{', '.join(pending) or '(none)'}; not yet reported: "
+                f"{', '.join(missing) or '(none)'}"
+                + (f"; last read failed: {last_error}" if last_error else "")
+                + ". Nothing was merged."
+            )
+
+        if heartbeat is not None:
+            heartbeat()
+
+        _sleep(max(0.0, min(poll_seconds, deadline - now)))
+
+
 def ci_evidence(candidate_sha: str, *, repo_slug: str) -> tuple[Evidence, ...]:
     """The runner's own verdict on this exact commit. Derived, never supplied.
 
@@ -275,22 +395,7 @@ def ci_evidence(candidate_sha: str, *, repo_slug: str) -> tuple[Evidence, ...]:
     indistinguishable from a repository with no CI at all, and those need
     opposite responses.
     """
-    result = _gh(
-        "api", f"repos/{repo_slug}/commits/{candidate_sha}/check-runs",
-        "--jq", ".check_runs[] | {name, conclusion, status, id}",
-    )
-
-    if result.returncode != 0:
-        raise IntegrationRefused(
-            f"could not read CI for {candidate_sha[:12]}: "
-            f"{(result.stderr or '').strip()}. A build whose status cannot be "
-            "read is not a build that passed."
-        )
-
-    runs = [
-        json.loads(line) for line in (result.stdout or "").splitlines()
-        if line.strip()
-    ]
+    runs = _read_check_runs(candidate_sha, repo_slug=repo_slug)
 
     evidence = []
 
@@ -762,6 +867,9 @@ def run_integration(
     work_root: str,
     required_suites: Sequence[str] = (),
     actor: str = "claudecode",
+    ci_wait_seconds: float = 0.0,
+    ci_poll_seconds: float = 30.0,
+    heartbeat: Optional[Callable[[], Any]] = None,
 ) -> dict:
     """One integration attempt, in the only order that is safe.
 
@@ -773,6 +881,9 @@ def run_integration(
         1. approval      from the controller ledger, never from a caller
         2. pull request  derived from the controller-issued branch, never
                          supplied; exactly one open match or refuse
+        2b. CI wait      when `ci_wait_seconds` is set, wait for this commit's
+                         checks to finish (`await_ci`); a read, bounded, and
+                         before the target is pinned so the pin is fresh
         3. target        pinned from the remote
         4. evidence      from the runner, by commit SHA
         5. PR            open, not draft, head is the approval, no conflict
@@ -812,6 +923,13 @@ def run_integration(
         repo_slug=repo_slug, branch=branch,
         candidate_sha=candidate, target_ref=target_ref,
     )
+
+    if ci_wait_seconds > 0:
+        await_ci(
+            candidate, repo_slug=repo_slug, required=required_suites,
+            wait_seconds=ci_wait_seconds, poll_seconds=ci_poll_seconds,
+            heartbeat=heartbeat,
+        )
 
     plan = Plan(
         task_id=str(task.get("task_id") or ""),
