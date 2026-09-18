@@ -14,6 +14,7 @@ they stopped.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import time
@@ -1205,3 +1206,215 @@ def test_identify_needs_no_credential_and_no_controller(
     host.command_lines[4321] = "python gemini_worker.py"
 
     assert identify("gemini", 4321) == 0
+
+
+# --- Proof of life, so a death is noticed (#46) ------------------------------
+#
+# The supervisor and all three workers vanished on 2026-09-15T17:20:48 and
+# nothing noticed until an operator looked, three days later. The scheduled
+# task that was supposed to cover it ran `start` once at logon: it returned 0
+# four seconds after backgrounding the supervisor, so Task Scheduler recorded
+# success and abandoned what it had spawned, and its RestartCount -- which
+# restarts a task that *fails* -- never applied.
+#
+# What was missing is a liveness signal a watcher can act on. `supervisor.pid`
+# cannot be it: it records a number that was right when it was written, which
+# is the whole reason `identifies_script` exists.
+
+
+def heartbeat(control_dir):
+    return supervisor.read_heartbeat()
+
+
+def test_a_tick_records_that_this_supervisor_is_alive(control_dir, spawned):
+    build(control_dir, spawned).tick(now=1000.0)
+    record = heartbeat(control_dir)
+
+    assert record["pid"] == os.getpid()
+    assert record["at"] == 1000.0
+
+
+def test_a_paused_supervisor_still_says_it_is_alive(control_dir, spawned):
+    """A pause idles the swarm; it does not stop the supervisor.
+
+    If the heartbeat stopped with the work, `ensure` would start a second
+    supervisor on top of a perfectly healthy paused one.
+    """
+    swarm_control.PAUSE_PATH.write_text("paused for a deploy", encoding="utf-8")
+    build(control_dir, spawned).tick(now=2000.0)
+
+    assert heartbeat(control_dir)["at"] == 2000.0
+
+
+def test_a_stopping_supervisor_still_says_it_is_alive(control_dir, spawned):
+    """It is alive until it has finished shutting down, and says so."""
+    (swarm_control.CONTROL_DIR / supervisor.STOP_FILENAME).write_text(
+        "stop", encoding="utf-8")
+    build(control_dir, spawned).tick(now=2500.0)
+
+    assert heartbeat(control_dir)["at"] == 2500.0
+
+
+def test_the_heartbeat_leaves_no_partial_file(control_dir, spawned):
+    """A completed write tidies up after itself."""
+    build(control_dir, spawned).tick(now=3000.0)
+    left = sorted(p.name for p in swarm_control.CONTROL_DIR.glob("*.tmp"))
+
+    assert left == []
+
+
+def test_a_half_written_heartbeat_never_replaces_a_good_one(
+    control_dir, monkeypatch
+):
+    """The reason it is written to a temporary name and replaced.
+
+    Anything reading this decides whether to start a second supervisor. A
+    reader that caught the file mid-write would find no usable heartbeat and
+    conclude the live supervisor was gone -- so a write that dies partway
+    must leave the last good answer standing, not a truncated one.
+    """
+    supervisor.write_heartbeat(777, 5000.0)
+    write_text = supervisor.Path.write_text
+
+    def dies_partway(self, data, **kwargs):
+        write_text(self, data[: len(data) // 2], **kwargs)
+        raise OSError("interrupted partway through")
+
+    monkeypatch.setattr(supervisor.Path, "write_text", dies_partway)
+    supervisor.write_heartbeat(888, 6000.0)
+
+    assert supervisor.read_heartbeat()["pid"] == 777
+
+
+def test_a_heartbeat_that_cannot_be_written_does_not_end_the_runtime(
+    control_dir, spawned, monkeypatch
+):
+    """A supervisor that cannot write its heartbeat is still supervising."""
+    def refuse(*args, **kwargs):
+        raise OSError("disk is full")
+
+    monkeypatch.setattr(supervisor.Path, "write_text", refuse)
+    build(control_dir, spawned).tick(now=3500.0)  # must not raise
+
+    assert supervisor.read_heartbeat() is None
+
+
+# --- Reading it back ---------------------------------------------------------
+
+
+def live_supervisor(monkeypatch, pid):
+    """Make `pid` look like a running supervisor to the liveness check."""
+    monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: p == pid)
+    monkeypatch.setattr(
+        supervisor, "identifies_script", lambda p, script: p == pid)
+
+
+def test_a_fresh_heartbeat_from_a_live_supervisor_is_alive(
+    control_dir, monkeypatch
+):
+    live_supervisor(monkeypatch, 777)
+    supervisor.write_heartbeat(777, 5000.0)
+
+    assert supervisor.supervisor_is_live(now=5010.0) is True
+
+
+def test_no_heartbeat_at_all_is_not_alive(control_dir):
+    assert supervisor.supervisor_is_live(now=5000.0) is False
+
+
+def test_a_stale_heartbeat_is_not_alive(control_dir, monkeypatch):
+    """The wedged case: the process is there and has stopped saying so."""
+    live_supervisor(monkeypatch, 777)
+    supervisor.write_heartbeat(777, 5000.0)
+    late = 5000.0 + supervisor.HEARTBEAT_STALE_SECONDS + 1
+
+    assert supervisor.supervisor_is_live(now=late) is False
+
+
+def test_a_fresh_heartbeat_naming_a_dead_pid_is_not_alive(
+    control_dir, monkeypatch
+):
+    """What a supervisor killed between ticks leaves behind.
+
+    `identifies_script` is made to say yes, so the only thing that can
+    produce False here is the liveness check itself. Left to answer for
+    itself it would say no anyway, and the test would pass whether or not
+    the pid was ever checked.
+    """
+    monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: False)
+    monkeypatch.setattr(supervisor, "identifies_script", lambda p, script: True)
+    supervisor.write_heartbeat(777, 5000.0)
+
+    assert supervisor.supervisor_is_live(now=5010.0) is False
+
+
+def test_a_fresh_heartbeat_naming_a_recycled_pid_is_not_alive(
+    control_dir, monkeypatch
+):
+    """Alive, and not a supervisor. The defect `identifies_script` exists for."""
+    monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: True)
+    monkeypatch.setattr(supervisor, "identifies_script", lambda p, script: False)
+    supervisor.write_heartbeat(777, 5000.0)
+
+    assert supervisor.supervisor_is_live(now=5010.0) is False
+
+
+@pytest.mark.parametrize("body", [
+    "",                       # truncated to nothing
+    "{",                      # caught mid-write, had this not been atomic
+    '{"at": 1.0}',            # no pid
+    '{"pid": "777", "at": 1}',  # a pid that is not a number
+    '{"pid": 777}',           # no timestamp
+    '{"pid": 777, "at": "soon"}',
+    '["pid", 777]',           # not an object at all
+])
+def test_an_unusable_heartbeat_reads_as_none(control_dir, body):
+    supervisor.heartbeat_path().write_text(body, encoding="utf-8")
+
+    assert supervisor.read_heartbeat() is None
+    assert supervisor.supervisor_is_live(now=0.0) is False
+
+
+# --- What `swarm_ctl.sh ensure` asks -----------------------------------------
+
+
+def liveness():
+    return supervisor.main(["supervisor.py", "--liveness"])
+
+
+def test_liveness_exits_zero_for_a_live_supervisor(control_dir, monkeypatch):
+    live_supervisor(monkeypatch, 777)
+    supervisor.write_heartbeat(777, time.time())
+
+    assert liveness() == 0
+
+
+def test_liveness_exits_nonzero_when_there_is_none(control_dir):
+    assert liveness() == 1
+
+
+def test_liveness_exits_nonzero_for_a_stale_heartbeat(control_dir, monkeypatch):
+    live_supervisor(monkeypatch, 777)
+    supervisor.write_heartbeat(
+        777, time.time() - supervisor.HEARTBEAT_STALE_SECONDS - 1)
+
+    assert liveness() == 1
+
+
+def test_liveness_needs_no_credential_and_no_controller(
+    control_dir, monkeypatch
+):
+    """The scheduled task runs it every five minutes; it must not need either."""
+    monkeypatch.delenv("HUB_SECRET", raising=False)
+    live_supervisor(monkeypatch, 777)
+    supervisor.write_heartbeat(777, time.time())
+
+    assert liveness() == 0
+
+
+def test_liveness_starts_nothing(control_dir, spawned, monkeypatch):
+    """It answers a question. `ensure` decides what to do about the answer."""
+    monkeypatch.delenv("HUB_SECRET", raising=False)
+    liveness()
+
+    assert spawned == []

@@ -72,12 +72,14 @@ posts to the hub.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import signal
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -126,6 +128,28 @@ STOP_FILENAME = "STOPPING"
 # with the rest of the per-host runtime state, and ignored by git with it.
 NARRATION_CURSOR = "narration.cursor"
 
+# Proof of life, rewritten every tick (#46). A pid file says a number was
+# right when it was written; this says a supervisor was running a moment ago,
+# which is the question anything watching actually has. The supervisor and all
+# three workers vanished on 2026-09-15 and nothing noticed for three days,
+# because the only thing that would have restarted them ran at logon and
+# nobody logged off.
+HEARTBEAT_FILENAME = "supervisor.heartbeat"
+
+# How stale a heartbeat may be before the supervisor behind it is presumed
+# gone. Six ticks of the one-second loop's slowest path, so an ordinarily busy
+# supervisor -- one blocked on a controller call that is timing out -- is not
+# declared dead while it is still working.
+HEARTBEAT_STALE_SECONDS = float(
+    os.environ.get("SUPERVISOR_HEARTBEAT_STALE", "120")
+)
+
+# Written by `swarm_ctl.sh stop`, removed by `swarm_ctl.sh start`. `ensure`
+# refuses to start a supervisor while it exists, so a swarm an operator
+# deliberately stopped stays stopped. Without it a repeating `ensure` would
+# undo every `stop` within minutes, which is worse than the defect it fixes.
+STOPPED_FILENAME = "STOPPED"
+
 log = logging.getLogger("supervisor")
 
 
@@ -150,6 +174,88 @@ def identifies_script(pid: int, script: str) -> bool:
     )
 
     return running is not None and running.lower() == script.lower()
+
+
+def heartbeat_path() -> Path:
+    return swarm_control.CONTROL_DIR / HEARTBEAT_FILENAME
+
+
+def write_heartbeat(pid: int, now: float) -> None:
+    """Record that a supervisor was alive at `now`, atomically.
+
+    Written to a temporary name and replaced, because anything reading this
+    to decide whether to start a second supervisor must never see a
+    half-written file and conclude the first one is gone.
+
+    Failure is swallowed deliberately: a supervisor that cannot write its
+    heartbeat is still supervising, and killing the runtime over a transient
+    file error would be the fault this is meant to prevent. `ensure` will
+    read a stale heartbeat and check the pid behind it, which is what it
+    does for a dead supervisor anyway -- so the worst case is one redundant
+    liveness check, not a wrong answer.
+    """
+    try:
+        swarm_control.CONTROL_DIR.mkdir(parents=True, exist_ok=True)
+        path = heartbeat_path()
+        temp = path.with_suffix(".tmp")
+        temp.write_text(
+            json.dumps({
+                "pid": pid,
+                "at": round(now, 3),
+                # UTC, and tz-aware from the start. A naive local conversion
+                # raises on Windows for any timestamp that lands before the
+                # epoch in the host's zone, which a test with a small clock
+                # does -- and the operator reading this wants an unambiguous
+                # instant anyway.
+                "iso": datetime.fromtimestamp(now, tz=timezone.utc).isoformat(),
+            }),
+            encoding="utf-8",
+        )
+        os.replace(temp, path)
+    except OSError as exc:
+        log.warning("could not write the heartbeat: %s", exc)
+
+
+def read_heartbeat() -> Optional[dict]:
+    """The last recorded heartbeat, or None if there is not a usable one."""
+    try:
+        record = json.loads(heartbeat_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+    if not isinstance(record, dict) or not isinstance(record.get("pid"), int):
+        return None
+
+    try:
+        record["at"] = float(record["at"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    return record
+
+
+def supervisor_is_live(now: Optional[float] = None) -> bool:
+    """Whether a supervisor is running and has said so recently.
+
+    Both halves are required, and neither is sufficient. A fresh heartbeat
+    naming a pid that is gone is what a supervisor killed between ticks
+    leaves behind. A live pid with a stale heartbeat is either a wedged
+    supervisor or -- the case `identifies_script` exists for -- a recycled
+    number that now belongs to something else entirely.
+    """
+    now = time.time() if now is None else now
+    record = read_heartbeat()
+
+    if record is None:
+        return False
+
+    if now - record["at"] > HEARTBEAT_STALE_SECONDS:
+        return False
+
+    return (
+        swarm_control.pid_is_alive(record["pid"])
+        and identifies_script(record["pid"], script_for(SUPERVISOR))
+    )
 
 
 class Child:
@@ -538,6 +644,11 @@ class Supervisor:
         """One pass: reap, restart, and drive the controller."""
         now = time.time() if now is None else now
 
+        # First, and outside the pause and stop branches: a paused supervisor
+        # is still alive and must still say so, or `ensure` would start a
+        # second one on top of a swarm that is merely idle (#46).
+        write_heartbeat(os.getpid(), now)
+
         if self.stop_requested():
             log.info("stop requested")
             self.stopping = True
@@ -813,9 +924,36 @@ def main(argv) -> int:
         "--identify", nargs=2, metavar=("NAME", "PID"), default=None,
         help="exit 0 if PID is really NAME (a worker identity, or 'supervisor')",
     )
+    parser.add_argument(
+        "--liveness", action="store_true",
+        help="exit 0 if a supervisor is running and heartbeating; does not start one",
+    )
     args = parser.parse_args(argv[1:])
 
     configure_logging(Path(args.log) if args.log else None)
+
+    if args.liveness:
+        # What `swarm_ctl.sh ensure` asks before starting anything. Answered
+        # here for the same reason `--identify` is: the shell holds a file and
+        # no way to check what is behind it, and a second implementation of
+        # "is this really a supervisor" is a second thing that can be wrong.
+        record = read_heartbeat()
+
+        if record is None:
+            log.info("no usable heartbeat at %s", heartbeat_path())
+            return 1
+
+        age = time.time() - record["at"]
+
+        if supervisor_is_live():
+            log.info("supervisor pid %s heartbeat %.0fs old", record["pid"], age)
+            return 0
+
+        log.warning(
+            "no live supervisor: heartbeat %.0fs old (stale past %.0fs) naming pid %s",
+            age, HEARTBEAT_STALE_SECONDS, record["pid"],
+        )
+        return 1
 
     if args.identify:
         # Asked by `swarm_ctl`, which holds pids and no way to check them.

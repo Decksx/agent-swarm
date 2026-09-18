@@ -24,6 +24,12 @@ supervisor is a stub that records the environment it was handed, and asserts
 on what the process actually received -- not on the presence of a line in the
 script. The last test follows the same values one hop further, through
 `child_env`, because the supervisor is what a worker inherits from.
+
+The `ensure` tests at the end are here rather than in a file of their own for
+the same reason: `ensure` is a launcher, it decides whether to start one, and
+this is where "what did the launcher actually do" is already answerable. They
+cover #46, where the scheduled task ran `start` once at logon, recorded
+success four seconds later, and left nothing watching what it had spawned.
 """
 
 from __future__ import annotations
@@ -106,6 +112,12 @@ import json, os, sys, time
 from pathlib import Path
 
 control = Path(os.environ["SWARM_CONTROL_DIR"])
+
+if "--liveness" in sys.argv:
+    # `swarm_ctl.sh ensure` asks this before starting anything (#46). The
+    # test decides the answer by placing the marker, so what is asserted is
+    # what `ensure` does with each answer.
+    sys.exit(0 if (control / "LIVE").exists() else 1)
 
 if "--identify" in sys.argv:
     # swarm_ctl asks this twice: before starting, to refuse a second
@@ -448,3 +460,113 @@ def test_a_worker_inherits_what_the_supervisor_was_given(monkeypatch):
     assert reviewing["REVIEW_REPO"] == r"C:\gitgent-swarm"
     assert all(integrating.get(name) for name in INTEGRATION_VARIABLES)
     assert integrating["INTEGRATION_TARGET_REF"] == "refs/heads/main"
+
+
+# --- `ensure` is what the scheduled task runs (#46) --------------------------
+#
+# The task ran `start` once at logon. `start` returns 0 about four seconds
+# after backgrounding the supervisor, so Task Scheduler recorded success and
+# abandoned what it had spawned; RestartCount restarts a task that *fails*,
+# and this one never did. The supervisor died on 2026-09-15 and nothing ran
+# again until an operator logged in, three days later.
+#
+# `ensure` replaces it, on a repeating trigger, so it has to be safe to run
+# forever: start a supervisor when there is no live one, and otherwise do
+# nothing at all. These assert on what it did, not on a line in the script --
+# the same standard as the tests above, and for the same reason.
+
+
+def run(checkout, command, extra_env=None):
+    """Run the real script, and hand back the finished process."""
+    root, binaries = checkout
+    control = root / "control"
+    control.mkdir(parents=True, exist_ok=True)
+
+    env = dict(os.environ)
+    env["PATH"] = str(binaries) + os.pathsep + env["PATH"]
+    env["SUPERVISOR_PYTHON"] = sh(Path(sys.executable))
+    env["SWARM_CONTROL_DIR"] = str(control)
+    env.update(extra_env or {})
+
+    return subprocess.run(
+        [BASH, sh(root / "swarm_ctl.sh"), command],
+        cwd=str(root), env=env, capture_output=True,
+        encoding="utf-8", errors="replace", timeout=120,
+    )
+
+
+def started(checkout) -> bool:
+    """Whether a supervisor was actually launched: the stub records on start."""
+    return (checkout[0] / "control" / "environment.json").exists()
+
+
+@needs_host
+def test_ensure_starts_a_supervisor_when_none_is_alive(checkout):
+    """The case that cost three days."""
+    finished = run(checkout, "ensure")
+
+    assert started(checkout), f"stdout: {finished.stdout}\nstderr: {finished.stderr}"
+    assert "starting one" in finished.stdout
+
+
+@needs_host
+def test_ensure_starts_nothing_when_one_is_already_alive(checkout):
+    """It runs every few minutes forever, so this is the ordinary case."""
+    (checkout[0] / "control").mkdir(parents=True, exist_ok=True)
+    (checkout[0] / "control" / "LIVE").write_text("alive", encoding="utf-8")
+
+    finished = run(checkout, "ensure")
+
+    assert not started(checkout)
+    assert "heartbeating" in finished.stdout
+
+
+@needs_host
+def test_ensure_leaves_a_deliberately_stopped_swarm_stopped(checkout):
+    """Otherwise a repeating `ensure` would undo every `stop` within minutes.
+
+    That is worse than the defect it fixes: an operator who stops the swarm
+    to work on the host would find it running again before they had finished.
+    """
+    (checkout[0] / "control").mkdir(parents=True, exist_ok=True)
+    (checkout[0] / "control" / "STOPPED").write_text("by hand", encoding="utf-8")
+
+    finished = run(checkout, "ensure")
+
+    assert not started(checkout)
+    assert "stopped deliberately" in finished.stdout
+
+
+@needs_host
+def test_ensure_exits_zero_whatever_it_decides(checkout):
+    """A scheduled task that reports failure for an ordinary no-op trains
+    the operator to ignore it."""
+    (checkout[0] / "control").mkdir(parents=True, exist_ok=True)
+    (checkout[0] / "control" / "LIVE").write_text("alive", encoding="utf-8")
+    assert run(checkout, "ensure").returncode == 0
+
+    (checkout[0] / "control" / "LIVE").unlink()
+    (checkout[0] / "control" / "STOPPED").write_text("by hand", encoding="utf-8")
+    assert run(checkout, "ensure").returncode == 0
+
+
+@needs_host
+def test_starting_withdraws_an_earlier_stop(checkout):
+    """`start` is the operator saying they want it running again."""
+    control = checkout[0] / "control"
+    control.mkdir(parents=True, exist_ok=True)
+    (control / "STOPPED").write_text("by hand", encoding="utf-8")
+
+    run(checkout, "start")
+
+    assert not (control / "STOPPED").exists()
+    assert started(checkout)
+
+
+@needs_host
+def test_stopping_holds_ensure_off(checkout):
+    """Written before anything is torn down, so an `ensure` firing mid-stop
+    does not race it and start a second supervisor on top."""
+    run(checkout, "stop")
+
+    assert (checkout[0] / "control" / "STOPPED").exists()
