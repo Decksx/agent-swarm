@@ -66,6 +66,7 @@ import signal
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -131,6 +132,12 @@ OPENAI_TIMEOUT = float(os.environ.get("OPENAI_TIMEOUT", "120"))
 # Replies are truncated so a very long model answer cannot wedge the hub or
 # the transport.
 MAX_REPLY_CHARS = 60_000
+
+# How much of the provider's own error text the ledger keeps. Long enough for
+# the numbers a 429 carries ("Limit 30000, Requested 38..."), which are what
+# say whether the request was too big or the window merely full; short enough
+# that a provider traceback cannot become the reason field (#20).
+PROVIDER_MESSAGE_CHARS = 500
 
 SYSTEM_PROMPT = (
     "You are ChatGPT, one agent in a small multi-agent engineering swarm "
@@ -342,8 +349,82 @@ def build_chat_messages(context: list[dict]) -> list[dict]:
     return chat
 
 
-def generate_reply(client: Any, context: list[dict]) -> str | None:
-    """Ask the model for one reply, or None if there is nothing to post.
+@dataclass(frozen=True)
+class ProviderFailure:
+    """Why a provider call failed, when it failed before producing any text.
+
+    `generate_reply` answered None both for "the call failed" and for "the
+    model produced an empty string", and the author path reported both as
+    "the model returned nothing" (#20). Those need different responses: a
+    429 over the tokens-per-minute window recurs until the request is
+    smaller or the minute rolls over, a timeout may clear on its own, and a
+    model that genuinely said nothing is an attempt that failed. The ledger
+    could not tell them apart, so the cause was only ever in this worker's
+    log on OFFICEPC.
+    """
+
+    kind: str
+    status: int | None
+    message: str
+
+    def reason(self) -> str:
+        """One line for the ledger: the class, the status, and what was said."""
+        status = f" (HTTP {self.status})" if self.status is not None else ""
+        return f"the provider call failed: {self.kind}{status}: {self.message}"
+
+
+def classify_provider_error(exc: BaseException) -> ProviderFailure:
+    """Name the failure class of an SDK exception, without importing the SDK.
+
+    The OpenAI SDK is imported lazily by `ensure_dependencies`, so its
+    exception classes do not exist at module import time and cannot be
+    caught or isinstance-checked by name here. The status code and the
+    class name are read off the exception instead -- which is also why a
+    test can drive every branch with a fake carrying those two attributes,
+    rather than needing the real SDK installed.
+
+    Anything unrecognised is `provider_error` with its text preserved: an
+    unclassified failure must still reach the ledger saying what happened,
+    because the point of #20 is that the operator stopped having to read
+    the worker log to find out.
+    """
+    status = getattr(exc, "status_code", None)
+
+    if not isinstance(status, int):
+        status = None
+
+    name = type(exc).__name__
+    # str(exc) is empty for some SDK errors; the class name is then the only
+    # thing identifying it, and an empty reason field helps nobody.
+    text = swarm_control.redact(str(exc).strip() or name)[:PROVIDER_MESSAGE_CHARS]
+
+    if "Timeout" in name:
+        kind = "timeout"
+    elif status == 429:
+        # Both arrive as 429. "Request too large" is this request's own size
+        # against the per-minute window, so waiting does not help and the task
+        # wants decomposing; a plain rate limit clears by itself.
+        kind = "request_too_large" if "too large" in text.lower() else "rate_limited"
+    elif status in (401, 403):
+        kind = "auth_rejected"
+    elif status is not None and 500 <= status < 600:
+        kind = "provider_unavailable"
+    elif "Connection" in name:
+        kind = "connection_failed"
+    else:
+        kind = "provider_error"
+
+    return ProviderFailure(kind=kind, status=status, message=text)
+
+
+def generate_reply(client: Any, context: list[dict]) -> str | ProviderFailure | None:
+    """Ask the model for one reply.
+
+    Three distinct answers, because the callers need to tell them apart:
+    the reply text; `None` when the call succeeded and the model returned
+    nothing; and a `ProviderFailure` when the call itself failed (#20).
+    Answering None for both is what put a 429 in the ledger as "the model
+    returned nothing".
 
     Any SDK/API failure is caught rather than propagated -- one failed
     generation must not kill the daemon -- but it is recorded *here*, in
@@ -357,7 +438,7 @@ def generate_reply(client: Any, context: list[dict]) -> str | None:
     hub. (This mirrors the Gemini worker, which was hardened the same way.)
 
     The response extraction is inside the try as well: an empty ``choices``
-    list would make ``choices[0]`` raise, and that must fail to None like
+    list would make ``choices[0]`` raise, and that must be classified like
     any other API problem rather than crash the poll loop.
     """
     try:
@@ -368,10 +449,12 @@ def generate_reply(client: Any, context: list[dict]) -> str | None:
         )
         reply = (completion.choices[0].message.content or "").strip()
     except Exception as exc:
-        # exc_info, because the message alone loses which SDK call failed --
-        # and this is now the only record of the failure anywhere.
-        log.error("OpenAI request failed: %s", exc, exc_info=True)
-        return None
+        # exc_info stays: the classified message is bounded and redacted, so
+        # the log is still the only place with the full traceback and which
+        # SDK call it came from.
+        failure = classify_provider_error(exc)
+        log.error("OpenAI request failed (%s): %s", failure.kind, exc, exc_info=True)
+        return failure
 
     if not reply:
         log.warning("OpenAI returned an empty reply; nothing to post")
@@ -625,6 +708,22 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
     while True:
         elapsed = time.monotonic() - started
 
+        if isinstance(reply, ProviderFailure):
+            # Still `blocked`, not `failed`: the model never answered, so
+            # there is no attempt to judge. What changes is that the ledger
+            # now names the defect instead of describing the silence (#20).
+            log.warning("activation %s blocked after %.1fs: %s",
+                        activation_id, elapsed, reply.reason())
+            queue.report(activation_id, outcome="blocked", payload={
+                "reason": reply.reason(),
+                "provider_failure": reply.kind,
+                "provider_status": reply.status,
+                "provider_message": reply.message,
+                "elapsed_seconds": round(elapsed, 1),
+                "repaired": repaired,
+            })
+            return
+
         if reply is None:
             log.warning("no reply for activation %s after %.1fs", activation_id, elapsed)
             queue.report(activation_id, outcome="blocked",
@@ -825,11 +924,15 @@ def execute_activation(requests: Any, client: Any, activation: dict) -> None:
     reply = generate_reply(client, context)
     elapsed = time.monotonic() - started
 
-    if reply is None:
+    # Silence on the hub for a failure as much as for an empty answer: posting
+    # a provider error as a ChatGPT message is what the docstring above refuses
+    # to do. The classification is for the log here, not for peers to read.
+    if not isinstance(reply, str):
         log.warning(
-            "NO REPLY for activation %s after %.1fs; nothing posted",
+            "NO REPLY for activation %s after %.1fs; nothing posted%s",
             activation_id,
             elapsed,
+            f" ({reply.reason()})" if isinstance(reply, ProviderFailure) else "",
         )
         return
 
