@@ -18,6 +18,12 @@ CONTROL="${SWARM_CONTROL_DIR:-$REPO/control}"
 LOG="${SUPERVISOR_LOG:-$CONTROL/supervisor.log}"
 URL="${CONTROLLER_URL:-http://192.168.42.50:8050}"
 TASK_NAME="AgentSwarmSupervisor"
+HEARTBEAT="supervisor.heartbeat"
+
+# How `ensure` re-invokes this script. $BASH_SOURCE is the spelling the caller
+# used, which for a scheduled task is not necessarily one that resolves from
+# the working directory it runs in.
+BASH="${BASH:-${SHELL:-bash}}"
 
 pidfile() { echo "$CONTROL/supervisor.pid"; }
 
@@ -164,6 +170,10 @@ case "${1:-}" in
     load_credentials || exit 1
     mkdir -p "$CONTROL"
 
+    # Starting is the operator withdrawing an earlier `stop`, so `ensure` may
+    # act again from here on (#46).
+    rm -f "$CONTROL/STOPPED"
+
     # Deployment parity before anything is claimed, for the same reason
     # worker_ctl checks it: a runtime started against a stale controller
     # produces evidence about a build nobody has.
@@ -193,6 +203,13 @@ case "${1:-}" in
 
   stop)
     PID="$(cat "$(pidfile)" 2>/dev/null || true)"
+
+    # Written before anything is stopped, so a repeating `ensure` that fires
+    # mid-shutdown does not race the stop it is watching and start a second
+    # supervisor on top of it (#46). `start` removes it.
+    mkdir -p "$CONTROL"
+    echo "stopped by swarm_ctl at $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      > "$CONTROL/STOPPED"
 
     # Whether the supervisor is confirmed gone. Every later step depends on
     # it: the stop request may only be withdrawn once nothing is left to act
@@ -322,6 +339,21 @@ case "${1:-}" in
       echo "supervisor: not running"
     fi
 
+    # The heartbeat, because "running" above is a pid file and this is not
+    # (#46). An operator who sees a running supervisor with no heartbeat is
+    # looking at the state nobody could see for three days in September.
+    if "$PYTHON" "$REPO/supervisor.py" --liveness >/dev/null 2>&1; then
+      echo "heartbeat : fresh"
+    elif [ -e "$CONTROL/$HEARTBEAT" ]; then
+      echo "heartbeat : STALE or not this supervisor -- see $CONTROL/$HEARTBEAT"
+    else
+      echo "heartbeat : none written"
+    fi
+
+    if [ -e "$CONTROL/STOPPED" ]; then
+      echo "ensure    : held off -- $(head -c 120 "$CONTROL/STOPPED" 2>/dev/null)"
+    fi
+
     if [ -f "$CONTROL/PAUSED" ]; then
       echo "pause     : ENGAGED -- $(cat "$CONTROL/PAUSED" 2>/dev/null | head -c 200)"
     else
@@ -356,21 +388,71 @@ case "${1:-}" in
     echo "resumed. No restart needed."
     ;;
 
+  ensure)
+    # What the scheduled task runs, every few minutes, forever (#46).
+    #
+    # `start` was the wrong thing to schedule: it returns 0 about four
+    # seconds after backgrounding the supervisor, so the task succeeded
+    # immediately and abandoned what it had spawned. Task Scheduler's
+    # RestartCount restarts a task that *fails*, and this one never failed,
+    # so the restart policy read as protection and provided none. With a
+    # logon-only trigger and nobody logging off, the swarm that died on
+    # 2026-09-15 stayed dead for three days.
+    #
+    # Idempotent by construction, because it will run forever: it starts a
+    # supervisor only when there is no live one, and says so either way.
+    if [ -e "$CONTROL/STOPPED" ]; then
+      echo "ensure: not starting, the swarm was stopped deliberately"
+      echo "ensure: run 'swarm_ctl.sh start' to withdraw that"
+      exit 0
+    fi
+
+    # Liveness is the heartbeat plus the process behind it, answered by
+    # supervisor.py -- the shell has a file and no way to check what wrote
+    # it, and a second implementation of that check is a second thing that
+    # can be wrong.
+    if "$PYTHON" "$REPO/supervisor.py" --liveness >/dev/null 2>&1; then
+      echo "ensure: a supervisor is running and heartbeating"
+      exit 0
+    fi
+
+    echo "ensure: no live supervisor; starting one"
+    # Through $REPO, not $0: the scheduled task invokes this by whatever path
+    # it was registered with, and re-execing that spelling is how `ensure`
+    # finds nothing to run when the two disagree.
+    exec "$BASH" "$REPO/swarm_ctl.sh" start
+    ;;
+
   install)
     # A scheduled task rather than a service: this runs as the logged-in user
     # because the workers need that user's API keys from the user environment,
     # and a service running as SYSTEM would not have them.
     load_credentials || exit 1
+
+    # `ensure` rather than `start`, repeating rather than once (#46). The
+    # trigger still fires at logon so a fresh session comes up immediately,
+    # but the repetition is what actually keeps the swarm alive: every five
+    # minutes something asks whether a supervisor is heartbeating and starts
+    # one if not.
+    #
+    # RestartCount is gone. It restarts a *task* that fails, and this task
+    # cannot fail in the way that matters -- it returns 0 having launched
+    # something that may die an hour later. A repeating idempotent check
+    # covers that case properly, and leaving a setting that looks like
+    # protection next to one that is would invite trusting the wrong one.
     powershell.exe -NoProfile -Command "
       \$action = New-ScheduledTaskAction -Execute 'C:\\Program Files\\Git\\bin\\bash.exe' \
-        -Argument '-lc \"$REPO/swarm_ctl.sh start\"'
+        -Argument '-lc \"$REPO/swarm_ctl.sh ensure\"'
       \$trigger = New-ScheduledTaskTrigger -AtLogOn
+      \$trigger.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) \
+        -RepetitionInterval (New-TimeSpan -Minutes 5) \
+        -RepetitionDuration ([TimeSpan]::MaxValue)).Repetition
       \$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries \
-        -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 3 \
-        -RestartInterval (New-TimeSpan -Minutes 5)
+        -DontStopIfGoingOnBatteries -StartWhenAvailable \
+        -MultipleInstances IgnoreNew
       Register-ScheduledTask -TaskName '$TASK_NAME' -Action \$action \
         -Trigger \$trigger -Settings \$settings -Force | Out-Null
-      Write-Output 'registered $TASK_NAME (at logon)'
+      Write-Output 'registered $TASK_NAME (at logon, rechecked every 5 minutes)'
     "
     ;;
 
@@ -382,6 +464,6 @@ case "${1:-}" in
     ;;
 
   *)
-    echo "usage: swarm_ctl.sh {start|stop|status|pause [reason]|resume|install|uninstall}"
+    echo "usage: swarm_ctl.sh {start|stop|ensure|status|pause [reason]|resume|install|uninstall}"
     exit 2 ;;
 esac
