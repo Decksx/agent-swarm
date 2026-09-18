@@ -749,3 +749,78 @@ def test_a_crash_inside_the_section_releases_the_mutex(lockdir, racers):
         f"waited {waited:.1f}s; the mutex was not released by the kernel"
     )
     assert (lockdir / "gemini.pid").read_text(encoding="utf-8") == str(os.getpid())
+
+
+# --- Reading a command line where PATH is not a developer's (#50) ------------
+#
+# `process_command_line` invoked `powershell.exe` by bare name. That resolves
+# in a shell somebody is typing in and does not resolve under Task Scheduler,
+# whose environment carries no System32 on PATH. The lookup failed,
+# process_arguments answered None, identifies_script answered False -- and
+# every caller reads that as "this pid is not what the file says".
+#
+# It ran for real: the #48 scheduled task fired at 2026-09-18T15:56:47, could
+# not see a supervisor whose heartbeat was zero seconds old, and tried to start
+# a second one. The single-instance lock refused it, so the cost was a failing
+# task result and an ERROR line every five minutes rather than two supervisors.
+#
+# These drive the real function with the real environment stripped, because
+# that is the condition the task runs under and the one nothing was checking.
+
+
+@pytest.fixture
+def path_without_system32(monkeypatch):
+    """PATH with every Windows system directory removed.
+
+    Not an empty PATH: the point is a PATH that still has the things a shell
+    needs and not the one directory the bare name depended on, which is the
+    shape Task Scheduler actually hands over.
+    """
+    if os.name != "nt":
+        pytest.skip("the bare-name lookup this covers is a Windows path")
+
+    root = os.environ.get("SystemRoot", r"C:\Windows").lower()
+    kept = [
+        entry for entry in os.environ.get("PATH", "").split(os.pathsep)
+        if entry and not entry.lower().startswith(root)
+    ]
+
+    monkeypatch.setenv("PATH", os.pathsep.join(kept))
+    return kept
+
+
+def test_powershell_resolves_to_a_path_that_exists(path_without_system32):
+    resolved = swarm_control.powershell_executable()
+
+    assert Path(resolved).exists(), f"{resolved} does not exist"
+
+
+def test_a_command_line_is_readable_without_system32_on_path(
+    path_without_system32, live_pid
+):
+    """The regression. Before #50 this returned None and every identity
+    check built on it answered False."""
+    command = swarm_control.process_command_line(live_pid)
+
+    assert command is not None
+    assert "time.sleep" in command
+
+
+def test_identity_survives_a_stripped_path(path_without_system32, live_pid):
+    """What `--identify` and `--liveness` actually ask."""
+    arguments = swarm_control.process_arguments(live_pid)
+
+    assert arguments is not None
+    assert any("time.sleep" in argument for argument in arguments)
+
+
+def test_the_bare_name_is_still_used_where_there_is_no_system32(monkeypatch):
+    """A host that keeps PowerShell somewhere else is no worse off than before.
+
+    Asserted by pointing SystemRoot at a directory that has no PowerShell in
+    it, which is the only way the absolute path can be absent on a machine
+    that has one.
+    """
+    monkeypatch.setenv("SystemRoot", str(Path(__file__).resolve().parent))
+
+    assert swarm_control.powershell_executable() == "powershell.exe"
