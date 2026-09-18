@@ -1256,16 +1256,34 @@ def test_a_stopping_supervisor_still_says_it_is_alive(control_dir, spawned):
 
 
 def test_the_heartbeat_leaves_no_partial_file(control_dir, spawned):
-    """Written to a temporary name and replaced.
-
-    Anything reading this decides whether to start a second supervisor. A
-    reader that caught it mid-write would read no usable heartbeat and
-    conclude the first one was gone.
-    """
+    """A completed write tidies up after itself."""
     build(control_dir, spawned).tick(now=3000.0)
     left = sorted(p.name for p in swarm_control.CONTROL_DIR.glob("*.tmp"))
 
     assert left == []
+
+
+def test_a_half_written_heartbeat_never_replaces_a_good_one(
+    control_dir, monkeypatch
+):
+    """The reason it is written to a temporary name and replaced.
+
+    Anything reading this decides whether to start a second supervisor. A
+    reader that caught the file mid-write would find no usable heartbeat and
+    conclude the live supervisor was gone -- so a write that dies partway
+    must leave the last good answer standing, not a truncated one.
+    """
+    supervisor.write_heartbeat(777, 5000.0)
+    write_text = supervisor.Path.write_text
+
+    def dies_partway(self, data, **kwargs):
+        write_text(self, data[: len(data) // 2], **kwargs)
+        raise OSError("interrupted partway through")
+
+    monkeypatch.setattr(supervisor.Path, "write_text", dies_partway)
+    supervisor.write_heartbeat(888, 6000.0)
+
+    assert supervisor.read_heartbeat()["pid"] == 777
 
 
 def test_a_heartbeat_that_cannot_be_written_does_not_end_the_runtime(
@@ -1316,8 +1334,15 @@ def test_a_stale_heartbeat_is_not_alive(control_dir, monkeypatch):
 def test_a_fresh_heartbeat_naming_a_dead_pid_is_not_alive(
     control_dir, monkeypatch
 ):
-    """What a supervisor killed between ticks leaves behind."""
+    """What a supervisor killed between ticks leaves behind.
+
+    `identifies_script` is made to say yes, so the only thing that can
+    produce False here is the liveness check itself. Left to answer for
+    itself it would say no anyway, and the test would pass whether or not
+    the pid was ever checked.
+    """
     monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: False)
+    monkeypatch.setattr(supervisor, "identifies_script", lambda p, script: True)
     supervisor.write_heartbeat(777, 5000.0)
 
     assert supervisor.supervisor_is_live(now=5010.0) is False
