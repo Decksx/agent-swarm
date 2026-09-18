@@ -688,6 +688,32 @@ def pid_is_alive(pid: int) -> bool:
     return True
 
 
+def powershell_executable() -> str:
+    r"""Where PowerShell is, not what PATH happens to call it (#50).
+
+    `process_command_line` invoked `powershell.exe` by bare name, which
+    resolves in a developer's shell and does not resolve under Task
+    Scheduler, whose environment carries no System32 on PATH. The lookup
+    failed, `process_arguments` answered None, `identifies_script` answered
+    False -- and every caller reads that as "this pid is not what the file
+    says", because a check that guesses when it fails is not a check.
+
+    The visible cost was the #48 scheduled task trying to start a second
+    supervisor every five minutes against a perfectly healthy one, each
+    attempt refused by the single-instance lock and each logged as an error.
+    `swarm_ctl.sh stop` and `status` ask the same question through
+    `--identify` and would have been wrong in the same environment.
+
+    The absolute path is used when it exists, and the bare name otherwise:
+    a host where System32 is somewhere else, or a PowerShell reached some
+    other way, is no worse off than before.
+    """
+    absolute = Path(os.environ.get("SystemRoot", r"C:\Windows")) / \
+        "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+
+    return str(absolute) if absolute.exists() else "powershell.exe"
+
+
 def process_command_line(pid: int) -> Optional[str]:
     """The command line `pid` was started with, or None if it cannot be read.
 
@@ -712,7 +738,7 @@ def process_command_line(pid: int) -> Optional[str]:
         try:
             result = subprocess.run(
                 [
-                    "powershell.exe", "-NoProfile", "-NonInteractive",
+                    powershell_executable(), "-NoProfile", "-NonInteractive",
                     "-Command",
                     "(Get-CimInstance Win32_Process -Filter "
                     f"'ProcessId={pid}').CommandLine",

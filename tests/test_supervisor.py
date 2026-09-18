@@ -1418,3 +1418,93 @@ def test_liveness_starts_nothing(control_dir, spawned, monkeypatch):
     liveness()
 
     assert spawned == []
+
+
+# --- The reason has to name what failed (#50) --------------------------------
+#
+# The warning said "heartbeat Ns old (stale past 120s)" whatever had gone
+# wrong. When the #48 scheduled task could not reach powershell.exe, the
+# identity check answered False and the log blamed a heartbeat that was zero
+# seconds old -- sending whoever read it to look at the clock. A diagnostic
+# that names the wrong cause is worse than none.
+
+
+def test_a_live_supervisor_reads_as_alive_and_says_so(control_dir, monkeypatch):
+    live_supervisor(monkeypatch, 777)
+    supervisor.write_heartbeat(777, 5000.0)
+    alive, reason = supervisor.liveness(now=5010.0)
+
+    assert alive is True
+    assert "777" in reason and "10s old" in reason
+
+
+def test_no_heartbeat_says_there_is_no_heartbeat(control_dir):
+    alive, reason = supervisor.liveness(now=5000.0)
+
+    assert alive is False
+    assert "no usable heartbeat" in reason
+    assert "stale" not in reason
+
+
+def test_a_stale_heartbeat_says_stale_and_nothing_else(control_dir, monkeypatch):
+    live_supervisor(monkeypatch, 777)
+    supervisor.write_heartbeat(777, 5000.0)
+    late = 5000.0 + supervisor.HEARTBEAT_STALE_SECONDS + 10
+    alive, reason = supervisor.liveness(now=late)
+
+    assert alive is False
+    assert "past the 120s limit" in reason
+    assert "not running" not in reason
+    assert "not a supervisor" not in reason
+
+
+def test_a_dead_pid_says_the_pid_is_dead_not_that_it_is_stale(
+    control_dir, monkeypatch
+):
+    monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: False)
+    monkeypatch.setattr(supervisor, "identifies_script", lambda p, script: True)
+    supervisor.write_heartbeat(777, 5000.0)
+    alive, reason = supervisor.liveness(now=5010.0)
+
+    assert alive is False
+    assert "is not running" in reason
+    assert "past the" not in reason
+
+
+def test_an_unidentifiable_pid_says_so_and_names_the_other_possibility(
+    control_dir, monkeypatch
+):
+    """The case that actually happened. A reader has to be told that the host
+    may simply be unable to read command lines, or they will hunt a recycled
+    pid that does not exist."""
+    monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: True)
+    monkeypatch.setattr(supervisor, "identifies_script", lambda p, script: False)
+    supervisor.write_heartbeat(777, 5000.0)
+    alive, reason = supervisor.liveness(now=5010.0)
+
+    assert alive is False
+    assert "not a supervisor" in reason
+    assert "cannot read process command lines" in reason
+    assert "past the" not in reason
+
+
+def test_a_fresh_heartbeat_is_never_described_as_stale(control_dir, monkeypatch):
+    """The exact defect: 'heartbeat 0s old (stale past 120s)'."""
+    monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: True)
+    monkeypatch.setattr(supervisor, "identifies_script", lambda p, script: False)
+    supervisor.write_heartbeat(777, 5000.0)
+    _, reason = supervisor.liveness(now=5000.0)
+
+    assert "stale" not in reason
+
+
+def test_supervisor_is_live_still_answers_the_plain_question(
+    control_dir, monkeypatch
+):
+    """Most callers want the answer, not the reason; the old name still works."""
+    live_supervisor(monkeypatch, 777)
+    supervisor.write_heartbeat(777, 5000.0)
+
+    assert supervisor.supervisor_is_live(now=5010.0) is True
+    assert supervisor.supervisor_is_live(
+        now=5000.0 + supervisor.HEARTBEAT_STALE_SECONDS + 1) is False

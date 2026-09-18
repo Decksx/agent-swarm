@@ -234,28 +234,61 @@ def read_heartbeat() -> Optional[dict]:
     return record
 
 
-def supervisor_is_live(now: Optional[float] = None) -> bool:
-    """Whether a supervisor is running and has said so recently.
+def liveness(now: Optional[float] = None) -> tuple:
+    """`(alive, reason)` -- and the reason names what actually failed (#50).
 
-    Both halves are required, and neither is sufficient. A fresh heartbeat
-    naming a pid that is gone is what a supervisor killed between ticks
-    leaves behind. A live pid with a stale heartbeat is either a wedged
-    supervisor or -- the case `identifies_script` exists for -- a recycled
-    number that now belongs to something else entirely.
+    The warning used to say "heartbeat Ns old (stale past 120s)" whatever
+    had gone wrong, so a run that failed its identity check reported a
+    staleness it did not have. That is worse than no message: it sends
+    whoever reads it to look at the clock. It happened for real -- the
+    scheduled task could not reach `powershell.exe`, the identity check
+    answered False, and the log blamed a heartbeat that was zero seconds
+    old.
+
+    Each half is reported as itself. A fresh heartbeat naming a pid that is
+    gone is what a supervisor killed between ticks leaves behind; a pid that
+    is alive and is not a supervisor is a recycled number, the case
+    `identifies_script` exists for.
     """
     now = time.time() if now is None else now
     record = read_heartbeat()
 
     if record is None:
-        return False
+        return False, f"no usable heartbeat at {heartbeat_path()}"
 
-    if now - record["at"] > HEARTBEAT_STALE_SECONDS:
-        return False
+    age = now - record["at"]
+    pid = record["pid"]
 
-    return (
-        swarm_control.pid_is_alive(record["pid"])
-        and identifies_script(record["pid"], script_for(SUPERVISOR))
-    )
+    if age > HEARTBEAT_STALE_SECONDS:
+        return False, (
+            f"heartbeat is {age:.0f}s old, past the {HEARTBEAT_STALE_SECONDS:.0f}s "
+            f"limit; pid {pid} has stopped saying it is alive"
+        )
+
+    if not swarm_control.pid_is_alive(pid):
+        return False, (
+            f"heartbeat is {age:.0f}s old but pid {pid} is not running; it died "
+            f"between ticks"
+        )
+
+    if not identifies_script(pid, script_for(SUPERVISOR)):
+        return False, (
+            f"heartbeat is {age:.0f}s old and pid {pid} is running, but it is "
+            f"not a supervisor -- either the number was recycled, or this host "
+            f"cannot read process command lines"
+        )
+
+    return True, f"supervisor pid {pid} heartbeat {age:.0f}s old"
+
+
+def supervisor_is_live(now: Optional[float] = None) -> bool:
+    """Whether a supervisor is running and has said so recently.
+
+    Both halves are required, and neither is sufficient. Kept as its own
+    name because most callers only want the answer; `liveness` carries the
+    reason for the one that has to say why.
+    """
+    return liveness(now)[0]
 
 
 class Child:
@@ -937,22 +970,13 @@ def main(argv) -> int:
         # here for the same reason `--identify` is: the shell holds a file and
         # no way to check what is behind it, and a second implementation of
         # "is this really a supervisor" is a second thing that can be wrong.
-        record = read_heartbeat()
+        alive, reason = liveness()
 
-        if record is None:
-            log.info("no usable heartbeat at %s", heartbeat_path())
-            return 1
-
-        age = time.time() - record["at"]
-
-        if supervisor_is_live():
-            log.info("supervisor pid %s heartbeat %.0fs old", record["pid"], age)
+        if alive:
+            log.info("%s", reason)
             return 0
 
-        log.warning(
-            "no live supervisor: heartbeat %.0fs old (stale past %.0fs) naming pid %s",
-            age, HEARTBEAT_STALE_SECONDS, record["pid"],
-        )
+        log.warning("no live supervisor: %s", reason)
         return 1
 
     if args.identify:
