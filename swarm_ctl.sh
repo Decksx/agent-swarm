@@ -17,7 +17,18 @@ PYTHON="${SUPERVISOR_PYTHON:-/c/Python311/python}"
 CONTROL="${SWARM_CONTROL_DIR:-$REPO/control}"
 LOG="${SUPERVISOR_LOG:-$CONTROL/supervisor.log}"
 URL="${CONTROLLER_URL:-http://192.168.42.50:8050}"
-TASK_NAME="AgentSwarmSupervisor"
+# Overridable so a test can register a throwaway task and assert on what Task
+# Scheduler actually stored, rather than on the text of this script (#48).
+TASK_NAME="${SWARM_TASK_NAME:-AgentSwarmSupervisor}"
+TASK_INTERVAL_MINUTES="${SWARM_TASK_INTERVAL_MINUTES:-5}"
+
+# Finite, and deliberately so. `[TimeSpan]::MaxValue` serialises to
+# P99999999DT23H59M59S, which Task Scheduler refuses with HRESULT 0x80041318 --
+# "the task XML contains a value which is incorrectly formatted or out of
+# range". `install` used it, the registration threw, and the command printed
+# "registered" anyway (#48). Ten years outlives any host this runs on.
+TASK_DURATION_DAYS="${SWARM_TASK_DURATION_DAYS:-3650}"
+
 HEARTBEAT="supervisor.heartbeat"
 
 # How `ensure` re-invokes this script. $BASH_SOURCE is the spelling the caller
@@ -440,20 +451,56 @@ case "${1:-}" in
     # something that may die an hour later. A repeating idempotent check
     # covers that case properly, and leaving a setting that looks like
     # protection next to one that is would invite trusting the wrong one.
-    powershell.exe -NoProfile -Command "
-      \$action = New-ScheduledTaskAction -Execute 'C:\\Program Files\\Git\\bin\\bash.exe' \
-        -Argument '-lc \"$REPO/swarm_ctl.sh ensure\"'
-      \$trigger = New-ScheduledTaskTrigger -AtLogOn
-      \$trigger.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) \
-        -RepetitionInterval (New-TimeSpan -Minutes 5) \
-        -RepetitionDuration ([TimeSpan]::MaxValue)).Repetition
-      \$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries \
-        -DontStopIfGoingOnBatteries -StartWhenAvailable \
-        -MultipleInstances IgnoreNew
-      Register-ScheduledTask -TaskName '$TASK_NAME' -Action \$action \
-        -Trigger \$trigger -Settings \$settings -Force | Out-Null
-      Write-Output 'registered $TASK_NAME (at logon, rechecked every 5 minutes)'
-    "
+    # Two triggers rather than one with a grafted Repetition: the logon
+    # trigger brings a fresh session up at once, and a separate repeating
+    # trigger is what keeps the swarm alive between logons. Grafting was also
+    # rejected by Task Scheduler, but the duration was the reason (#48).
+    #
+    # Registration is checked, and then the stored task is read back and
+    # checked again. Neither is optional. `Register-ScheduledTask` throwing
+    # inside `powershell.exe -Command` does not reach this shell's exit
+    # status, so the previous version printed "registered" over the top of a
+    # CIM exception and exited 0 -- the swarm's self-heal was unarmed on this
+    # host for as long as somebody believed that line.
+    if ! powershell.exe -NoProfile -Command "
+      \$ErrorActionPreference = 'Stop'
+
+      try {
+        \$action = New-ScheduledTaskAction -Execute 'C:\\Program Files\\Git\\bin\\bash.exe' \
+          -Argument '-lc \"$REPO/swarm_ctl.sh ensure\"'
+        \$atLogon = New-ScheduledTaskTrigger -AtLogOn
+        \$repeating = New-ScheduledTaskTrigger -Once -At (Get-Date) \
+          -RepetitionInterval (New-TimeSpan -Minutes $TASK_INTERVAL_MINUTES) \
+          -RepetitionDuration (New-TimeSpan -Days $TASK_DURATION_DAYS)
+        \$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries \
+          -DontStopIfGoingOnBatteries -StartWhenAvailable \
+          -MultipleInstances IgnoreNew
+
+        Register-ScheduledTask -TaskName '$TASK_NAME' -Action \$action \
+          -Trigger \$atLogon, \$repeating -Settings \$settings -Force | Out-Null
+
+        \$task = Get-ScheduledTask -TaskName '$TASK_NAME'
+        \$repeat = \$task.Triggers | Where-Object { \$_.Repetition.Interval }
+        \$arguments = (\$task.Actions | ForEach-Object { \$_.Arguments }) -join ' '
+
+        if (-not \$repeat) {
+          throw 'the task registered with no repeating trigger'
+        }
+
+        if (\$arguments -notlike '*swarm_ctl.sh ensure*') {
+          throw \"the task registered to run: \$arguments\"
+        }
+
+        Write-Output \"registered $TASK_NAME (at logon, rechecked every \$(\$repeat.Repetition.Interval))\"
+      } catch {
+        Write-Output \"FAILED to register $TASK_NAME: \$(\$_.Exception.Message)\"
+        exit 1
+      }
+    "; then
+      echo "install failed: the scheduled task was not registered, and the"
+      echo "swarm will not restart itself. Nothing else was changed."
+      exit 1
+    fi
     ;;
 
   uninstall)
