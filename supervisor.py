@@ -159,8 +159,39 @@ SUPERVISOR = swarm_control.SUPERVISOR
 script_for = swarm_control.script_for
 
 
+def script_identity(pid: int, script: str) -> Optional[bool]:
+    """True, False, or None when the command line could not be read (#52).
+
+    Three answers because there are three facts, and collapsing the third
+    into False is what made the scheduled task start a second supervisor
+    against a healthy one every five minutes.
+
+    `Win32_Process.CommandLine` comes back empty from a non-interactive
+    security context on this host -- the task runs as the same user and
+    still cannot read it, while the identical query from an interactive
+    session returns the full line. So `process_arguments` answers None, and
+    "I could not look" is not the same claim as "I looked and it is
+    something else".
+
+    Which of the two a caller may act on depends on what it is about to do,
+    so this does not decide: it reports, and `identifies_script` below is
+    the strict reading for callers that must not act on a maybe.
+    """
+    arguments = swarm_control.process_arguments(pid)
+
+    if arguments is None:
+        return None
+
+    running = swarm_control.running_python_script(arguments)
+
+    if running is None:
+        return None
+
+    return running.lower() == script.lower()
+
+
 def identifies_script(pid: int, script: str) -> bool:
-    """Whether `pid` is a live process running `script`.
+    """Whether `pid` is a live process running `script`. Only True is a yes.
 
     The one place the question is answered, because there is more than one
     place it is asked. A worker's pid comes out of its identity lock and a
@@ -168,12 +199,13 @@ def identifies_script(pid: int, script: str) -> bool:
     was right when it was written -- so both can name a process that was
     recycled into something else, and neither is evidence of anything until
     the process behind the number is read.
-    """
-    running = swarm_control.running_python_script(
-        swarm_control.process_arguments(pid)
-    )
 
-    return running is not None and running.lower() == script.lower()
+    Deliberately still a strict bool. This feeds `--identify`, which feeds
+    `swarm_ctl.sh stop`, which sends `taskkill /F`: a path whose correctness
+    must not come to rest on None happening to be falsy in Python. A caller
+    that can act on "cannot tell" asks `script_identity` and says so.
+    """
+    return script_identity(pid, script) is True
 
 
 def heartbeat_path() -> Path:
@@ -271,11 +303,26 @@ def liveness(now: Optional[float] = None) -> tuple:
             f"between ticks"
         )
 
-    if not identifies_script(pid, script_for(SUPERVISOR)):
+    identity = script_identity(pid, script_for(SUPERVISOR))
+
+    if identity is False:
         return False, (
             f"heartbeat is {age:.0f}s old and pid {pid} is running, but it is "
-            f"not a supervisor -- either the number was recycled, or this host "
-            f"cannot read process command lines"
+            f"not a supervisor; the number was recycled"
+        )
+
+    if identity is None:
+        # The asymmetry this function exists to get right (#52). A kill must
+        # refuse on "cannot tell"; a start must refuse on it too, and those
+        # are opposite answers to the same ambiguity. What is being decided
+        # here is whether to spawn a second supervisor on top of a process
+        # that wrote this heartbeat a moment ago -- so the heartbeat is the
+        # evidence, and an unreadable command line is not a reason to ignore
+        # it. Said out loud rather than passed off as a verified identity.
+        return True, (
+            f"supervisor pid {pid} heartbeat {age:.0f}s old; its command line "
+            f"could not be read, so the identity is unverified and the "
+            f"heartbeat is being trusted"
         )
 
     return True, f"supervisor pid {pid} heartbeat {age:.0f}s old"
