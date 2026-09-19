@@ -1303,10 +1303,17 @@ def test_a_heartbeat_that_cannot_be_written_does_not_end_the_runtime(
 
 
 def live_supervisor(monkeypatch, pid):
-    """Make `pid` look like a running supervisor to the liveness check."""
+    """Make `pid` look like a running supervisor to the liveness check.
+
+    `script_identity`, not `identifies_script`: since #52 the liveness check
+    asks the tri-state question, and patching the boolean wrapper would leave
+    the real one to answer for itself -- which for a pid nothing spawned is
+    None, the "cannot tell" branch. These tests would then pass through a
+    branch they are not about.
+    """
     monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: p == pid)
     monkeypatch.setattr(
-        supervisor, "identifies_script", lambda p, script: p == pid)
+        supervisor, "script_identity", lambda p, script: p == pid)
 
 
 def test_a_fresh_heartbeat_from_a_live_supervisor_is_alive(
@@ -1336,13 +1343,13 @@ def test_a_fresh_heartbeat_naming_a_dead_pid_is_not_alive(
 ):
     """What a supervisor killed between ticks leaves behind.
 
-    `identifies_script` is made to say yes, so the only thing that can
+    `script_identity` is made to say yes, so the only thing that can
     produce False here is the liveness check itself. Left to answer for
-    itself it would say no anyway, and the test would pass whether or not
-    the pid was ever checked.
+    itself it would say None anyway, and since #52 that branch reports
+    alive -- so the test would pass or fail for the wrong reason.
     """
     monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: False)
-    monkeypatch.setattr(supervisor, "identifies_script", lambda p, script: True)
+    monkeypatch.setattr(supervisor, "script_identity", lambda p, script: True)
     supervisor.write_heartbeat(777, 5000.0)
 
     assert supervisor.supervisor_is_live(now=5010.0) is False
@@ -1351,9 +1358,14 @@ def test_a_fresh_heartbeat_naming_a_dead_pid_is_not_alive(
 def test_a_fresh_heartbeat_naming_a_recycled_pid_is_not_alive(
     control_dir, monkeypatch
 ):
-    """Alive, and not a supervisor. The defect `identifies_script` exists for."""
+    """Alive, and read, and not a supervisor. The case the check exists for.
+
+    `script_identity` rather than the boolean wrapper: a *readable* command
+    line naming something else is a verdict, and #52 must not have turned it
+    into the ambiguity next door.
+    """
     monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: True)
-    monkeypatch.setattr(supervisor, "identifies_script", lambda p, script: False)
+    monkeypatch.setattr(supervisor, "script_identity", lambda p, script: False)
     supervisor.write_heartbeat(777, 5000.0)
 
     assert supervisor.supervisor_is_live(now=5010.0) is False
@@ -1462,7 +1474,7 @@ def test_a_dead_pid_says_the_pid_is_dead_not_that_it_is_stale(
     control_dir, monkeypatch
 ):
     monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: False)
-    monkeypatch.setattr(supervisor, "identifies_script", lambda p, script: True)
+    monkeypatch.setattr(supervisor, "script_identity", lambda p, script: True)
     supervisor.write_heartbeat(777, 5000.0)
     alive, reason = supervisor.liveness(now=5010.0)
 
@@ -1471,27 +1483,36 @@ def test_a_dead_pid_says_the_pid_is_dead_not_that_it_is_stale(
     assert "past the" not in reason
 
 
-def test_an_unidentifiable_pid_says_so_and_names_the_other_possibility(
+def test_a_recycled_pid_says_recycled_and_not_that_it_is_stale(
     control_dir, monkeypatch
 ):
-    """The case that actually happened. A reader has to be told that the host
-    may simply be unable to read command lines, or they will hunt a recycled
-    pid that does not exist."""
+    """Since #52 this reason names only recycling.
+
+    It used to offer "or this host cannot read process command lines" as the
+    alternative, because the two were indistinguishable. They are not any
+    more: an unreadable command line is its own branch, and it reports alive.
+    Leaving the old wording here would describe a case this one no longer is.
+    """
     monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: True)
-    monkeypatch.setattr(supervisor, "identifies_script", lambda p, script: False)
+    monkeypatch.setattr(supervisor, "script_identity", lambda p, script: False)
     supervisor.write_heartbeat(777, 5000.0)
     alive, reason = supervisor.liveness(now=5010.0)
 
     assert alive is False
-    assert "not a supervisor" in reason
-    assert "cannot read process command lines" in reason
+    assert "the number was recycled" in reason
     assert "past the" not in reason
+
+    # Not "or this host cannot read process command lines". That alternative
+    # was honest while the two were indistinguishable and is now a lie: the
+    # command line was read. Offering it here would send a reader looking for
+    # an environment problem that is not there.
+    assert "cannot read" not in reason
 
 
 def test_a_fresh_heartbeat_is_never_described_as_stale(control_dir, monkeypatch):
     """The exact defect: 'heartbeat 0s old (stale past 120s)'."""
     monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: True)
-    monkeypatch.setattr(supervisor, "identifies_script", lambda p, script: False)
+    monkeypatch.setattr(supervisor, "script_identity", lambda p, script: False)
     supervisor.write_heartbeat(777, 5000.0)
     _, reason = supervisor.liveness(now=5000.0)
 
@@ -1508,3 +1529,179 @@ def test_supervisor_is_live_still_answers_the_plain_question(
     assert supervisor.supervisor_is_live(now=5010.0) is True
     assert supervisor.supervisor_is_live(
         now=5000.0 + supervisor.HEARTBEAT_STALE_SECONDS + 1) is False
+
+
+# --- "I could not look" is not "I looked and it is something else" (#52) -----
+#
+# The #48 scheduled task kept starting a second supervisor against a healthy
+# one. Not PATH -- #50 fixed a real latent bug there, but not this. A probe run
+# from inside a real scheduled task showed Win32_Process.CommandLine coming
+# back EMPTY from a non-interactive security context, while the identical query
+# from an interactive session returned the full line. process_arguments
+# answered None, identifies_script turned that into False, and `ensure` read
+# "not a supervisor" as permission to spawn one.
+#
+# swarm_control already says None means "cannot tell, so do not act". That is
+# right for a kill. `ensure`'s action is a start, and the same ambiguity there
+# has the opposite safe answer: with a fresh heartbeat and a live pid, an
+# unreadable command line must defer to the heartbeat.
+
+
+def opaque_command_line(monkeypatch):
+    """The condition the scheduled task runs under: alive, and unreadable."""
+    monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: True)
+    monkeypatch.setattr(swarm_control, "process_arguments", lambda p: None)
+
+
+def test_an_unreadable_command_line_is_not_a_verdict(control_dir, monkeypatch):
+    opaque_command_line(monkeypatch)
+
+    assert supervisor.script_identity(777, "supervisor.py") is None
+
+
+def test_a_command_line_naming_something_else_is_a_verdict(
+    control_dir, monkeypatch
+):
+    monkeypatch.setattr(
+        swarm_control, "process_arguments", lambda p: ["python", "gemini_worker.py"])
+
+    assert supervisor.script_identity(777, "supervisor.py") is False
+
+
+def test_a_command_line_naming_the_script_is_a_verdict(control_dir, monkeypatch):
+    monkeypatch.setattr(
+        swarm_control, "process_arguments", lambda p: ["python", "supervisor.py"])
+
+    assert supervisor.script_identity(777, "supervisor.py") is True
+
+
+# --- The kill path keeps its strict boolean ----------------------------------
+
+
+@pytest.mark.parametrize("arguments,identified", [
+    (None, False),                             # cannot tell -- never a yes
+    (["python", "gemini_worker.py"], False),   # read, and it is not this
+    (["python", "supervisor.py"], True),
+])
+def test_identifies_script_answers_only_true_or_false(
+    control_dir, monkeypatch, arguments, identified
+):
+    """`--identify` feeds `swarm_ctl.sh stop`, which sends taskkill /F. That
+    path must not come to rest on None being falsy in Python."""
+    monkeypatch.setattr(swarm_control, "process_arguments", lambda p: arguments)
+    answer = supervisor.identifies_script(777, "supervisor.py")
+
+    assert answer is identified
+    assert isinstance(answer, bool)
+
+
+# --- What liveness does with each of the three -------------------------------
+
+
+def test_an_opaque_identity_defers_to_a_fresh_heartbeat(control_dir, monkeypatch):
+    """The regression. Before #52 this was False, and `ensure` started a
+    second supervisor on top of a healthy one every five minutes."""
+    opaque_command_line(monkeypatch)
+    supervisor.write_heartbeat(777, 5000.0)
+    alive, reason = supervisor.liveness(now=5001.0)
+
+    assert alive is True
+    assert "could not be read" in reason
+    assert "unverified" in reason
+
+
+def test_an_opaque_identity_does_not_claim_to_have_checked(
+    control_dir, monkeypatch
+):
+    """A log that implied a verified identity would hide the very condition
+    that made this take three attempts to find."""
+    opaque_command_line(monkeypatch)
+    supervisor.write_heartbeat(777, 5000.0)
+    _, reason = supervisor.liveness(now=5001.0)
+    verified, _ = supervisor.liveness(now=5001.0)
+
+    assert reason != f"supervisor pid 777 heartbeat 1s old"
+    assert verified is True
+
+
+def test_an_opaque_identity_cannot_rescue_a_stale_heartbeat(
+    control_dir, monkeypatch
+):
+    """Deferring to the heartbeat is only defensible while there is one to
+    defer to. A supervisor that stopped writing is gone, readable or not."""
+    opaque_command_line(monkeypatch)
+    supervisor.write_heartbeat(777, 5000.0)
+    late = 5000.0 + supervisor.HEARTBEAT_STALE_SECONDS + 1
+
+    assert supervisor.liveness(now=late)[0] is False
+
+
+def test_an_opaque_identity_cannot_rescue_a_dead_pid(control_dir, monkeypatch):
+    """The pid is checked first and is its own fact; nothing about an
+    unreadable command line makes a dead process alive."""
+    monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: False)
+    monkeypatch.setattr(swarm_control, "process_arguments", lambda p: None)
+    supervisor.write_heartbeat(777, 5000.0)
+    alive, reason = supervisor.liveness(now=5001.0)
+
+    assert alive is False
+    assert "is not running" in reason
+
+
+def test_a_recycled_pid_is_still_refused(control_dir, monkeypatch):
+    """The case the identity check exists for has to survive #52: a readable
+    command line naming something else is a verdict, not an ambiguity."""
+    monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: True)
+    monkeypatch.setattr(
+        swarm_control, "process_arguments", lambda p: ["python", "gemini_worker.py"])
+    supervisor.write_heartbeat(777, 5000.0)
+    alive, reason = supervisor.liveness(now=5001.0)
+
+    assert alive is False
+    assert "the number was recycled" in reason
+    assert "could not be read" not in reason
+
+
+def test_liveness_exits_zero_for_an_opaque_but_beating_supervisor(
+    control_dir, monkeypatch
+):
+    """What `swarm_ctl.sh ensure` asks, under the scheduled task's own
+    conditions. This exit status is the whole point: 1 here is what made the
+    task spawn a duplicate."""
+    opaque_command_line(monkeypatch)
+    supervisor.write_heartbeat(777, time.time())
+
+    assert supervisor.main(["supervisor.py", "--liveness"]) == 0
+
+
+def test_a_readable_command_line_that_is_not_python_is_a_verdict(
+    control_dir, monkeypatch
+):
+    """`running_python_script` answers None for plenty of *readable* lines --
+    `notepad.exe`, `python -c ...`, `python -m ...`, a bare executable. Those
+    were read, and none of them is a supervisor. Reporting them as "cannot
+    tell" would hand `ensure` an ambiguity about a process it can see
+    perfectly well, and trust a recycled pid running anything at all.
+    """
+    monkeypatch.setattr(
+        swarm_control, "process_arguments", lambda p: ["notepad.exe"])
+
+    assert supervisor.script_identity(777, "supervisor.py") is False
+
+
+@pytest.mark.parametrize("arguments", [
+    ["notepad.exe"],
+    ["python", "-c", "import supervisor"],
+    ["python", "-m", "supervisor"],
+    ["./supervisor.py"],
+])
+def test_a_recycled_pid_running_anything_readable_is_refused(
+    control_dir, monkeypatch, arguments
+):
+    """The regression this nearly shipped: every one of these reads as a live
+    supervisor if a readable command line can answer "cannot tell"."""
+    monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: True)
+    monkeypatch.setattr(swarm_control, "process_arguments", lambda p: arguments)
+    supervisor.write_heartbeat(777, 5000.0)
+
+    assert supervisor.liveness(now=5001.0)[0] is False
