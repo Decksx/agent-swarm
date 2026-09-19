@@ -179,15 +179,18 @@ def script_identity(pid: int, script: str) -> Optional[bool]:
     """
     arguments = swarm_control.process_arguments(pid)
 
+    # The only ambiguity is here: nothing could be read. Everything past this
+    # point is a verdict, including the shapes `running_python_script`
+    # deliberately refuses -- `notepad.exe`, `python -c ...`, `python -m ...`,
+    # a bare executable. Those were read, and none of them is a supervisor, so
+    # answering None for them would hand `ensure` a "cannot tell" about a
+    # process it can see perfectly well and trust a recycled pid.
     if arguments is None:
         return None
 
     running = swarm_control.running_python_script(arguments)
 
-    if running is None:
-        return None
-
-    return running.lower() == script.lower()
+    return running is not None and running.lower() == script.lower()
 
 
 def identifies_script(pid: int, script: str) -> bool:

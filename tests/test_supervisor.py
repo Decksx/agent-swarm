@@ -1502,6 +1502,12 @@ def test_a_recycled_pid_says_recycled_and_not_that_it_is_stale(
     assert "the number was recycled" in reason
     assert "past the" not in reason
 
+    # Not "or this host cannot read process command lines". That alternative
+    # was honest while the two were indistinguishable and is now a lie: the
+    # command line was read. Offering it here would send a reader looking for
+    # an environment problem that is not there.
+    assert "cannot read" not in reason
+
 
 def test_a_fresh_heartbeat_is_never_described_as_stale(control_dir, monkeypatch):
     """The exact defect: 'heartbeat 0s old (stale past 120s)'."""
@@ -1666,3 +1672,36 @@ def test_liveness_exits_zero_for_an_opaque_but_beating_supervisor(
     supervisor.write_heartbeat(777, time.time())
 
     assert supervisor.main(["supervisor.py", "--liveness"]) == 0
+
+
+def test_a_readable_command_line_that_is_not_python_is_a_verdict(
+    control_dir, monkeypatch
+):
+    """`running_python_script` answers None for plenty of *readable* lines --
+    `notepad.exe`, `python -c ...`, `python -m ...`, a bare executable. Those
+    were read, and none of them is a supervisor. Reporting them as "cannot
+    tell" would hand `ensure` an ambiguity about a process it can see
+    perfectly well, and trust a recycled pid running anything at all.
+    """
+    monkeypatch.setattr(
+        swarm_control, "process_arguments", lambda p: ["notepad.exe"])
+
+    assert supervisor.script_identity(777, "supervisor.py") is False
+
+
+@pytest.mark.parametrize("arguments", [
+    ["notepad.exe"],
+    ["python", "-c", "import supervisor"],
+    ["python", "-m", "supervisor"],
+    ["./supervisor.py"],
+])
+def test_a_recycled_pid_running_anything_readable_is_refused(
+    control_dir, monkeypatch, arguments
+):
+    """The regression this nearly shipped: every one of these reads as a live
+    supervisor if a readable command line can answer "cannot tell"."""
+    monkeypatch.setattr(swarm_control, "pid_is_alive", lambda p: True)
+    monkeypatch.setattr(swarm_control, "process_arguments", lambda p: arguments)
+    supervisor.write_heartbeat(777, 5000.0)
+
+    assert supervisor.liveness(now=5001.0)[0] is False
