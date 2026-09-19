@@ -114,6 +114,11 @@ class HostAtCapacity(ActivationError):
     pass
 
 
+# The budget belongs to the engine, which counts it and decides it; `issue`
+# only asks. Re-exported because callers catch it beside `HostAtCapacity`.
+BudgetExhausted = engine.BudgetExhausted
+
+
 class EvidenceNotDurable(ActivationError):
     """A result cited evidence whose blobs are not on the control plane (§9)."""
 
@@ -228,6 +233,7 @@ def issue(
     lease_seconds: float,
     hard_deadline_seconds: float,
     chargeable: bool = True,
+    max_attempts: int = engine.DEFAULT_AUTHOR_ATTEMPTS,
     activation_id: Optional[str] = None,
     expected_branch: Optional[str] = None,
     expected_parent: Optional[str] = None,
@@ -258,6 +264,14 @@ def issue(
         blocked = _capacity_blocked(conn, host)
         if blocked is not None:
             raise HostAtCapacity(blocked)
+
+        # Inside this transaction for the same reason the capacity check is:
+        # two issues that counted first and inserted after would both see
+        # room. Only a chargeable author activation can exhaust the budget,
+        # so only that one is refused (#21).
+        if stage == "author" and chargeable:
+            engine.refuse_if_budget_spent(
+                conn, task_id=task_id, max_attempts=max_attempts)
 
         task = engine.get_task(conn, task_id)
 
@@ -803,17 +817,28 @@ def _finalize(
     outcome: dict,
     request_hash: str,
     response: dict,
+    uncharge: bool = False,
 ) -> None:
     """Mark the activation DONE and record what answered it.
 
     Recording the request hash is what makes the next identical delivery
     return the cached response. The host slot is released by the status change
     alone: `_capacity_blocked` counts only ISSUED and CLAIMED.
+
+    `uncharge` clears `chargeable_attempt` in the same statement (#21).
+    Chargeability is decided at issue, before anyone knows how the activation
+    ends, and the outcome that should decide it arrives here -- so it is
+    corrected rather than predicted. In this UPDATE rather than a second one,
+    because a row marked DONE while still charged, even briefly, is a budget
+    the controller would enforce against. The spent count is derived from the
+    column, so clearing it corrects every reader at once.
     """
     with transaction(conn):
         conn.execute(
-            "UPDATE activations SET status = ?, result_event_id = ?, "
-            "result_request_hash = ?, result_response = ? WHERE activation_id = ?",
+            f"UPDATE activations SET status = ?, result_event_id = ?, "
+            f"result_request_hash = ?, result_response = ?"
+            f"{', chargeable_attempt = 0' if uncharge else ''} "
+            f"WHERE activation_id = ?",
             (DONE, outcome["event_id"], request_hash, json.dumps(response), activation_id),
         )
 
@@ -1173,6 +1198,13 @@ def _submit_stage_outcome(
         outcome=result,
         request_hash=request_hash,
         response=response,
+        # An environment defect is not an attempt (#21). The taxonomy already
+        # draws the line: `author_defect` is a model that answered unusably,
+        # `environment_defect` a run that never got far enough to judge -- a
+        # 429 before any text, a missing credential, a worktree that would not
+        # open. Keyed on the transition, not the reported string, because the
+        # transition is what the state machine acted on.
+        uncharge=(kind == "environment_defect"),
     )
 
     return {**response, "replayed": False}

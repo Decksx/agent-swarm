@@ -311,6 +311,16 @@ def advance(
             record["reason"] = str(exc)
             considered.append(record)
             continue
+        except activations.BudgetExhausted as exc:
+            # Also not an error, and unlike capacity it will not clear by
+            # itself: a later advance will refuse this the same way until a
+            # person decides the task deserves more attempts (#21). Recorded
+            # as its own reason rather than as an exception string, because
+            # "this task is out of budget" is a state of the task and reads
+            # nothing like a fault in the run.
+            record["reason"] = str(exc)
+            considered.append(record)
+            continue
         except Exception as exc:
             record["reason"] = f"{type(exc).__name__}: {exc}"
             considered.append(record)

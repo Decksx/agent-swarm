@@ -419,6 +419,73 @@ def apply_transition_within(
 DEFAULT_AUTHOR_ATTEMPTS = 3
 
 
+class BudgetExhausted(Exception):
+    """The author budget is spent, and this would mint another attempt (#21).
+
+    Raised by `refuse_if_budget_spent`, which `activations.issue` calls before
+    it inserts. Shaped like `HostAtCapacity`: the controller will not mint the
+    activation, and the caller says so in its own words rather than moving the
+    task somewhere on its behalf.
+
+    It exists because the budget was counted in one place and enforced in
+    another. `authorize_retry` refuses a rejected task a fourth attempt;
+    nothing refused the repair route, which reaches READY_AUTHOR through
+    `environment_repaired` without passing that check. T-INFRA-12 spent a
+    fourth chargeable activation against a budget of three exactly that way.
+    """
+
+
+def refuse_if_budget_spent(
+    conn: sqlite3.Connection,
+    *,
+    task_id: str,
+    max_attempts: int = DEFAULT_AUTHOR_ATTEMPTS,
+) -> int:
+    """Raise `BudgetExhausted` if another chargeable author attempt is one too
+    many, and return what has been spent otherwise.
+
+    Here rather than in `activations` because this is the budget deciding, and
+    the budget is this module's: the ceiling, the count and `authorize_retry`
+    all live here. `issue` asks the question; it does not own the answer.
+    """
+    spent = author_attempts_spent(conn, task_id)
+
+    if spent >= max_attempts:
+        raise BudgetExhausted(
+            f"{task_id} has spent {spent} of {max_attempts} author attempts; "
+            f"this would be another"
+        )
+
+    return spent
+
+
+def author_attempts_spent(conn: sqlite3.Connection, task_id: str) -> int:
+    """How much of the author budget `task_id` has actually spent (#21).
+
+    The one place the question is answered, because it is asked in three:
+    `authorize_retry` below, `activations.issue` before it mints another, and
+    the chat ingress when it tells an operator where a task stands. Three
+    hand-written copies of one SELECT are three things that can disagree, and
+    the two that decide something disagreeing is exactly the defect #21
+    describes.
+
+    Attempts are counted from the activations actually issued rather than from
+    a counter on the task, because that is the number that reflects what was
+    really spent -- a task repaired, superseded, or re-versioned does not get
+    its history rewritten by this.
+
+    `chargeable_attempt = 0` rows are excluded, which is how an activation
+    that ended in `environment_defect` stops counting: the budget measures
+    generative attempts, and a run that never reached a usable model reply
+    was not one.
+    """
+    return conn.execute(
+        "SELECT COUNT(*) AS n FROM activations "
+        "WHERE task_id = ? AND stage = 'author' AND chargeable_attempt = 1",
+        (task_id,),
+    ).fetchone()["n"]
+
+
 def authorize_retry(
     conn: sqlite3.Connection,
     *,
@@ -444,11 +511,7 @@ def authorize_retry(
     rather than raising: refusing another attempt is a decision the ledger
     should carry, not an error the caller can ignore.
     """
-    spent = conn.execute(
-        "SELECT COUNT(*) AS n FROM activations "
-        "WHERE task_id = ? AND stage = 'author' AND chargeable_attempt = 1",
-        (task_id,),
-    ).fetchone()["n"]
+    spent = author_attempts_spent(conn, task_id)
 
     if spent >= max_attempts:
         return apply_transition(

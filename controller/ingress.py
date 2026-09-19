@@ -396,12 +396,13 @@ def _live_activation(conn: sqlite3.Connection, task_id: str):
 
 
 def _author_attempts(conn: sqlite3.Connection, task_id: str) -> int:
-    """Counted the way `engine.authorize_retry` counts them."""
-    return conn.execute(
-        "SELECT COUNT(*) FROM activations WHERE task_id = ? AND stage = 'author' "
-        "AND chargeable_attempt = 1",
-        (task_id,),
-    ).fetchone()[0]
+    """Counted the way the controller counts them, by asking it (#21).
+
+    This used to be its own copy of the SELECT. What an operator is told and
+    what the controller enforces have to be the same number, and two
+    hand-written copies of one query are two things that can drift apart.
+    """
+    return engine.author_attempts_spent(conn, task_id)
 
 
 def _next_author_branch(conn: sqlite3.Connection, task_id: str) -> str:
@@ -492,6 +493,20 @@ def retry(conn: sqlite3.Connection, task_id: str, *, author: Optional[str], send
         raise IngressRefused(
             f"{task_id} is READY_AUTHOR{' (retry authorised)' if authorised else ''}, but "
             f"{routing.host} is at capacity ({exc}); send the same retry again once a slot frees"
+        )
+    except activations.BudgetExhausted as exc:
+        # The repair route's refusal (#21). A task that reached READY_AUTHOR
+        # through `environment_repaired` never passed `authorize_retry`, so
+        # this is the first thing that tells it no -- which is why T-INFRA-12
+        # took a fourth chargeable activation against a budget of three.
+        #
+        # Worded to say the budget is the limit and not the host, because
+        # "send it again once a slot frees" is exactly the wrong advice here:
+        # nothing frees, and repeating the retry will be refused every time.
+        raise IngressRefused(
+            f"{task_id} is READY_AUTHOR but its author budget is spent ({exc}). "
+            f"Repairing the environment does not buy another attempt; a person "
+            f"has to decide whether this task deserves one."
         )
 
     task = _task(conn, task_id)
