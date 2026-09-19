@@ -72,6 +72,10 @@ _STATUS_FOR = {
     activations.DeadlineExceeded: 409,
     activations.ConflictingResult: 409,
     activations.HostAtCapacity: 409,
+    # 409 beside HostAtCapacity, and for the same reason: the request was
+    # well formed and the controller will not mint the activation. Listed
+    # before ActivationError so the subclass is not swallowed by the 400 (#21).
+    activations.BudgetExhausted: 409,
     activations.EvidenceNotDurable: 409,
     activations.InvalidClaimStages: 422,
     engine.StaleState: 409,
