@@ -209,16 +209,69 @@ def test_a_non_chargeable_activation_is_issued_past_the_budget(conn, ready_task)
     assert issue(conn, chargeable=False)["activation_id"]
 
 
-def test_a_review_activation_is_not_refused_by_the_author_budget(conn, ready_task):
-    """The ceiling is the author's. Nothing about it should stop a review."""
+def spend_the_budget_and_produce_a_candidate(conn):
+    """Two author defects, then a third attempt that succeeds. 3 of 3 spent,
+    and a candidate waiting to be reviewed."""
+    for _ in range(2):
+        issued = issue(conn)
+        claim_and_report(conn, issued["activation_id"], "failed", {"reason": "x"})
+        engine.apply_transition(
+            conn, task_id="T-1", kind="retry_authorized", actor="admin",
+            authority=states.CONTROLLER,
+        )
+
+    issued = issue(conn)
+    claim_and_report(conn, issued["activation_id"], "candidate", {
+        "branch": "task/T-1-a3", "candidate_sha": "a" * 40,
+        "parent_sha": "0" * 40,
+    })
+    return issued
+
+
+def test_a_review_activation_is_issued_past_a_spent_author_budget(
+    conn, ready_task
+):
+    """The author ceiling is the author's, and nothing else's.
+
+    A task that spends all three attempts and succeeds on the third still has
+    to be reviewed. If the budget refused every stage rather than the author
+    stage, that candidate could never be looked at -- the task would spend its
+    last attempt producing work the controller then refused to review.
+    """
+    spend_the_budget_and_produce_a_candidate(conn)
+
+    assert spent(conn) == 3
+
+    reviewed = activations.issue(
+        conn, task_id="T-1", agent="gemini", host="OFFICEPC", stage="review",
+        lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=T0,
+        expected_branch="task/T-1-a3", expected_candidate="a" * 40,
+        repo_location="/srv/checkouts/T-1",
+    )
+
+    assert reviewed["activation_id"]
+
+
+def test_a_review_activation_does_not_spend_the_author_budget(conn, ready_task):
+    """The count is the author stage's. A review that also carries
+    `chargeable_attempt = 1` would make reviewing a task cost it an attempt.
+    """
     issued = issue(conn)
     claim_and_report(conn, issued["activation_id"], "candidate", {
         "branch": "task/T-1-a1", "candidate_sha": "a" * 40,
         "parent_sha": "0" * 40,
     })
 
-    assert engine.refuse_if_budget_spent(
-        conn, task_id="T-1", max_attempts=99) == 1
+    assert spent(conn) == 1
+
+    activations.issue(
+        conn, task_id="T-1", agent="gemini", host="OFFICEPC", stage="review",
+        lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=T0,
+        expected_branch="task/T-1-a1", expected_candidate="a" * 40,
+        repo_location="/srv/checkouts/T-1",
+    )
+
+    assert spent(conn) == 1
 
 
 # --- The two halves together --------------------------------------------------
