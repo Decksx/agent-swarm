@@ -649,3 +649,128 @@ def test_a_publishable_task_with_configuration_proceeds(
 
     assert queue.last["outcome"] == "candidate"
     assert queue.last["payload"]["pr_number"] == 7
+
+
+# --- A prompt too large is refused before it costs anything (#24) ------------
+#
+# T-INFRA-11 sent ~38k tokens at a 30k limit. OpenAI refused it before
+# generating a word, the worker called that "the model returned nothing"
+# (#20), and the activation was charged (#21). The measurement belongs where
+# the prompt first exists and nothing has been spent -- and the refusal has to
+# reach an operator, which means the outcome payload, not this machine's log.
+
+
+def budget(monkeypatch, *, limit=1_000_000, warn=1.1):
+    """Point the worker's configured limit wherever the test needs it.
+
+    Defaults are deliberately slack: a test that has not asked for a refusal
+    or a warning should get neither, whatever the fixture prompt happens to
+    measure.
+    """
+    monkeypatch.setattr(chatgpt_worker, "AUTHOR_PROMPT_TOKEN_LIMIT", limit)
+    monkeypatch.setattr(chatgpt_worker, "AUTHOR_PROMPT_WARN_FRACTION", warn)
+
+
+def author(client, author_repo, queue=None):
+    queue = queue or Queue()
+    chatgpt_worker.execute_author(
+        client, activation(CONTRACT, base=base_of(author_repo)), queue)
+    return queue
+
+
+def test_an_oversized_prompt_never_reaches_the_model(author_repo, monkeypatch):
+    """`NeverCalled` fails the test if anything asks it for a reply, which
+    turns "no provider call" into an assertion rather than a hope."""
+    budget(monkeypatch, limit=1)
+
+    assert author(NeverCalled(), author_repo).last["outcome"] == "blocked"
+
+
+def test_an_oversized_prompt_is_blocked_not_failed(author_repo, monkeypatch):
+    """`blocked` is an environment defect, which since #21 spends no attempt.
+    `failed` would charge the author for a prompt the harness built."""
+    budget(monkeypatch, limit=1)
+    reported = author(NeverCalled(), author_repo).last
+
+    assert reported["outcome"] == "blocked"
+
+
+def test_the_refusal_reaches_the_operator_not_just_the_log(
+    author_repo, monkeypatch
+):
+    """`reason` is the field the narrator flattens into the chat room. A
+    measurement reported only to chatgpt_worker.log on OFFICEPC is the defect
+    #20 was about, rebuilt."""
+    budget(monkeypatch, limit=1)
+    payload = author(NeverCalled(), author_repo).last["payload"]
+
+    assert "no attempt was spent" in payload["reason"]
+    assert "Remove context files" in payload["reason"]
+
+
+def test_the_refusal_carries_the_numbers_and_the_largest_inputs(
+    author_repo, monkeypatch
+):
+    budget(monkeypatch, limit=1)
+    payload = author(NeverCalled(), author_repo).last["payload"]
+
+    assert payload["prompt_token_limit"] == 1
+    assert payload["prompt_tokens_estimated"] > 1
+    assert isinstance(payload["largest_inputs"], list)
+
+
+def test_a_prompt_within_the_limit_is_sent(author_repo, monkeypatch, counted_reply):
+    budget(monkeypatch)
+    counted_reply["answer"] = ANSWER
+
+    assert author(None, author_repo).last["outcome"] == "candidate"
+    assert counted_reply["calls"] == 1
+
+
+def test_nothing_is_carried_when_the_prompt_was_comfortable(
+    author_repo, monkeypatch, counted_reply
+):
+    budget(monkeypatch)
+    counted_reply["answer"] = ANSWER
+    payload = author(None, author_repo).last["payload"]
+
+    assert "prompt_tokens_estimated" not in payload
+    assert "prompt_token_limit" not in payload
+
+
+def test_a_near_prompt_still_produces_its_candidate(
+    author_repo, monkeypatch, counted_reply
+):
+    """The warning is a note, not an escalation. The run works."""
+    budget(monkeypatch, warn=0.0)
+    counted_reply["answer"] = ANSWER
+
+    assert author(None, author_repo).last["outcome"] == "candidate"
+
+
+def test_a_near_prompt_carries_its_warning_to_the_ledger(
+    author_repo, monkeypatch, counted_reply
+):
+    """Carried on the successful outcome, so it lands in the ledger and, via
+    `reason`, in the room -- without a new event kind or transition."""
+    budget(monkeypatch, warn=0.0)
+    counted_reply["answer"] = ANSWER
+    payload = author(None, author_repo).last["payload"]
+
+    assert payload["prompt_tokens_estimated"] > 0
+    assert "close enough" in payload["reason"]
+
+
+def test_a_real_failure_reason_outranks_the_warning(
+    author_repo, monkeypatch, counted_reply
+):
+    """Why the answer was unusable matters more than that the prompt was
+    largish, so the warning is merged first and overwritten. The token counts
+    survive, which is what connects the two if they are connected.
+    """
+    budget(monkeypatch, warn=0.0)
+    counted_reply["answer"] = "not a FILE block at all"
+    payload = author(None, author_repo).last["payload"]
+
+    assert "close enough" not in payload["reason"]
+    assert payload["prompt_tokens_estimated"] > 0

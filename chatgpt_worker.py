@@ -73,6 +73,7 @@ from typing import Any
 import authored_change
 import authored_edits
 import controller_client
+import prompt_budget
 import publication
 import repo_registry
 import swarm_control
@@ -119,6 +120,17 @@ PUBLISH_REPO_SLUG = os.environ.get("PUBLISH_REPO_SLUG", "").strip()
 PUBLISH_TARGET_REF = os.environ.get(
     "PUBLISH_TARGET_REF", "refs/heads/master"
 ).strip()
+
+# What this author's model will accept, and where to start warning (#24).
+# A limit belongs to the model, not to the measuring code, so it is configured
+# here and passed in. The default is gpt-4o's organisation tokens-per-minute
+# ceiling, which is the one T-INFRA-11 actually hit.
+AUTHOR_PROMPT_TOKEN_LIMIT = int(
+    os.environ.get("AUTHOR_PROMPT_TOKEN_LIMIT", prompt_budget.DEFAULT_TOKEN_LIMIT)
+)
+AUTHOR_PROMPT_WARN_FRACTION = float(
+    os.environ.get("AUTHOR_PROMPT_WARN_FRACTION", prompt_budget.DEFAULT_WARN_FRACTION)
+)
 
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "3"))
 HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "15"))
@@ -696,6 +708,39 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         scope=scope,
     )
 
+    # The first moment the prompt exists and the last before it costs
+    # anything; see `prompt_budget` for what T-INFRA-11 did here (#24).
+    #
+    # `blocked`, not `failed`: the model never answered, so there is no
+    # attempt to judge, and since #21 that spends no budget. `reason` is what
+    # the narrator puts in the room, so the operator reads which files to drop
+    # instead of a log line on this machine -- where #20 hid for three days.
+    budget = prompt_budget.measure(
+        prompt,
+        contributors=list(existing) + list(context["files"]),
+        limit=AUTHOR_PROMPT_TOKEN_LIMIT,
+        warn_fraction=AUTHOR_PROMPT_WARN_FRACTION,
+    )
+
+    if budget["over"]:
+        log.error("activation %s: %s", activation_id, prompt_budget.refusal(budget))
+
+        try:
+            worktrees.remove(project, activation_id)
+        except worktrees.WorktreeError as rm_exc:
+            log.warning("could not remove the worktree for %s: %s", activation_id, rm_exc)
+
+        queue.report(activation_id, outcome="blocked", payload={
+            "reason": prompt_budget.refusal(budget),
+            "prompt_tokens_estimated": budget["estimate"],
+            "prompt_token_limit": budget["limit"],
+            "largest_inputs": budget["largest"],
+        })
+        return
+
+    if budget["near"]:
+        log.warning("activation %s: %s", activation_id, prompt_budget.warning(budget))
+
     log.info("AUTHORING activation %s for task %s", activation_id, task_id)
     started = time.monotonic()
 
@@ -768,6 +813,12 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
             log.warning("could not remove the worktree for %s: %s", activation_id, rm_exc)
 
         queue.report(activation_id, outcome="failed", payload={
+            # Same ordering as the candidate path: the warning's `reason` is
+            # overwritten by the real one below it, because why the answer was
+            # unusable matters more than that the prompt was large (#24). The
+            # token counts survive, which is what a reader needs to connect
+            # the two if they are connected.
+            **prompt_budget.carried(budget),
             "reason": failure,
             "reply_excerpt": swarm_control.redact(reply)[:1000],
             "elapsed_seconds": round(elapsed, 1),
@@ -882,6 +933,10 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
             return
 
     queue.report(activation_id, outcome="candidate", payload={
+        # First, so anything real overwrites it: a near-limit warning is a
+        # note on a run that worked, and must never displace a field that
+        # describes the work itself (#24). Empty unless the prompt was close.
+        **prompt_budget.carried(budget),
         "elapsed_seconds": round(elapsed, 1),
         **result,
         **published,
