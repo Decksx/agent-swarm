@@ -203,6 +203,33 @@ def test_every_message_says_the_count_is_estimated():
     assert "estimated" in near.lower()
 
 
+@pytest.mark.parametrize("message", ["refusal", "warning"])
+def test_no_message_claims_to_have_counted(message):
+    """Saying "estimated" somewhere is not enough if the same sentence also
+    claims exactness.
+
+    A mutation replacing the ratio disclosure with "Counted exactly." survived
+    the assertion above, because the word "estimated" still appeared earlier
+    in the text. The message was then self-contradictory and claimed a
+    precision it does not have, which is the whole #48 failure.
+    """
+    measured = prompt_budget.measure(prompt_of(40_000), limit=30_000)
+    said = getattr(prompt_budget, message)(measured).lower()
+
+    assert "counted exactly" not in said
+    assert "exact" not in said
+
+
+def test_the_refusal_discloses_the_ratio_it_used():
+    """So a reader can judge the estimate rather than take it, and can tell
+    at a glance how much slack a 38,000-against-30,000 call really had."""
+    said = prompt_budget.refusal(
+        prompt_budget.measure(prompt_of(40_000), limit=30_000))
+
+    assert "not counted" in said.lower()
+    assert str(prompt_budget.CHARS_PER_TOKEN) in said
+
+
 def test_the_refusal_says_what_to_do():
     measured = prompt_budget.measure(prompt_of(38_000), limit=30_000)
 
