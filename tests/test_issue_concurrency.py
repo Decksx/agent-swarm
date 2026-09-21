@@ -21,7 +21,7 @@ import threading
 
 import pytest
 
-from controller import activations, db, engine, progression, states
+from controller import activations, db, engine, outcomes, progression, states
 
 
 LEASE = 900.0
@@ -213,7 +213,7 @@ def author_a_candidate(path):
         )
         activations.claim(conn, activation_id=issued["activation_id"],
                           agent="chatgpt")
-        activations.submit_author_outcome(
+        outcomes.submit_author_outcome(
             conn, activation_id=issued["activation_id"], agent="chatgpt",
             outcome="candidate", payload={"candidate_sha": CAND},
         )

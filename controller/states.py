@@ -151,7 +151,7 @@ TRANSITIONS: Dict[Tuple[str, str], Transition] = {
     # (state, event, authority) and knows nothing about evidence.
     #
     # For the MVP the gate is the reviewer's authenticated judgment, applied
-    # with controller authority by activations.submit_review_judgment() once it
+    # with controller authority by outcomes.submit_review_judgment() once it
     # has verified the caller holds that specific live review activation. That
     # is weaker than the protocol asks for and is recorded as such here rather
     # than described as if the predicates existed.

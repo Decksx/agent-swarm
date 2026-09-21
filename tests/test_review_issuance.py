@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from controller import activations, engine, states
+from controller import activations, engine, outcomes, states
 from controller.db import open_controller_db
 
 T0 = 1_000_000.0
@@ -53,7 +53,7 @@ def awaiting_review(conn):
     activations.claim(
         conn, activation_id=author["activation_id"], agent="claudecode", now=T0
     )
-    activations.submit_author_outcome(
+    outcomes.submit_author_outcome(
         conn, activation_id=author["activation_id"], agent="claudecode",
         outcome="candidate",
         payload={"candidate_sha": CANDIDATE, "branch": "task/T-1"},
@@ -153,7 +153,7 @@ def test_a_task_whose_author_reported_no_sha_cannot_be_reviewed(conn):
         conn, activation_id=author["activation_id"], agent="claudecode", now=T0
     )
     # No candidate_sha in the payload -- an author that changed no code.
-    activations.submit_author_outcome(
+    outcomes.submit_author_outcome(
         conn, activation_id=author["activation_id"], agent="claudecode",
         outcome="candidate", now=T0 + 1,
     )

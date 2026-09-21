@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import pytest
 
-from controller import activations, engine, states
+from controller import activations, engine, outcomes, states
 from controller.db import open_controller_db
 
 T0 = 1_000_000.0
@@ -67,7 +67,7 @@ def claim_and_report(conn, activation_id, outcome, payload=None):
     """Take an activation all the way to its terminal outcome."""
     activations.claim(
         conn, activation_id=activation_id, agent="chatgpt", now=T0)
-    return activations.submit_author_outcome(
+    return outcomes.submit_author_outcome(
         conn, activation_id=activation_id, agent="chatgpt",
         outcome=outcome, payload=payload or {}, now=T0,
     )

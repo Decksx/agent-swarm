@@ -20,7 +20,7 @@ import sqlite3
 import pytest
 
 import integrator
-from controller import activations, db, engine, states
+from controller import activations, db, engine, outcomes, states
 
 
 LEASE = 900.0
@@ -62,7 +62,7 @@ def author_a_candidate(conn, task_id, candidate):
         expected_branch=f"task/{task_id}",
     )
     activations.claim(conn, activation_id=issued["activation_id"], agent="chatgpt")
-    activations.submit_author_outcome(
+    outcomes.submit_author_outcome(
         conn, activation_id=issued["activation_id"], agent="chatgpt",
         outcome="candidate", payload={"candidate_sha": candidate},
     )
@@ -78,7 +78,7 @@ def review(conn, task_id, candidate, judgment="satisfied"):
         expected_candidate=candidate, repo_location="/repo",
     )
     activations.claim(conn, activation_id=issued["activation_id"], agent="gemini")
-    activations.submit_review_judgment(
+    outcomes.submit_review_judgment(
         conn, activation_id=issued["activation_id"], agent="gemini",
         judgment=judgment,
     )
@@ -198,7 +198,7 @@ def test_the_approval_comes_from_the_activation_not_the_judgment(conn):
         repo_location="/repo",
     )
     activations.claim(conn, activation_id=issued["activation_id"], agent="gemini")
-    activations.submit_review_judgment(
+    outcomes.submit_review_judgment(
         conn, activation_id=issued["activation_id"], agent="gemini",
         judgment="satisfied",
         # The reviewer claims a different commit. It is ignored.
@@ -226,7 +226,7 @@ def test_an_unstated_candidate_falls_back_to_the_ledger_not_to_nothing(conn):
         expected_branch=f"task/{task}", repo_location="/repo",
     )
     activations.claim(conn, activation_id=issued["activation_id"], agent="gemini")
-    activations.submit_review_judgment(
+    outcomes.submit_review_judgment(
         conn, activation_id=issued["activation_id"], agent="gemini",
         judgment="satisfied",
     )

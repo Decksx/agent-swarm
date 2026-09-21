@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from controller import activations, db, engine, ingress, progression, states
+from controller import activations, db, engine, ingress, outcomes, progression, states
 
 BASE = "6edf2a1a6e9d4ca2633944fd1e2f6eaeb9e818e7"
 PROJECTS = {"agenthub": "C:/git/agent-swarm"}
@@ -72,7 +72,7 @@ def reject(conn, task_id, rationale=RATIONALE):
     if live["status"] == "ISSUED":
         activations.claim(conn, activation_id=live["activation_id"], agent=live["agent"])
 
-    activations.submit_author_outcome(
+    outcomes.submit_author_outcome(
         conn, activation_id=live["activation_id"], agent=live["agent"],
         outcome="failed", payload={"rationale": rationale},
     )
@@ -188,7 +188,7 @@ def test_a_retry_while_the_first_attempt_is_live_issues_nothing(conn, task):
 def test_a_task_in_another_state_is_not_retried(conn, task):
     row = author_rows(conn, task)[0]
     activations.claim(conn, activation_id=row["activation_id"], agent=row["agent"])
-    activations.submit_author_outcome(
+    outcomes.submit_author_outcome(
         conn, activation_id=row["activation_id"], agent=row["agent"], outcome="candidate",
         payload={"candidate_sha": "a" * 40, "branch": f"task/{task}-a1"},
     )

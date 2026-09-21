@@ -17,7 +17,7 @@ import time
 
 import pytest
 
-from controller import activations, engine, states
+from controller import activations, engine, outcomes, states
 from controller.db import open_controller_db
 
 T0 = 1_000_000.0
@@ -97,7 +97,7 @@ def test_the_controller_is_authoritative_regardless_of_harness_belief(conn, read
     )
 
     with pytest.raises(activations.DeadlineExceeded):
-        activations.submit_result(
+        outcomes.submit_result(
             conn, activation_id=activation["activation_id"], agent="claudecode",
             kind="candidate_submitted", now=T0 + DEADLINE + 1,
         )
@@ -180,7 +180,7 @@ def test_only_the_assigned_worker_may_act(conn, ready_task, operation):
                 conn, activation_id=aid, agent="chatgpt", lease_seconds=LEASE, now=T0 + 2
             )
         else:
-            activations.submit_result(
+            outcomes.submit_result(
                 conn, activation_id=aid, agent="chatgpt",
                 kind="candidate_submitted", now=T0 + 2,
             )
@@ -198,7 +198,7 @@ def test_identity_is_checked_before_expiry(conn, ready_task):
     )
 
     with pytest.raises(activations.NotTheAssignedWorker):
-        activations.submit_result(
+        outcomes.submit_result(
             conn, activation_id=activation["activation_id"], agent="chatgpt",
             kind="candidate_submitted", now=T0 + DEADLINE + 999,
         )
@@ -252,7 +252,7 @@ def test_finishing_an_activation_releases_the_slot(conn, ready_task):
     activations.claim(
         conn, activation_id=activation["activation_id"], agent="claudecode", now=T0 + 1
     )
-    activations.submit_result(
+    outcomes.submit_result(
         conn, activation_id=activation["activation_id"], agent="claudecode",
         kind="candidate_submitted", now=T0 + 2,
     )
@@ -272,11 +272,11 @@ def test_an_identical_result_redelivery_returns_the_stored_outcome(conn, ready_t
     aid = activation["activation_id"]
     activations.claim(conn, activation_id=aid, agent="claudecode", now=T0 + 1)
 
-    first = activations.submit_result(
+    first = outcomes.submit_result(
         conn, activation_id=aid, agent="claudecode",
         kind="candidate_submitted", payload={"sha": "a" * 40}, now=T0 + 2,
     )
-    second = activations.submit_result(
+    second = outcomes.submit_result(
         conn, activation_id=aid, agent="claudecode",
         kind="candidate_submitted", payload={"sha": "a" * 40}, now=T0 + 3,
     )
@@ -298,12 +298,12 @@ def test_a_duplicate_is_honoured_even_after_the_lease_lapses(conn, ready_task):
     activation = issue(conn, ready_task)
     aid = activation["activation_id"]
     activations.claim(conn, activation_id=aid, agent="claudecode", now=T0 + 1)
-    activations.submit_result(
+    outcomes.submit_result(
         conn, activation_id=aid, agent="claudecode",
         kind="candidate_submitted", payload={"sha": "a" * 40}, now=T0 + 2,
     )
 
-    replay = activations.submit_result(
+    replay = outcomes.submit_result(
         conn, activation_id=aid, agent="claudecode",
         kind="candidate_submitted", payload={"sha": "a" * 40}, now=T0 + DEADLINE + 500,
     )
@@ -315,13 +315,13 @@ def test_a_conflicting_result_is_refused(conn, ready_task):
     activation = issue(conn, ready_task)
     aid = activation["activation_id"]
     activations.claim(conn, activation_id=aid, agent="claudecode", now=T0 + 1)
-    activations.submit_result(
+    outcomes.submit_result(
         conn, activation_id=aid, agent="claudecode",
         kind="candidate_submitted", payload={"sha": "a" * 40}, now=T0 + 2,
     )
 
     with pytest.raises(activations.ConflictingResult):
-        activations.submit_result(
+        outcomes.submit_result(
             conn, activation_id=aid, agent="claudecode",
             kind="candidate_submitted", payload={"sha": "b" * 40}, now=T0 + 3,
         )
@@ -333,11 +333,11 @@ def test_payload_key_order_does_not_make_a_retry_look_like_a_conflict(conn, read
     aid = activation["activation_id"]
     activations.claim(conn, activation_id=aid, agent="claudecode", now=T0 + 1)
 
-    activations.submit_result(
+    outcomes.submit_result(
         conn, activation_id=aid, agent="claudecode", kind="candidate_submitted",
         payload={"a": 1, "b": 2}, now=T0 + 2,
     )
-    replay = activations.submit_result(
+    replay = outcomes.submit_result(
         conn, activation_id=aid, agent="claudecode", kind="candidate_submitted",
         payload={"b": 2, "a": 1}, now=T0 + 3,
     )
@@ -351,7 +351,7 @@ def test_a_late_result_after_lease_expiry_is_refused(conn, ready_task):
     activations.claim(conn, activation_id=aid, agent="claudecode", now=T0 + 1)
 
     with pytest.raises(activations.LeaseExpired):
-        activations.submit_result(
+        outcomes.submit_result(
             conn, activation_id=aid, agent="claudecode",
             kind="candidate_submitted", now=T0 + LEASE + 1,
         )
@@ -366,7 +366,7 @@ def test_a_result_for_a_superseded_task_version_is_refused(conn, ready_task):
     conn.execute("UPDATE tasks SET current_version = 2 WHERE task_id = ?", (ready_task,))
 
     with pytest.raises(activations.ActivationNotLive, match="version"):
-        activations.submit_result(
+        outcomes.submit_result(
             conn, activation_id=aid, agent="claudecode",
             kind="candidate_submitted", now=T0 + 2,
         )
@@ -383,7 +383,7 @@ def test_a_result_citing_missing_evidence_is_refused(conn, ready_task):
     activations.claim(conn, activation_id=aid, agent="claudecode", now=T0 + 1)
 
     with pytest.raises(activations.EvidenceNotDurable, match="does not exist"):
-        activations.submit_result(
+        outcomes.submit_result(
             conn, activation_id=aid, agent="claudecode",
             kind="candidate_submitted", evidence_ids=["EV-nonexistent"], now=T0 + 2,
         )
@@ -404,7 +404,7 @@ def test_a_result_citing_evidence_without_blobs_is_refused(conn, ready_task):
     )
 
     with pytest.raises(activations.EvidenceNotDurable, match="no durable blobs"):
-        activations.submit_result(
+        outcomes.submit_result(
             conn, activation_id=aid, agent="claudecode",
             kind="candidate_submitted", evidence_ids=["EV-1"], now=T0 + 2,
         )
@@ -417,7 +417,7 @@ def test_a_rejected_result_leaves_the_activation_claimable_again(conn, ready_tas
     activations.claim(conn, activation_id=aid, agent="claudecode", now=T0 + 1)
 
     with pytest.raises(activations.EvidenceNotDurable):
-        activations.submit_result(
+        outcomes.submit_result(
             conn, activation_id=aid, agent="claudecode",
             kind="candidate_submitted", evidence_ids=["nope"], now=T0 + 2,
         )
@@ -426,7 +426,7 @@ def test_a_rejected_result_leaves_the_activation_claimable_again(conn, ready_tas
     assert row["status"] == activations.CLAIMED
     assert row["result_request_hash"] is None
 
-    accepted = activations.submit_result(
+    accepted = outcomes.submit_result(
         conn, activation_id=aid, agent="claudecode",
         kind="candidate_submitted", now=T0 + 3,
     )
@@ -474,7 +474,7 @@ def test_a_swept_activation_cannot_submit_a_result(conn, ready_task):
     activations.sweep_expired(conn, now=T0 + LEASE + 1)
 
     with pytest.raises(activations.ActivationNotLive):
-        activations.submit_result(
+        outcomes.submit_result(
             conn, activation_id=aid, agent="claudecode",
             kind="candidate_submitted", now=T0 + LEASE + 2,
         )
@@ -538,7 +538,7 @@ def test_the_sweep_does_nothing_to_a_task_that_already_moved_on(conn, ready_task
     activation = issue(conn, ready_task)
     aid = activation["activation_id"]
     activations.claim(conn, activation_id=aid, agent="claudecode", now=T0 + 1)
-    activations.submit_result(
+    outcomes.submit_result(
         conn, activation_id=aid, agent="claudecode",
         kind="candidate_submitted", now=T0 + 2,
     )

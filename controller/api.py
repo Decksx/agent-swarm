@@ -49,7 +49,7 @@ from typing import Any, Callable, Dict, List, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 
-from . import activations, build, engine, reconciliation, states
+from . import activations, build, engine, outcomes, reconciliation, states
 from .db import transaction
 from . import progression
 from .db import connect, initialize, open_controller_db
@@ -914,7 +914,7 @@ def build_router(
         conn: sqlite3.Connection = Depends(get_conn),
     ):
         try:
-            return activations.submit_result(
+            return outcomes.submit_result(
                 conn,
                 activation_id=activation_id,
                 agent=component,
@@ -942,7 +942,7 @@ def build_router(
         to avoid.
         """
         try:
-            return activations.submit_review_judgment(
+            return outcomes.submit_review_judgment(
                 conn,
                 activation_id=activation_id,
                 agent=component,
@@ -971,7 +971,7 @@ def build_router(
         worker could report success and nothing else.
         """
         try:
-            return activations.submit_author_outcome(
+            return outcomes.submit_author_outcome(
                 conn,
                 activation_id=activation_id,
                 agent=component,
@@ -1004,7 +1004,7 @@ def build_router(
         none of it could be recorded.
         """
         try:
-            return activations.submit_integration_outcome(
+            return outcomes.submit_integration_outcome(
                 conn,
                 activation_id=activation_id,
                 agent=component,
