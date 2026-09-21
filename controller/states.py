@@ -215,6 +215,38 @@ TRANSITIONS: Dict[Tuple[str, str], Transition] = {
     ("INTEGRATION_UNCERTAIN", "reconciliation_failed"): _t(
         "NEEDS_HUMAN", CONTROLLER, OPERATOR
     ),
+    # The out-of-band entrance to reconciliation (#26).
+    #
+    # Above, INTEGRATION_UNCERTAIN is reached by a lease that lapsed mid-merge.
+    # T-INGRESS-05 reached the same uncertainty down the other road: the
+    # integrator refused the candidate for want of test evidence, the budget
+    # ran out, the task escalated -- and minutes earlier an operator had merged
+    # the pull request by hand. The merge was on the target and the ledger had
+    # no event that could say so, so the task was closed SUPERSEDED, which is
+    # the least wrong close available and still loses that the work succeeded.
+    #
+    # This event does not say the merge landed. It says somebody reported one,
+    # which is weaker and is the truth: no process here can see the remote.
+    # What it buys is the state whose entire purpose is "the outcome is unknown
+    # and must be reconciled against the remote" -- and from there the existing
+    # reconciliation events decide. Landing stays one decision in one place,
+    # however the task arrived at the question.
+    #
+    # Admin authority, and deliberately not OPERATOR: this is a person saying
+    # what they did outside the system. A worker able to report its own
+    # out-of-band merge could walk unreviewed work into a state that exists to
+    # trust reports.
+    #
+    # Note what `integration_reconciled_absent` means on this path: it lands
+    # the task in READY_INTEGRATION, which a NEEDS_HUMAN task had not earned.
+    # That is why the route refuses to report against a task with no approval
+    # in its log -- with the approval, READY_INTEGRATION is where it belongs.
+    ("NEEDS_HUMAN", "out_of_band_merge_reported"): _t(
+        "INTEGRATION_UNCERTAIN", ADMIN
+    ),
+    ("CHANGES_REQUESTED", "out_of_band_merge_reported"): _t(
+        "INTEGRATION_UNCERTAIN", ADMIN
+    ),
     ("INTEGRATING", "integration_completed"): _t("COMPLETE", CONTROLLER),
     ("INTEGRATING", "rollback_started"): _t("REVERTING", CONTROLLER, OPERATOR),
 

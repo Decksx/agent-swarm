@@ -49,7 +49,7 @@ from typing import Any, Callable, Dict, List, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 
-from . import activations, build, engine, states
+from . import activations, build, engine, reconciliation, states
 from .db import transaction
 from . import progression
 from .db import connect, initialize, open_controller_db
@@ -78,6 +78,13 @@ _STATUS_FOR = {
     activations.BudgetExhausted: 409,
     activations.EvidenceNotDurable: 409,
     activations.InvalidClaimStages: 422,
+    # A report the ledger will not accept (#26). 422 for one that does not say
+    # what landed; 409 for the three that are conflicts with what the ledger
+    # already holds -- listed before the base class so neither is swallowed.
+    reconciliation.MalformedReport: 422,
+    reconciliation.NotReportable: 409,
+    reconciliation.NothingApproved: 409,
+    reconciliation.CandidateMismatch: 409,
     engine.StaleState: 409,
     engine.ConflictingReplay: 409,
     states.UndefinedTransition: 409,
@@ -215,6 +222,15 @@ ROUTED_ELSEWHERE = {
     "create_contract_version":
         "the task version route, with contract_yaml, base_sha and proof_mode; "
         "it cannot be created from free text",
+    # Refused here for the same reason as the rest, and it matters most for
+    # this one: applied generically it moves a task into the state that trusts
+    # reports without anything having checked that the task was ever approved,
+    # that the report names a merge, or that the candidate reported is the one
+    # the approval was issued against.
+    "out_of_band_merge_reported":
+        "POST /controller/tasks/{task_id}/out-of-band-merge, which checks the "
+        "task carries an approval and makes the report name what landed, "
+        "where, and who put it there",
 }
 
 
@@ -241,6 +257,38 @@ class OperatorResponse(BaseModel):
     expected_version: int
     response: str
     action: str
+
+
+class OutOfBandMerge(BaseModel):
+    """An operator reporting a merge the controller never performed.
+
+    Every field but the pull request and the timestamp is required, for the
+    reason the escalation answer's fields are: each one is a way this goes
+    wrong when guessed. `merge_sha` and `target_ref` are what a reconciler will
+    look for on the remote; `merged_by` is who to ask when they cannot find it;
+    `reason` is what the operator saw, required because this path leaves a
+    NEEDS_HUMAN escalation without the answer the operator-response route would
+    have demanded.
+
+    `candidate_sha` is optional and is checked rather than trusted. The ledger
+    already knows which commit the controller issued the approved review
+    against, and a caller naming a different one is reporting a merge of
+    something this task never approved -- which is the report to refuse, not
+    the one to record.
+
+    `expected_state_seq` is required. Everywhere else it is optional because
+    the controller supplies it from state it read in the same call; here the
+    caller is a person reporting something they did minutes or days ago,
+    against a task they last looked at before that.
+    """
+    merge_sha: str
+    target_ref: str
+    merged_by: str
+    reason: str
+    expected_state_seq: int
+    candidate_sha: Optional[str] = None
+    pull_request: Optional[int] = None
+    merged_at: Optional[str] = None
 
 
 class Heartbeat(BaseModel):
@@ -993,6 +1041,41 @@ def build_router(
                 authority=states.CONTROLLER,
                 payload=body.payload,
                 expected_state_seq=body.expected_state_seq,
+            )
+        except Exception as exc:
+            raise _http(exc)
+
+    @router.post("/tasks/{task_id}/out-of-band-merge")
+    def out_of_band_merge(
+        task_id: str,
+        body: OutOfBandMerge,
+        component: str = Depends(require_admin),
+        conn: sqlite3.Connection = Depends(get_conn),
+    ):
+        """Report a merge that happened outside the controller (#26).
+
+        The entrance to reconciliation for approved work that landed by hand.
+        It completes nothing: the task moves to INTEGRATION_UNCERTAIN and the
+        reconcile route decides from there, so an expired integration lease and
+        an operator's hand-merge arrive at the same question and are answered
+        by the same route.
+
+        Admin-gated for the reason `/reconcile` is, and the checks it makes --
+        and does not make -- are in `controller.reconciliation`.
+        """
+        try:
+            return reconciliation.report_out_of_band_merge(
+                conn,
+                task_id=task_id,
+                actor=component,
+                merge_sha=body.merge_sha,
+                target_ref=body.target_ref,
+                merged_by=body.merged_by,
+                reason=body.reason,
+                expected_state_seq=body.expected_state_seq,
+                candidate_sha=body.candidate_sha,
+                pull_request=body.pull_request,
+                merged_at=body.merged_at,
             )
         except Exception as exc:
             raise _http(exc)
