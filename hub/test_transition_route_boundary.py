@@ -223,14 +223,22 @@ def test_cancellation_still_works_through_the_generic_route(client, escalated):
     assert response.json()["to_state"] == "CANCELLED"
 
 
-def test_the_refused_set_is_exactly_the_escalation_exits(client):
-    """Stated so that widening it is a decision rather than a drift."""
+def test_the_refused_set_is_exactly_what_has_a_route_of_its_own(client):
+    """Stated so that widening it is a decision rather than a drift.
+
+    Widened once, deliberately (#26). The first five are the escalation exits.
+    `out_of_band_merge_reported` is not an escalation exit and is refused here
+    for the same underlying reason: it has a route that checks the task
+    carries an approval before a report can move it into the state that trusts
+    reports, and applied generically it arrives with none of that.
+    """
     assert set(api.ROUTED_ELSEWHERE) == {
         "operator_response",
         "return_to_author",
         "return_to_review",
         "admin_failed",
         "create_contract_version",
+        "out_of_band_merge_reported",
     }
     assert "admin_cancelled" not in api.ROUTED_ELSEWHERE
     assert "superseded" not in api.ROUTED_ELSEWHERE
