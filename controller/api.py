@@ -234,6 +234,13 @@ ROUTED_ELSEWHERE = {
         "POST /controller/tasks/{task_id}/out-of-band-merge, which checks the "
         "task carries an approval and makes the report name what landed, "
         "where, and who put it there",
+    # An observation is a note *about a reconciliation*, and the link is the
+    # whole of its meaning (#57). Applied here it would record what somebody
+    # says they saw, attached to nothing -- which is what `note` is for.
+    "reconciliation_observation":
+        "POST /controller/tasks/{task_id}/reconcile, which emits it pointing "
+        "back at the reconciliation it is evidence for; an observation "
+        "attached to nothing is a note",
 }
 
 
@@ -1025,7 +1032,8 @@ def build_router(
 
         Admin-gated because reconciling requires looking at the remote, which
         the controller cannot do. A person or an operator tool establishes the
-        fact; this records it.
+        fact; this records it -- and for the two outcomes that hand the task
+        to a person, records what they found as well (#57).
         """
         allowed = {
             "integration_reconciled_landed",
@@ -1047,17 +1055,15 @@ def build_router(
 
         try:
             # Which door the task came in by decides which absence answer is
-            # the true one. Checked before the transition, so a reconciliation
-            # aimed at the wrong entrance moves nothing.
-            reconciliation.refuse_mismatched_reconciliation(
-                conn, task_id=task_id, kind=body.kind)
-
-            return engine.apply_transition(
+            # the true one, and the two outcomes that end with a person
+            # holding the task have to say what that person found. Both live
+            # in `controller.reconciliation` with the reasoning, and both run
+            # before anything is written.
+            return reconciliation.resolve_reconciliation(
                 conn,
                 task_id=task_id,
                 kind=body.kind,
                 actor=component,
-                authority=states.CONTROLLER,
                 payload=body.payload,
                 expected_state_seq=body.expected_state_seq,
             )

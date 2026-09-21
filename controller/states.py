@@ -271,6 +271,24 @@ TRANSITIONS: Dict[Tuple[str, str], Transition] = {
     ("INTEGRATION_UNCERTAIN", "out_of_band_report_unfounded"): _t(
         "NEEDS_HUMAN", CONTROLLER, OPERATOR
     ),
+    # What the operator saw when they went and looked (#57).
+    #
+    # Deliberately **not** `operator_response`. That event means "the operator
+    # answered an escalation, and therefore the task moved" -- §8 pairs it with
+    # a named resume, and `/operator-response` advances the task version to
+    # invalidate what was authorized before the answer. An audit note carries
+    # none of that, and overloading the kind would make a reader unable to tell
+    # an answer that resumed a task from one that only recorded an observation.
+    #
+    # Attached at NEEDS_HUMAN rather than at INTEGRATION_UNCERTAIN because it
+    # is emitted after the reconciliation, pointing back at it through
+    # `source_event_id`: the reconciliation is the fact, and this is what the
+    # person saw that established it. Both reconciliations that end with a
+    # person holding the task land here, so one entry covers both.
+    #
+    # A self-transition, moving nothing. The task is already where the
+    # reconciliation put it.
+    ("NEEDS_HUMAN", "reconciliation_observation"): _t("NEEDS_HUMAN", ADMIN),
     ("INTEGRATING", "integration_completed"): _t("COMPLETE", CONTROLLER),
     ("INTEGRATING", "rollback_started"): _t("REVERTING", CONTROLLER, OPERATOR),
 

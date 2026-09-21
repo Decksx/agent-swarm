@@ -960,3 +960,222 @@ def test_a_refused_report_advances_nothing(client):
 
     assert report_merge(client, task).status_code == 409
     assert task_version(client, task) == before
+
+
+# --- #57: the observation that goes with a reconciliation -------------------
+#
+# Both outcomes that end with a person holding the task have to say what that
+# person found. The account is recorded as a `reconciliation_observation`
+# pointing back at the reconciliation it is evidence for -- not as an
+# `operator_response`, which means an escalation was answered and the task
+# therefore moved, and which carries a version advance this must not repeat.
+
+
+def events_of(client, task_id, kind):
+    events = client.get(f"/controller/tasks/{task_id}/events", auth=ADMIN).json()
+
+    return [e for e in events["events"] if e["kind"] == kind]
+
+
+def unfounded(client, task_id, **payload):
+    return client.post(f"/controller/tasks/{task_id}/reconcile", auth=ADMIN,
+                       json={"kind": "out_of_band_report_unfounded",
+                             "payload": payload})
+
+
+def test_an_unfounded_report_records_what_the_operator_found(client):
+    """The #57 gap. Before this the task returned to NEEDS_HUMAN carrying no
+    account of who had looked or what they had seen."""
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+    report_merge(client, task)
+
+    response = unfounded(
+        client, task, reason="not on refs/heads/main; PR #11 was closed")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["to_state"] == "NEEDS_HUMAN"
+
+    seen = events_of(client, task, "reconciliation_observation")
+
+    assert len(seen) == 1
+    payload = json.loads(seen[0]["payload_json"])
+
+    assert payload["reason"] == "not on refs/heads/main; PR #11 was closed"
+    assert payload["reconciliation"] == "out_of_band_report_unfounded"
+    assert payload["observed_by"] == "admin"
+    assert payload["verified"] is False
+
+
+def test_the_observation_points_back_at_the_reconciliation(client):
+    """The link is the whole of an observation's meaning: the reconciliation
+    is the fact, and this is the evidence somebody offered for it."""
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+    report_merge(client, task)
+    result = unfounded(client, task, reason="nothing on the target").json()
+
+    seen = events_of(client, task, "reconciliation_observation")[0]
+
+    assert seen["source_event_id"] == result["event_id"]
+    assert result["observation_event_id"] == seen["event_id"]
+    # It moved nothing. The reconciliation already put the task where it is.
+    assert seen["from_state"] == seen["to_state"] == "NEEDS_HUMAN"
+
+
+def test_no_operator_response_is_minted_and_no_second_version_spent(client):
+    """`operator_response` means an escalation was answered and the task
+    therefore moved, and the route that emits it advances the version. The
+    report already advanced it; doing so again would invalidate attempts
+    authorized against a decision nobody made."""
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+    report_merge(client, task)
+    after_report = client.get(
+        f"/controller/tasks/{task}", auth=ADMIN).json()["current_version"]
+
+    unfounded(client, task, reason="nothing there")
+
+    assert events_of(client, task, "operator_response") == []
+    assert client.get(f"/controller/tasks/{task}", auth=ADMIN).json()[
+        "current_version"] == after_report
+
+
+def test_an_unfounded_report_without_a_reason_is_refused(client):
+    """The guard. Remove it and the ledger goes back to being unable to say
+    who checked the remote or what they saw."""
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+    report_merge(client, task)
+
+    response = unfounded(client, task)
+
+    assert response.status_code == 422, response.text
+    assert "reason" in response.text
+    assert client.get(f"/controller/tasks/{task}", auth=ADMIN).json()[
+        "state"] == "INTEGRATION_UNCERTAIN"
+
+
+def test_a_blank_reason_is_not_a_reason(client):
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+    report_merge(client, task)
+
+    assert unfounded(client, task, reason="   ").status_code == 422
+
+
+def test_a_refused_reconciliation_writes_nothing_at_all(client):
+    """A route that rejects a request and writes half of it is worse than one
+    that accepts it. Neither event can exist without the other."""
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+    report_merge(client, task)
+    before = client.get(
+        f"/controller/tasks/{task}", auth=ADMIN).json()["state_seq"]
+
+    unfounded(client, task)
+
+    assert events_of(client, task, "reconciliation_observation") == []
+    assert events_of(client, task, "out_of_band_report_unfounded") == []
+    assert client.get(f"/controller/tasks/{task}", auth=ADMIN).json()[
+        "state_seq"] == before
+
+
+def test_reconciliation_failed_also_has_to_say_what_was_found(client):
+    """The symmetry. Both outcomes mean a person has to intervene, and one
+    demanding an explanation while the other does not is how the requirement
+    drifts back out."""
+    task = approved_task(client)
+    expire_into_uncertainty(client, task)
+
+    refused = client.post(f"/controller/tasks/{task}/reconcile", auth=ADMIN,
+                          json={"kind": "reconciliation_failed", "payload": {}})
+
+    assert refused.status_code == 422, refused.text
+    assert "reason" in refused.text
+
+    accepted = client.post(f"/controller/tasks/{task}/reconcile", auth=ADMIN,
+                           json={"kind": "reconciliation_failed",
+                                 "payload": {"reason": "remote unreachable"}})
+
+    assert accepted.json()["to_state"] == "NEEDS_HUMAN"
+
+    seen = events_of(client, task, "reconciliation_observation")
+
+    assert len(seen) == 1
+    assert json.loads(seen[0]["payload_json"])["reconciliation"] == (
+        "reconciliation_failed")
+
+
+def test_the_outcomes_that_do_not_end_with_a_person_are_unchanged(client):
+    """Landed names the merge commit; absent hands the task back to the
+    pipeline. Neither leaves somebody needing to know what was seen, and
+    neither gains an observation."""
+    task = approved_task(client)
+    expire_into_uncertainty(client, task)
+
+    response = client.post(f"/controller/tasks/{task}/reconcile", auth=ADMIN,
+                           json={"kind": "integration_reconciled_absent",
+                                 "payload": {}})
+
+    assert response.status_code == 200
+    assert response.json()["to_state"] == "READY_INTEGRATION"
+    assert events_of(client, task, "reconciliation_observation") == []
+
+
+def test_an_observation_cannot_be_minted_through_the_generic_route(client):
+    """Attached to nothing it is a note, and `note` is the event for that."""
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+    report_merge(client, task)
+    unfounded(client, task, reason="nothing there")
+
+    response = client.post(f"/controller/tasks/{task}/transition", auth=ADMIN,
+                           json={"kind": "reconciliation_observation",
+                                 "payload": {"reason": "made up"}})
+
+    assert response.status_code == 409
+    assert "reconcile" in response.text
+    assert len(events_of(client, task, "reconciliation_observation")) == 1
+
+
+def test_the_observer_is_the_credential_not_the_payload(client):
+    """Nothing reads an actor from the body. The `gemini` credential is not an
+    admin, so it cannot reconcile at all -- and an admin claiming to be
+    somebody else is still recorded as itself."""
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+    report_merge(client, task)
+
+    refused = client.post(f"/controller/tasks/{task}/reconcile",
+                          auth=("gemini", SECRET),
+                          json={"kind": "out_of_band_report_unfounded",
+                                "payload": {"reason": "x"}})
+
+    assert refused.status_code == 403
+
+    unfounded(client, task, reason="checked the target myself",
+              observed_by="someone-else", actor="someone-else")
+
+    payload = json.loads(
+        events_of(client, task, "reconciliation_observation")[0]["payload_json"])
+
+    assert payload["observed_by"] == "admin"
+
+
+def test_the_log_still_replays_the_projection_through_an_observation(client):
+    """A new self-transition in the middle of a flow is exactly what breaks
+    the replay equivalence."""
+    import os
+
+    from controller import db
+
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+    report_merge(client, task)
+    unfounded(client, task, reason="nothing there")
+
+    conn = db.connect(os.environ["CONTROLLER_DB"])
+
+    assert engine.replay_state(conn, task) == "NEEDS_HUMAN"
+    assert engine.replay_state(conn, task) == engine.get_task(conn, task)["state"]

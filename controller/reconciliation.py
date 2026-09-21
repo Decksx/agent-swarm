@@ -162,6 +162,120 @@ def refuse_mismatched_reconciliation(
         )
 
 
+# The reconciliations that end with a person holding the task, and therefore
+# the ones that have to say what the person saw (#57).
+#
+# Both mean somebody looked at the remote and the task cannot proceed on what
+# they found. A reconciliation that lands a task in NEEDS_HUMAN without an
+# account of what was observed leaves the next reader asking the one question
+# the ledger exists to answer: who checked, and what did they find?
+#
+# `integration_reconciled_landed` and `_absent` are not here. Landed names the
+# merge commit, and absent hands the task back to the pipeline rather than to a
+# person -- neither ends with somebody needing to know what was seen.
+REASON_REQUIRED = frozenset({
+    "out_of_band_report_unfounded",
+    "reconciliation_failed",
+})
+
+
+def resolve_reconciliation(
+    conn: sqlite3.Connection,
+    *,
+    task_id: str,
+    kind: str,
+    actor: str,
+    payload: Optional[dict] = None,
+    expected_state_seq: Optional[int] = None,
+    now: Optional[float] = None,
+) -> dict:
+    """Apply one reconciliation, with the account that goes with it.
+
+    Reconciling is a statement about the world, made by somebody who went and
+    looked. For the two outcomes that end with a person holding the task the
+    statement is required rather than optional, and it is recorded twice over:
+    in the reconciliation's own payload, and as a `reconciliation_observation`
+    pointing back at it.
+
+    **Not `operator_response`.** That kind means an escalation was answered and
+    the task therefore moved, and `/operator-response` advances the task
+    version to invalidate everything authorized before the answer. Neither
+    applies here: the version already advanced when the report was submitted,
+    the destination is the one the reconciliation chose, and no resume is
+    requested or performed. Reusing the kind would cost a second version and
+    leave a reader unable to tell an answer that resumed a task from a note
+    that recorded an observation.
+
+    Order and direction, deliberately: the reconciliation is applied first and
+    the observation points back at it through `source_event_id`, because the
+    reconciliation is the fact and the observation is the evidence somebody
+    offered for it. Both are in one transaction, so a refusal writes nothing
+    and neither event can exist without the other.
+
+    `actor` is the authenticated component, passed in by the route. Nothing
+    here reads an actor, operator or observer from the payload.
+    """
+    payload = dict(payload or {})
+    reason = str(payload.get("reason") or "").strip()
+
+    # Entrance first, then the account. An answer aimed at the wrong door is
+    # wrong whatever it says, and telling the caller to supply a reason for an
+    # event that does not apply sends them back to be refused a second time.
+    refuse_mismatched_reconciliation(conn, task_id=task_id, kind=kind)
+
+    if kind in REASON_REQUIRED and not reason:
+        raise MalformedReport(
+            f"{kind} ends with a person holding {task_id}, so it must say what "
+            "was found: payload.reason is required"
+        )
+
+    now = time.time() if now is None else now
+
+    with transaction(conn):
+        moved = engine.apply_transition_within(
+            conn,
+            task_id=task_id,
+            kind=kind,
+            actor=actor,
+            authority=states.CONTROLLER,
+            now=now,
+            expected_state_seq=expected_state_seq,
+            payload=payload,
+        )
+
+        observation = None
+
+        if kind in REASON_REQUIRED:
+            observation = engine.apply_transition_within(
+                conn,
+                task_id=task_id,
+                kind="reconciliation_observation",
+                actor=actor,
+                authority=states.ADMIN,
+                now=now,
+                # What this note is about. Without it an observation is a
+                # remark attached to nothing, which is what `note` is for.
+                source_event_id=moved["event_id"],
+                payload={
+                    "reason": reason,
+                    "reconciliation": kind,
+                    # The authenticated component, not anything the caller
+                    # said about itself.
+                    "observed_by": actor,
+                    # Said plainly: this is what a person reported seeing, and
+                    # the controller has checked none of it.
+                    "verified": False,
+                },
+            )
+
+    outcome = dict(moved)
+
+    if observation:
+        outcome["observation_event_id"] = observation["event_id"]
+
+    return outcome
+
+
 def report_out_of_band_merge(
     conn: sqlite3.Connection,
     *,
