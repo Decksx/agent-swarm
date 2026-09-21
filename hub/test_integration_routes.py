@@ -540,12 +540,14 @@ def state_seq(client, task_id):
 
 
 def report_merge(client, task_id, auth=ADMIN, **overrides):
+    record = client.get(f"/controller/tasks/{task_id}", auth=ADMIN).json()
     body = {
         "merge_sha": "e" * 40,
         "target_ref": "refs/heads/main",
         "merged_by": "operator",
         "reason": "merged by hand while the integrator was refusing for CI",
-        "expected_state_seq": state_seq(client, task_id),
+        "expected_state_seq": record["state_seq"],
+        "expected_version": record["current_version"],
     }
     body.update(overrides)
 
@@ -770,3 +772,191 @@ def test_the_log_still_replays_the_projection_through_a_report(client):
 
     assert engine.replay_state(conn, task) == "COMPLETE"
     assert engine.replay_state(conn, task) == engine.get_task(conn, task)["state"]
+
+
+# --- #26 follow-up: the absence answer, and the version it advances ----------
+#
+# Found in review. A task that arrives by report has had its approval cleared
+# by whatever refused it, so `integration_reconciled_absent` -- which sends a
+# task to READY_INTEGRATION -- left it in a state `progression.advance` will
+# not issue an integrate stage for, forever. The report was false; the answer
+# is a person, not a queue.
+
+
+def task_version(client, task_id):
+    return client.get(
+        f"/controller/tasks/{task_id}", auth=ADMIN).json()["current_version"]
+
+
+def test_an_unfounded_report_goes_back_to_a_person_not_to_the_queue(client):
+    """The P1, as a test.
+
+    Before the fix this reached READY_INTEGRATION with a NULL
+    approved_candidate_sha, and `advance` skipped it with "no
+    approved_candidate_sha, so the integrator would refuse this" -- every time,
+    forever. Restoring the approval instead would have been worse: a report
+    reconciliation just proved false would have resurrected a candidate the
+    integrator refused.
+    """
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+    report_merge(client, task)
+
+    refused = client.post(f"/controller/tasks/{task}/reconcile", auth=ADMIN,
+                          json={"kind": "integration_reconciled_absent",
+                                "payload": {}})
+
+    assert refused.status_code == 409, refused.text
+    assert "out_of_band_report_unfounded" in refused.text
+    # Refused and unmoved.
+    assert client.get(f"/controller/tasks/{task}", auth=ADMIN).json()[
+        "state"] == "INTEGRATION_UNCERTAIN"
+
+    unfounded = client.post(f"/controller/tasks/{task}/reconcile", auth=ADMIN,
+                            json={"kind": "out_of_band_report_unfounded",
+                                  "payload": {"reason": "not on the target"}})
+
+    assert unfounded.status_code == 200, unfounded.text
+    assert unfounded.json()["to_state"] == "NEEDS_HUMAN"
+
+    # And nothing is queued for integration off the back of a false report.
+    advanced = client.post("/controller/tasks/advance", auth=ADMIN,
+                           params={"task_id": task}).json()
+
+    assert [r for r in advanced["considered"] if r["issued"]] == []
+
+
+def test_the_expiry_path_still_reaches_ready_integration_and_issues(client):
+    """The other door, which the fix must not touch.
+
+    A task that expired mid-merge was approved and still carries
+    `approved_candidate_sha`, so absent really does mean "safe to integrate
+    again" -- and progression really does issue the replacement attempt. This
+    is the end-to-end the review asked for, on the path where it is true.
+    """
+    import os
+
+    # Progression is configuration, never inference: with no integrator and no
+    # host it declines every integrate stage and would pass this test for the
+    # wrong reason.
+    os.environ["PROGRESSION_INTEGRATOR"] = "claudecode"
+    os.environ["PROGRESSION_HOST"] = "officepc"
+
+    try:
+        task = approved_task(client)
+        expire_into_uncertainty(client, task)
+
+        absent = client.post(
+            f"/controller/tasks/{task}/reconcile", auth=ADMIN,
+            json={"kind": "integration_reconciled_absent", "payload": {}})
+
+        assert absent.json()["to_state"] == "READY_INTEGRATION"
+
+        advanced = client.post("/controller/tasks/advance", auth=ADMIN,
+                               params={"task_id": task}).json()
+        issued = [r for r in advanced["considered"] if r["issued"]]
+
+        assert issued, advanced["considered"][0].get("reason")
+        assert issued[0]["stage"] == "integrate"
+    finally:
+        os.environ.pop("PROGRESSION_INTEGRATOR", None)
+        os.environ.pop("PROGRESSION_HOST", None)
+
+
+def test_calling_an_expired_integration_unfounded_is_refused(client):
+    """The mirror. There is no report to call unfounded, and
+    `reconciliation_failed` is the event for "nobody could tell"."""
+    task = approved_task(client)
+    expire_into_uncertainty(client, task)
+
+    response = client.post(f"/controller/tasks/{task}/reconcile", auth=ADMIN,
+                           json={"kind": "out_of_band_report_unfounded",
+                                 "payload": {}})
+
+    assert response.status_code == 409, response.text
+    assert "integration_reconciled_absent" in response.text
+
+
+def test_a_landed_merge_is_the_same_answer_through_either_door(client):
+    """Only the absence answers differ. A merge that is on the target is on the
+    target however the task came to be asking."""
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+    report_merge(client, task)
+
+    landed = client.post(f"/controller/tasks/{task}/reconcile", auth=ADMIN,
+                         json={"kind": "integration_reconciled_landed",
+                               "payload": {"merge_sha": "e" * 40}})
+
+    assert landed.json()["to_state"] == "COMPLETE"
+
+
+def test_a_report_advances_the_task_version(client):
+    """What invalidates the attempts authorized before it.
+
+    A retry authorized minutes earlier is pinned to the version it was
+    authorized for. A report says this task resolved outside the system, and
+    the version advance is what stops that retry being valid against it.
+    """
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+    before = task_version(client, task)
+
+    reported = report_merge(client, task)
+
+    assert reported.status_code == 200, reported.text
+    assert reported.json()["task_version"] == before + 1
+    assert task_version(client, task) == before + 1
+
+
+def test_the_new_version_carries_the_same_contract(client):
+    """Nothing about the work changed; only when it was authorized."""
+    import os
+
+    from controller import db
+
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+    before = task_version(client, task)
+    report_merge(client, task)
+
+    conn = db.connect(os.environ["CONTROLLER_DB"])
+    rows = conn.execute(
+        "SELECT version, contract_yaml, contract_hash, base_sha, proof_mode "
+        "FROM task_versions WHERE task_id = ? ORDER BY version", (task,),
+    ).fetchall()
+
+    old = [r for r in rows if r["version"] == before][0]
+    new = [r for r in rows if r["version"] == before + 1][0]
+
+    assert new["contract_yaml"] == old["contract_yaml"]
+    assert new["contract_hash"] == old["contract_hash"]
+    assert new["base_sha"] == old["base_sha"]
+    assert new["proof_mode"] == old["proof_mode"]
+
+
+def test_a_report_against_a_version_the_reporter_never_saw_is_refused(client):
+    """An operator reporting a hand-merge is reading a task they last looked at
+    some time ago, and the report advances the version -- so advancing from one
+    they never saw would invalidate attempts against a decision they did not
+    make."""
+    task = approved_task(client)
+    escalate_to_needs_human(client, task)
+
+    response = report_merge(client, task, expected_version=99)
+
+    assert response.status_code == 409, response.text
+    assert "stale report" in response.text
+    assert client.get(f"/controller/tasks/{task}", auth=ADMIN).json()[
+        "state"] == "NEEDS_HUMAN"
+
+
+def test_a_refused_report_advances_nothing(client):
+    """A route that rejects a request and writes half of it is worse than one
+    that accepts it. The version bump is inside the transaction, so a report
+    refused after it must leave the version where it was."""
+    task = unapproved_task_in_changes_requested(client, "T-NOAPPROVAL-2")
+    before = task_version(client, task)
+
+    assert report_merge(client, task).status_code == 409
+    assert task_version(client, task) == before

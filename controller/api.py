@@ -85,6 +85,9 @@ _STATUS_FOR = {
     reconciliation.NotReportable: 409,
     reconciliation.NothingApproved: 409,
     reconciliation.CandidateMismatch: 409,
+    reconciliation.StaleReport: 409,
+    reconciliation.WrongReconciliation: 409,
+    reconciliation.ReportRefused: 409,
     engine.StaleState: 409,
     engine.ConflictingReplay: 409,
     states.UndefinedTransition: 409,
@@ -286,6 +289,11 @@ class OutOfBandMerge(BaseModel):
     merged_by: str
     reason: str
     expected_state_seq: int
+    # The stale-write check `/operator-response` makes, for the same reason:
+    # the report advances the version, and advancing from a version the
+    # reporter never saw invalidates attempts against a decision they did not
+    # make.
+    expected_version: int
     candidate_sha: Optional[str] = None
     pull_request: Optional[int] = None
     merged_at: Optional[str] = None
@@ -1023,6 +1031,11 @@ def build_router(
             "integration_reconciled_landed",
             "integration_reconciled_absent",
             "reconciliation_failed",
+            # The absence answer for a task that arrived by report (#26). Its
+            # own kind rather than a second meaning for `_absent`, because the
+            # two entrances are not symmetrical -- see
+            # `reconciliation.refuse_mismatched_reconciliation`.
+            "out_of_band_report_unfounded",
         }
 
         if body.kind not in allowed:
@@ -1033,6 +1046,12 @@ def build_router(
             )
 
         try:
+            # Which door the task came in by decides which absence answer is
+            # the true one. Checked before the transition, so a reconciliation
+            # aimed at the wrong entrance moves nothing.
+            reconciliation.refuse_mismatched_reconciliation(
+                conn, task_id=task_id, kind=body.kind)
+
             return engine.apply_transition(
                 conn,
                 task_id=task_id,
@@ -1073,6 +1092,7 @@ def build_router(
                 merged_by=body.merged_by,
                 reason=body.reason,
                 expected_state_seq=body.expected_state_seq,
+                expected_version=body.expected_version,
                 candidate_sha=body.candidate_sha,
                 pull_request=body.pull_request,
                 merged_at=body.merged_at,

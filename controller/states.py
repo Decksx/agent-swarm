@@ -247,6 +247,30 @@ TRANSITIONS: Dict[Tuple[str, str], Transition] = {
     ("CHANGES_REQUESTED", "out_of_band_merge_reported"): _t(
         "INTEGRATION_UNCERTAIN", ADMIN
     ),
+    # And the answer when a reported merge turns out not to be there.
+    #
+    # `integration_reconciled_absent` is the right answer for the expiry path
+    # and the wrong one here, which is why this exists as its own event rather
+    # than reusing it. A task that expired mid-merge was approved, was being
+    # integrated, and still carries `approved_candidate_sha`; absent means the
+    # merge did not happen and it is safe to integrate again, so
+    # READY_INTEGRATION is where it belongs.
+    #
+    # A task that arrived by report is in a different position entirely. It
+    # reached CHANGES_REQUESTED or NEEDS_HUMAN because something refused it,
+    # and `integration_rejected` clears the approval on the way past. Sending
+    # it to READY_INTEGRATION would mean a report that reconciliation has just
+    # shown to be false had resurrected a candidate the integrator refused --
+    # laundering a rejection through a claim nobody could verify. It would also
+    # strand the task: `progression.advance` will not issue an integrate stage
+    # for a task whose `approved_candidate_sha` is NULL, so it would sit in
+    # READY_INTEGRATION being skipped forever, which is how this was found.
+    #
+    # So an unfounded report goes back to a person. The report was wrong and
+    # somebody has to say what is actually true.
+    ("INTEGRATION_UNCERTAIN", "out_of_band_report_unfounded"): _t(
+        "NEEDS_HUMAN", CONTROLLER, OPERATOR
+    ),
     ("INTEGRATING", "integration_completed"): _t("COMPLETE", CONTROLLER),
     ("INTEGRATING", "rollback_started"): _t("REVERTING", CONTROLLER, OPERATOR),
 
