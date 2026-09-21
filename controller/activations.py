@@ -337,7 +337,10 @@ def issue(
     return {"activation_id": activation_id, "role": role, "attempt_no": attempt}
 
 
-_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+# Public because the routes validate shas too, and a second copy of this
+# pattern is a second chance to spell it differently. Full shas only: a short
+# sha names a different commit on a different day.
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _latest_candidate(conn: sqlite3.Connection, task_id: str) -> Optional[str]:
@@ -363,7 +366,7 @@ def _latest_candidate(conn: sqlite3.Connection, task_id: str) -> Optional[str]:
 
         candidate = str(payload.get("candidate_sha") or "").strip().lower()
 
-        if _SHA_RE.match(candidate):
+        if SHA_RE.match(candidate):
             return candidate
 
     return None
@@ -424,7 +427,7 @@ def _review_evidence(
     for name, value in (("expected_parent", parent), ("expected_candidate", candidate)):
         if not value:
             missing.append(name)
-        elif not _SHA_RE.match(value):
+        elif not SHA_RE.match(value):
             raise MissingReviewEvidence(
                 f"{name} is not a full 40-character sha: {value[:16]!r}"
             )

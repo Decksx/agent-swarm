@@ -115,6 +115,8 @@ NARRATED = {
     "integration_completed": "INTEGRATED",
     "integration_rejected": "integration refused",
     "integration_outcome_unknown": "integration outcome unknown",
+    "out_of_band_merge_reported": "out-of-band merge reported",
+    "out_of_band_report_unfounded": "out-of-band report unfounded",
     "integration_reconciled_landed": "reconciled: landed",
     "integration_reconciled_absent": "reconciled: absent",
     "reconciliation_failed": "reconciliation failed",

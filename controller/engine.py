@@ -226,6 +226,37 @@ def _approved_candidate(conn, activation_id):
     return candidate or None
 
 
+def approved_candidate_for_task(conn, task_id: str) -> Optional[dict]:
+    """The approval still in this task's log, and the commit it approved.
+
+    `tasks.approved_candidate_sha` cannot answer this. The column is cleared by
+    everything in `APPROVAL_CLEARING`, `integration_rejected` among them -- so
+    on precisely the tasks that need reconciling (#26: approved, refused by the
+    integrator, merged by hand anyway) the column reads NULL while the approval
+    sits in the log where it happened. The log is the source of truth and the
+    column is a projection of the *current* approval; this asks a historical
+    question and so it asks the log.
+
+    Returns None when nothing was ever approved. The candidate comes from the
+    review activation, never from a payload -- see `_approved_candidate`.
+    """
+    approval = conn.execute(
+        "SELECT seq, event_id, activation_id FROM events "
+        "WHERE task_id = ? AND kind = ? ORDER BY seq DESC LIMIT 1",
+        (task_id, APPROVAL_GRANTING),
+    ).fetchone()
+
+    if approval is None:
+        return None
+
+    return {
+        "seq": approval["seq"],
+        "event_id": approval["event_id"],
+        "activation_id": approval["activation_id"],
+        "candidate_sha": _approved_candidate(conn, approval["activation_id"]),
+    }
+
+
 def apply_transition(
     conn: sqlite3.Connection,
     *,
