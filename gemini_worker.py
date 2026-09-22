@@ -400,6 +400,125 @@ def post_reply(requests: Any, target: str, body: str, message_id: Any) -> None:
 # with it; see tests/ for the assertions that replace it.
 
 
+# --- Which checkout a review happens in (#64) --------------------------------
+#
+# The controller records `repo_location` on the activation at issue time, the
+# same way it records `expected_candidate`: it is the question being asked, and
+# the worker does not get to answer a different one. `REVIEW_REPO` is this
+# host's configured checkout, and it is a fallback for an activation that names
+# no repository at all -- nothing more.
+#
+# This used to warn on a mismatch and review in `REVIEW_REPO` anyway. That is
+# how a review of the wrong tree becomes evidence that looks valid: the ledger
+# would record a verdict naming a candidate the reviewer never saw. Found when
+# the production runtime moved to its own checkout and the author's commit --
+# present in the repository the controller named, and on the remote -- was
+# absent from the one this worker happened to be launched from.
+#
+# Nothing here fetches, and that is enforced rather than assumed: every git
+# call runs under `review_packet.offline_env`, because in a promisor clone git
+# fetches missing objects by itself and choosing read-only subcommands would
+# not prevent it. A reviewer that reaches for the network to find a commit it
+# was told to review is answering a different question than the one asked, and
+# the trust, ref-selection and failure behaviour that would need is #69.
+
+
+class ReviewRepoUnusable(Exception):
+    """The repository this review must happen in cannot be used.
+
+    Carries the precise reason and both paths, so the blocked judgment records
+    what was asked for and what this host had configured.
+    """
+
+    def __init__(self, reason: str, detail: dict):
+        super().__init__(reason)
+        self.reason = reason
+        self.detail = detail
+
+
+def _git_succeeds(repo: str, *args: str) -> bool:
+    """Whether a read-only git query succeeds in `repo`, without the network.
+
+    Read-only is not enough on its own, and assuming it was is what review
+    caught here. In a partial or promisor clone `cat-file` fetches the object
+    it cannot find, from inside git, without this code running `git fetch` --
+    so a check that the candidate is "already present" would quietly become a
+    check that it is "present or obtainable", and the refusal this function
+    exists to produce would never fire.
+
+    `review_packet.offline_env` turns that internal fetch into a failure, and
+    it is the same environment the packet builder runs under, so the answer
+    here and the packet built afterwards mean the same thing.
+
+    Output is discarded rather than reported, so nothing a remote or a
+    credential helper might print can reach the ledger through a refusal.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True, encoding="utf-8", errors="replace", check=False,
+        env=review_packet.offline_env(),
+    )
+
+    return result.returncode == 0
+
+
+def resolve_review_repo(activation: dict, candidate: str,
+                        configured: str | None = None) -> tuple:
+    """The checkout this review happens in, and where that choice came from.
+
+    Raises `ReviewRepoUnusable` rather than falling back whenever the
+    authoritative repository cannot serve the review. Falling back once the
+    activation has named a repository is the defect this exists to remove: the
+    alternative is a verdict about a tree nobody asked about.
+
+    `repo_location` is read from the activation record the controller issued.
+    It is never taken from the contract, the objective, or anything a model
+    shaped -- the rule `engine._approved_candidate` follows for the candidate,
+    applied to the repository the candidate is read from.
+    """
+    declared = (activation.get("repo_location") or "").strip()
+    configured = (REVIEW_REPO if configured is None else configured or "").strip()
+    detail = {"repo_location": declared or None, "review_repo": configured or None}
+
+    if declared:
+        repo, source = declared, "activation"
+    elif configured:
+        repo, source = configured, "environment"
+    else:
+        raise ReviewRepoUnusable(
+            "the activation named no repo_location and REVIEW_REPO is not "
+            "configured on this host",
+            detail,
+        )
+
+    detail = {**detail, "repo_used": repo, "repo_source": source}
+
+    if not Path(repo).is_dir():
+        raise ReviewRepoUnusable(
+            f"the {source} repository {repo!r} does not exist on this host",
+            detail,
+        )
+
+    if not _git_succeeds(repo, "rev-parse", "--git-dir"):
+        raise ReviewRepoUnusable(
+            f"the {source} repository {repo!r} is not a git repository", detail
+        )
+
+    # The pinned candidate, present locally. Not resolved through a branch name
+    # and not fetched: the controller named this commit, and this asks only
+    # whether it is already here.
+    if candidate and not _git_succeeds(
+            repo, "cat-file", "-e", f"{candidate}^{{commit}}"):
+        raise ReviewRepoUnusable(
+            f"the {source} repository {repo!r} does not contain candidate "
+            f"{candidate[:12]}; not falling back to another checkout and not "
+            "fetching",
+            detail,
+        )
+
+    return repo, detail
+
+
 def execute_review(
     client: Any, types: Any, activation: dict, queue: Any
 ) -> None:
@@ -420,24 +539,25 @@ def execute_review(
     base = activation.get("expected_parent")
     candidate = activation.get("expected_candidate")
 
-    # REVIEW_REPO is this host's checkout. repo_location is what the controller
-    # recorded at issue time. They should agree; a mismatch is reported rather
-    # than silently reviewed in whichever one happens to be configured here,
-    # because the ledger would then name a checkout the review did not use.
-    declared = (activation.get("repo_location") or "").strip()
-
-    if declared and REVIEW_REPO and declared != REVIEW_REPO:
-        log.warning(
-            "activation %s names repo_location %r but this worker reviews in "
-            "%r; reviewing here and recording both",
-            activation_id, declared, REVIEW_REPO,
-        )
-
-    if not REVIEW_REPO:
-        log.error("REVIEW_REPO is not set; cannot review %s", activation_id)
+    # Which checkout this review happens in. The controller's `repo_location`
+    # wins; `REVIEW_REPO` serves only an activation that named none. Anything
+    # else is a blocked judgment naming both paths -- never a review of
+    # whichever tree this host happens to have (#64).
+    try:
+        repo, repo_detail = resolve_review_repo(activation, candidate)
+    except ReviewRepoUnusable as exc:
+        log.error("cannot review %s: %s", activation_id, exc.reason)
         queue.judge(activation_id, judgment="blocked",
-                    payload={"reason": "REVIEW_REPO is not configured on this host"})
+                    payload={"reason": exc.reason, **exc.detail})
         return
+
+    if repo_detail.get("repo_source") == "activation" and repo_detail.get(
+            "review_repo") and repo_detail["review_repo"] != repo:
+        log.info(
+            "activation %s names repo_location %r; reviewing there rather than "
+            "in this host's REVIEW_REPO %r",
+            activation_id, repo, repo_detail["review_repo"],
+        )
 
     # The controller refuses to issue a review activation without these, so
     # reaching here without them means an older activation issued before that
@@ -457,7 +577,7 @@ def execute_review(
 
     try:
         packet = review_packet.build(
-            REVIEW_REPO,
+            repo,
             task=activation.get("task_record") or {},
             base=base,
             candidate=candidate,
@@ -639,7 +759,13 @@ def main() -> int:
 
     log.info("hub        : %s", HUB_URL)
     log.info("work from  : %s", ACTIVATION_SOURCE)
-    log.info("review repo: %s", REVIEW_REPO or "(unset -- reviews will block)")
+    # The fallback, not the choice. An activation that names a repository is
+    # reviewed there whatever this says, so the wording no longer claims
+    # otherwise (#64).
+    log.info(
+        "review repo fallback: %s",
+        REVIEW_REPO or "(unset -- an activation naming none will block)",
+    )
     log.info("model      : %s", GEMINI_MODEL)
     log.info("gemini_key : present")
     log.info("identity   : %s (bound locally, never from a message)", AGENT_IDENTITY)

@@ -221,6 +221,19 @@ def review_call(monkeypatch, tmp_path):
     monkeypatch.setattr(review_packet, "build", fake_build)
     monkeypatch.setattr(gemini_worker, "generate_reply", recorder)
     monkeypatch.setattr(gemini_worker, "REVIEW_REPO", str(tmp_path))
+    # Stubbed for the same reason `build` is: since #64 the worker verifies
+    # that the repository it was told to review exists, is a git repository,
+    # and already holds the pinned candidate -- real git over a real tree,
+    # which this fixture has no interest in supplying. Which repository wins
+    # is covered by tests/test_review_repo_selection.py.
+    monkeypatch.setattr(
+        gemini_worker, "resolve_review_repo",
+        lambda activation, candidate, configured=None: (
+            str(tmp_path),
+            {"repo_location": None, "review_repo": str(tmp_path),
+             "repo_used": str(tmp_path), "repo_source": "environment"},
+        ),
+    )
 
     return seen
 
