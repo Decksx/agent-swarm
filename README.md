@@ -100,7 +100,7 @@ refused whole on any failure.
 **Deliberately not done yet**, each with a reason in
 [`docs/PHASE1_MVP_LIMITS.md`](docs/PHASE1_MVP_LIMITS.md):
 
-- **No integrator.** `READY_INTEGRATION` is where tasks stop. Nothing merges.
+**Integration Pipeline:** The integrator exists, and `READY_INTEGRATION` transitions to `INTEGRATING` through `integrator.py`, which performs the merge. The state progresses to `COMPLETE` via `integration_completed`, and the ledger records eight such events with candidates as ancestors of main.
 - **No general contract linter.** The controller's `ready` transition does not
   perform complete contract-schema validation — `contract_yaml` is stored and
   hashed, and the route is called `ready`, not `validate`, for that reason.
