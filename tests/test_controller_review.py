@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import pytest
 
-from controller import activations, engine, states
+from controller import activations, engine, outcomes, states
 from controller.db import open_controller_db
 
 T0 = 1_000_000.0
@@ -69,7 +69,7 @@ def under_review(conn):
     activations.claim(
         conn, activation_id=author["activation_id"], agent="claudecode", now=T0
     )
-    activations.submit_result(
+    outcomes.submit_result(
         conn, activation_id=author["activation_id"], agent="claudecode",
         kind="candidate_submitted", now=T0 + 1,
     )
@@ -101,7 +101,7 @@ def test_a_reviewer_cannot_emit_the_gate_event_through_submit_result(conn, under
     submit_review_judgment's controller authority becomes decoration.
     """
     with pytest.raises(states.NotAuthorized):
-        activations.submit_result(
+        outcomes.submit_result(
             conn, activation_id=under_review, agent="gemini",
             kind="review_requirements_satisfied", now=T0 + 3,
         )
@@ -113,7 +113,7 @@ def test_a_reviewer_cannot_emit_the_gate_event_through_submit_result(conn, under
 
 
 def test_the_judgment_route_applies_it_with_controller_authority(conn, under_review):
-    outcome = activations.submit_review_judgment(
+    outcome = outcomes.submit_review_judgment(
         conn, activation_id=under_review, agent="gemini",
         judgment="satisfied", now=T0 + 3,
     )
@@ -137,7 +137,7 @@ def test_the_judgment_route_applies_it_with_controller_authority(conn, under_rev
 def test_another_agent_cannot_submit_the_judgment(conn, under_review):
     """Holding a credential is not holding the activation."""
     with pytest.raises(activations.NotTheAssignedWorker):
-        activations.submit_review_judgment(
+        outcomes.submit_review_judgment(
             conn, activation_id=under_review, agent="chatgpt",
             judgment="satisfied", now=T0 + 3,
         )
@@ -147,7 +147,7 @@ def test_another_agent_cannot_submit_the_judgment(conn, under_review):
 
 def test_an_expired_lease_cannot_judge(conn, under_review):
     with pytest.raises(activations.LeaseExpired):
-        activations.submit_review_judgment(
+        outcomes.submit_review_judgment(
             conn, activation_id=under_review, agent="gemini",
             judgment="satisfied", now=T0 + 2 + LEASE + 1,
         )
@@ -162,7 +162,7 @@ def test_identity_is_checked_before_expiry(conn, under_review):
     agent gets NotTheAssignedWorker whether or not the lease has lapsed.
     """
     with pytest.raises(activations.NotTheAssignedWorker):
-        activations.submit_review_judgment(
+        outcomes.submit_review_judgment(
             conn, activation_id=under_review, agent="chatgpt",
             judgment="satisfied", now=T0 + 2 + LEASE + 1,
         )
@@ -188,7 +188,7 @@ def test_an_author_activation_cannot_carry_a_review_judgment(conn):
     )
 
     with pytest.raises(activations.NotAReviewActivation):
-        activations.submit_review_judgment(
+        outcomes.submit_review_judgment(
             conn, activation_id=author["activation_id"], agent="claudecode",
             judgment="satisfied", now=T0 + 1,
         )
@@ -198,7 +198,7 @@ def test_an_author_activation_cannot_carry_a_review_judgment(conn):
 
 
 def test_changes_requested_sends_the_task_back(conn, under_review):
-    outcome = activations.submit_review_judgment(
+    outcome = outcomes.submit_review_judgment(
         conn, activation_id=under_review, agent="gemini",
         judgment="changes_requested", payload={"why": "tests do not run"},
         now=T0 + 3,
@@ -209,7 +209,7 @@ def test_changes_requested_sends_the_task_back(conn, under_review):
 
 
 def test_decision_required_escalates(conn, under_review):
-    outcome = activations.submit_review_judgment(
+    outcome = outcomes.submit_review_judgment(
         conn, activation_id=under_review, agent="gemini",
         judgment="decision_required", now=T0 + 3,
     )
@@ -219,7 +219,7 @@ def test_decision_required_escalates(conn, under_review):
 
 def test_an_unknown_judgment_is_refused_without_touching_the_task(conn, under_review):
     with pytest.raises(activations.ActivationError):
-        activations.submit_review_judgment(
+        outcomes.submit_review_judgment(
             conn, activation_id=under_review, agent="gemini",
             judgment="looks-fine-to-me", now=T0 + 3,
         )
@@ -232,11 +232,11 @@ def test_an_unknown_judgment_is_refused_without_touching_the_task(conn, under_re
 
 
 def test_redelivering_the_same_judgment_replays_it(conn, under_review):
-    first = activations.submit_review_judgment(
+    first = outcomes.submit_review_judgment(
         conn, activation_id=under_review, agent="gemini",
         judgment="satisfied", now=T0 + 3,
     )
-    second = activations.submit_review_judgment(
+    second = outcomes.submit_review_judgment(
         conn, activation_id=under_review, agent="gemini",
         judgment="satisfied", now=T0 + 4,
     )
@@ -252,13 +252,13 @@ def test_redelivering_the_same_judgment_replays_it(conn, under_review):
 
 def test_changing_the_judgment_after_the_fact_is_refused(conn, under_review):
     """A reviewer does not get to withdraw a judgment by sending another."""
-    activations.submit_review_judgment(
+    outcomes.submit_review_judgment(
         conn, activation_id=under_review, agent="gemini",
         judgment="satisfied", now=T0 + 3,
     )
 
     with pytest.raises(activations.ConflictingResult):
-        activations.submit_review_judgment(
+        outcomes.submit_review_judgment(
             conn, activation_id=under_review, agent="gemini",
             judgment="changes_requested", now=T0 + 4,
         )
@@ -267,7 +267,7 @@ def test_changing_the_judgment_after_the_fact_is_refused(conn, under_review):
 
 
 def test_the_judgment_releases_the_host_slot(conn, under_review):
-    activations.submit_review_judgment(
+    outcomes.submit_review_judgment(
         conn, activation_id=under_review, agent="gemini",
         judgment="satisfied", now=T0 + 3,
     )
@@ -289,7 +289,7 @@ def test_satisfied_is_accepted_with_no_evidence_at_all(conn, under_review):
     """
     assert conn.execute("SELECT COUNT(*) AS n FROM evidence").fetchone()["n"] == 0
 
-    outcome = activations.submit_review_judgment(
+    outcome = outcomes.submit_review_judgment(
         conn, activation_id=under_review, agent="gemini",
         judgment="satisfied", now=T0 + 3,
     )
@@ -304,7 +304,7 @@ def test_the_task_stops_at_ready_integration(conn, under_review):
     stops. A demonstration that wants to finish without a real integrator has
     to say so explicitly; it does not happen by default.
     """
-    activations.submit_review_judgment(
+    outcomes.submit_review_judgment(
         conn, activation_id=under_review, agent="gemini",
         judgment="satisfied", now=T0 + 3,
     )
@@ -348,7 +348,7 @@ def test_a_worker_cannot_emit_a_failure_event_itself(conn, authoring):
     which is a verdict about the work rather than a report about the run.
     """
     with pytest.raises(states.NotAuthorized):
-        activations.submit_result(
+        outcomes.submit_result(
             conn, activation_id=authoring, agent="claudecode",
             kind="author_defect", now=T0 + 1,
         )
@@ -363,7 +363,7 @@ def test_a_worker_cannot_emit_a_failure_event_itself(conn, authoring):
 ])
 def test_each_author_outcome_lands_where_it_should(conn, authoring, outcome, expected):
     """Before this existed a worker could report success and nothing else."""
-    result = activations.submit_author_outcome(
+    result = outcomes.submit_author_outcome(
         conn, activation_id=authoring, agent="claudecode",
         outcome=outcome, now=T0 + 1,
     )
@@ -379,7 +379,7 @@ def test_blocked_is_recoverable_and_failed_is_a_verdict(conn, authoring):
     environment and it returns to READY_AUTHOR with nothing said about the
     task. CHANGES_REQUESTED says the attempt was wrong.
     """
-    activations.submit_author_outcome(
+    outcomes.submit_author_outcome(
         conn, activation_id=authoring, agent="claudecode",
         outcome="blocked", payload={"reason": "rate limit guard"}, now=T0 + 1,
     )
@@ -394,7 +394,7 @@ def test_blocked_is_recoverable_and_failed_is_a_verdict(conn, authoring):
 
 def test_another_agent_cannot_report_this_activation(conn, authoring):
     with pytest.raises(activations.NotTheAssignedWorker):
-        activations.submit_author_outcome(
+        outcomes.submit_author_outcome(
             conn, activation_id=authoring, agent="chatgpt",
             outcome="candidate", now=T0 + 1,
         )
@@ -405,7 +405,7 @@ def test_a_review_judgment_cannot_be_submitted_against_an_author_activation(
 ):
     """The stage is part of the authorization, both ways round."""
     with pytest.raises(activations.NotAReviewActivation):
-        activations.submit_review_judgment(
+        outcomes.submit_review_judgment(
             conn, activation_id=authoring, agent="claudecode",
             judgment="satisfied", now=T0 + 1,
         )
@@ -413,11 +413,11 @@ def test_a_review_judgment_cannot_be_submitted_against_an_author_activation(
 
 def test_redelivering_an_author_outcome_replays_it(conn, authoring):
     """A worker retrying after a dropped response must not run twice."""
-    first = activations.submit_author_outcome(
+    first = outcomes.submit_author_outcome(
         conn, activation_id=authoring, agent="claudecode",
         outcome="candidate", now=T0 + 1,
     )
-    second = activations.submit_author_outcome(
+    second = outcomes.submit_author_outcome(
         conn, activation_id=authoring, agent="claudecode",
         outcome="candidate", now=T0 + 2,
     )
@@ -430,13 +430,13 @@ def test_redelivering_an_author_outcome_replays_it(conn, authoring):
 
 
 def test_reporting_a_different_outcome_afterwards_is_refused(conn, authoring):
-    activations.submit_author_outcome(
+    outcomes.submit_author_outcome(
         conn, activation_id=authoring, agent="claudecode",
         outcome="candidate", now=T0 + 1,
     )
 
     with pytest.raises(activations.ConflictingResult):
-        activations.submit_author_outcome(
+        outcomes.submit_author_outcome(
             conn, activation_id=authoring, agent="claudecode",
             outcome="failed", now=T0 + 2,
         )

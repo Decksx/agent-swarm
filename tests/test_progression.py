@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from controller import activations, db, engine, progression, states
+from controller import activations, db, engine, outcomes, progression, states
 
 
 LEASE = 900.0
@@ -56,7 +56,7 @@ def author(conn, task_id, candidate=CAND):
     )
     activations.claim(conn, activation_id=issued["activation_id"],
                       agent="chatgpt")
-    activations.submit_author_outcome(
+    outcomes.submit_author_outcome(
         conn, activation_id=issued["activation_id"], agent="chatgpt",
         outcome="candidate", payload={"candidate_sha": candidate},
     )
@@ -65,7 +65,7 @@ def author(conn, task_id, candidate=CAND):
 
 def review(conn, task_id, activation_id):
     activations.claim(conn, activation_id=activation_id, agent="gemini")
-    activations.submit_review_judgment(
+    outcomes.submit_review_judgment(
         conn, activation_id=activation_id, agent="gemini",
         judgment="satisfied",
     )
@@ -236,7 +236,7 @@ def test_the_branch_comes_from_the_ledger_not_from_the_task_id(conn):
     )
     activations.claim(conn, activation_id=issued["activation_id"],
                       agent="chatgpt")
-    activations.submit_author_outcome(
+    outcomes.submit_author_outcome(
         conn, activation_id=issued["activation_id"], agent="chatgpt",
         outcome="candidate", payload={"candidate_sha": CAND},
     )
@@ -334,7 +334,7 @@ def author_from(conn, task_id, repo_location):
     )
     activations.claim(conn, activation_id=issued["activation_id"],
                       agent="chatgpt")
-    activations.submit_author_outcome(
+    outcomes.submit_author_outcome(
         conn, activation_id=issued["activation_id"], agent="chatgpt",
         outcome="candidate", payload={"candidate_sha": CAND},
     )
