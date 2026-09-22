@@ -37,6 +37,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Tuple
 
+import retry_base
+
 
 class AuthoringError(Exception):
     """The model's answer could not be turned into a change."""
@@ -272,36 +274,6 @@ def operator_section(context: Optional[dict]) -> List[str]:
         "- If following it would require changing any of those, do not do it. "
         "Stop and say that a new contract version is needed, naming which of "
         "them would have to change and why.",
-    ]
-
-
-def _rejection_section(task: dict) -> List[str]:
-    """What the last review sent this task back for, if anything.
-
-    Included verbatim and attributed, because a retry that is not told what
-    was wrong is not an attempt at the correction -- it is the same generation
-    with the same inputs, and it will produce the same candidate. The
-    reviewer's words are labelled as the reviewer's: they are a judgment to
-    address, not part of the objective, and an author that treats them as new
-    requirements will drift away from what was actually asked for.
-    """
-    rejection = task.get("last_rejection") or {}
-    rationale = str(rejection.get("rationale") or "").strip()
-
-    if not rationale:
-        return []
-
-    return [
-        "",
-        "-" * 60,
-        "A PREVIOUS ATTEMPT AT THIS TASK WAS REJECTED IN REVIEW.",
-        "",
-        "The reviewer said:",
-        rationale,
-        "",
-        "Address that. The objective above is unchanged and is still what you "
-        "are being judged against; the rejection tells you where the last "
-        "attempt fell short of it.",
     ]
 
 
@@ -603,6 +575,7 @@ def render_author_prompt(
     context: Optional[dict] = None,
     *,
     scope: Optional["Scope"] = None,
+    retry_from: Optional[dict] = None,
 ) -> str:
     """The prompt an API author is given.
 
@@ -681,7 +654,7 @@ def render_author_prompt(
     ] if scope is None and task.get("allowed_paths") else [])
         + _existing_section(existing or [])
         + _context_section(context or {})
-        + _rejection_section(task)
+        + retry_base.rejection_section(task, retry_from)
         + operator_section(task.get("operator_context")))
 
 
@@ -1172,6 +1145,7 @@ def apply_and_commit(
     message: str,
     base: str = "HEAD",
     scope: Scope,
+    original_base: Optional[str] = None,
 ) -> dict:
     """Create `branch` off `base`, write `files`, commit, return branch and sha.
 
@@ -1225,7 +1199,12 @@ def apply_and_commit(
             f"changes that are not this task's ({len(dirty.splitlines())} entries)"
         )
 
-    starting_ref = _git(root, "rev-parse", "--abbrev-ref", "HEAD").strip() or base_sha
+    # `--abbrev-ref` answers "HEAD" in a detached worktree -- every worker's --
+    # so checking it out left the new branch checked out and undeletable (#68).
+    starting_ref = _git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+
+    if starting_ref in ("", "HEAD"):
+        starting_ref = _git(root, "rev-parse", "HEAD").strip() or base_sha
     _git(root, "checkout", "-q", "-b", branch, base_sha)
 
     # From here a failure has to leave the repository as it was found.
@@ -1247,6 +1226,13 @@ def apply_and_commit(
 
         _git(root, "commit", "-q", "-m", message)
         sha = _git(root, "rev-parse", "HEAD").strip()
+
+        # What the reviewer will be shown, against the contract (#68).
+        cumulative, refused = retry_base.check(root, original_base, sha, scope)
+
+        if refused:
+            raise AuthoringError(refused)
+
     except BaseException:
         _abandon(root, branch, starting_ref)
         raise
@@ -1255,5 +1241,7 @@ def apply_and_commit(
         "branch": branch,
         "candidate_sha": sha,
         "base_sha": base_sha,
+        "original_base": str(original_base or base_sha),
         "files": [str(Path(t).relative_to(root)).replace("\\", "/") for t, _ in targets],
+        "cumulative_files": cumulative,
     }

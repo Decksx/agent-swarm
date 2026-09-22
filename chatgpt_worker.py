@@ -76,6 +76,7 @@ import controller_client
 import prompt_budget
 import publication
 import repo_registry
+import retry_base
 import swarm_control
 import worktrees
 
@@ -579,13 +580,18 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
             activation_id, project.name,
         )
 
+    # Which tree a retry authors from, and why: `retry_base` (#68).
+    retry_from = retry_base.resolve(
+        str(project.path), task_record, log, activation_id)
+    author_from = retry_from["sha"]
+
     # A private tree at the baseline, before the model is called. The old
     # check -- refuse if the shared checkout is dirty -- was the right
     # instinct in the wrong place: it made a person's unsaved work into an
     # obstacle, which is how a safety check gets switched off. Nothing here
     # touches that checkout.
     try:
-        workspace = worktrees.create(project, base_sha, activation_id)
+        workspace = worktrees.create(project, author_from, activation_id)
     except worktrees.WorktreeError as exc:
         log.error("no workspace for activation %s: %s", activation_id, exc)
         queue.report(activation_id, outcome="blocked", payload={
@@ -594,8 +600,8 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         return
 
     log.info(
-        "activation %s: worktree %s at %s", activation_id, workspace, base_sha[:12]
-    )
+        "activation %s: worktree %s at %s", activation_id, workspace,
+        author_from[:12])
 
     # Fail closed before the model is called, not after.
     #
@@ -628,10 +634,8 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
                      payload={"reason": str(exc)})
         return
 
-    # What the files it may change look like right now. Without this an author
-    # with no shell has to invent the parts of a file it was not shown, and
-    # the output format requires the whole file.
-    existing = authored_change.existing_in_scope(str(workspace), base_sha, scope)
+    # What the files it may change look like in the tree it authors from.
+    existing = authored_change.existing_in_scope(str(workspace), author_from, scope)
 
     if existing:
         log.info(
@@ -639,10 +643,8 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
             activation_id, len(existing),
         )
 
-    # The read-only reading list: the imports, interfaces and tests the change
-    # has to fit. Read from the task's own base commit, in the private
-    # worktree, so the author and the reviewer are looking at the same bytes.
-    context = authored_change.context_at(str(workspace), base_sha, scope)
+    # The read-only reading list, from the same tree, in the private worktree.
+    context = authored_change.context_at(str(workspace), author_from, scope)
 
     # A context path that is not there is a defect in the plan, not in the
     # attempt. The planner named a file at a commit where it does not exist,
@@ -706,6 +708,7 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         existing,
         context,
         scope=scope,
+        retry_from=retry_from,
     )
 
     # The first moment the prompt exists and the last before it costs
@@ -836,7 +839,8 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
         result = authored_change.apply_and_commit(
             str(workspace),
             branch=branch,
-            base=base_sha,
+            base=author_from,
+            original_base=base_sha,
             files=files,
             message=f"{task_id}: {task_record.get('title', 'authored change')}",
             scope=scope,

@@ -47,8 +47,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+import authored_change
 import publication
 import repo_registry
+import retry_base
 import worktrees
 
 log = logging.getLogger("claude_author_worktree")
@@ -70,6 +72,13 @@ class Workspace:
     canonical: tuple
     publish: Optional[publication.Target] = None
     record: dict = field(default_factory=dict)
+    # Where the work started versus what it is judged against (#68). They are
+    # the same commit on a first attempt. On a retry `base_sha` is the
+    # candidate the reviewer rejected -- the tree this session actually opens
+    # in -- while `original_base` stays the task's own base, which is what the
+    # review range is measured from and what the contract authorises against.
+    original_base: str = ""
+    retry_from: dict = field(default_factory=dict)
 
 
 def _git(repo, *args: str) -> subprocess.CompletedProcess:
@@ -132,8 +141,18 @@ def open_for(activation: dict, project_name: str) -> Workspace:
 
     canonical = snapshot(project.path)
 
+    # A retry opens in the rejected candidate rather than the task's base, so
+    # the reviewer's rationale describes the tree the session is standing in
+    # (#68). Resolved against the canonical checkout, which is where the
+    # candidate's objects live; unusable candidates fall back to the base and
+    # say why.
+    retry_from = retry_base.resolve(
+        str(project.path), {**record, "base_sha": base}, log
+    )
+    open_at = retry_from["sha"]
+
     try:
-        path = worktrees.create(project, base, name)
+        path = worktrees.create(project, open_at, name)
     except worktrees.WorktreeError as exc:
         raise Refused(f"could not prepare an isolated worktree: {exc}") from exc
 
@@ -150,14 +169,15 @@ def open_for(activation: dict, project_name: str) -> Workspace:
             f"{(switched.stderr or '').strip()[:200]}"
         )
 
-    log.info("authoring in %s on %s at %s", path, branch, base[:12])
-    return Workspace(project, name, Path(path), base, branch, canonical,
-                     publish=target, record=dict(record))
+    log.info("authoring in %s on %s at %s", path, branch, open_at[:12])
+    return Workspace(project, name, Path(path), open_at, branch, canonical,
+                     publish=target, record=dict(record),
+                     original_base=base, retry_from=retry_from)
 
 
 def briefing(ws: Workspace) -> str:
     """What the session is told about where it is. Checked afterwards anyway."""
-    return (
+    where = (
         "Workspace: the current directory is a dedicated git worktree of "
         f"project {ws.project.name}, already on branch `{ws.branch}` at base "
         f"commit {ws.base_sha}. Make and commit your change here, on this "
@@ -165,6 +185,56 @@ def briefing(ws: Workspace) -> str:
         "read or write any other checkout -- the candidate is taken from this "
         "branch and nowhere else, and anything left uncommitted is lost."
     )
+
+    # A session that does not know it is standing in a rejected attempt will
+    # read the tree as the original and re-make the edit that was sent back
+    # (#68). It can see the change with git, but only if it is told there is
+    # one to look for.
+    if (ws.retry_from or {}).get("source") == "rejected_candidate":
+        where += (
+            f"\n\nThis is a retry. {ws.base_sha[:12]} is the candidate a "
+            f"reviewer rejected, not this task's original base, which is "
+            f"{ws.original_base[:12]}. The rejected attempt's change is "
+            f"already applied in this tree -- `git diff {ws.original_base[:12]} "
+            "HEAD` shows it, and the review feedback you were given describes "
+            "exactly that diff. You are judged on the whole change from "
+            f"{ws.original_base[:12]}, so you may revert or rewrite any part "
+            "of that attempt rather than building on it."
+        )
+
+    return where
+
+
+def _outside_contract(ws: Workspace, base: str, head: str) -> list:
+    """Paths in `base..head` the task's contract does not authorise.
+
+    An unreadable contract returns nothing rather than failing the run. The
+    contract is checked, and refused if it cannot be read, well before a model
+    is called; re-deriving that verdict here -- after the work is done, from a
+    record this function was handed -- would turn one refusal into two with
+    different wording, and the later one would arrive as a lost attempt.
+    """
+    try:
+        scope = authored_change.require_contract(ws.record)
+    except authored_change.ContractDefect:
+        return []
+
+    if scope.unrestricted:
+        return []
+
+    listing = _git(ws.path, "diff", "--name-only", f"{base}..{head}")
+
+    if listing.returncode != 0:
+        return []
+
+    return sorted({
+        line.strip().replace("\\", "/")
+        for line in (listing.stdout or "").splitlines()
+        if line.strip()
+        and not authored_change.matches_allowed(
+            line.strip().replace("\\", "/"), list(scope.paths)
+        )
+    })
 
 
 def settle(ws: Workspace, exit_code: int) -> tuple:
@@ -206,6 +276,32 @@ def settle(ws: Workspace, exit_code: int) -> tuple:
         return "failed", {"reason": (
             f"{head[:12]} on {ws.branch!r} does not descend from the base "
             f"{ws.base_sha[:12]}"
+        )}
+
+    # And from the task's own base, which on a retry is a different commit
+    # (#68). The check above proves the session built on the tree it was
+    # opened in; this proves that tree is still a continuation of the task the
+    # reviewer will measure it against. They are the same question only on a
+    # first attempt.
+    original = ws.original_base or ws.base_sha
+
+    if _git(ws.path, "merge-base", "--is-ancestor", original, head).returncode:
+        return "failed", {"reason": (
+            f"{head[:12]} on {ws.branch!r} does not descend from the task's "
+            f"base {original[:12]}; the review range would not be this "
+            "task's change"
+        )}
+
+    # Every path the reviewer will be shown, against the contract. On a first
+    # attempt this is the session's own commits. On a retry it also covers the
+    # rejected attempt's edits, which arrive through the base rather than
+    # through anything this run wrote, and so had never been checked here.
+    outside = _outside_contract(ws, original, head)
+
+    if outside:
+        return "failed", {"reason": (
+            f"the change from {original[:12]} touches {len(outside)} path(s) "
+            "the contract does not authorise: " + ", ".join(outside[:10])
         )}
 
     dirt = _git(ws.path, "status", "--porcelain").stdout.strip()
