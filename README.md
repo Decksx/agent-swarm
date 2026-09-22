@@ -100,7 +100,7 @@ refused whole on any failure.
 **Deliberately not done yet**, each with a reason in
 [`docs/PHASE1_MVP_LIMITS.md`](docs/PHASE1_MVP_LIMITS.md):
 
-- **No integrator.** `READY_INTEGRATION` is where tasks stop. Nothing merges.
+**Integrator exists.** Tasks progress beyond `READY_INTEGRATION` with an integrator component (`integrator.py`) that conducts the merging process. The transition from `INTEGRATING` to `COMPLETE` occurs through the `integration_completed` event, as configured in the state management. The integration events are recorded in the permanent event ledger, and integrated candidates become ancestors of the `main` branch.
 - **No general contract linter.** The controller's `ready` transition does not
   perform complete contract-schema validation — `contract_yaml` is stored and
   hashed, and the route is called `ready`, not `validate`, for that reason.
