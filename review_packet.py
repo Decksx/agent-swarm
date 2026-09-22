@@ -41,6 +41,7 @@ where the reviewer will see it rather than hidden.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from typing import Optional
@@ -71,6 +72,29 @@ class PacketError(Exception):
     """The repository could not answer a question the packet needs."""
 
 
+# Git must not reach the network to answer a question about a commit it was
+# told to read (#64).
+#
+# Choosing read-only subcommands is not enough, and that was the gap review
+# found. In a partial or promisor clone, `cat-file`, `diff` and `rev-parse`
+# will fetch missing objects *themselves*, from inside git, without anything
+# here launching `git fetch`. A test that inspects the subcommands this code
+# runs cannot see that happen.
+#
+# `GIT_NO_LAZY_FETCH=1` turns those internal fetches into failures, which is
+# the behaviour this wants: a candidate that is not already present is absent,
+# and absence is a refusal rather than something to go and fix over the
+# network. `GIT_TERMINAL_PROMPT=0` means any fetch that somehow still occurs
+# fails instead of blocking on a credential prompt in a background worker.
+def offline_env(base: Optional[dict] = None) -> dict:
+    """The environment every git call in a review runs under."""
+    env = dict(os.environ if base is None else base)
+    env["GIT_NO_LAZY_FETCH"] = "1"
+    env["GIT_TERMINAL_PROMPT"] = "0"
+
+    return env
+
+
 def _git(repo: str, *args: str, check: bool = True) -> str:
     result = subprocess.run(
         ["git", *args],
@@ -79,6 +103,7 @@ def _git(repo: str, *args: str, check: bool = True) -> str:
         encoding="utf-8",
         errors="replace",
         check=False,
+        env=offline_env(),
     )
 
     if check and result.returncode != 0:
@@ -104,7 +129,7 @@ def is_reachable_from(repo: str, commit: str, ref: str) -> bool:
     """Whether `commit` is `ref` or an ancestor of it."""
     result = subprocess.run(
         ["git", "merge-base", "--is-ancestor", commit, ref],
-        cwd=repo, capture_output=True, check=False,
+        cwd=repo, capture_output=True, check=False, env=offline_env(),
     )
 
     return result.returncode == 0

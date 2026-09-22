@@ -415,10 +415,12 @@ def post_reply(requests: Any, target: str, body: str, message_id: Any) -> None:
 # present in the repository the controller named, and on the remote -- was
 # absent from the one this worker happened to be launched from.
 #
-# Nothing here fetches. A reviewer that reaches for the network to find a commit
-# it was told to review is answering a different question than the one asked,
-# and the trust, ref-selection and failure behaviour that would need is its own
-# decision rather than a silent fallback.
+# Nothing here fetches, and that is enforced rather than assumed: every git
+# call runs under `review_packet.offline_env`, because in a promisor clone git
+# fetches missing objects by itself and choosing read-only subcommands would
+# not prevent it. A reviewer that reaches for the network to find a commit it
+# was told to review is answering a different question than the one asked, and
+# the trust, ref-selection and failure behaviour that would need is #69.
 
 
 class ReviewRepoUnusable(Exception):
@@ -435,16 +437,26 @@ class ReviewRepoUnusable(Exception):
 
 
 def _git_succeeds(repo: str, *args: str) -> bool:
-    """Whether a read-only git query succeeds in `repo`.
+    """Whether a read-only git query succeeds in `repo`, without the network.
 
-    Read-only by construction: the caller passes the query, and every caller
-    here passes one that inspects local state. Output is discarded rather than
-    reported, so nothing a remote or a credential helper might print can reach
-    the ledger through a refusal message.
+    Read-only is not enough on its own, and assuming it was is what review
+    caught here. In a partial or promisor clone `cat-file` fetches the object
+    it cannot find, from inside git, without this code running `git fetch` --
+    so a check that the candidate is "already present" would quietly become a
+    check that it is "present or obtainable", and the refusal this function
+    exists to produce would never fire.
+
+    `review_packet.offline_env` turns that internal fetch into a failure, and
+    it is the same environment the packet builder runs under, so the answer
+    here and the packet built afterwards mean the same thing.
+
+    Output is discarded rather than reported, so nothing a remote or a
+    credential helper might print can reach the ledger through a refusal.
     """
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True, encoding="utf-8", errors="replace", check=False,
+        env=review_packet.offline_env(),
     )
 
     return result.returncode == 0
