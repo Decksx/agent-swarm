@@ -58,7 +58,7 @@ def author_a_candidate(conn, task_id, candidate):
     """Take the task through one full authoring round to READY_REVIEW."""
     issued = activations.issue(
         conn, task_id=task_id, agent="chatgpt", host="officepc",
-        stage="author", lease_seconds=LEASE, hard_deadline_seconds=DEADLINE,
+        stage="author", repo_location="/repo", lease_seconds=LEASE, hard_deadline_seconds=DEADLINE,
         expected_branch=f"task/{task_id}",
     )
     activations.claim(conn, activation_id=issued["activation_id"], agent="chatgpt")

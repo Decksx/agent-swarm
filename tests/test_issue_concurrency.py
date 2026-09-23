@@ -117,7 +117,7 @@ def test_two_concurrent_issues_produce_exactly_one_activation(db_path):
     def work(conn):
         return activations.issue(
             conn, task_id="T-1", agent="chatgpt", host="officepc",
-            stage="author", lease_seconds=LEASE,
+            stage="author", repo_location="/repo", lease_seconds=LEASE,
             hard_deadline_seconds=DEADLINE, expected_branch="task/T-1",
         )
 
@@ -133,7 +133,7 @@ def test_two_concurrent_issues_produce_exactly_one_transition(db_path):
     def work(conn):
         return activations.issue(
             conn, task_id="T-1", agent="chatgpt", host="officepc",
-            stage="author", lease_seconds=LEASE,
+            stage="author", repo_location="/repo", lease_seconds=LEASE,
             hard_deadline_seconds=DEADLINE, expected_branch="task/T-1",
         )
 
@@ -149,7 +149,7 @@ def test_the_loser_rolls_back_rather_than_orphaning_an_activation(db_path):
     def work(conn):
         return activations.issue(
             conn, task_id="T-1", agent="chatgpt", host="officepc",
-            stage="author", lease_seconds=LEASE,
+            stage="author", repo_location="/repo", lease_seconds=LEASE,
             hard_deadline_seconds=DEADLINE, expected_branch="task/T-1",
         )
 
@@ -170,7 +170,7 @@ def test_the_task_ends_in_one_consistent_state(db_path):
     def work(conn):
         return activations.issue(
             conn, task_id="T-1", agent="chatgpt", host="officepc",
-            stage="author", lease_seconds=LEASE,
+            stage="author", repo_location="/repo", lease_seconds=LEASE,
             hard_deadline_seconds=DEADLINE, expected_branch="task/T-1",
         )
 
@@ -190,7 +190,7 @@ def test_four_concurrent_callers_still_produce_one(db_path):
     def work(conn):
         return activations.issue(
             conn, task_id="T-1", agent="chatgpt", host="officepc",
-            stage="author", lease_seconds=LEASE,
+            stage="author", repo_location="/repo", lease_seconds=LEASE,
             hard_deadline_seconds=DEADLINE, expected_branch="task/T-1",
         )
 
@@ -305,7 +305,7 @@ def test_an_activation_issued_under_another_casing_uses_that_pool(db_path):
         activations.set_host_capacity(conn, host="officepc", max_concurrent=1)
         activations.issue(
             conn, task_id="T-1", agent="chatgpt", host="OFFICEPC",
-            stage="author", lease_seconds=LEASE,
+            stage="author", repo_location="/repo", lease_seconds=LEASE,
             hard_deadline_seconds=DEADLINE, expected_branch="task/T-1",
         )
 
@@ -327,7 +327,7 @@ def test_the_single_slot_is_shared_across_spellings(db_path):
         activations.set_host_capacity(conn, host="OfficePC", max_concurrent=1)
         activations.issue(
             conn, task_id="T-1", agent="chatgpt", host="officepc",
-            stage="author", lease_seconds=LEASE,
+            stage="author", repo_location="/repo", lease_seconds=LEASE,
             hard_deadline_seconds=DEADLINE, expected_branch="task/T-1",
         )
 
@@ -343,7 +343,7 @@ def test_the_single_slot_is_shared_across_spellings(db_path):
         with pytest.raises(activations.HostAtCapacity):
             activations.issue(
                 conn, task_id="T-2", agent="chatgpt", host="OFFICEPC",
-                stage="author", lease_seconds=LEASE,
+                stage="author", repo_location="/repo", lease_seconds=LEASE,
                 hard_deadline_seconds=DEADLINE, expected_branch="task/T-2",
             )
     finally:

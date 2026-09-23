@@ -63,7 +63,7 @@ def under_review(conn):
         )
 
     author = activations.issue(
-        conn, task_id="T-1", agent="claudecode", host="OFFICEPC", stage="author",
+        conn, task_id="T-1", agent="claudecode", host="OFFICEPC", stage="author", repo_location="/repo", expected_branch="task/author",
         lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=T0,
     )
     activations.claim(
@@ -180,7 +180,7 @@ def test_an_author_activation_cannot_carry_a_review_judgment(conn):
         )
 
     author = activations.issue(
-        conn, task_id="T-2", agent="claudecode", host="OFFICEPC", stage="author",
+        conn, task_id="T-2", agent="claudecode", host="OFFICEPC", stage="author", repo_location="/repo", expected_branch="task/author",
         lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=T0,
     )
     activations.claim(
@@ -330,7 +330,7 @@ def authoring(conn):
         )
 
     author = activations.issue(
-        conn, task_id="T-A", agent="claudecode", host="OFFICEPC", stage="author",
+        conn, task_id="T-A", agent="claudecode", host="OFFICEPC", stage="author", repo_location="/repo", expected_branch="task/author",
         lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=T0,
     )
     activations.claim(

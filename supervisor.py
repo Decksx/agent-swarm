@@ -84,6 +84,7 @@ from pathlib import Path
 from typing import Optional
 
 import narrator
+import stall_watch
 import swarm_control
 
 HERE = Path(__file__).resolve().parent
@@ -534,6 +535,7 @@ class Supervisor:
         self.last_tick = 0.0
         self._paused = False
         self.narration = self._build_narration()
+        self.stalls = stall_watch.StallWatch()
 
     def _build_narration(self):
         """The narrator, or None if it has no credential.
@@ -654,6 +656,14 @@ class Supervisor:
                 "activation declined: %s (%s)",
                 record.get("task_id"), record.get("reason"),
             )
+
+        # Except the ones that will never clear, which are said once, in the
+        # log and in the room (#77).
+        for task_id, line in self.stalls.observe(considered):
+            log.warning("%s", line)
+
+            if self.narration is not None and not self.narration.say(line):
+                self.stalls.forget(task_id)
 
         if not considered:
             log.debug("advance: nothing ready")

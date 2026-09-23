@@ -260,7 +260,7 @@ def test_the_guard_is_consulted_before_any_claim(monkeypatch, control):
 
     activation = {
         "activation_id": "act-1", "task_id": "T-1", "task": "do a thing",
-        "issued_by": "controller", "source": "controller", "stage": "author",
+        "issued_by": "controller", "source": "controller", "stage": "author", "repo_location": "/repo", "expected_branch": "task/author",
     }
     queue = StubQueue([activation])
 

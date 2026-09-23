@@ -44,7 +44,7 @@ def author_then_integrate(conn):
 
     make_task(conn, "T-B")
     older = activations.issue(
-        conn, task_id="T-B", agent="claudecode", host="officepc", stage="author",
+        conn, task_id="T-B", agent="claudecode", host="officepc", stage="author", repo_location="/repo",
         lease_seconds=LEASE, hard_deadline_seconds=DEADLINE,
         expected_branch="task/T-B", now=time.time() - 60,
     )

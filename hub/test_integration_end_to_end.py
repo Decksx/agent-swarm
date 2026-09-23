@@ -117,7 +117,7 @@ def approved_task(client, task_id="T-1"):
 
     issued = client.post("/controller/activations", auth=ADMIN, json={
         "task_id": task_id, "agent": "claudecode", "host": "officepc",
-        "stage": "author", "expected_branch": f"task/{task_id}",
+        "stage": "author", "repo_location": "/repo", "expected_branch": f"task/{task_id}",
     }).json()
     client.post("/controller/activations/claim", auth=WORKER)
     client.post(

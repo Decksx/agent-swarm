@@ -48,6 +48,10 @@ def ready_task(conn):
 
 def issue(conn, task="T-1", agent="claudecode", host="OFFICEPC", stage="author",
           now=T0, **kw):
+    if stage == "author":
+        # An author activation must say where the work happens (#77).
+        kw.setdefault("expected_branch", "task/author")
+        kw.setdefault("repo_location", "/repo")
     return activations.issue(
         conn, task_id=task, agent=agent, host=host, stage=stage,
         lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=now, **kw

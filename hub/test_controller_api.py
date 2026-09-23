@@ -100,7 +100,7 @@ def test_every_route_needs_a_credential(client, method, path):
     ("/controller/tasks", {"task_id": "X", "title": "t", "objective": "o",
                            "base_sha": "0" * 40}),
     ("/controller/activations", {"task_id": "T-1", "agent": "claudecode",
-                                 "host": "OFFICEPC", "stage": "author"}),
+                                 "host": "OFFICEPC", "stage": "author", "repo_location": "/repo", "expected_branch": "task/author"}),
     ("/controller/hosts", {"host": "OFFICEPC", "max_concurrent": 1}),
 ])
 def test_a_worker_cannot_reach_the_admin_routes(client, path, body):
@@ -117,7 +117,7 @@ def test_the_agent_is_the_credential_not_the_body(client, queued_task):
     """
     as_(client, "admin", "post", "/controller/activations", json={
         "task_id": "T-1", "agent": "claudecode", "host": "OFFICEPC",
-        "stage": "author",
+        "stage": "author", "repo_location": "/repo", "expected_branch": "task/author",
     })
 
     stolen = as_(client, "chatgpt", "post", "/controller/activations/claim")
@@ -131,7 +131,7 @@ def test_the_agent_is_the_credential_not_the_body(client, queued_task):
 def test_another_agent_cannot_result_someone_elses_activation(client, queued_task):
     as_(client, "admin", "post", "/controller/activations", json={
         "task_id": "T-1", "agent": "claudecode", "host": "OFFICEPC",
-        "stage": "author",
+        "stage": "author", "repo_location": "/repo", "expected_branch": "task/author",
     })
     claimed = as_(client, "claudecode", "post", "/controller/activations/claim")
     activation_id = claimed.json()["activation"]["activation_id"]
@@ -162,7 +162,7 @@ def test_a_second_claim_does_not_hand_out_the_same_activation(client, queued_tas
     """Repeated polling must not repeat work already claimed."""
     as_(client, "admin", "post", "/controller/activations", json={
         "task_id": "T-1", "agent": "claudecode", "host": "OFFICEPC",
-        "stage": "author",
+        "stage": "author", "repo_location": "/repo", "expected_branch": "task/author",
     })
 
     first = as_(client, "claudecode", "post", "/controller/activations/claim")
@@ -175,7 +175,7 @@ def test_a_second_claim_does_not_hand_out_the_same_activation(client, queued_tas
 def test_a_claim_carries_durations_and_no_timestamps(client, queued_task):
     as_(client, "admin", "post", "/controller/activations", json={
         "task_id": "T-1", "agent": "claudecode", "host": "OFFICEPC",
-        "stage": "author",
+        "stage": "author", "repo_location": "/repo", "expected_branch": "task/author",
     })
     body = as_(client, "claudecode", "post",
                "/controller/activations/claim").json()["activation"]
@@ -231,11 +231,11 @@ def test_capacity_refusal_is_409(client, queued_task):
 
     first = as_(client, "admin", "post", "/controller/activations", json={
         "task_id": "T-1", "agent": "claudecode", "host": "OFFICEPC",
-        "stage": "author",
+        "stage": "author", "repo_location": "/repo", "expected_branch": "task/author",
     })
     second = as_(client, "admin", "post", "/controller/activations", json={
         "task_id": "T-2", "agent": "chatgpt", "host": "OFFICEPC",
-        "stage": "author",
+        "stage": "author", "repo_location": "/repo", "expected_branch": "task/author",
     })
 
     assert first.status_code == 200
@@ -251,7 +251,7 @@ def under_review(client, queued_task):
         json={"host": "OFFICEPC", "max_concurrent": 2})
     as_(client, "admin", "post", "/controller/activations", json={
         "task_id": "T-1", "agent": "claudecode", "host": "OFFICEPC",
-        "stage": "author",
+        "stage": "author", "repo_location": "/repo", "expected_branch": "task/author",
     })
     author = as_(client, "claudecode", "post",
                  "/controller/activations/claim").json()["activation"]
@@ -345,7 +345,7 @@ def test_status_reports_the_schema_version_and_counts(client, queued_task):
 def authoring(client, queued_task):
     as_(client, "admin", "post", "/controller/activations", json={
         "task_id": "T-1", "agent": "claudecode", "host": "OFFICEPC",
-        "stage": "author",
+        "stage": "author", "repo_location": "/repo", "expected_branch": "task/author",
     })
     claimed = as_(client, "claudecode", "post", "/controller/activations/claim")
     return claimed.json()["activation"]["activation_id"]
@@ -443,7 +443,7 @@ def test_status_no_longer_reports_one_ambiguous_build_id(client):
 def issue_author(client):
     as_(client, "admin", "post", "/controller/activations", json={
         "task_id": "T-1", "agent": "claudecode", "host": "OFFICEPC",
-        "stage": "author",
+        "stage": "author", "repo_location": "/repo", "expected_branch": "task/author",
     })
 
 

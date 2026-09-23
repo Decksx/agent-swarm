@@ -58,7 +58,7 @@ def ready_task(conn):
 
 def issue(conn, **kw):
     return activations.issue(
-        conn, task_id="T-1", agent="chatgpt", host="OFFICEPC", stage="author",
+        conn, task_id="T-1", agent="chatgpt", host="OFFICEPC", stage="author", repo_location="/repo", expected_branch="task/author",
         lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=T0, **kw
     )
 

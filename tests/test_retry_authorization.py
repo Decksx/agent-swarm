@@ -45,7 +45,7 @@ def rejected(conn):
         )
 
     issued = activations.issue(
-        conn, task_id="T-1", agent="chatgpt", host="OFFICEPC", stage="author",
+        conn, task_id="T-1", agent="chatgpt", host="OFFICEPC", stage="author", repo_location="/repo", expected_branch="task/author",
         lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=T0,
     )
     activations.claim(
@@ -138,7 +138,7 @@ def test_the_budget_counts_author_attempts_only(conn):
         )
 
     author = activations.issue(
-        conn, task_id="T-3", agent="chatgpt", host="OFFICEPC", stage="author",
+        conn, task_id="T-3", agent="chatgpt", host="OFFICEPC", stage="author", repo_location="/repo", expected_branch="task/author",
         lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=T0,
     )
     activations.claim(

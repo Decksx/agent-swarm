@@ -49,6 +49,9 @@ NEXT_STAGE = {
     "READY_INTEGRATION": "integrate",
 }
 
+# The decline reasons that resolve on their own. Anything else is persistent.
+SELF_CLEARING = frozenset({"live_activation", "host_at_capacity"})
+
 
 class Routing:
     """Who does what, and where. Configuration, never inference.
@@ -207,6 +210,7 @@ def advance(
 
         if _has_live_activation(conn, row["task_id"]):
             record["reason"] = "an activation is already live for this task"
+            record["reason_code"] = "live_activation"
             considered.append(record)
             continue
 
@@ -230,6 +234,7 @@ def advance(
                 "no approved_candidate_sha, so the integrator would refuse "
                 "this; not spending an activation to find that out"
             )
+            record["reason_code"] = "no_approval"
             considered.append(record)
             continue
 
@@ -240,6 +245,7 @@ def advance(
                 f"routing is not configured for {stage}: missing "
                 f"{', '.join(lacking)}"
             )
+            record["reason_code"] = "routing_missing"
             considered.append(record)
             continue
 
@@ -255,6 +261,7 @@ def advance(
                     f"no review activation matches the approval candidate "
                     f"{approved_candidate}"
                 )
+                record["reason_code"] = "no_review_activation"
                 considered.append(record)
                 continue
 
@@ -270,6 +277,7 @@ def advance(
                     "no author activation with a branch produced a candidate for "
                     "this task"
                 )
+                record["reason_code"] = "no_producing_branch"
                 considered.append(record)
                 continue
 
@@ -286,6 +294,7 @@ def advance(
                     "neither the producing activation nor the routing names a "
                     "repository location for this task"
                 )
+                record["reason_code"] = "no_repo_location"
                 considered.append(record)
                 continue
 
@@ -309,6 +318,7 @@ def advance(
             # Not an error. The host is busy and this task will be advanced by
             # a later call, which is exactly what a queue does.
             record["reason"] = str(exc)
+            record["reason_code"] = "host_at_capacity"
             considered.append(record)
             continue
         except activations.BudgetExhausted as exc:
@@ -319,10 +329,12 @@ def advance(
             # "this task is out of budget" is a state of the task and reads
             # nothing like a fault in the run.
             record["reason"] = str(exc)
+            record["reason_code"] = "budget_exhausted"
             considered.append(record)
             continue
         except Exception as exc:
             record["reason"] = f"{type(exc).__name__}: {exc}"
+            record["reason_code"] = "error"
             considered.append(record)
             continue
 
@@ -335,5 +347,15 @@ def advance(
             "from_activation": review_activation["activation_id"] if stage == "integrate" else produced["activation_id"],
         })
         considered.append(record)
+
+    # Whether a decline will clear without anybody doing anything (#77). A
+    # live activation finishes and a busy host frees a slot; every other
+    # reason is the same on the next tick and the one after, which is how
+    # T-ACC2-README was declined every 20 seconds for sixteen hours with
+    # nothing saying so. Decided here, beside the reasons, rather than by a
+    # caller matching on their wording.
+    for record in considered:
+        if not record["issued"]:
+            record["persistent"] = record.get("reason_code") not in SELF_CLEARING
 
     return considered

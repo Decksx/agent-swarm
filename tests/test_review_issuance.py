@@ -47,7 +47,7 @@ def awaiting_review(conn):
         )
 
     author = activations.issue(
-        conn, task_id="T-1", agent="claudecode", host="OFFICEPC", stage="author",
+        conn, task_id="T-1", agent="claudecode", host="OFFICEPC", stage="author", repo_location="/repo", expected_branch="task/author",
         lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=T0,
     )
     activations.claim(
@@ -146,7 +146,7 @@ def test_a_task_whose_author_reported_no_sha_cannot_be_reviewed(conn):
             conn, task_id="T-2", kind=kind, actor="c", authority=states.CONTROLLER
         )
     author = activations.issue(
-        conn, task_id="T-2", agent="claudecode", host="OFFICEPC", stage="author",
+        conn, task_id="T-2", agent="claudecode", host="OFFICEPC", stage="author", repo_location="/repo", expected_branch="task/author",
         lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=T0,
     )
     activations.claim(
@@ -202,7 +202,7 @@ def test_an_author_activation_needs_none_of_this(conn):
         )
 
     activation = activations.issue(
-        conn, task_id="T-3", agent="claudecode", host="OFFICEPC", stage="author",
+        conn, task_id="T-3", agent="claudecode", host="OFFICEPC", stage="author", repo_location="/repo", expected_branch="task/author",
         lease_seconds=LEASE, hard_deadline_seconds=DEADLINE, now=T0,
     )
 
