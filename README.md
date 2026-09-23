@@ -1,5 +1,7 @@
 # agent-swarm
 
+> Autonomous integration test target: acceptance run 2.
+
 A controller-mediated swarm of model agents that author and review changes to
 real repositories, under an authority model where **nothing a model says can
 start work**.
