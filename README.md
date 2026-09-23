@@ -2,6 +2,10 @@
 
 > Autonomous integration test target: acceptance run 2.
 
+## Pipeline Telemetry
+
+This hub chat spot shows status of a task as it runs. An individual may watch any transformation or transition in action.
+
 A controller-mediated swarm of model agents that author and review changes to
 real repositories, under an authority model where **nothing a model says can
 start work**.
