@@ -64,12 +64,18 @@ def client(app):
 @pytest.fixture
 def configured(monkeypatch, tmp_path):
     for name, value in (
-        ("INTEGRATION_REPO", str(tmp_path / "repo")),
         ("INTEGRATION_TARGET_REF", "refs/heads/master"),
         ("INTEGRATION_REPO_SLUG", "owner/repo"),
         ("INTEGRATION_WORK_ROOT", str(tmp_path / "work")),
     ):
         monkeypatch.setenv(name, value)
+
+    # Repository selection has its own tests (test_integration_repo.py). Here
+    # only the filesystem and git checks are stubbed; the rule that an
+    # activation must name its repository stays real (#78).
+    import claude_integration
+    monkeypatch.setattr(claude_integration.Path, "is_dir", lambda self: True)
+    monkeypatch.setattr(claude_integration, "_git_succeeds", lambda *a: True)
 
 
 class RealQueue:
@@ -298,3 +304,84 @@ def test_an_integration_is_recorded_in_the_ledger_with_its_figures(
 
     assert "integration_started" in kinds
     assert "integration_completed" in kinds
+
+
+# --- A check that could not answer is not a verdict (#78) --------------------
+
+
+def test_the_repository_comes_from_the_claimed_activation(
+    client, configured, monkeypatch
+):
+    """`repo_location` is recorded at issue and handed over by the claim;
+    the worker integrates there and reads no host setting for it."""
+    seen = {}
+
+    def capture(task, **kw):
+        seen.update(kw)
+        return {"candidate_sha": CAND, "merge_sha": MERGE,
+                "target_ref": "refs/heads/master"}
+
+    monkeypatch.setattr(integrator, "run_integration", capture)
+    monkeypatch.setenv("INTEGRATION_REPO", "/the-production-checkout")
+
+    task = approved_task(client)
+    activation = claim_integration(client, task)
+    claude_worker.execute_activation(
+        NoModel(), "claude", activation, RealQueue(client)
+    )
+
+    assert seen["repo"] == "/repo"
+
+
+def test_an_unverifiable_integration_keeps_the_approval_and_can_be_repaired(
+    client, configured, monkeypatch
+):
+    def cannot_answer(task, **kw):
+        raise integrator.IntegrationUnverifiable(
+            "git merge-base --is-ancestor exited 128: fatal: not a valid "
+            "commit name", detail={"exit_code": 128},
+        )
+
+    monkeypatch.setattr(integrator, "run_integration", cannot_answer)
+
+    task = approved_task(client)
+    activation = claim_integration(client, task)
+    queue = RealQueue(client)
+    claude_worker.execute_activation(NoModel(), "claude", activation, queue)
+
+    assert queue.integration == ["unverifiable"]
+    blocked = client.get(f"/controller/tasks/{task}", auth=ADMIN).json()
+    assert blocked["state"] == "INTEGRATION_BLOCKED"
+    assert blocked["approved_candidate_sha"] == CAND, (
+        "nobody found anything wrong with the candidate; its approval stands"
+    )
+
+    events = client.get(f"/controller/tasks/{task}/events", auth=ADMIN).json()
+    kinds = [e["kind"] for e in (events.get("events") if isinstance(events, dict) else events)]
+    assert "integration_rejected" not in kinds
+    assert "integration_blocked" in kinds
+
+    repaired = client.post(f"/controller/tasks/{task}/repair", auth=ADMIN)
+    assert repaired.status_code == 200, repaired.text
+
+    ready = client.get(f"/controller/tasks/{task}", auth=ADMIN).json()
+    assert ready["state"] == "READY_INTEGRATION"
+    assert ready["approved_candidate_sha"] == CAND
+
+
+def test_an_unverifiable_check_after_the_push_is_uncertain(
+    client, configured, monkeypatch
+):
+    def landed_maybe(task, **kw):
+        raise integrator.IntegrationUnverifiable("x", after_push=True)
+
+    monkeypatch.setattr(integrator, "run_integration", landed_maybe)
+
+    task = approved_task(client)
+    activation = claim_integration(client, task)
+    claude_worker.execute_activation(
+        NoModel(), "claude", activation, RealQueue(client)
+    )
+
+    final = client.get(f"/controller/tasks/{task}", auth=ADMIN).json()
+    assert final["state"] == "INTEGRATION_UNCERTAIN"

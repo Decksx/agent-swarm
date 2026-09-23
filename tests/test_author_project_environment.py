@@ -257,7 +257,6 @@ def test_an_operator_can_still_say_where_to_review(checkout, tmp_path):
 
 
 INTEGRATION_VARIABLES = (
-    "INTEGRATION_REPO",
     "INTEGRATION_TARGET_REF",
     "INTEGRATION_REPO_SLUG",
     "INTEGRATION_WORK_ROOT",
@@ -436,7 +435,6 @@ def test_a_worker_inherits_what_the_supervisor_was_given(monkeypatch):
 
     monkeypatch.setenv("AUTHOR_PROJECT", "agenthub")
     monkeypatch.setenv("REVIEW_REPO", r"C:\gitgent-swarm")
-    monkeypatch.setenv("INTEGRATION_REPO", r"C:\gitgent-swarm")
     monkeypatch.setenv("INTEGRATION_TARGET_REF", "refs/heads/main")
     monkeypatch.setenv("INTEGRATION_REPO_SLUG", "Decksx/agent-swarm")
     monkeypatch.setenv("INTEGRATION_WORK_ROOT", r"C:\git\.swarm-integration")

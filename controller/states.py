@@ -51,6 +51,12 @@ STATES: FrozenSet[str] = frozenset({
     "CHANGES_REQUESTED",
     "READY_INTEGRATION",
     "INTEGRATING",
+    # The integrator could not verify the candidate -- the repository the
+    # activation named was unusable, or a git check could not answer -- and
+    # nothing was pushed (#78). The integrate-stage twin of REVIEW_BLOCKED:
+    # the approval stands, because nobody found anything wrong with the
+    # candidate, and `repair` sends the task back to READY_INTEGRATION.
+    "INTEGRATION_BLOCKED",
     # An integration whose activation expired while it may already have had
     # external effects. Deliberately not a failure and deliberately not a
     # retryable state.
@@ -189,6 +195,14 @@ TRANSITIONS: Dict[Tuple[str, str], Transition] = {
     ("READY_INTEGRATION", "reservation_granted"): _t("READY_INTEGRATION", CONTROLLER),
 
     ("INTEGRATING", "integration_rejected"): _t("CHANGES_REQUESTED", CONTROLLER, OPERATOR),
+    # Its own event rather than `environment_defect`, because that one is in
+    # `engine.APPROVAL_CLEARING` and this must not be: a repaired task returns
+    # to READY_INTEGRATION, and `progression.advance` will not issue an
+    # integrate stage for a task with no approval (#78).
+    ("INTEGRATING", "integration_blocked"): _t("INTEGRATION_BLOCKED", CONTROLLER),
+    ("INTEGRATION_BLOCKED", "environment_repaired"): _t(
+        "READY_INTEGRATION", CONTROLLER
+    ),
     # The expiry path. Not `lease_expired`, which means "nothing happened,
     # start again" -- here something may have happened and the point is that
     # nobody knows.

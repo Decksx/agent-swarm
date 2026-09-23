@@ -70,12 +70,18 @@ def counted(monkeypatch):
 @pytest.fixture
 def configured(monkeypatch, tmp_path):
     for name, value in (
-        ("INTEGRATION_REPO", str(tmp_path / "repo")),
         ("INTEGRATION_TARGET_REF", "refs/heads/master"),
         ("INTEGRATION_REPO_SLUG", "owner/repo"),
         ("INTEGRATION_WORK_ROOT", str(tmp_path / "work")),
     ):
         monkeypatch.setenv(name, value)
+
+    # Repository selection has its own tests (test_integration_repo.py). Here
+    # only the filesystem and git checks are stubbed; the rule that an
+    # activation must name its repository stays real (#78).
+    import claude_integration
+    monkeypatch.setattr(claude_integration.Path, "is_dir", lambda self: True)
+    monkeypatch.setattr(claude_integration, "_git_succeeds", lambda *a: True)
 
 
 def activation(**over):
@@ -92,6 +98,7 @@ def activation(**over):
         "stage": "integrate",
         "expected_branch": "task/T-1",
         "expected_candidate": CAND,
+        "repo_location": "C:/repo",
         "task_record": {
             "task_id": "T-1",
             "state": "INTEGRATING",
@@ -282,7 +289,7 @@ def test_the_branch_is_passed_through_and_no_pr_number_is(
 
 
 def test_an_unconfigured_host_blocks_rather_than_guessing(monkeypatch):
-    for name in ("INTEGRATION_REPO", "INTEGRATION_TARGET_REF",
+    for name in ("INTEGRATION_TARGET_REF",
                  "INTEGRATION_REPO_SLUG", "INTEGRATION_WORK_ROOT"):
         monkeypatch.delenv(name, raising=False)
 
