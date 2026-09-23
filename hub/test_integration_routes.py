@@ -65,7 +65,7 @@ def approved_task(client, task_id="T-1"):
 
     issued = client.post("/controller/activations", auth=ADMIN, json={
         "task_id": task_id, "agent": "claudecode", "host": "officepc",
-        "stage": "author", "expected_branch": f"task/{task_id}",
+        "stage": "author", "repo_location": "/repo", "expected_branch": f"task/{task_id}",
     }).json()
     client.post("/controller/activations/claim", auth=WORKER,
                 json={"activation_id": issued["activation_id"]})
@@ -241,7 +241,7 @@ def test_an_integration_outcome_is_refused_against_an_author_activation(client):
     client.post("/controller/tasks/T-2/ready", auth=ADMIN)
     issued = client.post("/controller/activations", auth=ADMIN, json={
         "task_id": "T-2", "agent": "claudecode", "host": "officepc",
-        "stage": "author", "expected_branch": "task/T-2",
+        "stage": "author", "repo_location": "/repo", "expected_branch": "task/T-2",
     }).json()
     client.post("/controller/activations/claim", auth=WORKER,
                 json={"activation_id": issued["activation_id"]})
@@ -521,7 +521,7 @@ def escalate_to_needs_human(client, task_id):
 
         issued = client.post("/controller/activations", auth=ADMIN, json={
             "task_id": task_id, "agent": "claudecode", "host": "officepc",
-            "stage": "author", "expected_branch": f"task/{task_id}",
+            "stage": "author", "repo_location": "/repo", "expected_branch": f"task/{task_id}",
         }).json()
         client.post("/controller/activations/claim", auth=WORKER,
                     json={"activation_id": issued["activation_id"]})
@@ -571,7 +571,7 @@ def unapproved_task_in_changes_requested(client, task_id="T-NOAPPROVAL"):
 
     issued = client.post("/controller/activations", auth=ADMIN, json={
         "task_id": task_id, "agent": "claudecode", "host": "officepc",
-        "stage": "author", "expected_branch": f"task/{task_id}",
+        "stage": "author", "repo_location": "/repo", "expected_branch": f"task/{task_id}",
     }).json()
     client.post("/controller/activations/claim", auth=WORKER,
                 json={"activation_id": issued["activation_id"]})

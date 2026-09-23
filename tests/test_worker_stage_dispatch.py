@@ -223,7 +223,7 @@ def test_an_activation_of_another_stage_cannot_reach_the_merge(
     )
     queue = Queue()
 
-    claude_worker.execute_integration(activation(stage="author"), queue)
+    claude_worker.execute_integration(activation(stage="author", repo_location="/repo", expected_branch="task/author"), queue)
 
     assert called["count"] == 0
     assert queue.only["outcome"] == "blocked"

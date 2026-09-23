@@ -223,7 +223,7 @@ def test_a_migrated_database_accepts_a_new_activation_with_context(populated):
 
     issued = activations.issue(
         conn, task_id="OLD-2", agent="chatgpt", host="officepc",
-        stage="author", lease_seconds=900.0, hard_deadline_seconds=3600.0,
+        stage="author", repo_location="/repo", expected_branch="task/author", lease_seconds=900.0, hard_deadline_seconds=3600.0,
     )
     claimed = activations.claim(
         conn, activation_id=issued["activation_id"], agent="chatgpt",

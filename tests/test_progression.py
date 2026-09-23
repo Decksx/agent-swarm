@@ -51,7 +51,7 @@ def make_task(conn, task_id="T-1"):
 def author(conn, task_id, candidate=CAND):
     issued = activations.issue(
         conn, task_id=task_id, agent="chatgpt", host="officepc",
-        stage="author", lease_seconds=LEASE, hard_deadline_seconds=DEADLINE,
+        stage="author", repo_location="/repo", lease_seconds=LEASE, hard_deadline_seconds=DEADLINE,
         expected_branch=f"task/{task_id}",
     )
     activations.claim(conn, activation_id=issued["activation_id"],
@@ -219,7 +219,7 @@ def test_a_declined_task_is_reported_not_omitted(conn):
     task = make_task(conn)
     author(conn, task)
 
-    records = progression.advance(conn, routing=routing(repo_location=""))
+    records = progression.advance(conn, routing=routing(verifier=""))
 
     assert only(records, task)["issued"] is False
     assert records != []
@@ -230,7 +230,7 @@ def test_the_branch_comes_from_the_ledger_not_from_the_task_id(conn):
     until somebody issued an activation with a different branch."""
     task = make_task(conn, "T-9")
     issued = activations.issue(
-        conn, task_id=task, agent="chatgpt", host="officepc", stage="author",
+        conn, task_id=task, agent="chatgpt", host="officepc", stage="author", repo_location="/repo",
         lease_seconds=LEASE, hard_deadline_seconds=DEADLINE,
         expected_branch="feature/deliberately-different",
     )
@@ -326,12 +326,24 @@ def test_an_approved_task_is_still_advanced(conn):
 
 
 def author_from(conn, task_id, repo_location):
-    """An author activation recording where this task's work happened."""
+    """An author activation recording where this task's work happened.
+
+    An empty `repo_location` builds a *legacy* row. The controller no longer
+    issues an author activation without one (#77), but rows issued before
+    that remain in the ledger and progression still has to treat them
+    correctly, so the row is written as it would have been then.
+    """
     issued = activations.issue(
         conn, task_id=task_id, agent="chatgpt", host="officepc",
         stage="author", lease_seconds=LEASE, hard_deadline_seconds=DEADLINE,
-        expected_branch=f"task/{task_id}", repo_location=repo_location,
+        expected_branch=f"task/{task_id}", repo_location=repo_location or "/x",
     )
+    if not repo_location:
+        conn.execute(
+            "UPDATE activations SET repo_location = NULL "
+            "WHERE activation_id = ?", (issued["activation_id"],),
+        )
+        conn.commit()
     activations.claim(conn, activation_id=issued["activation_id"],
                       agent="chatgpt")
     outcomes.submit_author_outcome(

@@ -504,7 +504,7 @@ def test_the_answer_is_carried_into_the_next_activation(client, task):
 
     as_(client, "admin", "post", "/controller/activations", json={
         "task_id": "T-1", "agent": "chatgpt", "host": "OFFICEPC",
-        "role": "author", "stage": "author",
+        "role": "author", "stage": "author", "repo_location": "/repo", "expected_branch": "task/author",
     })
     claimed = as_(client, "chatgpt", "post", "/controller/activations/claim",
                   json={"agent": "chatgpt"}).json()
@@ -554,7 +554,7 @@ def test_an_activation_with_no_outstanding_answer_carries_none(client, task):
     """The ordinary case. An empty field rather than a stale one."""
     as_(client, "admin", "post", "/controller/activations", json={
         "task_id": "T-1", "agent": "chatgpt", "host": "OFFICEPC",
-        "role": "author", "stage": "author",
+        "role": "author", "stage": "author", "repo_location": "/repo", "expected_branch": "task/author",
     })
     claimed = as_(client, "chatgpt", "post", "/controller/activations/claim",
                   json={"agent": "chatgpt"}).json()

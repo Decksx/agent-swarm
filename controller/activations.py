@@ -240,6 +240,25 @@ def issue(
     if stage not in STAGE_ROLES:
         raise ActivationError(f"unknown stage {stage!r}")
 
+    # An author activation says where the work happens, or it is not issued
+    # (#77). Every later stage reads the branch and the repository from the
+    # author activation that produced the candidate, so one issued without
+    # them yields a candidate nothing can advance: T-ACC2-README was authored,
+    # published, and then declined for review every 20 seconds for sixteen
+    # hours. Refused here, where whoever issued it is looking.
+    if stage == "author":
+        missing = [
+            name for name, value in (("expected_branch", expected_branch),
+                                     ("repo_location", repo_location))
+            if not (value or "").strip()
+        ]
+        if missing:
+            raise ActivationError(
+                f"an author activation must name {' and '.join(missing)}; "
+                "later stages read both from it, and a candidate authored "
+                "without them can never be reviewed"
+            )
+
     role, transition_kind = STAGE_ROLES[stage]
     # Canonical from here down: the capacity check, the stored row, and the
     # event payload all use one spelling of the host.
