@@ -95,6 +95,31 @@ class IntegrationRefused(Exception):
     """The candidate will not be integrated, and why."""
 
 
+class IntegrationUnverifiable(Exception):
+    """A check could not be performed. Not a verdict on the candidate (#78).
+
+    `IntegrationRefused` says the candidate failed a check; this says the
+    check never produced an answer -- a missing object, an unusable
+    repository, git exiting with something other than yes or no. Reported as
+    the first, it becomes a candidate defect: the approval is cleared and the
+    author is sent back to fix a commit that may be perfectly correct. That is
+    how seq 447 recorded a valid candidate as "not an ancestor" when the
+    integrator was simply looking in a checkout that did not contain it.
+
+    `after_push` matters because the two sides of the push are different
+    facts. Before it nothing has changed and the task can wait for a repair;
+    after it the merge may have landed, and the only honest state is the one
+    that says the outcome is unknown.
+    """
+
+    def __init__(self, reason: str, *, detail: Optional[dict] = None,
+                 after_push: bool = False):
+        super().__init__(reason)
+        self.reason = reason
+        self.detail = dict(detail or {})
+        self.after_push = after_push
+
+
 @dataclass(frozen=True)
 class Evidence:
     """One test suite's result, as a fact rather than an assurance."""
@@ -148,6 +173,40 @@ def _git(repo: str, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["git", *args], cwd=str(repo), capture_output=True,
         encoding="utf-8", errors="replace", check=False,
+    )
+
+
+def is_ancestor(repo: str, ancestor: str, descendant: str) -> bool:
+    """Whether `ancestor` is contained in `descendant`, or an honest failure.
+
+    `git merge-base --is-ancestor` answers with its exit status: 0 yes, 1 no.
+    Anything else -- 128 for a missing object or a broken repository -- is
+    git saying it could not answer, and reading that as "no" is the defect
+    behind seq 447 (#78). So only 0 and 1 are answers; every other status is
+    raised with the exit code and stderr, never returned as a verdict.
+    """
+    result = _git(repo, "merge-base", "--is-ancestor", ancestor, descendant)
+
+    if result.returncode == 0:
+        return True
+
+    if result.returncode == 1:
+        return False
+
+    stderr = (result.stderr or "").strip()
+
+    raise IntegrationUnverifiable(
+        f"could not determine whether {ancestor[:12]} is an ancestor of "
+        f"{descendant[:12]} in {str(repo)!r}: git merge-base --is-ancestor "
+        f"exited {result.returncode}: {stderr[:400] or '(no stderr)'}",
+        detail={
+            "check": "merge-base --is-ancestor",
+            "repo": str(repo),
+            "ancestor": ancestor,
+            "descendant": descendant,
+            "exit_code": result.returncode,
+            "stderr": stderr[:2000],
+        },
     )
 
 
@@ -639,9 +698,18 @@ def verify_landed(plan: Plan, merge_sha: str) -> None:
             f"still at {now[:12]}. Nothing landed."
         )
 
-    contains = _git(plan.repo, "merge-base", "--is-ancestor", merge_sha, now)
+    # After the push, so an unanswerable check is not a repairable block: the
+    # merge may be on the target, and only reconciliation can say (#78).
+    try:
+        contains = is_ancestor(plan.repo, merge_sha, now)
+    except IntegrationUnverifiable as exc:
+        raise IntegrationUnverifiable(
+            f"merged as {merge_sha[:12]}, but could not confirm it landed: "
+            f"{exc.reason}",
+            detail=exc.detail, after_push=True,
+        ) from exc
 
-    if contains.returncode != 0:
+    if not contains:
         raise IntegrationRefused(
             f"{plan.target_ref} is now {now[:12]}, which does not contain "
             f"{merge_sha[:12]}. Something else landed; this integration "
@@ -959,10 +1027,12 @@ def run_integration(
     # Left to step 11 the same divergence is caught, but after the merge
     # has landed on the remote -- which is how T-INFRA-03 ended up merged
     # and recorded as rejected in the same breath.
-    is_ancestor = _git(plan.repo, "merge-base", "--is-ancestor",
-                       plan.target_sha_expected, plan.candidate_sha)
-
-    if is_ancestor.returncode != 0:
+    #
+    # Only a genuine "no" is a refusal. A check that could not run raises
+    # IntegrationUnverifiable from inside `is_ancestor` and is never recorded
+    # as a verdict on the candidate (#78).
+    if not is_ancestor(plan.repo, plan.target_sha_expected,
+                       plan.candidate_sha):
         raise IntegrationRefused(
             f"The pinned target {plan.target_sha_expected[:12]} is not an "
             f"ancestor of the candidate {plan.candidate_sha[:12]}."

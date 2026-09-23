@@ -132,7 +132,7 @@ load_credentials() {
   # under review.
   export REVIEW_REPO="${REVIEW_REPO:-$REPO}"
 
-  # Where an approved candidate lands, and how. All four are required by
+  # Where an approved candidate lands, and how. All three are required by
   # claude_worker.execute_integration, which refuses before touching
   # anything if any one is missing -- the only stage that reaches a real
   # remote, so a missing value is a refusal rather than a default.
@@ -141,7 +141,12 @@ load_credentials() {
   # integrator clones and merges there, so a merge in progress cannot
   # disturb the tree somebody is working in, and a failed one leaves
   # nothing behind to clean up by hand.
-  export INTEGRATION_REPO="${INTEGRATION_REPO:-$REPO}"
+  #
+  # Which checkout the integration happens in is not configured here. It is
+  # the integrate activation's `repo_location`, recorded by the controller,
+  # and there is deliberately no host default to fall back to (#78): this used
+  # to be INTEGRATION_REPO defaulting to $REPO, which is the production
+  # checkout, where no author ever commits.
   export INTEGRATION_TARGET_REF="${INTEGRATION_TARGET_REF:-refs/heads/main}"
   export INTEGRATION_REPO_SLUG="${INTEGRATION_REPO_SLUG:-Decksx/agent-swarm}"
   export INTEGRATION_WORK_ROOT="${INTEGRATION_WORK_ROOT:-C:/git/.swarm-integration}"

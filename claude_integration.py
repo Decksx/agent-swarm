@@ -10,9 +10,92 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
+from pathlib import Path
 from typing import Any
 
 log = logging.getLogger("claude_worker")
+
+
+# --- Which checkout an integration happens in (#78) --------------------------
+#
+# The activation's `repo_location`, which the controller recorded at issue
+# time from the author activation that produced the candidate. Nothing else.
+#
+# This used to be `INTEGRATION_REPO`, which `swarm_ctl.sh` defaulted to the
+# directory the supervisor was launched from. When production moved to its own
+# checkout that stopped being the repository the author committed in, and the
+# integrator looked for the candidate somewhere it had never been -- then read
+# git's "no such object" as "not an ancestor", and recorded a correct candidate
+# as defective (seq 447 on T-CMD-056dcdec11).
+#
+# There is deliberately no fallback, unlike review's REVIEW_REPO (#64). A
+# fallback is a second answer to "where is this work", and the second answer
+# is exactly what was wrong here.
+
+
+class IntegrationRepoUnusable(Exception):
+    """The repository this integration must happen in cannot be used."""
+
+    def __init__(self, reason: str, detail: dict):
+        super().__init__(reason)
+        self.reason = reason
+        self.detail = detail
+
+
+def _git_succeeds(repo: str, *args: str) -> bool:
+    """Whether a local git query succeeds in `repo`, without fetching.
+
+    `GIT_NO_LAZY_FETCH` for the same reason review sets it: in a promisor
+    clone `cat-file` fetches a missing object by itself, and "the candidate is
+    here" would quietly become "the candidate is here or obtainable".
+    """
+    env = dict(os.environ, GIT_NO_LAZY_FETCH="1", GIT_TERMINAL_PROMPT="0")
+    result = subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True, encoding="utf-8", errors="replace", check=False,
+        env=env,
+    )
+
+    return result.returncode == 0
+
+
+def resolve_integration_repo(activation: dict, candidate: str) -> tuple:
+    """The checkout this integration happens in, or `IntegrationRepoUnusable`.
+
+    Read from the activation record and never from the environment, the
+    contract or anything a model shaped.
+    """
+    repo = str(activation.get("repo_location") or "").strip()
+    detail = {"repo_location": repo or None}
+
+    if not repo:
+        raise IntegrationRepoUnusable(
+            "the integrate activation names no repo_location, so there is no "
+            "repository this integration was authorised to happen in; not "
+            "falling back to this host's checkout",
+            detail,
+        )
+
+    if not Path(repo).is_dir():
+        raise IntegrationRepoUnusable(
+            f"repo_location {repo!r} does not exist on this host", detail
+        )
+
+    if not _git_succeeds(repo, "rev-parse", "--git-dir"):
+        raise IntegrationRepoUnusable(
+            f"repo_location {repo!r} is not a git repository", detail
+        )
+
+    if candidate and not _git_succeeds(
+            repo, "cat-file", "-e", f"{candidate}^{{commit}}"):
+        raise IntegrationRepoUnusable(
+            f"repo_location {repo!r} does not contain candidate "
+            f"{candidate[:12]}; not looking for it in another checkout",
+            {**detail, "candidate_sha": candidate},
+        )
+
+    return repo, detail
 
 
 def execute_integration(
@@ -61,7 +144,7 @@ def execute_integration(
         )
         return
 
-    for name in ("INTEGRATION_REPO", "INTEGRATION_TARGET_REF",
+    for name in ("INTEGRATION_TARGET_REF",
                  "INTEGRATION_REPO_SLUG", "INTEGRATION_WORK_ROOT"):
         if not os.environ.get(name, "").strip():
             refuse(f"{name} is not configured on this host", outcome="blocked")
@@ -82,6 +165,20 @@ def execute_integration(
             "the same evidence a review is.",
             outcome="blocked",
         )
+        return
+
+    # The repository the controller named, and only that one (#78). Checked
+    # before anything else is spent, and reported as `unverifiable` -- this
+    # host could not do the work, which says nothing about the candidate.
+    candidate = str(
+        activation.get("expected_candidate")
+        or task_record.get("approved_candidate_sha") or ""
+    ).strip()
+
+    try:
+        repo, repo_detail = resolve_integration_repo(activation, candidate)
+    except IntegrationRepoUnusable as exc:
+        refuse(exc.reason, outcome="unverifiable", **exc.detail)
         return
 
     # How long to wait for the candidate's CI before refusing (#32), how
@@ -125,7 +222,7 @@ def execute_integration(
     try:
         record = integrator.run_integration(
             task_record,
-            repo=os.environ["INTEGRATION_REPO"],
+            repo=repo,
             target_ref=os.environ["INTEGRATION_TARGET_REF"],
             branch=branch,
             repo_slug=os.environ["INTEGRATION_REPO_SLUG"],
@@ -146,6 +243,16 @@ def execute_integration(
         # does not match, which is a reconciliation and says so in its own
         # message rather than being flattened into "refused" here.
         refuse(str(exc))
+        return
+    except integrator.IntegrationUnverifiable as exc:
+        # A check that could not answer (#78). Before the push nothing has
+        # changed and the task waits for a repair with its approval intact;
+        # after it the merge may have landed, so the outcome is unknown.
+        refuse(
+            exc.reason,
+            outcome="uncertain" if exc.after_push else "unverifiable",
+            **{**repo_detail, **exc.detail},
+        )
         return
     except Exception as exc:
         log.error("integration %s failed unexpectedly", activation_id,

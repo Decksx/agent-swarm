@@ -593,7 +593,8 @@ def build_router(
         component: str = Depends(require_admin),
         conn: sqlite3.Connection = Depends(get_conn),
     ):
-        """Release a task from AUTHOR_BLOCKED or REVIEW_BLOCKED.
+        """Release a task from AUTHOR_BLOCKED, REVIEW_BLOCKED or
+        INTEGRATION_BLOCKED.
 
         Controller authority, admin-triggered, for the same reason /ready is:
         `environment_repaired` is a controller transition in section 8, so the

@@ -292,7 +292,6 @@ def test_ci_that_finishes_during_the_wait_integrates(monkeypatch, ci):
 @pytest.fixture
 def integrating(monkeypatch):
     for name, value in (
-        ("INTEGRATION_REPO", "C:/repo"),
         ("INTEGRATION_TARGET_REF", "refs/heads/main"),
         ("INTEGRATION_REPO_SLUG", "owner/repo"),
         ("INTEGRATION_WORK_ROOT", "C:/work"),
@@ -317,12 +316,21 @@ def integrating(monkeypatch):
                 "target_ref": kwargs["target_ref"]}
 
     stub.IntegrationRefused = Refused
+    stub.IntegrationUnverifiable = type("IntegrationUnverifiable", (Exception,), {})
     stub.run_integration = run_integration
     monkeypatch.setitem(sys.modules, "integrator", stub)
+
+    # Repository selection has its own tests (test_integration_repo.py). Here
+    # only the filesystem and git checks are stubbed; the rule that an
+    # activation must name its repository stays real (#78).
+    import claude_integration
+    monkeypatch.setattr(claude_integration.Path, "is_dir", lambda self: True)
+    monkeypatch.setattr(claude_integration, "_git_succeeds", lambda *a: True)
 
     activation = {
         "activation_id": "act-1", "task_id": "T-1", "stage": "integrate",
         "expected_branch": "task/T-1-a1",
+        "repo_location": "C:/repo",
         "task_record": {"task_id": "T-1", "state": "INTEGRATING"},
     }
     return activation, calls

@@ -337,6 +337,15 @@ INTEGRATION_OUTCOMES = {
     "integrated": ("integration_completed", CONTROLLER),
     "refused": ("integration_rejected", CONTROLLER),
     "blocked": ("integration_rejected", CONTROLLER),
+    # The integrator could not perform a check -- the named repository was
+    # unusable, or git could not answer -- before anything was pushed (#78).
+    # Not a verdict on the candidate, so not `integration_rejected`: that
+    # clears the approval and sends the author to fix a commit nobody found
+    # wrong. The task waits in INTEGRATION_BLOCKED with its approval intact.
+    "unverifiable": ("integration_blocked", CONTROLLER),
+    # The same, after the push. The merge may be on the target, so the only
+    # honest state is the one that says the outcome is unknown.
+    "uncertain": ("integration_outcome_unknown", CONTROLLER),
 }
 
 def submit_integration_outcome(
