@@ -489,3 +489,58 @@ def test_a_filter_that_could_match_nothing_is_a_422(client, queued_task, stages)
     assert response.status_code == 422
     left = as_(client, "claudecode", "post", "/controller/activations/claim").json()
     assert left["activation"] is not None, "a refused claim consumed an activation"
+
+
+# --- External review has no generic way in (#74 slice 1, #91) ----------------
+
+
+@pytest.fixture
+def draft_task(client):
+    """A task left in DRAFT, which is where external review would start."""
+    as_(client, "admin", "post", "/controller/tasks", json={
+        "task_id": "T-EXT", "title": "review PR", "objective": "o",
+        "base_sha": "0" * 40,
+    })
+    return "T-EXT"
+
+
+def _events(client, task):
+    body = as_(client, "admin", "get", f"/controller/tasks/{task}/events").json()
+    return body.get("events", body) if isinstance(body, dict) else body
+
+
+def test_external_review_cannot_be_requested_through_the_generic_route(client, draft_task):
+    """`external_review_requested` is ADMIN authority, so applied here it would
+    strand a DRAFT task in EXTERNAL_PENDING with no ingest to pin it. Refused
+    until its validated route exists (#92)."""
+    before = len(_events(client, draft_task))
+
+    response = as_(client, "admin", "post",
+                   f"/controller/tasks/{draft_task}/transition",
+                   json={"kind": "external_review_requested"})
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"]["kind"] == "external_review_requested"
+    assert "#92" in response.json()["detail"]["use"]
+
+    task = as_(client, "admin", "get", f"/controller/tasks/{draft_task}").json()
+    assert task["state"] == "DRAFT"
+    assert len(_events(client, draft_task)) == before, "nothing may be appended"
+
+
+def test_no_generic_transition_moves_a_task_into_external_review(client, draft_task):
+    """Every event that leads into an external state, tried through the route
+    an admin can reach. A future ADMIN-authority entry would show up here."""
+    from controller import states
+
+    kinds = sorted({
+        kind for (_, kind), t in states.TRANSITIONS.items()
+        if t.to_state in states.EXTERNAL_STATES
+    })
+
+    for kind in kinds:
+        as_(client, "admin", "post",
+            f"/controller/tasks/{draft_task}/transition", json={"kind": kind})
+
+        state = as_(client, "admin", "get", f"/controller/tasks/{draft_task}").json()["state"]
+        assert state not in states.EXTERNAL_STATES, f"{kind} moved the task into {state}"

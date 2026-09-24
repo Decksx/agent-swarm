@@ -115,6 +115,9 @@ NARRATED = {
     "integration_completed": "INTEGRATED",
     "integration_rejected": "integration refused",
     "integration_outcome_unknown": "integration outcome unknown",
+    # Could not verify, nothing pushed, approval kept (#78). Unlabelled until
+    # #91, which meant a blocked integration was recorded and never said.
+    "integration_blocked": "integration BLOCKED (could not verify)",
     "out_of_band_merge_reported": "out-of-band merge reported",
     "out_of_band_report_unfounded": "out-of-band report unfounded",
     "integration_reconciled_landed": "reconciled: landed",
@@ -152,6 +155,12 @@ NARRATED = {
     "admin_failed": "operator: marked failed",
     "admin_cancelled": "operator: cancelled",
     "retry_authorized": "retry authorized",
+    "reconciliation_observation": "operator: reconciliation observation",
+
+    # Reviewing a change the swarm did not author (#74).
+    "external_review_requested": "external review requested",
+    "external_candidate_registered": "PR head pinned",
+    "external_review_judged": "EXTERNAL VERDICT",
     "superseded": "superseded",
 }
 
@@ -269,9 +278,16 @@ def summarize(event: dict) -> str:
         ("approved_candidate_sha", "candidate"),
         ("merge_sha", "merge"),
         ("base_sha", "base"),
+        ("head_sha", "head"),
     ):
         if payload.get(field):
             detail.append(f"{label} {short(payload[field])}")
+
+    if payload.get("pr_number"):
+        detail.append(f"PR #{flatten(payload['pr_number'], 12)}")
+
+    if payload.get("judgment"):
+        detail.append(flatten(payload["judgment"], 40))
 
     if payload.get("branch"):
         detail.append(f"branch {flatten(payload['branch'], 120)}")
