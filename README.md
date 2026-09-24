@@ -8,7 +8,7 @@ This hub chat spot shows status of a task as it runs. An individual may watch an
 
 ## Hub Room
 
-This room is for tasks to start. All status of tasks is shown. Our boss guides tasks within this room. Tracking follows instruction and commands plans. Status may show work's progress or stagnation.
+This room hosts priority tasks from origin. Task status for all work floats up rapidly. Our boss acts to position task goals. All work tracks along with plans. Tasks show proof of work and output.
 
 A controller-mediated swarm of model agents that author and review changes to
 real repositories, under an authority model where **nothing a model says can
