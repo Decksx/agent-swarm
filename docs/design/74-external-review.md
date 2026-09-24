@@ -1,6 +1,6 @@
 # Design: reviewing a change the swarm did not author (#74)
 
-**Status:** proposed. Review this document the way code is reviewed: a verdict names the exact commit, and a new commit voids it.
+**Status:** decisions recorded (2026-09-24); awaiting an exact-SHA verdict. Review this document the way code is reviewed: a verdict names the exact commit, and a new commit voids it.
 
 **Decided by the operator before drafting (2026-09-24):** verdict-only first; a parallel state chain rather than a route into integration; the objective is stated by the operator; the candidate is fetched once, at submission; review routing must not let a model grade its own work. Each is written up below with its reasoning, so that a reviewer can disagree with the reasoning and not only with the conclusion.
 
@@ -35,7 +35,7 @@ External review ends in a verdict and never reaches `READY_INTEGRATION`.
 
 What the person does with a PASS is unchanged from today: merge with `gh pr merge <n> --merge --match-head-commit <sha>`. The difference is that the PR comment they cite is the swarm's, and it names a ledger event rather than a pasted packet.
 
-## 4. Decision 2: a parallel state chain (DECIDED; shape proposed)
+## 4. Decision 2: a parallel state chain (DECIDED; shape accepted)
 
 The state table maps `(state, event)` to a next state. It does not know what kind of task it is looking at. So "external tasks never reach integration" cannot be a condition attached to the shared review states. It has to be structural: external tasks live in states from which integration is **unreachable**, and a test proves that.
 
@@ -112,7 +112,7 @@ Failures follow #78's rule. "The PR does not exist" and "the PR moved" are **ref
 
 **Which worker ingests.** `claudecode`: it already has `gh`, a checkout, and the integrator's network access. Ingest is a new stage (`ingest`) with a new role, which the `claudecode` worker learns to claim. It is not an integrate activation in disguise.
 
-## 7. Decision 5: a model does not grade its own work (PROPOSED)
+## 7. Decision 5: a model does not grade its own work (ACCEPTED)
 
 Most out-of-band PRs so far were written by Claude Code. The configured verifier today is Gemini, which is a different family, but that is an accident of configuration and not a rule. This design makes it a rule.
 
@@ -162,12 +162,12 @@ Each slice is its own issue and PR, with an exact-SHA verdict, mutation-tested g
 
 The first two slices are the largest.
 
-## 11. Open questions for the reviewer
+## 11. Questions answered by the operator (2026-09-24)
 
-1. **Re-review:** a new task per SHA (proposed), or a new version of the same task? A new task keeps each verdict tied to exactly one SHA. A new version keeps a PR's history in one place.
-2. **`decision_required`:** land in `EXTERNAL_REVIEWED` like the other judgments (proposed), or in `NEEDS_HUMAN` as it does for swarm tasks? There is no author to unblock, so `NEEDS_HUMAN` would add a state with no exit that means anything.
-3. **Budget:** should repeated external reviews of the same PR be counted against a limit, as author attempts are? This design proposes none, because each review is operator-initiated.
-4. **Should Claude Code's out-of-band PRs be allowed to skip the swarm review once this exists?** This design assumes not: from slice 5 on, every merge to `main` either came through `@swarm` or carries an `external_review_judged` event. That is a policy the operator states, and the design only makes it possible.
+1. **Re-review: a new task per SHA.** One task ID is tied to one immutable SHA. Letting a task follow a moving PR head would bring back the ambiguity behind #58: a verdict whose subject changed after it was given. A re-review of the same PR at a new head is a new task; the earlier task keeps its verdict for its SHA and is not rewritten.
+2. **`decision_required` lands in `EXTERNAL_REVIEWED`,** like the other judgments. The operator started the review and owns the PR, so `NEEDS_HUMAN`, which means an autonomous pipeline stalled, would be structurally untrue here.
+3. **No budget.** Every external review needs an explicit `@swarm review` from the operator, and that friction is the rate limit.
+4. **No skipping.** From slice 5 on, every merge to `main` either came through `@swarm` or carries an `external_review_judged` event for its exact head SHA. There are no exemptions: each one would be a new blind spot of the kind #58 describes. This is policy; the design makes it possible, and slice 5 is where it takes effect.
 
 ## 12. Related
 
