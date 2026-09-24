@@ -6,6 +6,10 @@
 
 This hub chat spot shows status of a task as it runs. An individual may watch any transformation or transition in action.
 
+## Swarm Architecture
+
+This group of modules works to carry out modifications: origin controls jobs; originador builds outputs; evaluator inspects outputs; compiler unifies inputs. From origin, work holds to strict inputs only. A strict chain holds input output flow. Originador outputs must contain nothing wrong, submitting output only. Output tally pinpoints output origins, not outputs themselves.
+
 A controller-mediated swarm of model agents that author and review changes to
 real repositories, under an authority model where **nothing a model says can
 start work**.
