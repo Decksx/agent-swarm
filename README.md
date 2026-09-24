@@ -6,6 +6,10 @@
 
 This hub chat spot shows status of a task as it runs. An individual may watch any transformation or transition in action.
 
+## How It Works
+
+A hub grants tasks to authors, publishing outputs. Outputs undergo scrutiny by a third part. If pass, inclusion occurs. With synonyms, you find clarity and functionality, all found in this stack.
+
 A controller-mediated swarm of model agents that author and review changes to
 real repositories, under an authority model where **nothing a model says can
 start work**.
