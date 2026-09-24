@@ -6,6 +6,10 @@
 
 This hub chat spot shows status of a task as it runs. An individual may watch any transformation or transition in action.
 
+## Hub Room
+
+A task's start occurs within this location. Status posts show how tasks may shift. Our boss commands work within this room. Status, progress, and direction occur. Task tracking aligns with control goals.
+
 A controller-mediated swarm of model agents that author and review changes to
 real repositories, under an authority model where **nothing a model says can
 start work**.
