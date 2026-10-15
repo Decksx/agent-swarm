@@ -1,5 +1,37 @@
 # Agent Swarm imported project context
 
+## PR #102 worker read-failure recovery and final contract conditions — 2026-10-15
+
+Claude reviewed `0fbdc67869a121b7ba5181e8da9709e4b452a396` at
+https://github.com/Decksx/agent-swarm/pull/102#issuecomment-6202675380.
+That exact head passed all four checks in CI `38808564835`: 1,982 core,
+318 hub and eight bypass tests (2,308 passed, no failures/skips), in 3m12s.
+The Windows read-lock race and deploy-order findings were accepted as resolved.
+Claude identified a worker crash if the new usage mutex cannot be acquired or
+opened; the planner already handles that error.
+
+The worker now uses one guarded refresh at startup and on every unpaused poll.
+OSError/AlreadyRunning preserves in-memory usage, logs once per failure streak,
+and pauses model claims while allowing model-free controller stages. Directory
+mode takes no work during this hold. A successful later read merges disk and
+memory and clears the failure flag. 159 focused worker-loop, rate-guard,
+planner, host-setting and prompt tests passed on Windows. Coverage includes
+startup/poll failures for both busy and unwritable locks in both queue modes,
+real held-mutex recovery, preserved pending usage and automatic retry. Five
+new mutations were caught, together with the previous thirteen. Fresh CI and
+Claude's exact-head review remain required for this follow-up candidate.
+
+EXTERNAL_REVIEW_REPOS is approved subject to Claude's conditions, now in the
+#92 contract: both maps required, existing REPO_SLUG validation, bad settings
+disable only external review without blocking controller startup, case-insensitive
+slug/URL matching, fixable slug mismatches, and deployment presence reporting
+without printing values. SERIAL enforcement is explicitly unimplemented; the
+acceptance wording now says ingest does not count toward any execution lane.
+Fetch the exact reported baseRefOid as well as the head, including for merged
+PRs, keeping both objects through range computation. No #92 runtime code,
+merge, deployment, restart, paid planner call or real task issuance occurred.
+Claude planning remains off until the updated worker is deployed and verified.
+
 ## PR #102 Windows read locking and accepted #92 amendments — 2026-10-15
 
 Claude's re-review of `d9762b7b274be5093ceec4c0d6b496e836c27d92` is at

@@ -81,7 +81,8 @@ currently deployed states or issuance authority.
 Implement assigned/running ingest lease recovery before enabling issuance.
 OPERATOR can only claim its activation in the external state chain, never
 apply registration, refusal, review or integration events. Ingest consumes
-a normal host slot and stays outside the SERIAL engineering limit.
+a normal host slot and does not count toward an execution lane. SERIAL is an
+engineering policy whose enforcement is not implemented in current code.
 
 **Two blocked states, not one.** The table maps a `(state, event)` pair to a single destination, so one blocked state could not return to two different places. Each blocked state belongs to the stage that blocked, as `AUTHOR_BLOCKED` and `REVIEW_BLOCKED` do.
 
@@ -116,7 +117,7 @@ The reviewer stays exactly as #70 left it: it runs offline under `GIT_NO_LAZY_FE
 The fetch happens earlier, in a separate **ingest** activation, and follows #69's own conditions:
 
 1. Ask GitHub for the PR's `headRefOid` and `baseRefOid` (`gh pr view <n> --json`).
-2. Fetch `origin refs/pull/<n>/head` into an activation-specific scratch ref under `refs/swarm/ingest-tmp/<task_id>/<activation_id>` in the named repository, without overwriting the final pin or relying on shared FETCH_HEAD.
+2. Fetch `origin refs/pull/<n>/head` and the exact reported `baseRefOid` by SHA into activation-specific scratch refs under `refs/swarm/ingest-tmp/<task_id>/<activation_id>` in the named repository, without overwriting the final pin or relying on shared FETCH_HEAD. Keep both objects through merge-base computation, including for merged PRs; an unavailable base is an environment defect.
 3. **Verify the fetched object equals `headRefOid`.** If it does not, the PR moved during the fetch: refuse and record both SHAs.
 4. If the operator named a SHA in the command, **verify it equals `headRefOid`**. This protects "review what I looked at" from a push landing between reading and submitting.
 5. Compute the review range: `expected_parent = merge-base(baseRefOid, head)`, i.e. GitHub's three-dot diff, so a base branch that moved on does not put other people's commits into the reviewed diff.

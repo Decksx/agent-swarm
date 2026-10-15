@@ -66,6 +66,7 @@ def worker(tmp_path, monkeypatch):
     monkeypatch.setattr(claude_worker, "RATE_LIMIT_WARN_SECONDS", 100.0)
     monkeypatch.setattr(claude_worker, "RATE_LIMIT_COOLDOWN_SECONDS", 50.0)
     monkeypatch.setattr(claude_worker, "_process_usage_window", [])
+    monkeypatch.setattr(claude_worker, "_usage_read_failed", False)
     return claude_worker
 
 
@@ -117,6 +118,28 @@ def test_worker_observes_planner_usage_recorded_after_worker_start(worker):
     claude_rate_guard.record_usage(worker.USAGE_PATH, [], NOW, 150.0, 50.0)
     assert worker._process_usage_window == []
     assert worker.rate_limit_reason(now=NOW) is not None
+
+
+def test_worker_holds_during_usage_mutex_contention_and_recovers(worker, monkeypatch, caplog):
+    import claude_rate_guard
+    from swarm_control import _exclusive
+
+    remembered = [(NOW - 1, 7.0)]
+    monkeypatch.setattr(worker, "_process_usage_window", remembered.copy())
+    claude_rate_guard.record_usage(worker.USAGE_PATH, [], NOW - 2, 5.0, 50.0)
+    lock = worker.USAGE_PATH.with_name(worker.USAGE_PATH.name + ".lock")
+    monkeypatch.setattr(claude_rate_guard, "_exclusive", lambda path: _exclusive(path, timeout=0))
+    with _exclusive(lock):
+        for _ in range(2):
+            reason = worker.rate_limit_reason(now=NOW)
+            assert reason is not None and "shared usage unavailable" in reason
+            assert claude_rate_guard.claim_stages(True) == ("integrate",)
+            assert worker._process_usage_window == remembered
+    assert sum("until it can be read" in r.message for r in caplog.records) == 1
+
+    assert worker.rate_limit_reason(now=NOW) is None
+    assert worker._process_usage_window == [(NOW - 2, 5.0), *remembered]
+    assert worker._usage_read_failed is False
 
 
 def test_stale_writer_cannot_erase_another_process_usage(tmp_path):

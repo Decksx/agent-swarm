@@ -2,8 +2,9 @@
 
 Status: Claude accepted the contract with amendments in PR #102's review at
 `d9762b7` (comment 6201870664), 2026-10-15. This revision incorporates those
-amendments and David's PR-state/scheduling decisions; revised details still
-need cross-review. This supplements `74-external-review.md`. It is not
+amendments and David's PR-state/scheduling decisions. Claude approved the
+repo-slug map with conditions in comment 6202675380 against `0fbdc67`; those
+conditions are recorded below. This supplements `74-external-review.md`. It is not
 implemented, a deployed schema, a controller verdict, or task-issuance authority.
 
 Claude leads the controller side and end-to-end/mutation checks. Codex owns
@@ -47,8 +48,10 @@ outcomes through the dedicated validated result path, never by borrowing
 controller authority through a generic event submission.
 
 David decided ingest consumes a normal host slot but sits outside the SERIAL
-one-task-at-a-time engineering limit. Host capacity, claim ownership and lease
-fencing still apply. Ingest cannot consume or release another task's serial slot.
+engineering policy. Only host capacity is enforced in current code; SERIAL
+enforcement is unimplemented. Ingest does not count toward any execution lane.
+Host capacity, claim ownership and lease fencing still apply. Do not claim a
+test proves an existing serial limiter or add such a limiter in this slice.
 
 Slice #92 progression issues ingest only. It stops at READY_EXTERNAL_REVIEW;
 cross-family review selection, chat confirmation and review progression remain
@@ -180,9 +183,20 @@ duplicate task ID returns 409. The CLI targets this exact request shape.
 also needs a trusted project-to-`owner/repo` map; it cannot validate a URL from
 location alone. Proposed configuration: `EXTERNAL_REVIEW_REPOS`, a JSON object
 such as `{"agenthub":"Decksx/agent-swarm"}`, keyed by the same project names.
-This closes the source-of-slug gap in the review proposal without changing
-the admin request or the existing INGRESS_PROJECTS grammar. Claude should check
-this configuration detail before implementing it.
+This approved configuration closes the source-of-slug gap without changing
+the admin request or the existing INGRESS_PROJECTS grammar.
+
+A project must be present in both maps. A known ingress project absent from
+EXTERNAL_REVIEW_REPOS returns 400 `project not enabled for external review`,
+with no task row. Validate every slug with the existing `repo_registry.REPO_SLUG`
+owner/name rule, including rejection of option-like strings such as `--help`.
+Malformed JSON or any invalid slug disables external review only, with a clear
+configuration error on each external-review request; it must never prevent the
+controller from starting or serving its other routes.
+
+Record the setting alongside the other controller environment settings on
+Tower. The deployment check reports presence/absence without printing values;
+source approval is not permission to alter the deployed configuration.
 
 Snapshot project, location and controller-configured `repo_slug` in the
 immutable `external:` block. Never accept a client-supplied slug or learn its
@@ -191,7 +205,11 @@ local entry in `repos.json` and checks location and `publish.repo_slug` against
 that snapshot. Missing or mismatched local slug is an environment defect;
 `comicautomation` currently lacks one. `repo_id` is informational unless also
 trusted and snapshotted by the controller. The controller compares `pr_url`
-with `https://github.com/<recorded-slug>/pull/<pr_number>`.
+with `https://github.com/<recorded-slug>/pull/<pr_number>`: compare owner/name
+case-insensitively and require the exact PR number. Use the same case-insensitive
+slug comparison for local registry/snapshot agreement. A genuine slug mismatch,
+including a rename/transfer or stale local registry, is a repairable environment
+defect (`EXTERNAL_INGEST_BLOCKED`), never a refusal of the PR.
 
 If paths are omitted, accepted `changed_files` become the observed scope in the
 registration event and later review activation; do not rewrite the immutable
@@ -204,7 +222,12 @@ state/draft status with provenance. Every review judges only the pinned PR head;
 it does not reopen, merge, approve or change the PR. A historical verdict is
 dated when performed and cannot imply review or approval preceded an old merge.
 Retain the PR's reported base/head metadata, including for merged PRs; do not
-substitute today's target-branch HEAD. Missing objects are environment defects;
+substitute today's target-branch HEAD. Fetch the exact reported `baseRefOid` by
+SHA alongside the head in the same bounded scratch-fetch phase, keeping both
+objects in activation-specific scratch refs until range computation completes.
+This is required for merged PRs too; fetching only the head may leave the base
+object absent locally. Verify the fetched base object matches its metadata.
+Missing or unfetchable objects are environment defects;
 an empty/invalid range remains a refusal, not a fabricated historical range.
 
 Derive each `gh`/`git` subprocess timeout from the activation's remaining hard
@@ -225,4 +248,7 @@ recovery, and any external route into integration. Also cover all PR states,
 the OPERATOR event boundary, generic empty-base rejection, explicit external
 review parents, repo identity mismatch, controller-side evidence validation,
 deadline exhaustion, task-scoped scratch cleanup, host-slot accounting and
-preservation of the serial engineering limit.
+ingest exclusion from any execution lane. Cover disabled/malformed repo-slug
+configuration without controller startup failure, projects missing from either
+map, case-insensitive slug matching, repairable slug mismatches, configuration
+presence reporting, and merged PRs whose base object must first be fetched.

@@ -191,6 +191,9 @@ and records elapsed time for successful, failed and timed-out calls. The worker
 uses the same setting, refreshes completed planner usage before claiming model
 work, and merges updates under a kernel lock. This remains the existing model-time
 proxy for subscription usage, not an authoritative provider quota measurement.
+If the shared usage mutex cannot be opened or acquired, the worker preserves
+its in-memory usage, allows only model-free controller claims, and retries on
+each poll. Directory-mode workers take no work until the read succeeds.
 Do not use `--planner claude` until the updated worker has been deployed and
 restarted. The older worker neither refreshes other processes' records nor
 merges them on write; its next call can erase planner usage. Before restarting,
