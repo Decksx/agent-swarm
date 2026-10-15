@@ -164,7 +164,8 @@ the refusal paths are exercised without spending a call.
 
 Codex is the default engineering planner. Use `--planner claude` or
 `--planner gemini` to select another lead, or set `SWARM_PLANNER`. Codex and
-Claude use their installed CLIs and existing authentication; Gemini uses its API
+Claude use their installed CLIs and cached authentication; inherited provider API
+keys and token overrides are removed from their child environments. Gemini uses its API
 credential. There is no fallback to another provider on failure.
 
 `--model` overrides the selected provider's model. `CODEX_PLANNER_MODEL`,
@@ -175,10 +176,28 @@ Gemini uses Argon. CLI calls run in an empty temporary directory with execution,
 hooks and integrations disabled; context requests go through the shared snapshot
 pipeline. Keep the CLIs on PATH when launching the planner.
 
-Plan JSON records `planner_provider`, `planner_source`, and any model names
-reported by the CLI in `planner_reported_models`. The existing `planner` field
+If a CLI is absent from a normal shell's PATH, set `CODEX_CLI` or `CLAUDE_CLI`
+to an absolute executable path. On Windows these non-secret settings also read
+fresh values from the user's Environment registry entry, so an app with an older
+inherited environment sees a newly configured path. An invalid explicit path
+is an error, not permission to select another binary.
+
+Before Claude planning, set `CLAUDE_RATE_GUARD_DIR` to the live worker's state
+directory (OfficePC: `C:\swarm-prod\agent-swarm`). The planner refuses without
+this explicit shared directory, honors the worker hold and usage thresholds,
+and records elapsed time for successful, failed and timed-out calls. The worker
+uses the same setting, refreshes completed planner usage before claiming model
+work, and merges updates under a kernel lock. This remains the existing model-time
+proxy for subscription usage, not an authoritative provider quota measurement.
+Deploy and restart the updated Claude worker before enabling this shared-planning
+workflow; the older worker does not refresh usage written by another process.
+
+Plan JSON records `planner_provider`, `planner_source`, and the models a CLI
+reported using in `planner_reported_models` (including any auxiliary models).
+This list does not identify a primary model. The existing `planner` field
 is the requested model selector, or `cli-default`; it does not invent an exact
-model version when the CLI omits one. Saved replies record no live provider.
+model version when the CLI omits one. Saved replies record null for both
+`planner` and `planner_provider`, even if a model selector was configured.
 
 Both Codex and Claude may also lead interactive repository work. See the shared
 `AGENTS.md`, Claude's `CLAUDE.md` entry point, and the

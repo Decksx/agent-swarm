@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,9 +12,11 @@ import planner_cli
 
 
 @pytest.fixture
-def transport(monkeypatch):
+def transport(monkeypatch, tmp_path):
     seen = {}
     monkeypatch.setattr(planner_cli.shutil, "which", lambda name: name + ".exe")
+    monkeypatch.setattr(planner_cli, "setting", lambda name:
+                        str(tmp_path) if name == "CLAUDE_RATE_GUARD_DIR" else None)
 
     def run(command, **kwargs):
         seen.update(command=command, **kwargs)
@@ -118,3 +121,107 @@ def test_empty_reply_is_refused(provider, transport, monkeypatch):
     monkeypatch.setattr(planner_cli.subprocess, "run", empty)
     with pytest.raises(planner_cli.PlannerCliError, match="empty reply"):
         planner_cli.generate(provider, "plan")
+
+
+@pytest.mark.parametrize("provider", ["codex", "claude"])
+def test_provider_credentials_cannot_override_cached_cli_login(provider, transport, monkeypatch):
+    names = ("OPENAI_API_KEY", "CODEX_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY",
+             "GOOGLE_API_KEY", "OTHER_API_KEY", "ANTHROPIC_AUTH_TOKEN",
+             "CODEX_ACCESS_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "GOOGLE_APPLICATION_CREDENTIALS")
+    for name in names:
+        monkeypatch.setenv(name, "not-a-real-credential")
+    monkeypatch.setenv("CODEX_HOME", "cached-login-directory")
+    planner_cli.generate(provider, "plan")
+    assert not set(names).intersection(transport["env"])
+    assert transport["env"]["CODEX_HOME"] == "cached-login-directory"
+
+
+def test_configured_codex_binary_works_without_path(transport, monkeypatch, tmp_path):
+    binary = tmp_path / "directory with spaces" / "codex.exe"
+    binary.parent.mkdir()
+    binary.touch()
+    monkeypatch.setattr(planner_cli, "setting", lambda name: str(binary) if name == "CODEX_CLI" else None)
+    monkeypatch.setattr(planner_cli.shutil, "which", lambda _: None)
+    assert planner_cli.resolve_binary("codex") == str(binary)
+
+
+def test_invalid_configured_binary_never_silently_selects_path(transport, monkeypatch):
+    monkeypatch.setattr(planner_cli, "setting", lambda _: "relative/codex.exe")
+    with pytest.raises(planner_cli.PlannerCliError, match="CODEX_CLI"):
+        planner_cli.generate("codex", "plan")
+
+
+def test_missing_codex_explains_how_to_configure_it(transport, monkeypatch):
+    monkeypatch.setattr(planner_cli.shutil, "which", lambda _: None)
+    with pytest.raises(planner_cli.PlannerCliError, match="set CODEX_CLI"):
+        planner_cli.generate("codex", "plan")
+
+
+@pytest.mark.parametrize("provider", ["codex", "claude"])
+def test_error_marker_wins_over_a_success_marker(provider, transport, monkeypatch):
+    original = planner_cli.subprocess.run
+
+    def mixed(command, **kwargs):
+        result = original(command, **kwargs)
+        if provider == "codex":
+            result.stdout += '\n' + json.dumps({"type": "error", "message": "private provider content"})
+        else:
+            data = json.loads(result.stdout)
+            data["is_error"] = True
+            result.stdout = json.dumps(data)
+        return result
+
+    monkeypatch.setattr(planner_cli.subprocess, "run", mixed)
+    with pytest.raises(planner_cli.PlannerCliError, match="did not complete"):
+        planner_cli.generate(provider, "plan")
+
+
+def test_claude_refuses_an_active_worker_hold_before_starting(transport):
+    root = Path(planner_cli.setting("CLAUDE_RATE_GUARD_DIR"))
+    (root / "claude_worker.ratelimit").write_text(str(time.time() + 600))
+    with pytest.raises(planner_cli.PlannerCliError, match="planning held"):
+        planner_cli.generate("claude", "plan")
+    assert not transport, "the CLI must not be launched during a hold"
+    assert not (root / "claude_worker.usage").exists()
+
+
+def test_claude_reads_worker_usage_before_starting(transport, monkeypatch):
+    root = Path(planner_cli.setting("CLAUDE_RATE_GUARD_DIR"))
+    planner_cli.claude_rate_guard.write_usage(root / "claude_worker.usage", [(time.time(), 6)])
+    monkeypatch.setenv("RATE_LIMIT_WARN_SECONDS", "5")
+    with pytest.raises(planner_cli.PlannerCliError, match="planning held"):
+        planner_cli.generate("claude", "plan")
+    assert not transport
+
+
+@pytest.mark.parametrize("outcome", ["success", "failed", "timeout"])
+def test_claude_records_duration_even_when_the_call_fails(outcome, transport, monkeypatch):
+    root = Path(planner_cli.setting("CLAUDE_RATE_GUARD_DIR"))
+    clock = iter([10.0, 13.0])
+    monkeypatch.setattr(planner_cli, "time", SimpleNamespace(time=lambda: 1000.0,
+                                                          monotonic=lambda: next(clock)))
+    if outcome != "success":
+        def fail(*a, **kw):
+            if outcome == "timeout":
+                raise subprocess.TimeoutExpired("claude", 1)
+            return SimpleNamespace(returncode=1, stdout="", stderr="private diagnostic")
+        monkeypatch.setattr(planner_cli.subprocess, "run", fail)
+    if outcome == "success":
+        planner_cli.generate("claude", "plan")
+    else:
+        with pytest.raises(planner_cli.PlannerCliError):
+            planner_cli.generate("claude", "plan")
+    assert planner_cli.claude_rate_guard.read_usage(root / "claude_worker.usage") == [(1000.0, 3.0)]
+
+
+def test_claude_requires_an_explicit_shared_worker_directory(transport, monkeypatch):
+    monkeypatch.setattr(planner_cli, "setting", lambda _: None)
+    with pytest.raises(planner_cli.PlannerCliError, match="CLAUDE_RATE_GUARD_DIR"):
+        planner_cli.generate("claude", "plan")
+    assert not transport
+
+
+def test_unrecorded_usage_cannot_return_a_successful_plan(transport, monkeypatch):
+    monkeypatch.setattr(planner_cli.claude_rate_guard, "write_usage", lambda *a: False)
+    with pytest.raises(planner_cli.PlannerCliError, match="could not record"):
+        planner_cli.generate("claude", "plan")

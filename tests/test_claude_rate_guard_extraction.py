@@ -109,3 +109,18 @@ def test_the_alert_flag_is_still_set_on_the_worker(monkeypatch):
     monkeypatch.setattr(claude_worker, "_rate_limit_alert_sent", False)
     claude_worker.record_rate_limit_alert_sent()
     assert claude_worker._rate_limit_alert_sent is True
+
+
+def test_worker_observes_planner_usage_recorded_after_worker_start(worker):
+    import claude_rate_guard
+    claude_rate_guard.record_usage(worker.USAGE_PATH, [], NOW, 150.0, 50.0)
+    assert worker._process_usage_window == []
+    assert worker.rate_limit_reason(now=NOW) is not None
+
+
+def test_stale_writer_cannot_erase_another_process_usage(tmp_path):
+    import claude_rate_guard
+    path = tmp_path / "shared.usage"
+    claude_rate_guard.record_usage(path, [], NOW, 5.0, 50.0)
+    claude_rate_guard.record_usage(path, [], NOW + 1, 7.0, 50.0)
+    assert claude_rate_guard.read_usage(path) == [(NOW, 5.0), (NOW + 1, 7.0)]

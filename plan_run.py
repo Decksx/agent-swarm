@@ -893,7 +893,7 @@ def main(argv) -> int:
     planner_evidence = {
         # Preserve the legacy field as a model selector. Do not claim that a
         # CLI's unreported default is a known concrete model version.
-        "planner": args.model or "cli-default",
+        "planner": None if args.from_reply else (args.model or "cli-default"),
         "planner_provider": None if args.from_reply else args.planner,
         "planner_source": "saved-reply" if args.from_reply else "live",
         "planner_reported_models": [],

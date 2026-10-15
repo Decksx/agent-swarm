@@ -50,8 +50,32 @@ selection and the saved-reply workflow. Record the actual provider, model,
 source base and call count in plan evidence. The legacy `planner` field remains
 the requested model selector, with `cli-default` when no selector is supplied.
 `planner_provider` and `planner_source` distinguish live calls and saved replies.
-`planner_reported_models` records concrete names only when the CLI reports them;
+`planner_reported_models` records the models a CLI reported using, including
+auxiliary models, without designating one as the primary model;
 an empty list means no concrete version was reported, not an inferred default.
+For a saved reply, `planner` and `planner_provider` are null.
+
+CLI children receive no inherited provider API keys or authentication-token
+overrides; they use cached login credentials. `CODEX_CLI` and `CLAUDE_CLI` support
+an explicit absolute executable path outside the app's inherited PATH. Windows
+also reads these non-secret settings from the current user's Environment key.
+
+Claude planning requires an explicit `CLAUDE_RATE_GUARD_DIR` shared with the live
+worker. Both read the same hold and usage files; planner duration is charged even
+on failures/timeouts. The worker refreshes disk usage before checking its window,
+and completed calls merge under an OS lock with atomic replacement. This preserves
+the existing elapsed-model-time proxy, including its limits: it is not a provider
+quota API or an in-flight token reservation. A worker upgrade/restart is required
+before relying on shared accounting.
+
+## Deployment note
+
+This PR changes the Gemini worker system prompt from lead architect to engineering
+reviewer as well as the operator planner default. Deploy notes must identify both.
+It also updates Claude's shared-usage read/write path. On OfficePC the configured
+guard directory points at the existing production state files; do not reset or
+remove them. Restart the updated workers through supported controls after an
+authorized deployment. No runtime deployment is implied by a source review.
 
 For interactive leadership, record the chosen lead and workstream objective in
 the maintained project context and handoffs. A lead proposes work for the same

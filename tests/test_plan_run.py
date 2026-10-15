@@ -145,7 +145,7 @@ def test_codex_is_default_without_claiming_an_unreported_model(
     assert evidence["planner_reported_models"] == []
 
 
-@pytest.mark.parametrize("provider", ["codex", "claude"])
+@pytest.mark.parametrize("provider", ["codex", "claude", "gemini"])
 def test_saved_replies_never_call_or_claim_a_cli_lead(
     provider, project, tmp_path, monkeypatch,
 ):
@@ -153,12 +153,14 @@ def test_saved_replies_never_call_or_claim_a_cli_lead(
         raise AssertionError("saved replies must not call a provider")
 
     monkeypatch.setattr(plan_run.planner_cli, "generate", refuse)
+    monkeypatch.setattr(plan_run, "ask_gemini", refuse)
     saved = tmp_path / "saved.json"
     assert run("--project", "demo", "--planner", provider,
                "--from-reply", str(reply_file(tmp_path, [task()])),
                "--out", str(saved)) == 0
     evidence = json.loads(saved.read_text(encoding="utf-8"))
     assert evidence["planner_provider"] is None
+    assert evidence["planner"] is None
     assert evidence["planner_source"] == "saved-reply" and evidence["model_calls"] == 0
 
 

@@ -19,8 +19,11 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from pathlib import Path
+
+from swarm_control import AlreadyRunning, _exclusive
 
 log = logging.getLogger("claude_worker")
 
@@ -64,13 +67,17 @@ def read_usage(usage_path: Path) -> list[tuple[float, float]]:
         return []
 
 
-def write_usage(usage_path: Path, usage_window: list[tuple[float, float]]) -> None:
+def write_usage(usage_path: Path, usage_window: list[tuple[float, float]]) -> bool:
     """Persist the rolling window of usage seconds."""
     try:
-        with open(usage_path, "w", encoding="utf-8") as f:
+        temporary = usage_path.with_name(usage_path.name + ".tmp")
+        with open(temporary, "w", encoding="utf-8") as f:
             json.dump(usage_window, f)
+        os.replace(temporary, usage_path)
+        return True
     except OSError as exc:
         log.error("could not persist usage: %s", exc)
+        return False
 
 
 def purge_old_usage(
@@ -95,12 +102,29 @@ def current_usage_total(
 def record_usage(
     usage_path: Path, usage_window: list[tuple[float, float]],
     start_time: float, elapsed_time: float, cooldown_seconds: float,
+    *, strict: bool = False,
 ) -> list[tuple[float, float]]:
-    """Record model usage; appends to the given list, returns the purged one."""
-    usage_window.append((start_time, elapsed_time))
-    usage_window = purge_old_usage(usage_window, start_time, cooldown_seconds)
-    write_usage(usage_path, usage_window)
-    return usage_window
+    """Merge completed calls under a kernel lock; return the updated window."""
+    # A planner and a worker can finish in either order. Refresh while holding
+    # the same kernel lock, so a stale in-memory window cannot erase a peer's
+    # completed call. Retain callers' in-memory records if an earlier disk
+    # write failed. Identical persisted records are not charged twice.
+    pending = [*usage_window, (start_time, elapsed_time)]
+    try:
+        with _exclusive(usage_path.with_name(usage_path.name + ".lock")):
+            combined = list(dict.fromkeys([*read_usage(usage_path), *usage_window]))
+            combined.append((start_time, elapsed_time))
+            pending = purge_old_usage(combined, start_time, cooldown_seconds)
+            if not write_usage(usage_path, pending) and strict:
+                raise OSError("could not persist Claude model usage")
+    except (OSError, AlreadyRunning) as exc:
+        if strict:
+            raise
+        # The long-lived worker retains its in-memory record and can persist
+        # it with the next completed call, matching the existing write-failure
+        # behavior. The planner requests strict accounting instead.
+        log.error("could not persist usage: %s", exc)
+    return purge_old_usage(pending, start_time, cooldown_seconds)
 
 
 def begin_holdoff(ratelimit_path: Path, now: float, cooldown_seconds: float) -> float:

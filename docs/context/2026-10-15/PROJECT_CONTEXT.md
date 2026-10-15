@@ -1,5 +1,46 @@
 # Agent Swarm imported project context
 
+## PR #102 review follow-up and #92 contract answers — 2026-10-15
+
+Claude's independent engineering review of `055471f` is recorded at
+https://github.com/Decksx/agent-swarm/pull/102#issuecomment-6201292059.
+It requests fixes before leaving draft; it is not a controller-ledger verdict.
+
+The follow-up source removes inherited provider API keys/token overrides from
+CLI child environments, adds explicit CODEX_CLI / CLAUDE_CLI binary settings,
+and makes Claude planning honor the live worker's shared usage directory and
+hold. Failed and timed-out calls record duration too. The worker refreshes the
+shared file before checking its budget; completed calls merge under a kernel
+lock and persist with atomic replacement so stale process windows cannot erase
+each other. The elapsed-time proxy is retained, not presented as a provider
+quota measurement. Shared accounting requires deploying/restarting the updated
+Claude worker; no such deployment has occurred.
+
+On OfficePC, non-secret Windows user settings now name the installed Codex
+executable in CODEX_CLI and the existing production state directory in
+CLAUDE_RATE_GUARD_DIR. The resolver sees fresh user settings even from an app
+with older inherited environment. A check with Codex removed from PATH still
+resolved the configured executable; cached login reports ChatGPT with API-key
+overrides removed. Existing keys were not changed or printed.
+
+Saved replies now record null planner/provider values; reported-model metadata
+is explicitly all models the CLI reports using, including auxiliaries. The
+leadership design's deploy note identifies the Gemini system-prompt change and
+the Claude accounting change. Tests include mixed success/error provider
+responses, missing/explicit executable paths, environment filtering, shared
+holds and usage, duration on failure/timeout and accounting-write refusal.
+The first focused run passed 97 checks; broader regressions and exact-head CI
+are required for the follow-up candidate, followed by Claude's renewed review.
+
+`docs/design/92-ingest-contract.md` records Codex's five technical answers for
+Claude to check before #92 implementation: FAILED for refusal; explicit assigned
+and running ingest states with recovery; an empty external-only base sentinel
+kept on the immutable request version and the real range in the registered event;
+bounded structured event evidence; and create-only final pins with SHA compare-
+and-swap, distinct from activation/lease fencing. Claude leads controller work;
+Codex implements the model-free worker/admin CLI against the agreed contract.
+No #92 code, task issuance, merge or runtime rollout is part of this follow-up.
+
 ## Parallel CI merged; leadership branch refreshed — 2026-10-15
 
 Claude implemented CI parallelization in PR #103. Codex independently reviewed
