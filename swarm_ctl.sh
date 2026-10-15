@@ -445,6 +445,16 @@ case "${1:-}" in
     # and a service running as SYSTEM would not have them.
     load_credentials || exit 1
 
+    # A console executable scheduled in the interactive session flashes a
+    # window every time it runs. pythonw opens none; its launcher gives Bash
+    # a hidden console that Python/PowerShell descendants inherit as well.
+    PYTHONW="$("$PYTHON" -c 'from pathlib import Path; import sys; print(Path(sys.executable).with_name("pythonw.exe"))' | tr -d '\r\n')"
+    HIDDEN_LAUNCHER="$(cygpath -w "$REPO/run_hidden.pyw")"
+    if [ ! -f "$PYTHONW" ] || [ ! -f "$REPO/run_hidden.pyw" ]; then
+      echo "install failed: pythonw.exe or run_hidden.pyw is missing"
+      exit 1
+    fi
+
     # `ensure` rather than `start`, repeating rather than once (#46). The
     # trigger still fires at logon so a fresh session comes up immediately,
     # but the repetition is what actually keeps the swarm alive: every five
@@ -471,8 +481,8 @@ case "${1:-}" in
       \$ErrorActionPreference = 'Stop'
 
       try {
-        \$action = New-ScheduledTaskAction -Execute 'C:\\Program Files\\Git\\bin\\bash.exe' \
-          -Argument '-lc \"$REPO/swarm_ctl.sh ensure\"'
+        \$action = New-ScheduledTaskAction -Execute '$PYTHONW' \
+          -Argument '\"$HIDDEN_LAUNCHER\" \"C:\\Program Files\\Git\\bin\\bash.exe\" -lc \"$REPO/swarm_ctl.sh ensure\"'
         \$atLogon = New-ScheduledTaskTrigger -AtLogOn
         \$repeating = New-ScheduledTaskTrigger -Once -At (Get-Date) \
           -RepetitionInterval (New-TimeSpan -Minutes $TASK_INTERVAL_MINUTES) \
@@ -494,6 +504,10 @@ case "${1:-}" in
 
         if (\$arguments -notlike '*swarm_ctl.sh ensure*') {
           throw \"the task registered to run: \$arguments\"
+        }
+
+        if (\$task.Actions.Execute -notlike '*pythonw.exe' -or \$arguments -notlike '*run_hidden.pyw*') {
+          throw 'the task registered without the hidden launcher'
         }
 
         Write-Output \"registered $TASK_NAME (at logon, rechecked every \$(\$repeat.Repetition.Interval))\"
