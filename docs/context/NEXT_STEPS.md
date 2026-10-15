@@ -1,5 +1,17 @@
 # Next steps after the Codex import
 
+## Deployment completed
+
+David subsequently authorized this release's commits, merges and deployment.
+PRs #96-99 are merged and runtime source `755aa885b3d4bf8b95cd58e89341c83129eb9b70`
+is deployed with successful full gates, three-identity parity and healthy workers.
+See [the deployment receipt](DEPLOYMENT_2026-10-15.md). No release operation remains
+pending for these changes. **Next implementation: issue #92**, following the
+ingest plan below. Its pending-base and refusal lifecycle still need implementation.
+
+The pre-merge checkpoint and merge/deploy plan below are retained as historical
+preparation; they do not describe the current deployed state.
+
 Updated 2026-10-15. This is an implementation and operations plan, not permission
 to merge, deploy, restart, or issue a real controller task.
 

@@ -1,5 +1,21 @@
 # Agent Swarm imported project context
 
+## Current deployed checkpoint — 2026-10-15
+
+David authorized commit, merge and deployment. PRs #96, #97, #98 and #99 are
+merged, and production is pinned to runtime source commit
+`755aa885b3d4bf8b95cd58e89341c83129eb9b70`. The full local deploy gate passed
+2,235 tests with ten scheduler-permission skips and no failures; combined
+release CI passed all 2,245 tests. All three worker identities passed parity at
+controller build `cc1d4f0214fe903a64a4a9edf491ef8cc00cc014d04ab9e69f7e4b6fdc2cde97`.
+The swarm is running and unpaused with one supervisor and one of each worker;
+scheduled hidden ensure returned 0, cursors were preserved, and no real task
+was issued. See `docs/context/DEPLOYMENT_2026-10-15.md` for receipts and backups.
+
+Issue #92 is the next implementation step; ingress is not yet enabled. The
+earlier ingestion/preparation records below are historical and their statements
+about pending merges or deployment are superseded by this checkpoint.
+
 ## Publication correction
 
 GitHub push protection found a Google Cloud credential in the raw historical
