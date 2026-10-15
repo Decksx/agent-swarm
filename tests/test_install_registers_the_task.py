@@ -108,6 +108,7 @@ def checkout(tmp_path):
     root = tmp_path / "checkout"
     root.mkdir()
     shutil.copy2(REPO_ROOT / "swarm_ctl.sh", root / "swarm_ctl.sh")
+    shutil.copy2(REPO_ROOT / "run_hidden.pyw", root / "run_hidden.pyw")
 
     binaries = tmp_path / "bin"
     binaries.mkdir()
@@ -146,7 +147,7 @@ def stored_task() -> dict | None:
         f"$t = Get-ScheduledTask -TaskName '{PROBE_TASK}' -ErrorAction SilentlyContinue; "
         f"if (-not $t) {{ Write-Output 'NONE' }} else {{ "
         f"$r = $t.Triggers | Where-Object {{ $_.Repetition.Interval }}; "
-        f"@{{ arguments = (($t.Actions | ForEach-Object {{ $_.Arguments }}) -join ' '); "
+        f"@{{ executable = $t.Actions.Execute; arguments = (($t.Actions | ForEach-Object {{ $_.Arguments }}) -join ' '); "
         f"triggers = @($t.Triggers | ForEach-Object {{ $_.CimClass.CimClassName }}); "
         f"interval = $(if ($r) {{ $r.Repetition.Interval }} else {{ '' }}); "
         f"duration = $(if ($r) {{ $r.Repetition.Duration }} else {{ '' }}); "
@@ -171,6 +172,8 @@ def test_install_registers_a_task_that_runs_ensure(checkout):
     assert task is not None, "install reported success and registered nothing"
     assert "swarm_ctl.sh ensure" in task["arguments"]
     assert "swarm_ctl.sh start" not in task["arguments"]
+    assert task["executable"].lower().endswith("pythonw.exe")
+    assert "run_hidden.pyw" in task["arguments"]
 
 
 @needs_scheduler
