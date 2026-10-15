@@ -1,5 +1,51 @@
 # Agent Swarm imported project context
 
+## PR #102 merged and worker rollout — 2026-10-15
+
+David authorized commit, merge and deployment. Claude's final exact-head check
+of `9b7282a39fc3ed0b5698d4f07d905f90d1be8e73` found no remaining issues
+(https://github.com/Decksx/agent-swarm/pull/102#issuecomment-6203010215).
+PR #102 merged, pinned to that head, as
+`d2493667391244ca10226894b171a7590d5e1708`. All four checks passed on the
+merge commit in CI run `38814198397`.
+
+PR #102 changed no controller or hub files, so Tower was not rebuilt or
+restarted. The controller build stays
+`cc1d4f0214fe903a64a4a9edf491ef8cc00cc014d04ab9e69f7e4b6fdc2cde97`, schema 6.
+The controller had no live activations at rollout (120 DONE, 6 EXPIRED).
+
+OfficePC worker rollout, using the supported controls only:
+
+- `swarm_ctl.sh pause`, then `stop`: supervisor 38900 and its three workers
+  stopped, and no swarm processes remained.
+- `C:\swarm-prod\agent-swarm` moved from `db0bd5b` to detached `d249366`.
+  `git diff --quiet HEAD` is clean, and the changed worker and planner files
+  match their git objects.
+- Started through the scheduled task's own hidden launcher (`run_hidden.pyw` →
+  `swarm_ctl.sh start`). Start-up preflight passed, then `resume`.
+- Result: supervisor PID 24568 with a fresh heartbeat; ChatGPT 39064, Gemini
+  37416 and Claude 31928, all its children and all running from production.
+  The Claude worker log shows "resuming from message id 1490".
+- Worker cursors stayed at 1490 for all three identities; the narrator cursor
+  stayed at 525.
+- `worker_ctl.sh preflight claudecode`: checkout, running and on-disk builds
+  all `cc1d4f0214fe`. `ensure` reported a live supervisor. A manual run of the
+  scheduled `AgentSwarmSupervisor` task returned 0 and left one supervisor.
+
+Shared Claude usage accounting:
+
+- The user-level `CLAUDE_RATE_GUARD_DIR` resolves to `C:\swarm-prod\agent-swarm`,
+  the worker's existing state directory, so its usage history carries over.
+  There was no active hold-off file.
+- No "shared usage unavailable" warning was logged after start.
+- The updated worker is now deployed and verified, so `--planner claude` may be
+  used.
+- No planner call, real controller task, or Tower change was made in this
+  rollout.
+
+Next: Claude starts the controller side of #92 under
+`docs/design/92-ingest-contract.md`; Codex owns the ingest worker and admin CLI.
+
 ## PR #102 worker read-failure recovery and final contract conditions — 2026-10-15
 
 Claude reviewed `0fbdc67869a121b7ba5181e8da9709e4b452a396` at
