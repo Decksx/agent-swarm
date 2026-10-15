@@ -194,8 +194,10 @@ gate exists.
 
 ## Gemini model
 
-The active `gemini_worker.py` defaults to `gemini-4-argon` (Gemini 4 Argon).
-Set `GEMINI_MODEL` in the worker or supervisor launch environment to override it.
+The active `gemini_worker.py` and operator planner `plan_run.py` default to
+`gemini-4-argon` (Gemini 4 Argon). Set `GEMINI_MODEL` in the worker or supervisor
+launch environment to override the worker; `GEMINI_PLANNER_MODEL` or the planner's
+`--model` option overrides planning.
 There is no automatic fallback to Flash or an older Pro model. A running worker
 must be restarted to pick up a model change.
 

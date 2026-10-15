@@ -3,8 +3,9 @@
 ## Gemini Argon configuration — 2026-10-15
 
 David requested the newer Argon model for Gemini and asked whether hive
-coordination still works. The active worker's default is now `gemini-4-argon`,
-with the existing `GEMINI_MODEL` launch-environment override retained. Google's
+coordination still works. The active worker and operator planner now default to
+`gemini-4-argon`, with the existing `GEMINI_MODEL` and `GEMINI_PLANNER_MODEL`
+launch-environment overrides (and planner `--model`) retained. Google's
 [model documentation](https://ai.google.dev/gemini-api/docs/models/gemini-4-argon)
 confirms the identifier. The configured API credential successfully retrieved
 this model and completed a small real generation returning `ARGON_OK`, reporting
