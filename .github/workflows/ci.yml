@@ -6,8 +6,15 @@ on:
   push:
     branches: [main]
 
+# The integrator's evidence gate requires the check runs `pytest-unit` and
+# `pytest-bypass` by name (INTEGRATION_REQUIRED_SUITES in swarm_ctl.sh), and
+# refuses on any check that finishes red. `pytest-unit` used to run the core
+# and hub suites one after the other in one job; they now run in parallel as
+# `pytest-core` and `pytest-hub`, and `pytest-unit` is kept as the check that
+# succeeds only when both of them did. The required names do not change, and
+# neither does what they mean: every test in tests/ and hub/ passed.
 jobs:
-  pytest-unit:
+  pytest-core:
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -17,22 +24,68 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
 
       - name: Install dependencies
-        run: pip install pytest fastapi uvicorn pydantic requests httpx tzdata
-      
+        run: pip install -r requirements-ci.txt
+
       # shell: bash, because the default on a windows runner is
       # PowerShell, which takes a multi-command step's exit status from
-      # the LAST command only. The two invocations below ran under that
-      # rule and a failing first one was masked by a passing second: the
-      # step reported success with 16 tests failing, and the integrator's
-      # evidence gate reads the conclusion, not the log.
-      - name: Run pytest-unit
+      # the LAST command only. A failing first invocation was once masked
+      # by a passing second: the step reported success with 16 tests
+      # failing, and the integrator's evidence gate reads the conclusion,
+      # not the log.
+      #
+      # `-n auto` runs one worker per core. Tests that touch host-wide
+      # Windows state must be isolated per worker (PYTEST_XDIST_WORKER);
+      # see probe_task_name in tests/test_install_registers_the_task.py.
+      - name: Run pytest-core
         shell: bash
         run: |
           set -euo pipefail
-          pytest tests/ -k "not bypass"
-          pytest hub/
+          pytest tests/ -k "not bypass" -n auto --durations=25
+
+  pytest-hub:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-ci.txt
+
+      - name: Run pytest-hub
+        shell: bash
+        run: |
+          set -euo pipefail
+          pytest hub/ -n auto --durations=25
+
+  # Required by name. `if: always()` so it reports a conclusion even when a
+  # suite fails or is cancelled: without it the job would be *skipped*. The
+  # integrator's CI wait tolerates a skipped check (FINISHED_CLEAN in
+  # integrator.py); its final evidence does not, but the required check
+  # should say red when a suite failed rather than leave that to a later
+  # step. It succeeds only on two explicit successes.
+  pytest-unit:
+    needs: [pytest-core, pytest-hub]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require both suites
+        shell: bash
+        run: |
+          echo "pytest-core: ${{ needs.pytest-core.result }}"
+          echo "pytest-hub:  ${{ needs.pytest-hub.result }}"
+          test "${{ needs.pytest-core.result }}" = "success"
+          test "${{ needs.pytest-hub.result }}" = "success"
 
   pytest-bypass:
     runs-on: windows-latest
@@ -44,10 +97,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
 
       - name: Install dependencies
-        run: pip install pytest fastapi uvicorn pydantic requests httpx tzdata
-      
+        run: pip install -r requirements-ci.txt
+
       # One command today, but pinned to bash for the same reason: a
       # second line added later must not be able to mask the first.
       - name: Run pytest-bypass

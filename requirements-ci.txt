@@ -1,0 +1,10 @@
+# What CI installs to run the suites. Unpinned, as the workflow's inline list
+# was; this file exists so setup-python can key its pip cache on it.
+pytest
+pytest-xdist
+fastapi
+uvicorn
+pydantic
+requests
+httpx
+tzdata
