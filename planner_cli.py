@@ -76,7 +76,7 @@ def generate(provider: str, prompt: str, *, model: str | None = None,
     try:
         if provider == "claude":
             usage = _claude_usage()
-    except (OSError, ValueError):
+    except (OSError, ValueError, AlreadyRunning):
         raise PlannerCliError("could not read Claude's shared usage guard") from None
 
     # No repository, controller credential, project hooks or MCP configuration

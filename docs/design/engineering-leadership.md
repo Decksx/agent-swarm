@@ -59,11 +59,15 @@ CLI children receive no inherited provider API keys or authentication-token
 overrides; they use cached login credentials. `CODEX_CLI` and `CLAUDE_CLI` support
 an explicit absolute executable path outside the app's inherited PATH. Windows
 also reads these non-secret settings from the current user's Environment key.
+Hosts authenticated only through `CLAUDE_CODE_OAUTH_TOKEN` or
+`CODEX_ACCESS_TOKEN` must establish a stored CLI login before using planning;
+these token overrides are intentionally excluded as well as API keys.
 
 Claude planning requires an explicit `CLAUDE_RATE_GUARD_DIR` shared with the live
 worker. Both read the same hold and usage files; planner duration is charged even
 on failures/timeouts. The worker refreshes disk usage before checking its window,
-and completed calls merge under an OS lock with atomic replacement. This preserves
+and reads and completed-call merges take the same OS lock, including the open
+read handle's lifetime, before atomic replacement. This preserves
 the existing elapsed-model-time proxy, including its limits: it is not a provider
 quota API or an in-flight token reservation. A worker upgrade/restart is required
 before relying on shared accounting.
@@ -74,8 +78,13 @@ This PR changes the Gemini worker system prompt from lead architect to engineeri
 reviewer as well as the operator planner default. Deploy notes must identify both.
 It also updates Claude's shared-usage read/write path. On OfficePC the configured
 guard directory points at the existing production state files; do not reset or
-remove them. Restart the updated workers through supported controls after an
-authorized deployment. No runtime deployment is implied by a source review.
+remove them or point a restarted worker at a fresh directory. Before restart,
+check the effective setting against the existing usage and hold locations; moving
+them would hide an active hold. The old worker does not refresh planner records
+and can overwrite them on its next completed call. Do not run `--planner claude`
+until the updated worker has been deployed/restarted through supported controls,
+and its running source and effective state directory are verified. Only then
+enable shared planning. No runtime deployment is implied by a source review.
 
 For interactive leadership, record the chosen lead and workstream objective in
 the maintained project context and handoffs. A lead proposes work for the same

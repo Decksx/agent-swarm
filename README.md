@@ -167,6 +167,8 @@ Codex is the default engineering planner. Use `--planner claude` or
 Claude use their installed CLIs and cached authentication; inherited provider API
 keys and token overrides are removed from their child environments. Gemini uses its API
 credential. There is no fallback to another provider on failure.
+Token-only CLI hosts must first establish a stored CLI login: inherited
+`CLAUDE_CODE_OAUTH_TOKEN` and `CODEX_ACCESS_TOKEN` are deliberately not forwarded.
 
 `--model` overrides the selected provider's model. `CODEX_PLANNER_MODEL`,
 `CLAUDE_PLANNER_MODEL`, and `GEMINI_PLANNER_MODEL` supply provider-specific
@@ -189,8 +191,13 @@ and records elapsed time for successful, failed and timed-out calls. The worker
 uses the same setting, refreshes completed planner usage before claiming model
 work, and merges updates under a kernel lock. This remains the existing model-time
 proxy for subscription usage, not an authoritative provider quota measurement.
-Deploy and restart the updated Claude worker before enabling this shared-planning
-workflow; the older worker does not refresh usage written by another process.
+Do not use `--planner claude` until the updated worker has been deployed and
+restarted. The older worker neither refreshes other processes' records nor
+merges them on write; its next call can erase planner usage. Before restarting,
+verify the effective `CLAUDE_RATE_GUARD_DIR` names the worker's existing state
+directory. Changing that location would hide its active hold and usage history.
+Preserve both files, verify the running worker's source and effective directory,
+then enable Claude planning. Source review alone does not complete this rollout.
 
 Plan JSON records `planner_provider`, `planner_source`, and the models a CLI
 reported using in `planner_reported_models` (including any auxiliary models).

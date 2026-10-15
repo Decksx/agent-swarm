@@ -1,9 +1,10 @@
 # Slice #92: engineering decisions and controller/worker contract
 
-Status: Codex's technical answers to Claude's review of PR #102, 2026-10-15.
-This supplements `74-external-review.md`; Claude should review this contract
-before either half of #92 is implemented. It is not implemented, a deployed
-schema, a controller verdict, or permission to issue a real task.
+Status: Claude accepted the contract with amendments in PR #102's review at
+`d9762b7` (comment 6201870664), 2026-10-15. This revision incorporates those
+amendments and David's PR-state/scheduling decisions; revised details still
+need cross-review. This supplements `74-external-review.md`. It is not
+implemented, a deployed schema, a controller verdict, or task-issuance authority.
 
 Claude leads the controller side and end-to-end/mutation checks. Codex owns
 the model-free worker and admin CLI. Each independently reviews the other's
@@ -39,6 +40,15 @@ Use existing operator authority for the model-free ingest activation; the
 controller validates the result and applies controller-authority events. It is
 not an author activation and cannot submit an authored candidate. Add `ingest`
 to Claude's model-free claim stages so a model-usage hold cannot block it.
+Test the actual generic activation-result boundary: from every external state,
+OPERATOR authority may apply only `activation_claimed` where defined, and no
+other event. In other states even that claim is rejected. Workers report ingest
+outcomes through the dedicated validated result path, never by borrowing
+controller authority through a generic event submission.
+
+David decided ingest consumes a normal host slot but sits outside the SERIAL
+one-task-at-a-time engineering limit. Host capacity, claim ownership and lease
+fencing still apply. Ingest cannot consume or release another task's serial slot.
 
 Slice #92 progression issues ingest only. It stops at READY_EXTERNAL_REVIEW;
 cross-family review selection, chat confirmation and review progression remain
@@ -51,6 +61,11 @@ request whose `external:` contract block carries the PR locator and optional
 operator-named head SHA. Empty means no swarm authoring baseline; it is not a
 commit. Do not put HEAD, a zero hash, a guessed SHA or the requested head there.
 Normal authored tasks must still require a valid baseline.
+Enforce a full 40-hex `base_sha` on generic `POST /controller/tasks`; empty or
+short values are rejected before any row is written. Only dedicated external
+ingress may store the empty sentinel. Store `proof_mode: branch_only`, an
+existing allowed database value; it does not authorize authoring/integration
+or imply a baseline/sabotage proof was performed.
 
 Do not overwrite task_versions.base_sha or rehash its contract after pinning:
 that version is immutable. Record the actual PR base SHA and merge base in
@@ -59,6 +74,8 @@ expected parent from that accepted event's merge base and their expected
 candidate from its pinned head, never from the empty sentinel. The offline
 review packet receives those explicit SHAs. Generic author/integrator paths
 must reject external requests instead of interpreting the sentinel.
+In #93, `_review_evidence` must reject a missing explicit external parent
+instead of falling back to the request's `base_sha`; test this boundary.
 
 This avoids an unnecessary nullable-column migration while preserving version
 and ledger meaning. A SQL NOT NULL constraint by itself is not the guard; the
@@ -84,6 +101,20 @@ own request fields with reported full SHAs and checks equality of head and
 resolved pin. Do not trust a worker-supplied `sha_matches: true` or let a result
 replace the operator's objective. PR descriptions and authorship signals remain
 claims, not permission or a family verdict.
+
+Controller-owned result checks, before applying the event, include:
+
+- authenticated live activation, matching task/version/state sequence and lease;
+- request project/location, PR number and canonical GitHub PR URL match;
+- every SHA is exactly 40 hexadecimal characters;
+- `pin_ref == refs/swarm/external/<task_id>` exactly;
+- `resolved_ref_sha == head_sha`, and equality with any operator `at_sha`;
+- `merge_base != head_sha` and non-empty `changed_files`;
+- schema/type checks and the controller's own 128-KiB UTF-8 payload limit.
+
+The controller cannot independently inspect Git objects on the worker's host.
+Fetch/object/range assertions are worker evidence, while the above comparisons
+are performed by the controller itself. No worker-provided boolean replaces them.
 
 Use at most 128 KiB of canonical UTF-8 JSON evidence. If the complete required
 evidence will not fit, refuse with `evidence_too_large`; do not silently truncate
@@ -119,7 +150,68 @@ Keep the final ref through review. Terminal cleanup belongs to the publication
 slice and deletes only the recorded ref/object with an expected-old-SHA check,
 after ensuring no live ingest uses it. Cleanup must tolerate an orphan from a
 stale attempt; it must never delete a different candidate. Scratch-ref cleanup
-is limited to that activation's own namespace.
+uses `refs/swarm/ingest-tmp/<task_id>/<activation_id>` so a new ingest can find
+that task's expired attempts. The next ingest clears only refs for this same
+task's expired/superseded activations, with an expected-old-SHA delete and a
+fresh live-activation check; never delete a live sibling or another task's ref.
+
+## 6. Admin request and repository identity
+
+Admin-only `POST /controller/external-reviews` accepts:
+
+```json
+{
+  "task_id": "EXT-123",
+  "project": "agenthub",
+  "pr_number": 102,
+  "objective": "Review the change against the stated acceptance criteria",
+  "at_sha": "<optional full 40-hex SHA>",
+  "paths": ["<optional scope>"],
+  "authored_by": ["anthropic", "openai", "google", "human"]
+}
+```
+
+The last three fields are optional; `authored_by` records claims only. Create
+the task and `external_review_requested` atomically. Unknown project, invalid
+SHA, invalid PR number, or empty objective returns 400 without a task row;
+duplicate task ID returns 409. The CLI targets this exact request shape.
+
+`INGRESS_PROJECTS` remains the project-to-location allowlist. The controller
+also needs a trusted project-to-`owner/repo` map; it cannot validate a URL from
+location alone. Proposed configuration: `EXTERNAL_REVIEW_REPOS`, a JSON object
+such as `{"agenthub":"Decksx/agent-swarm"}`, keyed by the same project names.
+This closes the source-of-slug gap in the review proposal without changing
+the admin request or the existing INGRESS_PROJECTS grammar. Claude should check
+this configuration detail before implementing it.
+
+Snapshot project, location and controller-configured `repo_slug` in the
+immutable `external:` block. Never accept a client-supplied slug or learn its
+authoritative value from an ingest result. The worker resolves its matching
+local entry in `repos.json` and checks location and `publish.repo_slug` against
+that snapshot. Missing or mismatched local slug is an environment defect;
+`comicautomation` currently lacks one. `repo_id` is informational unless also
+trusted and snapshotted by the controller. The controller compares `pr_url`
+with `https://github.com/<recorded-slug>/pull/<pr_number>`.
+
+If paths are omitted, accepted `changed_files` become the observed scope in the
+registration event and later review activation; do not rewrite the immutable
+request to insert them. Explicit paths remain operator constraints.
+
+## 7. PR states and bounded execution
+
+David decided open, draft, closed and merged PRs are accepted. Record observed
+state/draft status with provenance. Every review judges only the pinned PR head;
+it does not reopen, merge, approve or change the PR. A historical verdict is
+dated when performed and cannot imply review or approval preceded an old merge.
+Retain the PR's reported base/head metadata, including for merged PRs; do not
+substitute today's target-branch HEAD. Missing objects are environment defects;
+an empty/invalid range remains a refusal, not a fabricated historical range.
+
+Derive each `gh`/`git` subprocess timeout from the activation's remaining hard
+deadline, measured with a monotonic clock. Heartbeat during long commands as
+`claude_integration` does, stop on lost lease, and reserve time to report a
+bounded result. No command may start with an exhausted deadline, and retries
+must consume the same budget rather than resetting it.
 
 ## Shared acceptance cases
 
@@ -129,4 +221,8 @@ evidence overflow, task cancellation, expiry before claim/during fetch/after pin
 repair and reissue, stale result rejection, and preservation of normal authored
 tasks. Mutation checks must detect removed SHA comparisons, lost create-only
 semantics, acceptance without a live activation, missing assigned/running
-recovery, and any external route into integration.
+recovery, and any external route into integration. Also cover all PR states,
+the OPERATOR event boundary, generic empty-base rejection, explicit external
+review parents, repo identity mismatch, controller-side evidence validation,
+deadline exhaustion, task-scoped scratch cleanup, host-slot accounting and
+preservation of the serial engineering limit.

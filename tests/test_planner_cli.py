@@ -225,3 +225,12 @@ def test_unrecorded_usage_cannot_return_a_successful_plan(transport, monkeypatch
     monkeypatch.setattr(planner_cli.claude_rate_guard, "write_usage", lambda *a: False)
     with pytest.raises(planner_cli.PlannerCliError, match="could not record"):
         planner_cli.generate("claude", "plan")
+
+
+def test_claude_refuses_before_call_if_usage_read_mutex_is_unavailable(transport, monkeypatch):
+    def locked(*args):
+        raise planner_cli.AlreadyRunning("usage mutex busy")
+    monkeypatch.setattr(planner_cli.claude_rate_guard, "read_usage", locked)
+    with pytest.raises(planner_cli.PlannerCliError, match="could not read"):
+        planner_cli.generate("claude", "plan")
+    assert not transport

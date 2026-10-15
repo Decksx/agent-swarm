@@ -41,9 +41,16 @@ The state table maps `(state, event)` to a next state. It does not know what kin
 
 ### Proposed states
 
+The #92 refinement below is agreed in the engineering contract
+[`92-ingest-contract.md`](92-ingest-contract.md), with David's PR-state and
+scheduling decisions recorded 2026-10-15. It describes the next slice, not
+currently deployed states or issuance authority.
+
 | State | Meaning |
 | --- | --- |
-| `EXTERNAL_PENDING` | Submitted; the head is being fetched and pinned by an ingest activation. |
+| `EXTERNAL_PENDING` | Submitted; waiting for an ingest activation. |
+| `EXTERNAL_INGEST_ASSIGNED` | Ingest activation issued, awaiting claim. |
+| `EXTERNAL_INGESTING` | Ingest claimed; fetching and pinning. |
 | `READY_EXTERNAL_REVIEW` | Pinned; waiting for progression to issue a review. |
 | `EXTERNAL_REVIEW_ASSIGNED` | A review activation is issued. |
 | `EXTERNAL_REVIEWING` | The reviewer has claimed it. |
@@ -56,8 +63,12 @@ The state table maps `(state, event)` to a next state. It does not know what kin
 | From | Event | To | Authority |
 | --- | --- | --- | --- |
 | DRAFT | `external_review_requested` | `EXTERNAL_PENDING` | ADMIN (operator, via chat) |
-| `EXTERNAL_PENDING` | `external_candidate_registered` | `READY_EXTERNAL_REVIEW` | CONTROLLER, on the ingest worker's report |
-| `EXTERNAL_PENDING` | `environment_defect` | `EXTERNAL_INGEST_BLOCKED` | CONTROLLER |
+| `EXTERNAL_PENDING` | `ingest_activation_issued` | `EXTERNAL_INGEST_ASSIGNED` | CONTROLLER |
+| `EXTERNAL_INGEST_ASSIGNED` | `activation_claimed` | `EXTERNAL_INGESTING` | OPERATOR (activation-scoped) |
+| `EXTERNAL_INGESTING` | `external_candidate_registered` | `READY_EXTERNAL_REVIEW` | CONTROLLER, after validating the ingest report |
+| active ingest | `external_ingest_refused` | `FAILED` | CONTROLLER |
+| active ingest | `environment_defect` | `EXTERNAL_INGEST_BLOCKED` | CONTROLLER |
+| `EXTERNAL_INGEST_ASSIGNED` / `EXTERNAL_INGESTING` | lease/deadline recovery | `EXTERNAL_PENDING` | CONTROLLER |
 | `READY_EXTERNAL_REVIEW` | `review_activation_issued` | `EXTERNAL_REVIEW_ASSIGNED` | CONTROLLER |
 | `EXTERNAL_REVIEW_ASSIGNED` | `activation_claimed` | `EXTERNAL_REVIEWING` | VERIFIER |
 | `EXTERNAL_REVIEWING` | `external_review_judged` | `EXTERNAL_REVIEWED` | CONTROLLER, on the reviewer's judgment |
@@ -66,6 +77,11 @@ The state table maps `(state, event)` to a next state. It does not know what kin
 | `EXTERNAL_REVIEW_BLOCKED` | `environment_repaired` | `READY_EXTERNAL_REVIEW` | CONTROLLER |
 | any non-terminal | `admin_cancelled` | `CANCELLED` | ADMIN (existing, generic) |
 | lease and deadline events | (as the author and review stages have them) | | |
+
+Implement assigned/running ingest lease recovery before enabling issuance.
+OPERATOR can only claim its activation in the external state chain, never
+apply registration, refusal, review or integration events. Ingest consumes
+a normal host slot and stays outside the SERIAL engineering limit.
 
 **Two blocked states, not one.** The table maps a `(state, event)` pair to a single destination, so one blocked state could not return to two different places. Each blocked state belongs to the stage that blocked, as `AUTHOR_BLOCKED` and `REVIEW_BLOCKED` do.
 
@@ -100,17 +116,22 @@ The reviewer stays exactly as #70 left it: it runs offline under `GIT_NO_LAZY_FE
 The fetch happens earlier, in a separate **ingest** activation, and follows #69's own conditions:
 
 1. Ask GitHub for the PR's `headRefOid` and `baseRefOid` (`gh pr view <n> --json`).
-2. `git fetch origin refs/pull/<n>/head:refs/swarm/external/<task_id>` into the named repository, which is a namespaced ref rather than a branch.
+2. Fetch `origin refs/pull/<n>/head` into an activation-specific scratch ref under `refs/swarm/ingest-tmp/<task_id>/<activation_id>` in the named repository, without overwriting the final pin or relying on shared FETCH_HEAD.
 3. **Verify the fetched object equals `headRefOid`.** If it does not, the PR moved during the fetch: refuse and record both SHAs.
 4. If the operator named a SHA in the command, **verify it equals `headRefOid`**. This protects "review what I looked at" from a push landing between reading and submitting.
 5. Compute the review range: `expected_parent = merge-base(baseRefOid, head)`, i.e. GitHub's three-dot diff, so a base branch that moved on does not put other people's commits into the reviewed diff.
-6. Report `{head_sha, base_ref_sha, merge_base, changed_files, pr_number, pr_url, author_signals}`. The controller applies `external_candidate_registered` with that as evidence.
+6. Create `refs/swarm/external/<task_id>` with an expected-absent compare-and-swap. An existing identical pin is idempotent; a conflicting SHA is a refusal and is never overwritten. Report the versioned evidence specified in `92-ingest-contract.md` (including resolved/pinned SHAs). The controller validates the result before applying `external_candidate_registered`.
 
-`refs/swarm/external/<task_id>` is kept until the task is terminal and then deleted by the ingest worker on its next pass. It exists so the object cannot be garbage-collected between pinning and review.
+`refs/swarm/external/<task_id>` is kept through review so the object cannot be garbage-collected. Terminal cleanup belongs to the later publication slice and checks the recorded old SHA and absence of live ingest before deleting. The next ingest on the same task may remove expired attempts' scratch refs with an expected-old-SHA check; it must preserve live attempts and other tasks' refs.
+
+Open, draft, closed and merged PRs are allowed (David, 2026-10-15). Historical
+verdicts name the pinned head and the actual review time; they do not imply a
+review occurred before an earlier merge or change the PR's state. Ingest uses
+the PR's reported base/head metadata and a bounded remaining activation deadline.
 
 Failures follow #78's rule. "The PR does not exist" and "the PR moved" are **refusals**. "GitHub could not be reached" and "git fetch failed" are **environment defects** (`EXTERNAL_INGEST_BLOCKED`, repairable). They are never recorded as a judgment on the PR.
 
-**Which worker ingests.** `claudecode`: it already has `gh`, a checkout, and the integrator's network access. Ingest is a new stage (`ingest`) with a new role, which the `claudecode` worker learns to claim. It is not an integrate activation in disguise.
+**Which worker ingests.** `claudecode`: it already has `gh`, a checkout, and the integrator's network access. Ingest is a new model-free stage (`ingest`) using the existing activation-scoped OPERATOR role, which the `claudecode` worker learns to claim. The controller validates its evidence and applies controller-authority events. It is not an integrate activation in disguise.
 
 ## 7. Decision 5: a model does not grade its own work (ACCEPTED)
 

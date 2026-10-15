@@ -1,5 +1,44 @@
 # Agent Swarm imported project context
 
+## PR #102 Windows read locking and accepted #92 amendments — 2026-10-15
+
+Claude's re-review of `d9762b7b274be5093ceec4c0d6b496e836c27d92` is at
+https://github.com/Decksx/agent-swarm/pull/102#issuecomment-6201870664.
+All six earlier findings were accepted as fixed. That exact candidate passed
+all four CI checks in run `38802984535`: 1,979 core, 318 hub and eight bypass
+tests (2,305 passed, no failures/skips), in 3m50s. This evidence belongs to
+that commit, not the subsequent read-lock changes below.
+
+The new source takes the usage writer's OS mutex for public reads, holding it
+until the read handle closes. The writer uses a private already-locked reader
+to avoid recursive acquisition. Planner preflight converts mutex contention
+into a clear refusal before any call. A real cross-process open-file test
+checks read/write exclusion and persistence after the reader closes. All 126
+focused planner/host-setting/rate-guard/prompt tests passed on Windows. Three
+new in-memory mutations (unlocked read, different read mutex and unhandled
+preflight lock contention) were caught, as were the ten previous mutations.
+Fresh exact-head CI and Claude's renewed review are required after this change.
+
+Deployment order is explicit in README and the leadership design: do not use
+Claude planning until the updated worker has been deployed/restarted and its
+running source and effective guard directory checked. Keep the existing state
+directory (`C:\swarm-prod\agent-swarm` on OfficePC), hold and usage files. The
+old worker can erase planner records; the documentation change does not fix
+the already-running old process. No deployment/restart or paid planner call
+was performed in this follow-up. Token-only CLI hosts need a stored login;
+inherited OAuth/access-token overrides remain intentionally excluded.
+
+David explicitly chose all PR states (open, draft, closed, merged) and normal
+host-slot consumption outside the SERIAL engineering limit. Historical reviews
+record their actual review time without changing PR state or implying approval
+preceded an old merge. The #92 contract now includes Claude's amendments:
+OPERATOR boundary tests, generic full-base validation, branch_only proof_mode,
+controller-owned result checks, deadline-derived timeouts, task-scoped scratch
+cleanup and the exact admin request. The accepted #74 design lists the new
+assigned/running states and revised pin procedure. A proposed trusted controller
+EXTERNAL_REVIEW_REPOS map closes the missing-slug source; Claude still needs
+to check that configuration detail. No #92 runtime implementation is included.
+
 ## PR #102 review follow-up and #92 contract answers — 2026-10-15
 
 Claude's independent engineering review of `055471f` is recorded at

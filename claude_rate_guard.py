@@ -55,7 +55,17 @@ def read_holdoff(ratelimit_path: Path) -> float:
 
 
 def read_usage(usage_path: Path) -> list[tuple[float, float]]:
-    """Persisted (started, seconds) records. Missing is empty; malformed warns."""
+    """Read under the writer's mutex, including the open file's lifetime.
+
+    Windows cannot replace a destination held open by a reader. Serializing
+    both sides prevents a completed planner call losing its usage write.
+    """
+    with _exclusive(usage_path.with_name(usage_path.name + ".lock")):
+        return _read_usage_unlocked(usage_path)
+
+
+def _read_usage_unlocked(usage_path: Path) -> list[tuple[float, float]]:
+    """Caller holds the usage mutex. Missing is empty; malformed warns."""
     try:
         raw = json.loads(usage_path.read_text(encoding="utf-8"))
         if not isinstance(raw, list):
@@ -129,7 +139,8 @@ def record_usage(
     pending = [*usage_window, (start_time, elapsed_time)]
     try:
         with _exclusive(usage_path.with_name(usage_path.name + ".lock")):
-            combined = merge_usage(read_usage(usage_path), usage_window)
+            # Already holding the mutex; taking it again would deadlock.
+            combined = merge_usage(_read_usage_unlocked(usage_path), usage_window)
             combined.append((start_time, elapsed_time))
             pending = purge_old_usage(combined, start_time, cooldown_seconds)
             if not write_usage(usage_path, pending) and strict:
