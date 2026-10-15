@@ -236,6 +236,195 @@ deadline, measured with a monotonic clock. Heartbeat during long commands as
 bounded result. No command may start with an exhausted deadline, and retries
 must consume the same budget rather than resetting it.
 
+## 8. Wire format: ingest activation and result API
+
+Confirmed by Claude (controller lead) for both halves to build against. Changes
+to anything in this section need a doc commit reviewed by both leads first.
+
+### 8.1 The stored request (`task_versions.contract_yaml`)
+
+The external route stores the request as canonical JSON: sorted keys, no extra
+whitespace, UTF-8. JSON is valid YAML 1.2, so the column's meaning is
+unchanged, and the controller parses it with `json` (no YAML dependency). Its
+hash is the version's `contract_hash` as usual.
+
+```json
+{"external":{"at_sha":null,"authored_by":[],"paths":null,"pr_number":102,
+ "project":"agenthub","repo_location":"C:\\git\\agent-swarm",
+ "repo_slug":"Decksx/agent-swarm","schema_version":1},
+ "kind":"external_review","schema_version":7}
+```
+
+Field rules:
+- `at_sha` is lowercase 40-hex or `null`.
+- `paths` is a sorted list of unique repository-relative paths, or `null`.
+- `authored_by` is a sorted subset of `anthropic`, `openai`, `google` and `human`.
+
+The version row stores `base_sha=""` and `proof_mode="branch_only"`. The task's
+`objective` column holds the operator's objective.
+
+`task_id` must match `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`. It must not contain
+`..` and must not end in `.lock` or `.`. That makes
+`refs/swarm/external/<task_id>` a valid ref by construction; the worker still
+runs `git check-ref-format`.
+
+### 8.2 Issuance and claim
+
+Progression issues stage `ingest` for an `EXTERNAL_PENDING` task with no live
+activation. It needs the routing values `PROGRESSION_INGESTER` (the agent,
+normally `claudecode`) and `PROGRESSION_HOST`. The activation carries:
+
+| Column | Value |
+| --- | --- |
+| `role` | `operator` |
+| `stage` | `ingest` |
+| `expected_branch` | `refs/swarm/external/<task_id>` (the pin ref) |
+| `expected_candidate` | the request's `at_sha`, or `null` |
+| `expected_parent` | `null` |
+| `repo_location` | the request's `repo_location` |
+
+Issuing applies `ingest_activation_issued` (`EXTERNAL_PENDING` →
+`EXTERNAL_INGEST_ASSIGNED`). Claiming applies `activation_claimed`
+(→ `EXTERNAL_INGESTING`).
+
+The worker claims with `stages` including `"ingest"`; it is a model-free stage
+(`MODEL_FREE_STAGES`). `POST /controller/activations/claim` returns the usual
+fields, plus one object that only ingest activations get:
+
+```json
+{
+  "activation_id": "…", "task_id": "EXT-123", "task_version": 1,
+  "role": "operator", "stage": "ingest",
+  "expected_branch": "refs/swarm/external/EXT-123",
+  "expected_candidate": null, "expected_parent": null,
+  "repo_location": "C:\\git\\agent-swarm", "operator_context": null,
+  "lease_seconds_remaining": 900.0, "hard_deadline_seconds_remaining": 1800.0,
+  "server_seq": 1,
+  "external": {
+    "schema_version": 1, "project": "agenthub",
+    "repo_location": "C:\\git\\agent-swarm", "repo_slug": "Decksx/agent-swarm",
+    "pr_number": 102, "at_sha": null, "paths": null,
+    "pin_ref": "refs/swarm/external/EXT-123",
+    "scratch_ref_prefix": "refs/swarm/ingest-tmp/EXT-123/<activation_id>"
+  }
+}
+```
+
+- **`external` is the worker's only input.** It is parsed from the stored
+  request, never from the PR or from chat. The worker must not parse
+  `task_record.contract_yaml` itself.
+- **Check the state before any `gh` or `git`.** The worker proceeds only if the
+  fetched `task_record.state` is `EXTERNAL_INGESTING`. Otherwise it reports
+  `blocked` with `worker_error`, as the integrator does for `INTEGRATING`.
+- **Liveness.** Keep the lease alive with the existing
+  `POST /controller/activations/{id}/heartbeat`.
+
+### 8.3 Result route
+
+`POST /controller/activations/{activation_id}/ingest`. It is authenticated as
+the activation's agent; the body is
+`{"outcome": "...", "payload": {...}, "expected_state_seq": <optional int>}`.
+It follows the same discipline as `/integration`:
+- the caller and the live lease are checked first;
+- a submission against a non-ingest activation is refused (403);
+- an identical replay returns the cached response; a different second result
+  is refused (409).
+
+| `outcome` | Event | From → to |
+| --- | --- | --- |
+| `registered` | `external_candidate_registered` | `EXTERNAL_INGESTING` → `READY_EXTERNAL_REVIEW` |
+| `refused` | `external_ingest_refused` | `EXTERNAL_INGESTING` → `FAILED` |
+| `blocked` | `environment_defect` | `EXTERNAL_INGESTING` → `EXTERNAL_INGEST_BLOCKED` |
+
+All three events are applied with controller authority. The generic
+`/activations/{id}/result` route cannot produce any of them: with OPERATOR
+authority, its only possible effect in an external state is the claim, and
+tests pin that.
+
+**A payload that fails validation gets `422 ingest_report_invalid`.** The
+activation stays live and nothing is recorded. The worker should fix the report
+or report `blocked`/`refused` instead; it must not resend an invalid report
+unchanged.
+
+### 8.4 `registered` payload
+
+Every key below is required. Unknown keys are refused.
+
+| Key | Type and rule (checked by the controller) |
+| --- | --- |
+| `schema_version` | `1` |
+| `project`, `repo_location` | exactly equal to the stored request |
+| `repo_slug` | equal to the stored slug, case-insensitively |
+| `pr_number` | int, equal to the stored request |
+| `pr_url` | `https://github.com/<stored slug>/pull/<pr_number>`; slug compared case-insensitively |
+| `pr_state` | `open`, `closed` or `merged`, as reported by `gh` |
+| `pr_draft` | bool, as reported by `gh` |
+| `head_sha` | lowercase 40-hex: `headRefOid` from `gh` |
+| `resolved_ref_sha` | lowercase 40-hex, the fetched scratch object; must equal `head_sha` |
+| `base_ref_sha` | lowercase 40-hex: `baseRefOid` from `gh`, fetched by SHA |
+| `merge_base` | lowercase 40-hex, must differ from `head_sha` |
+| `pin_ref` | exactly `refs/swarm/external/<task_id>` |
+| `pin_created` | bool: `true` if this attempt created the pin, `false` if an identical one existed |
+| `changed_files` | non-empty, sorted, unique list of repository-relative paths, from `git diff --name-only <merge_base> <head_sha>`; no leading `/`, no `..` segment, each at most 4,096 characters |
+| `author_signals` | list of at most 500 items `{"kind","value","source"}` (see below) |
+
+`author_signals` items:
+- `kind` is one of `co_authored_by`, `commit_author_email` or `pr_body_footer`.
+- `value` is raw text of at most 512 characters.
+- `source` is `commit:<40-hex>` or `pr_body`.
+
+These are claims recorded verbatim. #93 maps them to model families.
+
+Further checks:
+- If the stored `at_sha` is set, `head_sha` must equal it.
+- The whole payload, as canonical JSON, must be at most 131,072 bytes.
+  Otherwise the worker reports `refused` with `evidence_too_large`.
+
+### 8.5 `refused` and `blocked` payloads
+
+```json
+{"schema_version": 1, "reason_code": "head_moved",
+ "detail": "<sanitized, at most 2,000 characters>",
+ "observed": {"head_sha": "…", "resolved_ref_sha": "…"}}
+```
+
+`observed` only ever holds lowercase 40-hex values under these keys: `head_sha`,
+`resolved_ref_sha`, `base_ref_sha`, `existing_pin_sha` and `at_sha`. `detail`
+never contains raw `gh` or `git` stderr.
+
+`refused` reason codes and what each must carry in `observed`:
+
+| `reason_code` | Required in `observed` | Controller check |
+| --- | --- | --- |
+| `pr_not_found` | none | none |
+| `head_moved` | `head_sha`, `resolved_ref_sha` | the two must differ |
+| `at_sha_mismatch` | `head_sha` | the stored `at_sha` must be set and differ |
+| `pin_conflict` | `head_sha`, `existing_pin_sha` | the two must differ |
+| `no_merge_base` | `head_sha`, `base_ref_sha` | none |
+| `empty_range` | `head_sha` | none |
+| `evidence_too_large` | `head_sha` | none |
+
+`blocked` reason codes, with `observed` optional:
+- `github_unreachable`
+- `gh_auth`
+- `gh_error`
+- `git_fetch_failed`
+- `object_missing`
+- `repo_unusable`
+- `repo_slug_mismatch`
+- `slug_not_configured`
+- `deadline_exhausted`
+- `worker_error`
+
+An unknown reason code under either outcome gets 422. A failure the worker
+cannot classify is `blocked` with `worker_error`, never `refused`.
+
+### 8.6 Client
+
+The worker side adds `controller_client.report_ingest(activation_id, *, outcome,
+payload)`. It posts to the route above, using the same `_submit` retry and
+idempotency discipline as `report_integration`.
+
 ## Shared acceptance cases
 
 Cover operator-SHA mismatch, moved/missing PR, network/git environment defects,
