@@ -4,7 +4,8 @@ This repository contains both the project source and the imported ChatGPT
 project documents. Start with [the maintained context](2026-10-15/PROJECT_CONTEXT.md).
 The root `AGENTS.md` points future Codex sessions here.
 
-Latest release: [deployment receipt](DEPLOYMENT_2026-10-15.md), including actual
+Latest release: [PR #102 deployment receipt](DEPLOYMENT_PR102_2026-10-15.md).
+Earlier release: [deployment receipt](DEPLOYMENT_2026-10-15.md), including actual
 merge commits, full checks, backups and the running-state verification.
 
 For the latest verified runtime facts, recovery prerequisite, and the remaining

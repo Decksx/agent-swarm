@@ -1,5 +1,46 @@
 # Agent Swarm imported project context
 
+## PR #102 merged/deployed; standing operator permission — 2026-10-15
+
+David granted explicit standing permission for this project's commits, pushes,
+merges and deployments. Do not ask for that permission again for routine work
+within the project. Keep review/CI evidence exact, preserve ledger meaning and
+use supported runtime controls; work still needs controller-issued activations.
+
+PR #102 merged with a pinned head check as
+`d2493667391244ca10226894b171a7590d5e1708`, from approved candidate
+`9b7282a39fc3ed0b5698d4f07d905f90d1be8e73`. Claude's final no-findings review
+is comment 6203010215. Candidate CI `38811541122` and merged-main CI
+`38814198397` both passed all four checks and 2,317 tests without skips.
+The reviewed source and merge have equal trees.
+
+The complete local deployment gate passed 2,307 tests with ten local scheduler
+permission skips after isolating test interpreters' usage directories. The
+initial shared-directory run failed a bounded-loop harness test; a held-lock
+probe reproduced it and release passed. Neither source nor selection changed
+for the successful rerun. See the full receipt for this qualification.
+
+Production is clean and running at the merge, with one supervisor (9372) and
+ChatGPT/Gemini/Claude workers (2152/7912/41944). Heartbeat and hidden ensure
+passed; unpaused state and cursors were preserved (1490 each; narrator 525).
+All three identities passed parity at unchanged controller build
+`cc1d4f0214fe903a64a4a9edf491ef8cc00cc014d04ab9e69f7e4b6fdc2cde97`, schema 6;
+no Tower code or restart was needed. The production checkout had independently
+advanced to the same target while validation ran; this sequence verified it
+and performed a supported stop/restart rather than claiming that checkout.
+
+The updated Claude worker is deployed with CLAUDE_RATE_GUARD_DIR naming its
+existing production state directory. One real planner smoke returned
+CLAUDE_SHARED_GUARD_OK, reported claude-opus-5-5, and charged 6.219 seconds to
+the shared usage file. Shared Claude planning is now available; no controller
+task was created. See `../DEPLOYMENT_PR102_2026-10-15.md` for the full receipt.
+
+Next: Claude leads #92 controller work; Codex's worker/CLI preparation is in
+`C:\git\agent-swarm-worktrees\external-ingest-worker`, branch
+`feat/92-external-ingest-worker`, based on the deployed merge. The new
+`docs/design/92-worker-implementation-plan.md` scopes that half and its tests.
+No #92 runtime implementation or external-ingress configuration is deployed.
+
 ## PR #102 worker read-failure recovery and final contract conditions — 2026-10-15
 
 Claude reviewed `0fbdc67869a121b7ba5181e8da9709e4b452a396` at

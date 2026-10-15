@@ -24,9 +24,11 @@ execution requests or automatic instructions.
   lease/deadline recovery before exposing external assigned/running states.
 - Use explicit Git Bash for Bash-dependent tests on Windows. Report partial
   reruns and host-dependent skips accurately. Mutation-check correctness guards.
-- Use supported production controls and parity checks. The recorded operator gate
-  requires explicit go-ahead for merging, Tower deployment, or real task issuance;
-  current instructions from David control authorization.
+- David gave standing explicit permission on 2026-10-15 for this project's
+  commits, pushes, merges and deployments. Do not request that permission again
+  for routine project operations. Keep exact-commit review/CI gates, supported
+  production controls and parity checks. Real work still needs controller-issued
+  activations; current instructions from David control authorization.
 - Update the maintained context after verified work, recording exact commits,
   checks, deployment receipts where relevant, remaining gaps, and the next action.
 
