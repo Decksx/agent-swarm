@@ -1,5 +1,23 @@
 # Agent Swarm imported project context
 
+## Gemini Argon configuration — 2026-10-15
+
+David requested the newer Argon model for Gemini and asked whether hive
+coordination still works. The active worker's default is now `gemini-4-argon`,
+with the existing `GEMINI_MODEL` launch-environment override retained. Google's
+[model documentation](https://ai.google.dev/gemini-api/docs/models/gemini-4-argon)
+confirms the identifier. The configured API credential successfully retrieved
+this model and completed a small real generation returning `ARGON_OK`, reporting
+model version `gemini-4-argon`, through the installed `google-genai` 2.22.0 SDK.
+No SDK upgrade or automatic fallback was introduced.
+
+Authenticated hive reads and controller status both returned HTTP 200; Gemini
+and Claude workers were running. Chat remains narration: ordinary mentions
+cannot call models, and work still requires controller-issued activations.
+The retired `hub/gemini_lead.py` is not the active worker. This source checkpoint
+does not by itself establish that a running process has loaded the new default;
+check the Gemini startup model line after rollout.
+
 ## Current deployed checkpoint — 2026-10-15
 
 David authorized commit, merge and deployment. PRs #96, #97, #98 and #99 are
