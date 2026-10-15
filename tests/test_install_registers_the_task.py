@@ -132,6 +132,8 @@ def install(checkout, **overrides) -> subprocess.CompletedProcess:
     env["PATH"] = str(binaries) + os.pathsep + env["PATH"]
     env["SWARM_CONTROL_DIR"] = str(root / "control")
     env["SWARM_TASK_NAME"] = PROBE_TASK
+    # The script's default is OfficePC's interpreter, not the CI runner's.
+    env["SUPERVISOR_PYTHON"] = sh(Path(sys.executable))
     env.update({name: str(value) for name, value in overrides.items()})
 
     return subprocess.run(
