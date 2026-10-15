@@ -8,8 +8,9 @@ the suite jobs it waits on succeeded. These pin that, because each way of
 getting it wrong leaves a green `pytest-unit` that proves less than it says:
 
 - a suite job it does not wait on can fail without turning it red;
-- without `if: always()` it is *skipped* when a suite fails, and a skipped
-  check is FINISHED_CLEAN to the integrator;
+- without `if: always()` it is *skipped* when a suite fails. The CI wait
+  treats a skipped check as FINISHED_CLEAN; final evidence (`ci_evidence`)
+  rejects it, but the required check should be red, not skipped;
 - a suite left out of every job is never run at all.
 
 Read as text rather than parsed, so the test needs nothing CI does not install.
@@ -85,7 +86,7 @@ def test_pytest_unit_waits_on_every_suite_job():
 def test_pytest_unit_reports_even_when_a_suite_fails():
     assert re.search(r"(?m)^    if:\s*always\(\)\s*$", jobs()["pytest-unit"]), (
         "without if: always() the aggregate is skipped when a suite fails, "
-        "and the integrator reads skipped as clean"
+        "and the integrator's CI wait reads skipped as clean"
     )
 
 

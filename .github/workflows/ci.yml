@@ -69,9 +69,11 @@ jobs:
           pytest hub/ -n auto --durations=25
 
   # Required by name. `if: always()` so it reports a conclusion even when a
-  # suite fails or is cancelled: without it the job would be *skipped*, and
-  # a skipped check reads as clean to the integrator (FINISHED_CLEAN in
-  # integrator.py). It succeeds only on two explicit successes.
+  # suite fails or is cancelled: without it the job would be *skipped*. The
+  # integrator's CI wait tolerates a skipped check (FINISHED_CLEAN in
+  # integrator.py); its final evidence does not, but the required check
+  # should say red when a suite failed rather than leave that to a later
+  # step. It succeeds only on two explicit successes.
   pytest-unit:
     needs: [pytest-core, pytest-hub]
     if: always()
