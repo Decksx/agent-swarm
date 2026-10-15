@@ -64,7 +64,7 @@ HERE = Path(__file__).resolve().parent
 # The model that plans. Named here rather than taken from the environment: the
 # planner's identity belongs in the evidence for a plan, and a variable
 # somebody exported last week is not evidence.
-GEMINI_MODEL = os.environ.get("GEMINI_PLANNER_MODEL", "gemini-3.6-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_PLANNER_MODEL", "gemini-4-argon")
 
 # Who a plan may assign work to. The controller checks this again; it is here
 # so the planner is told, rather than guessing and having the whole plan

@@ -81,7 +81,7 @@ AGENT_IDENTITY = swarm_control.bind_identity(
 # or against '@name' mentions, because neither can start work any more.
 SELF_HANDLES = {"gemini"}
 
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-4-argon")
 
 HERE = Path(__file__).resolve().parent
 STATE_FILE = HERE / "gemini_worker.state"
