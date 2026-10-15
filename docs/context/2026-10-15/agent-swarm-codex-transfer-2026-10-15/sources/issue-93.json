@@ -1,0 +1,24 @@
+{
+  "url": "https://github.com/Decksx/agent-swarm/issues/93",
+  "title": "#74 slice 3: @swarm review command and cross-family routing",
+  "issue_number": 93,
+  "body": "Implements [§7 and §8 of the design](docs/design/74-external-review.md). Part of #74; depends on slice 2.\n\n- Add `@swarm review #<pr> [at <sha>]` with optional `authored-by:` and `paths:`, following the same draft → `@swarm confirm` flow as tasks. The draft shows the PR's head, its title, and the verifier routing would pick.\n- Author families come from `Co-Authored-By` trailers, agent footers and author emails, unioned with the operator's `authored-by:`. Never replaced.\n- Progression issues the review only to a verifier of a different family. If none is eligible, the task is a persistent decline `no_eligible_verifier`, announced once through #77. It is never self-reviewed.\n- Re-review of the same PR at a new head is a **new task** (§11.1).\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nhttps://claude.ai/code/session_01Ruk3qwhMWdupZ7NS8r4RLV",
+  "state": "open",
+  "user": {
+    "login": "Decksx",
+    "name": "Decksx",
+    "email": null,
+    "avatar_url": "https://avatars.githubusercontent.com/u/20764723?v=4",
+    "id": 20764723
+  },
+  "assignees": null,
+  "labels": null,
+  "milestone": null,
+  "state_reason": null,
+  "comments": 0,
+  "created_at": "2026-09-24T21:39:58Z",
+  "updated_at": "2026-09-24T21:39:58Z",
+  "closed_at": null,
+  "display_url": "https://github.com/Decksx/agent-swarm/issues/93",
+  "display_title": "#74 slice 3: @swarm review command and cross-family routing"
+}

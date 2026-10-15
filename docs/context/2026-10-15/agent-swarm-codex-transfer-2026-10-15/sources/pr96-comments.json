@@ -1,0 +1,10 @@
+[
+  {
+    "url": "https://github.com/Decksx/agent-swarm/pull/96#discussion_r4098880164",
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Block premature external-review entry**\n\nWhen an authenticated admin submits `external_review_requested` through the existing `POST /tasks/{task_id}/transition` route, that route applies ADMIN authority to any event not listed in `ROUTED_ELSEWHERE`, so this new edge is already publicly reachable. The task then enters `EXTERNAL_PENDING`, but this slice provides no ingest activation or worker capable of emitting `external_candidate_registered`; it can only be cancelled or superseded. Refuse this event through the generic route until the dedicated external-review ingress is implemented, otherwise an API call can strand a draft in the incomplete state chain.\n\nUseful? React with 👍 / 👎."
+  },
+  {
+    "url": "https://github.com/Decksx/agent-swarm/pull/96#pullrequestreview-5310695070",
+    "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `c5891f2e9a`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>"
+  }
+]

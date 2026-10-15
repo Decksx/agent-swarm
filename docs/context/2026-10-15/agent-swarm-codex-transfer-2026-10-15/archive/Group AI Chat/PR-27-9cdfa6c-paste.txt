@@ -1,0 +1,752 @@
+PR #27 review packet (paste form). Decksx/agent-swarm
+Base:      09f0c2a47739e756ababf1cf9fa8e8376006f4cb
+Candidate: 9cdfa6c4640e6c2f7a2c44f83e71bdd05ec12db7
+
+Three files from the review packet follow, verbatim, each between BEGIN/END markers. Their SHA-256 values are from the packet's MANIFEST.sha256, which the operator validated before pasting. You cannot recompute hashes from pasted text, so REVIEW.md step 1 (manifest check) has been done by the operator. Do not mark a criterion UNVERIFIABLE for that reason alone. Do mark it UNVERIFIABLE if the pasted content is incomplete or truncated.
+
+Criterion 1 can be checked from diff.patch itself: it shows execute_integration and _report_integration removed from claude_worker.py in full, and claude_integration.py added in full.
+
+===== BEGIN REVIEW.md (sha256 90354901d05a807e6e3176b335b0b5a0e503d6fbcd9dcfc3878bcb14132f4caf) =====
+# Review packet: Decksx/agent-swarm PR #27
+
+**Title:** Extract integration from claude_worker into claude_integration (#25, part 1)
+
+| | |
+|---|---|
+| Repository | `Decksx/agent-swarm` |
+| Pull request | #27 (open, not merged) |
+| Base commit | `09f0c2a47739e756ababf1cf9fa8e8376006f4cb` |
+| Candidate commit (PR head) | `9cdfa6c4640e6c2f7a2c44f83e71bdd05ec12db7` |
+| Authoring route | Operator-authored (documented on issue #25) |
+
+This packet is read-only evidence. Every source file was extracted with `git show <sha>:<path>` from the commits above and checked against the committed blob hash. No working-tree, untracked, environment, credential, database or runtime-state file is included.
+
+## Objective
+
+`claude_worker.py` was 49,975 characters against `authored_change.DEFAULT_FILE_VIEW` = 50,000, the size limit an author can be shown whole. This PR moves the integration path — `execute_integration` and `_report_integration`, which make no model call — into a new module, `claude_integration.py`, **without changing behaviour**.
+
+## Acceptance criteria
+
+1. **Verbatim move.** `claude_integration.execute_integration` and `_report_integration` are identical to the same functions in `09f0c2a:claude_worker.py`, except that (a) the signature adds a keyword-only `actor: str`, and (b) `actor=AGENT_IDENTITY` becomes `actor=actor`. Unchanged: the lazy `import integrator`, call-time `os.environ` reads, refusal messages and outcomes, exception handling, the result record, and reporting order.
+2. **No reverse dependency.** `claude_integration.py` does not import `claude_worker`, and it logs on the `"claude_worker"` logger.
+3. **Compatibility wrapper.** `claude_worker.execute_integration(activation, queue=None)` keeps its signature, reads `AGENT_IDENTITY` at call time and passes it as `actor`; `execute_activation` still dispatches to it. A patched `claude_worker.AGENT_IDENTITY` is observed.
+4. **Nothing else changes in `claude_worker.py`**, and it is comfortably under 50,000 characters.
+5. **Tests.** The only existing test changed is the one-line source path in `tests/test_author_project_environment.py` (it reads the required-variable check from the file that now contains it). The new `tests/test_claude_integration_extraction.py` tests what it claims.
+6. **Protected paths.** Nothing under `controller/` or `hub/hub.py` changes, so the Tower deployment payload (build `2d7c9f666678`) is unaffected.
+
+## Changed files (`name-status.txt`)
+
+```
+A	claude_integration.py
+M	claude_worker.py
+M	tests/test_author_project_environment.py
+A	tests/test_claude_integration_extraction.py
+```
+
+```
+ claude_integration.py                       | 159 ++++++++++++++++++++++++++++
+ claude_worker.py                            | 144 ++-----------------------
+ tests/test_author_project_environment.py    |   2 +-
+ tests/test_claude_integration_extraction.py | 127 ++++++++++++++++++++++
+ 4 files changed, 294 insertions(+), 138 deletions(-)
+```
+
+## Test and CI results (details in `verification.txt`)
+
+All run in a fresh detached worktree at the candidate commit.
+
+| Check | Result |
+|---|---|
+| Candidate `claude_worker.py` size | 44,675 chars (base 49,975) |
+| Moved logic vs base | 6 changed lines: the signature and the `actor` argument only |
+| Import smoke test (clean interpreters) | `claude_integration` imports without `claude_worker`; both import orders succeed |
+| Focused tests | 45 passed |
+| Full required suites (`deploy_controller.sh --tests-only`) | 1351 passed; 247 passed |
+| Bypass suite (`pytest tests/ -k bypass`) | 8 passed |
+| PR CI | `pytest-unit` pass; `pytest-bypass` pass |
+| Protected-path diff (`controller/`, `hub/hub.py`) | Empty |
+| Verification worktree after all runs | Clean: no modified, untracked or ignored runtime files |
+
+## Packet contents
+
+| File | What it is |
+|---|---|
+| `REVIEW.md` | This file |
+| `diff.patch` | `git diff --binary 09f0c2a..9cdfa6c` |
+| `diff-stat.txt` | `git diff --stat 09f0c2a..9cdfa6c` |
+| `name-status.txt` | `git diff --name-status 09f0c2a..9cdfa6c` |
+| `protected-path-diff.txt` | `git diff 09f0c2a..9cdfa6c -- controller/ hub/hub.py`, with an explicit empty/non-empty statement |
+| `sources/candidate/…` | Every added or modified file at `9cdfa6c` |
+| `sources/base/…` | `claude_worker.py` and `tests/test_author_project_environment.py` at `09f0c2a` |
+| `verification.txt` | Size, moved-logic diff, wrapper, smoke test, focused / full / bypass test output, CI, cleanliness, blob checks |
+| `MANIFEST.sha256` | SHA-256 of every other file in this packet |
+
+## Instructions for Gemini
+
+Perform a **read-only** review. Do not modify anything.
+
+1. Check `MANIFEST.sha256` against the files you received. If any file is missing or its hash does not match, report every criterion that depends on it as **UNVERIFIABLE**.
+2. Evaluate each of the six acceptance criteria above using `diff.patch`, `sources/`, and `verification.txt`. Verify criterion 1 against `sources/base/claude_worker.py` and `sources/candidate/claude_integration.py` directly, not only against the recorded comparison.
+3. Report every criterion as **PASS**, **FAIL** (with concrete file and line evidence), or **UNVERIFIABLE** (with the reason).
+4. Then give an overall verdict:
+   - **PASS** only if all six criteria are PASS.
+   - Otherwise, **BLOCKED**, followed by an itemized list of blockers, each naming the criterion, the file and line, and what would resolve it.
+
+Do not infer a PASS for anything you could not check.
+===== END REVIEW.md =====
+
+===== BEGIN diff.patch (sha256 05cccc4fb3ecd91aa40951b34660ec7014eaf25f5329d37561f86407eaaaadd3) =====
+diff --git a/claude_integration.py b/claude_integration.py
+new file mode 100644
+index 0000000..3ce9630
+--- /dev/null
++++ b/claude_integration.py
+@@ -0,0 +1,159 @@
++"""Integration: landing an approved candidate, with no model call.
++
++Extracted from `claude_worker` unchanged, so that module fits the author's
++file view (#25). `claude_worker.execute_integration` is still the entry point;
++it passes the worker's identity in as `actor`, so this module never imports
++`claude_worker`. Logging stays on the "claude_worker" logger.
++"""
++
++from __future__ import annotations
++
++import logging
++import os
++from typing import Any
++
++log = logging.getLogger("claude_worker")
++
++
++def execute_integration(
++    activation: dict, queue: Any = None, *, actor: str
++) -> None:
++    """Land an approved candidate. No model is called anywhere in this path.
++
++    Every question integration asks has a factual answer: is this the approved
++    commit, is the target where it was pinned, did the checks pass, did the
++    push land. A model could only make those answers less predictable, and the
++    one thing an integrator must be is predictable.
++
++    **The authority checks come first and are not negotiable.** A side effect
++    that reaches a real repository needs more than a task that looks ready: it
++    needs a live activation this worker holds, for the integrate stage, on a
++    task the controller has actually moved to INTEGRATING. A bare
++    READY_INTEGRATION task is not sufficient -- that is a task nobody has been
++    told to integrate, and acting on it would mean this worker decided to.
++    """
++    activation_id = activation.get("activation_id")
++    task_record = activation.get("task_record") or {}
++    task_id = activation.get("task_id") or task_record.get("task_id") or "task"
++
++    def refuse(reason: str, outcome: str = "refused", **extra) -> None:
++        log.error("integration %s refused: %s", activation_id, reason)
++        _report_integration(
++            queue, activation_id, outcome, {"reason": reason, **extra}
++        )
++
++    if str(activation.get("stage") or "").lower() != "integrate":
++        refuse("this is not an integrate activation", outcome="blocked")
++        return
++
++    # The controller's own state, not the activation's say-so. An activation
++    # is evidence that something was issued; the task's state is evidence that
++    # the controller applied it.
++    state = str(task_record.get("state") or "").strip()
++
++    if state != "INTEGRATING":
++        refuse(
++            f"{task_id} is {state or 'in no state at all'}, not INTEGRATING. "
++            "An approved task that nobody has been told to integrate is not a "
++            "task to integrate; the activation is what says so, and the state "
++            "is what proves it was issued.",
++            outcome="blocked",
++        )
++        return
++
++    for name in ("INTEGRATION_REPO", "INTEGRATION_TARGET_REF",
++                 "INTEGRATION_REPO_SLUG", "INTEGRATION_WORK_ROOT"):
++        if not os.environ.get(name, "").strip():
++            refuse(f"{name} is not configured on this host", outcome="blocked")
++            return
++
++    # The branch the CONTROLLER issued this activation against. Not a pull
++    # request number: nothing in the controller has ever produced one, and the
++    # worker taking one from its input would mean whoever assembled that input
++    # chose what got merged. The integrator derives the pull request from this
++    # branch, the ledger's approved candidate, and the host's configuration,
++    # and refuses on anything but exactly one open match.
++    branch = str(activation.get("expected_branch") or "").strip()
++
++    if not branch:
++        refuse(
++            "the activation names no expected_branch, so there is nothing to "
++            "find a pull request from. An integrate activation is issued with "
++            "the same evidence a review is.",
++            outcome="blocked",
++        )
++        return
++
++    try:
++        import integrator
++    except ImportError as exc:
++        refuse(f"the integrator is not importable: {exc}", outcome="blocked")
++        return
++
++    log.info(
++        "INTEGRATING activation %s for task %s from %s",
++        activation_id, task_id, branch,
++    )
++
++    try:
++        record = integrator.run_integration(
++            task_record,
++            repo=os.environ["INTEGRATION_REPO"],
++            target_ref=os.environ["INTEGRATION_TARGET_REF"],
++            branch=branch,
++            repo_slug=os.environ["INTEGRATION_REPO_SLUG"],
++            work_root=os.environ["INTEGRATION_WORK_ROOT"],
++            required_suites=[
++                name for name in
++                os.environ.get("INTEGRATION_REQUIRED_SUITES", "").split(",")
++                if name.strip()
++            ],
++            actor=actor,
++        )
++    except integrator.IntegrationRefused as exc:
++        # Every refusal before the push leaves nothing changed. A refusal
++        # after it -- the parent or tree check -- means the merge landed and
++        # does not match, which is a reconciliation and says so in its own
++        # message rather than being flattened into "refused" here.
++        refuse(str(exc))
++        return
++    except Exception as exc:
++        log.error("integration %s failed unexpectedly", activation_id,
++                  exc_info=True)
++        refuse(f"the integration attempt failed: {exc}", outcome="blocked")
++        return
++
++    log.info(
++        "INTEGRATED %s: %s -> %s on %s",
++        task_id, record["candidate_sha"][:12], record["merge_sha"][:12],
++        record["target_ref"],
++    )
++
++    _report_integration(queue, activation_id, "integrated", record)
++
++
++def _report_integration(
++    queue: Any, activation_id: Any, outcome: str, payload: dict
++) -> None:
++    """Report through /integration, never the author route.
++
++    The controller checks the stage, so a misdirected submission is refused
++    rather than applied to the wrong task -- but sending it to the right place
++    is this worker's job, not the controller's to correct.
++    """
++    if queue is None:
++        log.warning(
++            "no controller queue; integration %s outcome %r not reported",
++            activation_id, outcome,
++        )
++        return
++
++    try:
++        queue.report_integration(
++            activation_id, outcome=outcome, payload=payload
++        )
++    except Exception:
++        log.error(
++            "could not report integration %s as %r", activation_id, outcome,
++            exc_info=True,
++        )
+diff --git a/claude_worker.py b/claude_worker.py
+index 874bd72..2e12cf3 100644
+--- a/claude_worker.py
++++ b/claude_worker.py
+@@ -74,6 +74,7 @@ from pathlib import Path
+ from typing import Any
+ 
+ import authored_change
++import claude_integration
+ import controller_client
+ import swarm_control
+ 
+@@ -670,145 +671,14 @@ def execute_activation(
+ 
+ 
+ def execute_integration(activation: dict, queue: Any = None) -> None:
+-    """Land an approved candidate. No model is called anywhere in this path.
+-
+-    Every question integration asks has a factual answer: is this the approved
+-    commit, is the target where it was pinned, did the checks pass, did the
+-    push land. A model could only make those answers less predictable, and the
+-    one thing an integrator must be is predictable.
+-
+-    **The authority checks come first and are not negotiable.** A side effect
+-    that reaches a real repository needs more than a task that looks ready: it
+-    needs a live activation this worker holds, for the integrate stage, on a
+-    task the controller has actually moved to INTEGRATING. A bare
+-    READY_INTEGRATION task is not sufficient -- that is a task nobody has been
+-    told to integrate, and acting on it would mean this worker decided to.
+-    """
+-    activation_id = activation.get("activation_id")
+-    task_record = activation.get("task_record") or {}
+-    task_id = activation.get("task_id") or task_record.get("task_id") or "task"
+-
+-    def refuse(reason: str, outcome: str = "refused", **extra) -> None:
+-        log.error("integration %s refused: %s", activation_id, reason)
+-        _report_integration(
+-            queue, activation_id, outcome, {"reason": reason, **extra}
+-        )
+-
+-    if str(activation.get("stage") or "").lower() != "integrate":
+-        refuse("this is not an integrate activation", outcome="blocked")
+-        return
+-
+-    # The controller's own state, not the activation's say-so. An activation
+-    # is evidence that something was issued; the task's state is evidence that
+-    # the controller applied it.
+-    state = str(task_record.get("state") or "").strip()
+-
+-    if state != "INTEGRATING":
+-        refuse(
+-            f"{task_id} is {state or 'in no state at all'}, not INTEGRATING. "
+-            "An approved task that nobody has been told to integrate is not a "
+-            "task to integrate; the activation is what says so, and the state "
+-            "is what proves it was issued.",
+-            outcome="blocked",
+-        )
+-        return
+-
+-    for name in ("INTEGRATION_REPO", "INTEGRATION_TARGET_REF",
+-                 "INTEGRATION_REPO_SLUG", "INTEGRATION_WORK_ROOT"):
+-        if not os.environ.get(name, "").strip():
+-            refuse(f"{name} is not configured on this host", outcome="blocked")
+-            return
+-
+-    # The branch the CONTROLLER issued this activation against. Not a pull
+-    # request number: nothing in the controller has ever produced one, and the
+-    # worker taking one from its input would mean whoever assembled that input
+-    # chose what got merged. The integrator derives the pull request from this
+-    # branch, the ledger's approved candidate, and the host's configuration,
+-    # and refuses on anything but exactly one open match.
+-    branch = str(activation.get("expected_branch") or "").strip()
+-
+-    if not branch:
+-        refuse(
+-            "the activation names no expected_branch, so there is nothing to "
+-            "find a pull request from. An integrate activation is issued with "
+-            "the same evidence a review is.",
+-            outcome="blocked",
+-        )
+-        return
+-
+-    try:
+-        import integrator
+-    except ImportError as exc:
+-        refuse(f"the integrator is not importable: {exc}", outcome="blocked")
+-        return
+-
+-    log.info(
+-        "INTEGRATING activation %s for task %s from %s",
+-        activation_id, task_id, branch,
+-    )
+-
+-    try:
+-        record = integrator.run_integration(
+-            task_record,
+-            repo=os.environ["INTEGRATION_REPO"],
+-            target_ref=os.environ["INTEGRATION_TARGET_REF"],
+-            branch=branch,
+-            repo_slug=os.environ["INTEGRATION_REPO_SLUG"],
+-            work_root=os.environ["INTEGRATION_WORK_ROOT"],
+-            required_suites=[
+-                name for name in
+-                os.environ.get("INTEGRATION_REQUIRED_SUITES", "").split(",")
+-                if name.strip()
+-            ],
+-            actor=AGENT_IDENTITY,
+-        )
+-    except integrator.IntegrationRefused as exc:
+-        # Every refusal before the push leaves nothing changed. A refusal
+-        # after it -- the parent or tree check -- means the merge landed and
+-        # does not match, which is a reconciliation and says so in its own
+-        # message rather than being flattened into "refused" here.
+-        refuse(str(exc))
+-        return
+-    except Exception as exc:
+-        log.error("integration %s failed unexpectedly", activation_id,
+-                  exc_info=True)
+-        refuse(f"the integration attempt failed: {exc}", outcome="blocked")
+-        return
++    """Land an approved candidate; see `claude_integration`. No model call.
+ 
+-    log.info(
+-        "INTEGRATED %s: %s -> %s on %s",
+-        task_id, record["candidate_sha"][:12], record["merge_sha"][:12],
+-        record["target_ref"],
+-    )
+-
+-    _report_integration(queue, activation_id, "integrated", record)
+-
+-
+-def _report_integration(
+-    queue: Any, activation_id: Any, outcome: str, payload: dict
+-) -> None:
+-    """Report through /integration, never the author route.
+-
+-    The controller checks the stage, so a misdirected submission is refused
+-    rather than applied to the wrong task -- but sending it to the right place
+-    is this worker's job, not the controller's to correct.
++    The identity is read here, at call time, and passed in, so the extracted
++    module does not import this one and a patched AGENT_IDENTITY is honoured.
+     """
+-    if queue is None:
+-        log.warning(
+-            "no controller queue; integration %s outcome %r not reported",
+-            activation_id, outcome,
+-        )
+-        return
+-
+-    try:
+-        queue.report_integration(
+-            activation_id, outcome=outcome, payload=payload
+-        )
+-    except Exception:
+-        log.error(
+-            "could not report integration %s as %r", activation_id, outcome,
+-            exc_info=True,
+-        )
++    claude_integration.execute_integration(
++        activation, queue, actor=AGENT_IDENTITY
++    )
+ 
+ 
+ def _execute_author(
+diff --git a/tests/test_author_project_environment.py b/tests/test_author_project_environment.py
+index 08b6446..4106a24 100644
+--- a/tests/test_author_project_environment.py
++++ b/tests/test_author_project_environment.py
+@@ -281,7 +281,7 @@ def test_the_launcher_provides_exactly_what_the_worker_demands(checkout):
+     """
+     import re
+ 
+-    source = (REPO_ROOT / "claude_worker.py").read_text(encoding="utf-8")
++    source = (REPO_ROOT / "claude_integration.py").read_text(encoding="utf-8")
+     block = source[source.index("def execute_integration"):]
+     block = block[:block.index("refuse(f\"{name} is not configured")]
+     demanded = set(re.findall(r'"(INTEGRATION_[A-Z_]+)"', block))
+diff --git a/tests/test_claude_integration_extraction.py b/tests/test_claude_integration_extraction.py
+new file mode 100644
+index 0000000..30bde05
+--- /dev/null
++++ b/tests/test_claude_integration_extraction.py
+@@ -0,0 +1,127 @@
++"""Integration lives in `claude_integration`, and nothing about it moved but the file.
++
++Extracted from `claude_worker` so that module fits the author's file view
++(#25). These pin the three things a move like that can quietly break: an
++import cycle, the entry point callers and tests use, and where the worker's
++identity comes from.
++"""
++
++from __future__ import annotations
++
++import subprocess
++import sys
++import types
++from pathlib import Path
++
++import pytest
++
++REPO_ROOT = Path(__file__).resolve().parent.parent
++
++
++def _fresh_import(statement: str) -> subprocess.CompletedProcess:
++    """Run an import in a clean interpreter, so no earlier test has warmed it."""
++    return subprocess.run(
++        [sys.executable, "-c", statement],
++        cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=60,
++    )
++
++
++def test_the_extracted_module_does_not_import_the_worker():
++    done = _fresh_import(
++        "import sys, claude_integration; "
++        "assert 'claude_worker' not in sys.modules, 'claude_integration imported claude_worker'"
++    )
++    assert done.returncode == 0, done.stderr
++
++
++def test_either_module_imports_first_without_a_cycle():
++    for statement in (
++        "import claude_worker, claude_integration",
++        "import claude_integration, claude_worker",
++    ):
++        done = _fresh_import(statement)
++        assert done.returncode == 0, f"{statement}: {done.stderr}"
++
++
++def test_the_worker_entry_point_is_still_where_callers_find_it():
++    import claude_integration
++    import claude_worker
++
++    assert callable(claude_worker.execute_integration)
++    assert claude_worker.execute_integration is not claude_integration.execute_integration
++    assert claude_integration.log is claude_worker.log
++
++
++@pytest.fixture
++def integrating(monkeypatch):
++    """An integrate activation the path accepts, and a stub integrator that records its call."""
++    for name, value in (
++        ("INTEGRATION_REPO", "C:/repo"),
++        ("INTEGRATION_TARGET_REF", "refs/heads/main"),
++        ("INTEGRATION_REPO_SLUG", "owner/repo"),
++        ("INTEGRATION_WORK_ROOT", "C:/work"),
++        ("INTEGRATION_REQUIRED_SUITES", "ci:a,ci:b"),
++    ):
++        monkeypatch.setenv(name, value)
++
++    calls = []
++    stub = types.ModuleType("integrator")
++
++    class IntegrationRefused(Exception):
++        pass
++
++    def run_integration(task_record, **kwargs):
++        calls.append(kwargs)
++        return {"candidate_sha": "1" * 40, "merge_sha": "2" * 40,
++                "target_ref": kwargs["target_ref"]}
++
++    stub.IntegrationRefused = IntegrationRefused
++    stub.run_integration = run_integration
++    monkeypatch.setitem(sys.modules, "integrator", stub)
++
++    activation = {
++        "activation_id": "act-1", "task_id": "T-1", "stage": "integrate",
++        "expected_branch": "task/T-1-a1",
++        "task_record": {"task_id": "T-1", "state": "INTEGRATING"},
++    }
++    return activation, calls
++
++
++class Queue:
++    def __init__(self):
++        self.reports = []
++
++    def report_integration(self, activation_id, *, outcome, payload):
++        self.reports.append((activation_id, outcome, payload))
++
++
++def test_a_patched_worker_identity_reaches_the_integrator(monkeypatch, integrating):
++    """Read at call time from `claude_worker`, not captured at import."""
++    import claude_worker
++
++    activation, calls = integrating
++    monkeypatch.setattr(claude_worker, "AGENT_IDENTITY", "patched-identity")
++    queue = Queue()
++
++    claude_worker.execute_integration(activation, queue)
++
++    assert [c["actor"] for c in calls] == ["patched-identity"]
++    assert calls[0]["required_suites"] == ["ci:a", "ci:b"]
++    assert queue.reports == [("act-1", "integrated", {
++        "candidate_sha": "1" * 40, "merge_sha": "2" * 40, "target_ref": "refs/heads/main",
++    })]
++
++
++def test_dispatch_still_reaches_integration_through_the_worker(monkeypatch, integrating):
++    """`execute_activation` routes through `claude_worker.execute_integration`."""
++    import claude_worker
++
++    activation, calls = integrating
++    seen = []
++    monkeypatch.setattr(claude_worker, "execute_integration",
++                        lambda a, q=None: seen.append(a["activation_id"]))
++
++    claude_worker.execute_activation(None, "claude", activation, Queue())
++
++    assert seen == ["act-1"]
++    assert calls == []
+===== END diff.patch =====
+
+===== BEGIN verification.txt (sha256 a9685ad0d40830e5ea8c7d3765899f7bb5cddd9decdc5c8ca157c62a1929c85e) =====
+PR #27 review packet: verification record
+Generated: 2026-09-14 09:12:16 -0600
+Repository: Decksx/agent-swarm (local C:\git\agent-swarm)
+Base:      09f0c2a47739e756ababf1cf9fa8e8376006f4cb
+Candidate: 9cdfa6c4640e6c2f7a2c44f83e71bdd05ec12db7
+All commands below ran in a fresh detached worktree created at the candidate commit (no working-tree files from any other checkout).
+
+== 1. Character count
+candidate claude_worker.py: 44675 chars (base: 49975; authored_change.DEFAULT_FILE_VIEW = 50000)
+candidate claude_integration.py: 6239 chars
+
+== 2. Moved logic: base execute_integration/_report_integration vs candidate claude_integration.py
+--- 09f0c2a:claude_worker.py [execute_integration.._report_integration]
++++ 9cdfa6c:claude_integration.py [execute_integration.._report_integration]
+@@ -1,4 +1,6 @@
+-def execute_integration(activation: dict, queue: Any = None) -> None:
++def execute_integration(
++    activation: dict, queue: Any = None, *, actor: str
++) -> None:
+     """Land an approved candidate. No model is called anywhere in this path.
+ 
+     Every question integration asks has a factual answer: is this the approved
+@@ -89,7 +91,7 @@
+                 os.environ.get("INTEGRATION_REQUIRED_SUITES", "").split(",")
+                 if name.strip()
+             ],
+-            actor=AGENT_IDENTITY,
++            actor=actor,
+         )
+     except integrator.IntegrationRefused as exc:
+         # Every refusal before the push leaves nothing changed. A refusal
+
+changed lines (excluding headers): 6
+
+Candidate claude_worker.execute_integration (compatibility wrapper):
+def execute_integration(activation: dict, queue: Any = None) -> None:
+    """Land an approved candidate; see `claude_integration`. No model call.
+
+    The identity is read here, at call time, and passed in, so the extracted
+    module does not import this one and a patched AGENT_IDENTITY is honoured.
+    """
+    claude_integration.execute_integration(
+        activation, queue, actor=AGENT_IDENTITY
+    )
+
+
+Candidate claude_integration.py import statements:
+from __future__ import annotations
+import logging
+import os
+from typing import Any
+
+== 3. Import / circular-dependency smoke test (clean interpreters)
+$ python -c 'import sys, claude_integration; assert "claude_worker" not in sys.modules'
+claude_integration imported without claude_worker
+exit=0
+$ python -c 'import claude_worker, claude_integration'
+ok
+exit=0
+$ python -c 'import claude_integration, claude_worker'
+ok
+exit=0
+
+== 4. Focused tests (extraction, stage dispatch, author project environment, view budgets)
+============================= test session starts =============================
+platform win32 -- Python 3.11.3, pytest-9.1.1, pluggy-1.6.0 -- C:\Python311\python.exe
+rootdir: C:\Users\david\AppData\Local\Temp\claude\C--git\df50afa4-2c3b-416e-bc12-32a33a0b6569\scratchpad\verify-9cdfa6c
+configfile: pytest.ini
+plugins: anyio-4.15.0
+collecting ... collected 45 items
+
+tests/test_claude_integration_extraction.py::test_the_extracted_module_does_not_import_the_worker PASSED [  2%]
+tests/test_claude_integration_extraction.py::test_either_module_imports_first_without_a_cycle PASSED [  4%]
+tests/test_claude_integration_extraction.py::test_the_worker_entry_point_is_still_where_callers_find_it PASSED [  6%]
+tests/test_claude_integration_extraction.py::test_a_patched_worker_identity_reaches_the_integrator PASSED [  8%]
+tests/test_claude_integration_extraction.py::test_dispatch_still_reaches_integration_through_the_worker PASSED [ 11%]
+tests/test_worker_stage_dispatch.py::test_an_unknown_stage_is_refused_before_any_model_call PASSED [ 13%]
+tests/test_worker_stage_dispatch.py::test_an_integration_activation_never_reaches_the_model PASSED [ 15%]
+tests/test_worker_stage_dispatch.py::test_an_integration_reports_through_the_integration_route PASSED [ 17%]
+tests/test_worker_stage_dispatch.py::test_exactly_one_merge_attempt_and_one_outcome PASSED [ 20%]
+tests/test_worker_stage_dispatch.py::test_a_ready_integration_task_is_not_sufficient_to_merge PASSED [ 22%]
+tests/test_worker_stage_dispatch.py::test_an_activation_of_another_stage_cannot_reach_the_merge PASSED [ 24%]
+tests/test_worker_stage_dispatch.py::test_an_uncertain_task_is_not_merged PASSED [ 26%]
+tests/test_worker_stage_dispatch.py::test_an_activation_with_no_branch_blocks_rather_than_merges PASSED [ 28%]
+tests/test_worker_stage_dispatch.py::test_the_branch_is_passed_through_and_no_pr_number_is PASSED [ 31%]
+tests/test_worker_stage_dispatch.py::test_an_unconfigured_host_blocks_rather_than_guessing PASSED [ 33%]
+tests/test_worker_stage_dispatch.py::test_a_refused_integration_is_reported_as_refused PASSED [ 35%]
+tests/test_worker_stage_dispatch.py::test_an_unexpected_failure_blocks_rather_than_refusing PASSED [ 37%]
+tests/test_worker_stage_dispatch.py::test_the_ledger_record_is_what_gets_reported PASSED [ 40%]
+tests/test_author_project_environment.py::test_the_supervisor_is_started_knowing_which_project_to_author PASSED [ 42%]
+tests/test_author_project_environment.py::test_an_operator_can_still_say_which_project PASSED [ 44%]
+tests/test_author_project_environment.py::test_the_default_names_a_project_that_resolves PASSED [ 46%]
+tests/test_author_project_environment.py::test_the_supervisor_is_started_knowing_where_to_review PASSED [ 48%]
+tests/test_author_project_environment.py::test_an_operator_can_still_say_where_to_review PASSED [ 51%]
+tests/test_author_project_environment.py::test_the_integrator_is_given_every_variable_it_refuses_without PASSED [ 53%]
+tests/test_author_project_environment.py::test_the_launcher_provides_exactly_what_the_worker_demands PASSED [ 55%]
+tests/test_author_project_environment.py::test_the_required_suites_are_named PASSED [ 57%]
+tests/test_author_project_environment.py::test_the_required_suites_carry_the_prefix_the_integrator_builds PASSED [ 60%]
+tests/test_author_project_environment.py::test_the_required_suites_name_the_workflow_jobs_after_the_prefix PASSED [ 62%]
+tests/test_author_project_environment.py::test_the_required_suites_are_check_run_names_not_paths PASSED [ 64%]
+tests/test_author_project_environment.py::test_the_merge_target_is_a_full_ref PASSED [ 66%]
+tests/test_author_project_environment.py::test_the_integrator_does_not_merge_inside_the_canonical_checkout PASSED [ 68%]
+tests/test_author_project_environment.py::test_an_operator_can_still_say_where_integration_lands PASSED [ 71%]
+tests/test_author_project_environment.py::test_a_worker_inherits_what_the_supervisor_was_given PASSED [ 73%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[authored_change.py] PASSED [ 75%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[chatgpt_worker.py] PASSED [ 77%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[claude_worker.py] PASSED [ 80%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[controller/activations.py] PASSED [ 82%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[controller/api.py] PASSED [ 84%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[integrator.py] PASSED [ 86%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[supervisor.py] PASSED [ 88%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[swarm_control.py] PASSED [ 91%]
+tests/test_view_budgets_fit_this_repository.py::test_every_other_root_module_fits PASSED [ 93%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_and_its_tests_fit_together PASSED [ 95%]
+tests/test_view_budgets_fit_this_repository.py::test_the_per_file_cap_does_not_exceed_the_budget_it_spends_from PASSED [ 97%]
+tests/test_view_budgets_fit_this_repository.py::test_two_writable_files_at_the_cap_are_both_shown_whole PASSED [100%]
+
+======================== 45 passed in 80.10s (0:01:20) ========================
+focused exit=0
+
+== 5. Full required suites: DEPLOY_PYTHON=/c/Python311/python ./deploy_controller.sh --tests-only
+deploy: 11 files from /tmp/claude/C--git/df50afa4-2c3b-416e-bc12-32a33a0b6569/scratchpad/verify-9cdfa6c
+deploy: commit   9cdfa6c4640e6c2f7a2c44f83e71bdd05ec12db7
+deploy: build id 2d7c9f666678 over 11 files
+deploy: running suite -- controller, workers and planning
+deploy: ok   1351 passed, 3 warnings in 354.94s (0:05:54)
+deploy: running suite -- hub and controller HTTP surface
+deploy: ok   247 passed, 1 warning in 41.52s
+deploy: all 2 required suites passed
+deploy: --tests-only, so stopping before the copy
+gate exit=0
+
+== 6. Bypass suite: python -m pytest tests/ -k bypass -v
+============================= test session starts =============================
+platform win32 -- Python 3.11.3, pytest-9.1.1, pluggy-1.6.0 -- C:\Python311\python.exe
+rootdir: C:\Users\david\AppData\Local\Temp\claude\C--git\df50afa4-2c3b-416e-bc12-32a33a0b6569\scratchpad\verify-9cdfa6c
+configfile: pytest.ini
+plugins: anyio-4.15.0
+collecting ... collected 1351 items / 1343 deselected / 8 selected
+
+tests/test_chat_ingress_bypass.py::test_every_bypass_names_a_real_test PASSED [ 12%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[create_table_if_not_exists] PASSED [ 25%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[hash_equality] PASSED [ 37%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[compare_and_swap_in_one_transaction] PASSED [ 50%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[pending_only] PASSED [ 62%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[draft_exists] PASSED [ 75%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[hash_sorts_keys] PASSED [ 87%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[rows_read_by_position] PASSED [100%]
+
+===================== 8 passed, 1343 deselected in 1.20s ======================
+bypass exit=0
+
+== 7. PR #27 CI checks (gh pr checks 27), head 9cdfa6c4640e6c2f7a2c44f83e71bdd05ec12db7
+pytest-bypass	pass	38s	https://github.com/Decksx/agent-swarm/actions/runs/34857391419/job/104020367578	
+pytest-unit	pass	7m35s	https://github.com/Decksx/agent-swarm/actions/runs/34857391419/job/104020367167	
+
+== 8. Working-tree cleanliness of the verification worktree after all runs
+untracked or modified (git status --porcelain --untracked-files=all):
+[end]
+ignored entries (git status --porcelain --ignored), caches excluded:
+[end]
+HEAD: 9cdfa6c4640e6c2f7a2c44f83e71bdd05ec12db7
+
+== 9. Protected paths
+Command: git diff 09f0c2a47739e756ababf1cf9fa8e8376006f4cb..9cdfa6c4640e6c2f7a2c44f83e71bdd05ec12db7 -- controller/ hub/hub.py
+Result: EMPTY -- no changes under controller/ or to hub/hub.py.
+
+== 10. Extracted sources vs committed blobs (git hash-object == git rev-parse <sha>:<path>)
+match  sources/candidate/claude_integration.py  (9cdfa6c4640e6c2f7a2c44f83e71bdd05ec12db7:claude_integration.py)
+match  sources/candidate/claude_worker.py  (9cdfa6c4640e6c2f7a2c44f83e71bdd05ec12db7:claude_worker.py)
+match  sources/candidate/tests/test_author_project_environment.py  (9cdfa6c4640e6c2f7a2c44f83e71bdd05ec12db7:tests/test_author_project_environment.py)
+match  sources/candidate/tests/test_claude_integration_extraction.py  (9cdfa6c4640e6c2f7a2c44f83e71bdd05ec12db7:tests/test_claude_integration_extraction.py)
+match  sources/base/claude_worker.py  (09f0c2a47739e756ababf1cf9fa8e8376006f4cb:claude_worker.py)
+match  sources/base/tests/test_author_project_environment.py  (09f0c2a47739e756ababf1cf9fa8e8376006f4cb:tests/test_author_project_environment.py)
+===== END verification.txt =====
+

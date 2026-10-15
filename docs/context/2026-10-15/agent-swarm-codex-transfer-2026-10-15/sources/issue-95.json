@@ -1,0 +1,24 @@
+{
+  "url": "https://github.com/Decksx/agent-swarm/issues/95",
+  "title": "#74 slice 5: first use, and the end of relayed verdicts",
+  "issue_number": 95,
+  "body": "Implements [§10.5 and §11.4 of the design](docs/design/74-external-review.md). Part of #74; depends on slice 4.\n\n- Review a real out-of-band PR with `@swarm review` and merge it only on its `external_review_judged` verdict.\n- From then on, **every merge to `main` either comes through `@swarm` or carries an `external_review_judged` event for its exact head SHA.** No exemptions (§11.4).\n- Document the rule where merges are recorded, and close #58 once the first ledger-native external verdict has gated a merge.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nhttps://claude.ai/code/session_01Ruk3qwhMWdupZ7NS8r4RLV",
+  "state": "open",
+  "user": {
+    "login": "Decksx",
+    "name": "Decksx",
+    "email": null,
+    "avatar_url": "https://avatars.githubusercontent.com/u/20764723?v=4",
+    "id": 20764723
+  },
+  "assignees": null,
+  "labels": null,
+  "milestone": null,
+  "state_reason": null,
+  "comments": 0,
+  "created_at": "2026-09-24T21:40:01Z",
+  "updated_at": "2026-09-24T21:40:01Z",
+  "closed_at": null,
+  "display_url": "https://github.com/Decksx/agent-swarm/issues/95",
+  "display_title": "#74 slice 5: first use, and the end of relayed verdicts"
+}

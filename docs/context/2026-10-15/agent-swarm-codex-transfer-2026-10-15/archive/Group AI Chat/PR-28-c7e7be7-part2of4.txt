@@ -1,0 +1,460 @@
+PART 2 OF 4 -- do not give a verdict until all 4 parts are received.
+
+PR #28 review packet (paste form), continued.
+
+===== BEGIN diff.patch (sha256 17ab3b6dfac3a81d0e22d6fa3ca387a92d560e2a90410a0fc586a93ff6a084c9) =====
+diff --git a/claude_rate_guard.py b/claude_rate_guard.py
+new file mode 100644
+index 0000000..ec3a97e
+--- /dev/null
++++ b/claude_rate_guard.py
+@@ -0,0 +1,153 @@
++"""The model-usage rate guard, as logic over state the caller passes in.
++
++Extracted from `claude_worker` unchanged in behaviour, so that module fits the
++author's file view (#25). The state -- the hold-off and usage paths, both
++thresholds, and the in-memory usage window -- still lives in `claude_worker`,
++which passes it in on every call and stores back any window returned. That is
++what keeps a value patched on `claude_worker` effective at call time, and it
++is why this module never imports `claude_worker`. Logging stays on the
++"claude_worker" logger.
++
++After the window trips, the worker waits RATE_LIMIT_COOLDOWN_SECONDS and then
++resumes by itself. Previously it stopped accepting work until somebody
++restarted it, which is a manual step in a system whose whole point is not
++needing one -- and an operator who did not notice would find a worker that
++looked healthy and had quietly stopped working hours earlier.
++"""
++
++from __future__ import annotations
++
++import json
++import logging
++import time
++from pathlib import Path
++
++log = logging.getLogger("claude_worker")
++
++
++def read_holdoff(ratelimit_path: Path) -> float:
++    """The epoch time the current hold-off ends, or 0.0 if there is none."""
++    try:
++        return float(ratelimit_path.read_text(encoding="utf-8").strip())
++    except (OSError, ValueError):
++        # Missing is the ordinary case; unreadable is treated the same way
++        # rather than as an indefinite hold, because a file nothing can parse
++        # would otherwise stop this worker forever.
++        return 0.0
++
++
++def read_usage(usage_path: Path) -> list[tuple[float, float]]:
++    """Persisted (started, seconds) records. Missing is empty; malformed warns."""
++    try:
++        raw = json.loads(usage_path.read_text(encoding="utf-8"))
++        if not isinstance(raw, list):
++            raise TypeError(type(raw).__name__)
++        return [(float(started), float(seconds)) for started, seconds in raw]
++    except FileNotFoundError:
++        return []
++    except (OSError, TypeError, ValueError):
++        log.warning("could not read usage file; treating as empty")
++        return []
++
++
++def write_usage(usage_path: Path, usage_window: list[tuple[float, float]]) -> None:
++    """Persist the rolling window of usage seconds."""
++    try:
++        with open(usage_path, "w", encoding="utf-8") as f:
++            json.dump(usage_window, f)
++    except OSError as exc:
++        log.error("could not persist usage: %s", exc)
++
++
++def purge_old_usage(
++    usage_window: list[tuple[float, float]], now: float, cooldown_seconds: float
++) -> list[tuple[float, float]]:
++    """Remove usage outside the rolling window; returns a new list."""
++    cutoff = now - cooldown_seconds
++    return [
++        (timestamp, usage) for (timestamp, usage) in usage_window
++        if timestamp >= cutoff
++    ]
++
++
++def current_usage_total(
++    usage_window: list[tuple[float, float]], now: float, cooldown_seconds: float
++) -> tuple[list[tuple[float, float]], float]:
++    """The purged window, and the total usage seconds within it."""
++    usage_window = purge_old_usage(usage_window, now, cooldown_seconds)
++    return usage_window, sum(usage for _, usage in usage_window)
++
++
++def record_usage(
++    usage_path: Path, usage_window: list[tuple[float, float]],
++    start_time: float, elapsed_time: float, cooldown_seconds: float,
++) -> list[tuple[float, float]]:
++    """Record model usage; appends to the given list, returns the purged one."""
++    usage_window.append((start_time, elapsed_time))
++    usage_window = purge_old_usage(usage_window, start_time, cooldown_seconds)
++    write_usage(usage_path, usage_window)
++    return usage_window
++
++
++def begin_holdoff(ratelimit_path: Path, now: float, cooldown_seconds: float) -> float:
++    """Start a hold-off and return when it ends."""
++    until = now + cooldown_seconds
++
++    try:
++        ratelimit_path.write_text(f"{until:.0f}", encoding="utf-8")
++    except OSError as exc:
++        log.error("could not persist the rate hold-off: %s", exc)
++
++    return until
++
++
++def end_holdoff(ratelimit_path: Path) -> None:
++    """Clear the hold-off."""
++    try:
++        ratelimit_path.unlink()
++    except FileNotFoundError:
++        pass
++    except OSError as exc:
++        log.warning("could not clear the rate hold-off: %s", exc)
++
++
++def rate_limit_reason(
++    now: float | None, *, ratelimit_path: Path,
++    usage_window: list[tuple[float, float]],
++    warn_seconds: float, cooldown_seconds: float,
++) -> tuple[str | None, list[tuple[float, float]]]:
++    """Why no new work should be claimed right now (or None), and the window.
++
++    Recovers on its own. When the hold-off deadline passes, the deadline is
++    cleared, and work resumes with no restart and no operator action.
++
++    Deliberately returns a reason rather than calling anything: this is
++    consulted before the claim, so a guarded worker takes no activation and
++    makes no provider call at all. Claiming and then refusing would consume
++    work it had already decided not to do.
++    """
++    now = time.time() if now is None else now
++    until = read_holdoff(ratelimit_path)
++
++    if until:
++        if now < until:
++            return (
++                f"rate hold-off until {time.strftime('%H:%M:%S', time.localtime(until))} "
++                f"({(until - now) / 60:.0f} min remaining)"
++            ), usage_window
++
++        end_holdoff(ratelimit_path)
++        log.info("rate hold-off has expired; accepting work again")
++        return None, usage_window
++
++    usage_window, total_usage = current_usage_total(usage_window, now, cooldown_seconds)
++
++    if total_usage >= warn_seconds:
++        until = begin_holdoff(ratelimit_path, now, cooldown_seconds)
++        return (
++            f"worker usage {total_usage/3600:.1f}h reached the "
++            f"{warn_seconds / 3600:.1f}h window; holding off for "
++            f"{cooldown_seconds / 3600:.1f}h"
++        ), usage_window
++
++    return None, usage_window
+diff --git a/claude_worker.py b/claude_worker.py
+index 2e12cf3..cdd157b 100644
+--- a/claude_worker.py
++++ b/claude_worker.py
+@@ -75,6 +75,7 @@ from typing import Any
+ 
+ import authored_change
+ import claude_integration
++import claude_rate_guard
+ import controller_client
+ import swarm_control
+ 
+@@ -164,11 +165,8 @@ RATE_LIMIT_WARN_SECONDS = float(
+     os.environ.get("RATE_LIMIT_WARN_SECONDS", str(4.5 * 3600))
+ )
+ 
+-# After the window trips, the worker waits this long and then resumes by
+-# itself. Previously it stopped accepting work until somebody restarted it,
+-# which is a manual step in a system whose whole point is not needing one --
+-# and an operator who did not notice would find a worker that looked healthy
+-# and had quietly stopped working hours earlier.
++# After the window trips, the worker waits this long, then resumes by itself
++# (see claude_rate_guard).
+ RATE_LIMIT_COOLDOWN_SECONDS = float(
+     os.environ.get("RATE_LIMIT_COOLDOWN_SECONDS", str(5 * 3600))
+ )
+@@ -301,122 +299,62 @@ _process_usage_window: list[tuple[float, float]] = []
+ _rate_limit_alert_sent = False
+ 
+ 
++# The guard's logic is in claude_rate_guard. These keep its names here and
++# pass the state above in at call time, so patches on this module still apply.
+ def _read_holdoff() -> float:
+-    """The epoch time the current hold-off ends, or 0.0 if there is none."""
+-    try:
+-        return float(RATELIMIT_PATH.read_text(encoding="utf-8").strip())
+-    except (OSError, ValueError):
+-        # Missing is the ordinary case; unreadable is treated the same way
+-        # rather than as an indefinite hold, because a file nothing can parse
+-        # would otherwise stop this worker forever.
+-        return 0.0
++    return claude_rate_guard.read_holdoff(RATELIMIT_PATH)
+ 
+ 
+ def _read_usage() -> list[tuple[float, float]]:
+-    """Persisted (started, seconds) records. Missing is empty; malformed warns."""
+-    try:
+-        raw = json.loads(USAGE_PATH.read_text(encoding="utf-8"))
+-        if not isinstance(raw, list):
+-            raise TypeError(type(raw).__name__)
+-        return [(float(started), float(seconds)) for started, seconds in raw]
+-    except FileNotFoundError:
+-        return []
+-    except (OSError, TypeError, ValueError):
+-        log.warning("could not read usage file; treating as empty")
+-        return []
++    return claude_rate_guard.read_usage(USAGE_PATH)
+ 
+ 
+ def _write_usage(usage_window: list[tuple[float, float]]) -> None:
+-    """Persist the rolling window of usage seconds."""
+-    try:
+-        with open(USAGE_PATH, "w", encoding="utf-8") as f:
+-            json.dump(usage_window, f)
+-    except OSError as exc:
+-        log.error("could not persist usage: %s", exc)
++    claude_rate_guard.write_usage(USAGE_PATH, usage_window)
+ 
+ 
+ def _purge_old_usage(now: float) -> None:
+-    """Remove usage outside the rolling window."""
+     global _process_usage_window
+-    cutoff = now - RATE_LIMIT_COOLDOWN_SECONDS
+-    _process_usage_window = [
+-        (timestamp, usage) for (timestamp, usage) in _process_usage_window
+-        if timestamp >= cutoff
+-    ]
++    _process_usage_window = claude_rate_guard.purge_old_usage(
++        _process_usage_window, now, RATE_LIMIT_COOLDOWN_SECONDS
++    )
+ 
+ 
+ def _current_usage_total(now: float) -> float:
+-    """Return the total usage seconds within the rolling window."""
+-    _purge_old_usage(now)
+-    return sum(usage for _, usage in _process_usage_window)
++    global _process_usage_window
++    _process_usage_window, total = claude_rate_guard.current_usage_total(
++        _process_usage_window, now, RATE_LIMIT_COOLDOWN_SECONDS
++    )
++    return total
+ 
+ 
+ def _record_usage(start_time: float, elapsed_time: float) -> None:
+-    """Record model usage."""
+     global _process_usage_window
+-    _process_usage_window.append((start_time, elapsed_time))
+-    _purge_old_usage(start_time)
+-    _write_usage(_process_usage_window)
++    _process_usage_window = claude_rate_guard.record_usage(
++        USAGE_PATH, _process_usage_window, start_time, elapsed_time,
++        RATE_LIMIT_COOLDOWN_SECONDS,
++    )
+ 
+ 
+ def _begin_holdoff(now: float) -> float:
+-    """Start a hold-off and return when it ends."""
+-    until = now + RATE_LIMIT_COOLDOWN_SECONDS
+-
+-    try:
+-        RATELIMIT_PATH.write_text(f"{until:.0f}", encoding="utf-8")
+-    except OSError as exc:
+-        log.error("could not persist the rate hold-off: %s", exc)
+-
+-    return until
++    return claude_rate_guard.begin_holdoff(
++        RATELIMIT_PATH, now, RATE_LIMIT_COOLDOWN_SECONDS
++    )
+ 
+ 
+ def _end_holdoff() -> None:
+-    """Clear the hold-off."""
+-    try:
+-        RATELIMIT_PATH.unlink()
+-    except FileNotFoundError:
+-        pass
+-    except OSError as exc:
+-        log.warning("could not clear the rate hold-off: %s", exc)
++    claude_rate_guard.end_holdoff(RATELIMIT_PATH)
+ 
+ 
+ def rate_limit_reason(now: float | None = None) -> str | None:
+-    """Why no new work should be claimed right now, or None to proceed.
+-
+-    Recovers on its own. When the hold-off deadline passes, the deadline is
+-    cleared, and work resumes with no restart and no operator action.
+-
+-    Deliberately returns a reason rather than calling anything: this is
+-    consulted before the claim, so a guarded worker takes no activation and
+-    makes no provider call at all. Claiming and then refusing would consume
+-    work it had already decided not to do.
+-    """
+-    now = time.time() if now is None else now
+-    until = _read_holdoff()
+-
+-    if until:
+-        if now < until:
+-            return (
+-                f"rate hold-off until {time.strftime('%H:%M:%S', time.localtime(until))} "
+-                f"({(until - now) / 60:.0f} min remaining)"
+-            )
+-
+-        _end_holdoff()
+-        log.info("rate hold-off has expired; accepting work again")
+-        return None
+-
+-    total_usage = _current_usage_total(now)
+-
+-    if total_usage >= RATE_LIMIT_WARN_SECONDS:
+-        until = _begin_holdoff(now)
+-        return (
+-            f"worker usage {total_usage/3600:.1f}h reached the "
+-            f"{RATE_LIMIT_WARN_SECONDS / 3600:.1f}h window; holding off for "
+-            f"{RATE_LIMIT_COOLDOWN_SECONDS / 3600:.1f}h"
+-        )
+-
+-    return None
++    """Why no new work should be claimed now, or None; see claude_rate_guard."""
++    global _process_usage_window
++    reason, _process_usage_window = claude_rate_guard.rate_limit_reason(
++        now, ratelimit_path=RATELIMIT_PATH, usage_window=_process_usage_window,
++        warn_seconds=RATE_LIMIT_WARN_SECONDS,
++        cooldown_seconds=RATE_LIMIT_COOLDOWN_SECONDS,
++    )
++    return reason
+ 
+ 
+ def record_rate_limit_alert_sent() -> None:
+diff --git a/tests/test_claude_rate_guard_extraction.py b/tests/test_claude_rate_guard_extraction.py
+new file mode 100644
+index 0000000..0038752
+--- /dev/null
++++ b/tests/test_claude_rate_guard_extraction.py
+@@ -0,0 +1,111 @@
++"""The rate guard's logic lives in `claude_rate_guard`; its state stays in `claude_worker`.
++
++Extracted so `claude_worker` fits the author's file view (#25). The guard is
++configured by patching `claude_worker` -- in tests, and through the module's
++own globals at runtime -- so the move is only safe if every one of those
++values is still read when the guard runs, not captured when it was imported.
++"""
++
++from __future__ import annotations
++
++import subprocess
++import sys
++from pathlib import Path
++
++import pytest
++
++REPO_ROOT = Path(__file__).resolve().parent.parent
++NOW = 1_000_000.0
++
++
++def _fresh_import(statement: str) -> subprocess.CompletedProcess:
++    return subprocess.run(
++        [sys.executable, "-c", statement],
++        cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=60,
++    )
++
++
++def test_the_guard_module_does_not_import_the_worker():
++    done = _fresh_import(
++        "import sys, claude_rate_guard; "
++        "assert 'claude_worker' not in sys.modules, 'claude_rate_guard imported claude_worker'"
++    )
++    assert done.returncode == 0, done.stderr
++
++
++def test_either_module_imports_first_without_a_cycle():
++    for statement in (
++        "import claude_worker, claude_rate_guard",
++        "import claude_rate_guard, claude_worker",
++    ):
++        done = _fresh_import(statement)
++        assert done.returncode == 0, f"{statement}: {done.stderr}"
++
++
++def test_the_names_stay_on_the_worker_and_share_its_logger():
++    import claude_rate_guard
++    import claude_worker
++
++    for name in ("rate_limit_reason", "_read_holdoff", "_read_usage", "_write_usage",
++                 "_purge_old_usage", "_current_usage_total", "_record_usage",
++                 "_begin_holdoff", "_end_holdoff", "record_rate_limit_alert_sent",
++                 "RATELIMIT_PATH", "USAGE_PATH", "RATE_LIMIT_WARN_SECONDS",
++                 "RATE_LIMIT_COOLDOWN_SECONDS", "_process_usage_window",
++                 "_rate_limit_alert_sent"):
++        assert hasattr(claude_worker, name), name
++    assert claude_rate_guard.log is claude_worker.log
++
++
++@pytest.fixture
++def worker(tmp_path, monkeypatch):
++    import claude_worker
++
++    monkeypatch.setattr(claude_worker, "RATELIMIT_PATH", tmp_path / "first.rl")
++    monkeypatch.setattr(claude_worker, "USAGE_PATH", tmp_path / "first.usage")
++    monkeypatch.setattr(claude_worker, "RATE_LIMIT_WARN_SECONDS", 100.0)
++    monkeypatch.setattr(claude_worker, "RATE_LIMIT_COOLDOWN_SECONDS", 50.0)
++    monkeypatch.setattr(claude_worker, "_process_usage_window", [])
++    return claude_worker
++
++
++def test_paths_patched_after_import_are_the_ones_used(worker, monkeypatch, tmp_path):
++    monkeypatch.setattr(worker, "RATELIMIT_PATH", tmp_path / "second.rl")
++    monkeypatch.setattr(worker, "USAGE_PATH", tmp_path / "second.usage")
++
++    worker._record_usage(NOW - 1.0, 150.0)
++    assert worker.rate_limit_reason(now=NOW) is not None
++
++    assert (tmp_path / "second.usage").exists() and (tmp_path / "second.rl").exists()
++    assert not (tmp_path / "first.usage").exists() and not (tmp_path / "first.rl").exists()
++
++
++def test_thresholds_patched_after_import_are_the_ones_used(worker, monkeypatch):
++    monkeypatch.setattr(worker, "_process_usage_window", [(NOW - 1.0, 150.0)])
++    monkeypatch.setattr(worker, "RATE_LIMIT_WARN_SECONDS", 1000.0)
++    assert worker.rate_limit_reason(now=NOW) is None
++
++    monkeypatch.setattr(worker, "RATE_LIMIT_WARN_SECONDS", 120.0)
++    monkeypatch.setattr(worker, "RATE_LIMIT_COOLDOWN_SECONDS", 7200.0)
++    reason = worker.rate_limit_reason(now=NOW)
++    assert reason == "worker usage 0.0h reached the 0.0h window; holding off for 2.0h"
++    assert float(worker.RATELIMIT_PATH.read_text(encoding="utf-8")) == NOW + 7200.0
++
++
++def test_the_window_is_read_from_and_stored_back_on_the_worker(worker, monkeypatch):
++    patched = [(NOW - 100.0, 5.0), (NOW - 1.0, 7.0)]
++    monkeypatch.setattr(worker, "_process_usage_window", patched)
++
++    assert worker._current_usage_total(NOW) == 7.0
++    assert worker._process_usage_window == [(NOW - 1.0, 7.0)]
++
++    worker._record_usage(NOW, 3.0)
++    assert worker._process_usage_window == [(NOW - 1.0, 7.0), (NOW, 3.0)]
++    assert worker._read_usage() == [(NOW - 1.0, 7.0), (NOW, 3.0)]
++
++
++def test_the_alert_flag_is_still_set_on_the_worker(monkeypatch):
++    import claude_worker
++
++    monkeypatch.setattr(claude_worker, "_rate_limit_alert_sent", False)
++    claude_worker.record_rate_limit_alert_sent()
++    assert claude_worker._rate_limit_alert_sent is True
+===== END diff.patch =====
