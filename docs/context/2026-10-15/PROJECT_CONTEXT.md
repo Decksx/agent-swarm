@@ -15,6 +15,8 @@ lock and persist with atomic replacement so stale process windows cannot erase
 each other. The elapsed-time proxy is retained, not presented as a provider
 quota measurement. Shared accounting requires deploying/restarting the updated
 Claude worker; no such deployment has occurred.
+Merging legacy usage windows also preserves repeated identical call records;
+the timestamp/duration pair is not treated as a unique record ID.
 
 On OfficePC, non-secret Windows user settings now name the installed Codex
 executable in CODEX_CLI and the existing production state directory in

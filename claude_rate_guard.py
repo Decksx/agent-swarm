@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import time
+from collections import Counter
 from pathlib import Path
 
 from swarm_control import AlreadyRunning, _exclusive
@@ -99,6 +100,22 @@ def current_usage_total(
     return usage_window, sum(usage for _, usage in usage_window)
 
 
+def merge_usage(persisted: list, in_memory: list) -> list:
+    """Merge two views without deleting legitimate identical call records.
+
+    The legacy format has no record IDs. Preserve the greatest multiplicity
+    observed in either view, rather than treating each (time, duration) pair
+    as a set member or charging the same mirrored window twice.
+    """
+    result = list(persisted)
+    missing = Counter(in_memory) - Counter(persisted)
+    for record in in_memory:
+        if missing[record]:
+            result.append(record)
+            missing[record] -= 1
+    return result
+
+
 def record_usage(
     usage_path: Path, usage_window: list[tuple[float, float]],
     start_time: float, elapsed_time: float, cooldown_seconds: float,
@@ -112,7 +129,7 @@ def record_usage(
     pending = [*usage_window, (start_time, elapsed_time)]
     try:
         with _exclusive(usage_path.with_name(usage_path.name + ".lock")):
-            combined = list(dict.fromkeys([*read_usage(usage_path), *usage_window]))
+            combined = merge_usage(read_usage(usage_path), usage_window)
             combined.append((start_time, elapsed_time))
             pending = purge_old_usage(combined, start_time, cooldown_seconds)
             if not write_usage(usage_path, pending) and strict:

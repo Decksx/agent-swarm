@@ -354,9 +354,9 @@ def _end_holdoff() -> None:
 def rate_limit_reason(now: float | None = None) -> str | None:
     """Why no new work should be claimed now, or None; see claude_rate_guard."""
     global _process_usage_window
-    _process_usage_window = list(dict.fromkeys([
-        *_read_usage(), *_process_usage_window,
-    ]))
+    _process_usage_window = claude_rate_guard.merge_usage(
+        _read_usage(), _process_usage_window,
+    )
     reason, _process_usage_window = claude_rate_guard.rate_limit_reason(
         now, ratelimit_path=RATELIMIT_PATH, usage_window=_process_usage_window,
         warn_seconds=RATE_LIMIT_WARN_SECONDS,

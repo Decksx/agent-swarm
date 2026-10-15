@@ -124,3 +124,13 @@ def test_stale_writer_cannot_erase_another_process_usage(tmp_path):
     claude_rate_guard.record_usage(path, [], NOW, 5.0, 50.0)
     claude_rate_guard.record_usage(path, [], NOW + 1, 7.0, 50.0)
     assert claude_rate_guard.read_usage(path) == [(NOW, 5.0), (NOW + 1, 7.0)]
+
+
+def test_identical_completed_records_keep_their_multiplicity(tmp_path):
+    import claude_rate_guard
+    path = tmp_path / "shared.usage"
+    for _ in range(3):
+        claude_rate_guard.record_usage(path, [], NOW, 5.0, 50.0)
+    records = [(NOW, 5.0)] * 3
+    assert claude_rate_guard.read_usage(path) == records
+    assert claude_rate_guard.merge_usage(records, records[:2]) == records
