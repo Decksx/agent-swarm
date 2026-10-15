@@ -1,5 +1,44 @@
 # Agent Swarm imported project context
 
+## Parallel CI merged; leadership branch refreshed — 2026-10-15
+
+Claude implemented CI parallelization in PR #103. Codex independently reviewed
+`2332071beb6acd4fad75018e5997d9445994d783` with no blocking findings: focused
+local checks passed (15 passed, ten scheduler-permission skips), all 16 aggregate
+status combinations behaved correctly, and six workflow mutations were caught.
+The final clarification commit `602ed8ec30eeb9e31c7ee48ab8dc2f1cdddb812d` changes
+comments, docstrings and an assertion diagnostic only. Codex subsequently
+verified equal parsed workflow semantics and equal test logic after excluding
+documentation and assertion messages; the original review is not relabelled as
+a fresh full review of that later commit.
+
+PR #103 merged as `fa02750f872f184ae7c8e7244ec8805ec56c5ceb`. Candidate CI run
+`38796469904` passed all four checks in 3m55s with the pip cache restored.
+Merged-main run `38797078339` passed all four in 4m26s: 1,926 core, 318 hub and
+eight bypass tests, 2,252 total with no failures or skips. The first parallel run
+`38793695024` took 4m38s versus 15m49s for baseline `38783027648`. These are
+observed runs, not a guarantee of future runner duration.
+
+The workflow now runs core and hub suites concurrently with pytest-xdist and
+uses a pip cache. `pytest-unit` remains the required aggregate, always reports,
+and demands success from both suites; `pytest-bypass` remains required. The
+scheduled-task fixture isolates both tests and collection probes per worker.
+No tests were removed or moved to a lighter tier. A skipped check is tolerated
+while waiting for CI but rejected by the integrator's final evidence validation.
+
+Codex merged this main into PR #102's development branch at
+`12a19162cf881e4b6bc87f9efbbdfb28fc36e3cb`, without rebasing or altering Claude's
+work. The merge was clean; 33 workflow, planner-transport and model-call checks
+passed locally. This context update accompanies the refreshed candidate; fresh
+CI and Claude's exact-head engineering review remain the next gates. PR #102
+stays draft. Production remains at the Argon release below; no worker restart,
+Tower deployment, real task issuance or additional merge was performed here.
+
+Follow-up: make `test_worker_ctl_root.py` select Git Bash explicitly on OfficePC
+instead of accepting the WSL launcher first on PATH. Keep that separate from
+the leadership change. Claude's CI worktree was reported removed after merge;
+the remote CI branch need not be deleted to use the merged workflow.
+
 ## Shared engineering leadership — 2026-10-15
 
 David confirmed that both Codex and Claude should lead interactive project work
