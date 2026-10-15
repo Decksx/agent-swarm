@@ -737,7 +737,7 @@ def sweep_expired(
 
     Which transition applies depends on the stage the task is actually in, per
     §8. From an *_ASSIGNED state nothing had started, so the plain recovery
-    event applies. From AUTHORING or REVIEWING work was underway, and §8 offers
+    event applies. From an authoring or reviewing state work was underway, and §8 offers
     `deadline_checkpointed` or `deadline_without_checkpoint` -- Phase 1 has no
     checkpoint capture, so it is always the latter, and that becomes a real
     choice in Phase 2.
@@ -793,10 +793,13 @@ def sweep_expired(
     return reclaimed
 
 
+# Include external reviews before their ingress is enabled (#74). Expiring
+# only their activation would leave the task assigned/running with no live
+# permission, so no later sweep could recover it.
 # States where work had not started yet, so the plain recovery event applies.
-_ASSIGNED_STATES = {"AUTHOR_ASSIGNED", "REVIEW_ASSIGNED"}
+_ASSIGNED_STATES = {"AUTHOR_ASSIGNED", "REVIEW_ASSIGNED", "EXTERNAL_REVIEW_ASSIGNED"}
 # States where an attempt was underway.
-_RUNNING_STATES = {"AUTHORING", "REVIEWING"}
+_RUNNING_STATES = {"AUTHORING", "REVIEWING", "EXTERNAL_REVIEWING"}
 
 
 def _recovery_kind(reason: str, task_state: str) -> Optional[str]:
