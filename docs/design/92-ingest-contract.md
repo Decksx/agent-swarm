@@ -305,10 +305,37 @@ fields, plus one object that only ingest activations get:
     "repo_location": "C:\\git\\agent-swarm", "repo_slug": "Decksx/agent-swarm",
     "pr_number": 102, "at_sha": null, "paths": null,
     "pin_ref": "refs/swarm/external/EXT-123",
-    "scratch_ref_prefix": "refs/swarm/ingest-tmp/EXT-123/<activation_id>"
+    "scratch_ref_prefix": "refs/swarm/ingest-tmp/EXT-123/<activation_id>",
+    "reclaimable_scratch_prefixes": [
+      "refs/swarm/ingest-tmp/EXT-123/<earlier activation_id>"
+    ]
   }
 }
 ```
+
+**Deleting old scratch refs.** The controller decides which scratch refs are
+safe to delete, because only it knows which activations are dead.
+
+At claim time it computes `reclaimable_scratch_prefixes`: one prefix for every
+other `ingest` activation of the same task whose status is not live (`DONE`,
+`EXPIRED`, `ABANDONED`). Only one ingest activation per task can be live, and
+the caller holds it, so every listed activation is dead and can no longer have
+a result accepted.
+
+The worker may delete only:
+- refs under one of those exact prefixes, plus a `/`;
+- refs under its own `scratch_ref_prefix`, once it is done with them.
+
+Each delete is `git update-ref -d <ref> <old-sha>`, using the SHA read by
+`git for-each-ref` immediately before. If the ref moved in the meantime, the
+delete fails and the ref is left alone. The worker never deletes:
+- the pin;
+- another task's refs;
+- any ref under `refs/swarm/ingest-tmp/<task_id>/` that is not under a listed
+  prefix.
+
+Cleanup is best effort. A failed scratch delete is logged and never changes the
+outcome the worker reports.
 
 - **`external` is the worker's only input.** It is parsed from the stored
   request, never from the PR or from chat. The worker must not parse
@@ -355,10 +382,15 @@ Every key below is required. Unknown keys are refused.
 | `schema_version` | `1` |
 | `project`, `repo_location` | exactly equal to the stored request |
 | `repo_slug` | equal to the stored slug, case-insensitively |
+| `repo_id` | lowercase 16-hex: the matching `repos.json` entry's `repo_id`. Recorded as worker-reported provenance; the controller checks the format only, because it holds no trusted copy |
 | `pr_number` | int, equal to the stored request |
 | `pr_url` | `https://github.com/<stored slug>/pull/<pr_number>`; slug compared case-insensitively |
 | `pr_state` | `open`, `closed` or `merged`, as reported by `gh` |
 | `pr_draft` | bool, as reported by `gh` |
+| `pr_title` | string, at most 1,024 characters, as reported by `gh` |
+| `pr_body` | string, at most 65,536 UTF-8 bytes. If the PR body is longer, cut it at a character boundary and set `pr_body_truncated` |
+| `pr_body_truncated` | bool |
+| `pr_body_sha256` | lowercase 64-hex: SHA-256 of the **full** UTF-8 body. When `pr_body_truncated` is false, the controller checks it equals the SHA-256 of `pr_body` |
 | `head_sha` | lowercase 40-hex: `headRefOid` from `gh` |
 | `resolved_ref_sha` | lowercase 40-hex, the fetched scratch object; must equal `head_sha` |
 | `base_ref_sha` | lowercase 40-hex: `baseRefOid` from `gh`, fetched by SHA |
@@ -374,6 +406,12 @@ Every key below is required. Unknown keys are refused.
 - `source` is `commit:<40-hex>` or `pr_body`.
 
 These are claims recorded verbatim. #93 maps them to model families.
+
+**The PR title and body are untrusted.** They are written by the party being
+reviewed, and they are kept so the offline reviewer can read them; #70 makes
+the reviewer unable to call `gh`. The review packet (#93/#94) must show them
+fenced and labelled as the author's claims, never as the objective or as
+instructions (design §5). A truncated body must say that it is truncated.
 
 Further checks:
 - If the stored `at_sha` is set, `head_sha` must equal it.
