@@ -29,6 +29,7 @@ import io
 import os
 import base64
 import json
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -36,6 +37,28 @@ import urllib.request
 DEFAULT_ENV = "/mnt/user/appdata/agent-swarm/hub.env"
 DEFAULT_URL = "http://127.0.0.1:8050"
 ADMIN = "admin"
+
+
+def _nonempty(value: str) -> str:
+    if not value.strip():
+        raise argparse.ArgumentTypeError("must not be empty")
+    return value
+
+
+def _pr_number(value: str) -> int:
+    try:
+        number = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("PR number must be a positive integer") from None
+    if number <= 0:
+        raise argparse.ArgumentTypeError("PR number must be a positive integer")
+    return number
+
+
+def _full_sha(value: str) -> str:
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", value):
+        raise argparse.ArgumentTypeError("at-sha must be a full 40-hex commit SHA")
+    return value.lower()
 
 
 def read_secret(path: str, component: str) -> str:
@@ -115,6 +138,16 @@ def main(argv) -> int:
 
     sub.add_parser("status")
     sub.add_parser("sweep")
+
+    p = sub.add_parser("external-review", help="request verdict-only review of an external PR")
+    p.add_argument("task_id", type=_nonempty)
+    p.add_argument("project", type=_nonempty)
+    p.add_argument("pr_number", type=_pr_number)
+    p.add_argument("objective", type=_nonempty)
+    p.add_argument("--at-sha", type=_full_sha)
+    p.add_argument("--path", action="append", type=_nonempty)
+    p.add_argument("--authored-by", action="append",
+                   choices=["anthropic", "openai", "google", "human"])
 
     p = sub.add_parser("repair")
     p.add_argument("task_id")
@@ -211,6 +244,17 @@ def main(argv) -> int:
     args = parser.parse_args(argv[1:])
     secret = read_secret(args.env_file, ADMIN)
     url = args.url.rstrip("/")
+
+    if args.command == "external-review":
+        body = {"task_id": args.task_id, "project": args.project,
+                "pr_number": args.pr_number, "objective": args.objective}
+        for key, value in (("at_sha", args.at_sha), ("paths", args.path),
+                           ("authored_by", args.authored_by)):
+            if value is not None:
+                body[key] = value
+        # A missing/disabled external route is an error. Never fall back to
+        # ordinary task creation or issuance and invent authorship provenance.
+        return show(*call(url, secret, "POST", "/controller/external-reviews", body))
 
     if args.command == "status":
         return show(*call(url, secret, "GET", "/controller/status"))

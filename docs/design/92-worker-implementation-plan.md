@@ -11,6 +11,13 @@ Codex implements the model-free worker and operator CLI in the separate
 at their final commit before merging. Controller and worker must agree on the
 actual activation/result envelope before the glue is enabled.
 
+Current worker branch: the standalone `claude_ingest.py` engine and dedicated
+admin CLI command are implemented for review. No worker dispatch, claim-stage
+change or result endpoint is enabled. The remaining adapter needs Claude's
+exact activation fields, result route/outcome envelope, bounded heartbeat
+semantics and a way to distinguish live/expired/unknown prior activations for
+scratch cleanup. Do not infer those from author or integration routes.
+
 ## Worker changes
 
 1. Add `claude_ingest.py`, independent of model adapters. Resolve only the

@@ -1,5 +1,45 @@
 # Agent Swarm imported project context
 
+## #92 worker/CLI first implementation and PR #104 reconciliation — 2026-10-15
+
+PR #104 is merged as `2a7290077c0403a479bd6d621c9fbacaa9dd5bd9`. The isolated
+worker branch merged that documentation without rewriting either rollout
+account. Claude's receipt records its initial supervisor 24568; the subsequent
+Codex verification/restart above records supervisor 9372. These are successive
+operations, not simultaneous supervisor instances. Production remains at
+`d2493667391244ca10226894b171a7590d5e1708`; no new rollout was performed here.
+
+The worker branch now adds `claude_ingest.py`: registered repository binding,
+bounded monotonic commands with lease checkpoints, GitHub identity/PR metadata,
+head plus exact-base fetch, SHA/range verification, raw authorship provenance,
+bounded complete evidence, create-only final pin CAS and task-scoped stale-ref
+cleanup. It changes no working branch and calls no model. A late lost lease
+can leave an orphan pin but cannot accept/register evidence. Oversized transport
+diagnostics remain environment defects rather than judgments on the PR.
+
+The admin `external-review` subcommand sends only the agreed request shape to
+`POST /controller/external-reviews`, preserves operator text and optional-field
+omission, and never falls back to ordinary task creation. Tests use local Git
+remotes and a stub forge; no network/model call or controller task is needed.
+The shared test control fixture now isolates usage paths and memory per test,
+addressing the held-mutex/fake-sleep harness failure seen during rollout.
+
+Validation on the implementation candidate: 172 focused checks passed, covering
+the engine, CLI, view budgets, worker loop, claims, rate guard and narration.
+All eleven in-memory mutations were caught: both SHA comparisons, create-only
+CAS, complete evidence bound, lease-loss refusal, live-scratch protection,
+base-object fetch, deadline enforcement, dedicated CLI route, optional at_sha
+and exact objective preservation. Python compilation and whitespace checks
+passed (preserving the tracked CLI's CRLF line endings). Exact-head CI and
+Claude's independent review are still required before integrating this slice.
+
+Controller activation/result glue, worker ingest dispatch and model-free claim
+changes are deliberately not enabled yet. Claude must confirm the exact
+activation payload, dedicated result API/outcomes and prior-activation liveness
+lookup before those are connected. The core and CLI are reviewable independent
+work, not a claim that #92 is complete or deployed. Claude leads controller
+implementation and end-to-end checks; Codex owns this worker/admin branch.
+
 ## PR #102 merged/deployed; standing operator permission — 2026-10-15
 
 David granted explicit standing permission for this project's commits, pushes,
@@ -41,7 +81,7 @@ Next: Claude leads #92 controller work; Codex's worker/CLI preparation is in
 `docs/design/92-worker-implementation-plan.md` scopes that half and its tests.
 No #92 runtime implementation or external-ingress configuration is deployed.
 The following section preserves Claude's earlier receipt from PR #104. Its
-process IDs predate the later verified restart above; its no-planner-call
+process IDs predate the later Codex verification receipt; its no-planner-call
 statement describes that earlier rollout only.
 
 ## PR #102 merged and worker rollout — 2026-10-15
