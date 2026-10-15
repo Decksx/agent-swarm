@@ -1,0 +1,3 @@
+# Preserve imported evidence byte for byte, including original line endings and
+# historical whitespace, so SHA256SUMS remains valid after future checkouts.
+2026-10-15/agent-swarm-codex-transfer-2026-10-15/** -text -whitespace

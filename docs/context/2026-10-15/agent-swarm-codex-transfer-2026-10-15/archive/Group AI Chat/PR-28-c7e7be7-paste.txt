@@ -1,0 +1,1230 @@
+PR #28 review packet (paste form). Decksx/agent-swarm
+Base:      9287144db3b466da871940fe77d049e0177b07a1
+Candidate: c7e7be772d10fc54a8a56ee8a685357e9a9a7d30
+
+Three files from the review packet follow, verbatim, each between BEGIN/END markers with its SHA-256 from the packet's MANIFEST.sha256, which the operator validated. You cannot recompute hashes from pasted text, so the manifest check has been done by the operator; mark a criterion UNVERIFIABLE only if the content it depends on is missing or truncated.
+
+diff.patch shows the base guard functions removed from claude_worker.py in full and claude_rate_guard.py added in full. verification.txt contains the differential check's script (appendix) and results.
+
+===== BEGIN REVIEW.md (sha256 71d55dd41b379bb2b4c9fe93398a082fe9c852e83f26d12a667d4c95deba9815) =====
+# Review packet: Decksx/agent-swarm PR #28
+
+**Title:** Extract the rate guard from claude_worker into claude_rate_guard (#25, part 2)
+
+| | |
+|---|---|
+| Repository | `Decksx/agent-swarm` |
+| Pull request | #28 (open, not merged) |
+| Base commit (`main`) | `9287144db3b466da871940fe77d049e0177b07a1` |
+| Candidate commit (PR head) | `c7e7be772d10fc54a8a56ee8a685357e9a9a7d30` |
+| Authoring route | Operator-authored (documented on issue #25) |
+
+This packet is read-only evidence. Every source file was extracted with `git show <sha>:<path>` from the commits above and checked against the committed blob hash. No working-tree, untracked, environment, credential, database or runtime-state file is included.
+
+## Objective
+
+Move the model-usage rate guard out of `claude_worker.py` into `claude_rate_guard.py` **without changing behaviour**, and without changing how the guard is configured. Tests and the worker configure the guard through values on the `claude_worker` module (`RATELIMIT_PATH`, `USAGE_PATH`, `RATE_LIMIT_WARN_SECONDS`, `RATE_LIMIT_COOLDOWN_SECONDS`, `_process_usage_window`). Those must still be read when the guard runs.
+
+Unlike PR #27, this is not a verbatim move: to keep that state in `claude_worker`, the extracted functions take it as parameters. Equivalence is therefore shown by the unchanged existing tests, new call-time tests, and a differential check of base against candidate.
+
+## Acceptance criteria
+
+1. **Logic preserved.** Each function in `claude_rate_guard.py` matches the corresponding base function in `9287144:claude_worker.py`, except that module globals became parameters and rebinding `_process_usage_window` became a returned list. Conditions, arithmetic, boundaries (`timestamp >= cutoff`), file formats, exception handling, return values, reason strings and log messages are unchanged.
+2. **No reverse dependency.** `claude_rate_guard.py` does not import `claude_worker`, and logs on the `"claude_worker"` logger.
+3. **Compatibility preserved.** All of these remain on `claude_worker`: `rate_limit_reason`, `_read_holdoff`, `_read_usage`, `_write_usage`, `_purge_old_usage`, `_current_usage_total`, `_record_usage`, `_begin_holdoff`, `_end_holdoff`, `record_rate_limit_alert_sent`, `RATELIMIT_PATH`, `USAGE_PATH`, `RATE_LIMIT_WARN_SECONDS`, `RATE_LIMIT_COOLDOWN_SECONDS`, `_process_usage_window`, `_rate_limit_alert_sent`. The wrappers read that state at call time and store back any returned window, so values patched on `claude_worker` are the ones used. `tests/test_rate_holdoff.py` is unchanged and passes.
+4. **Nothing else changes in `claude_worker.py`** beyond the added `import claude_rate_guard`, the wrappers replacing the guard bodies, and the cooldown rationale comment moving into `claude_rate_guard`'s docstring. It stays under 50,000 characters.
+5. **Tests.** No existing test file is modified. `tests/test_claude_rate_guard_extraction.py` tests what it claims.
+6. **Protected paths.** Nothing under `controller/` or `hub/hub.py` changes; no Tower deployment is needed.
+7. **Equivalence evidence.** The differential check in `verification.txt` §7 is a sound comparison of base against candidate, and reports zero differences.
+
+## Changed files (`name-status.txt`)
+
+```
+A	claude_rate_guard.py
+M	claude_worker.py
+A	tests/test_claude_rate_guard_extraction.py
+```
+
+```
+ claude_rate_guard.py                       | 153 +++++++++++++++++++++++++++++
+ claude_worker.py                           | 126 ++++++------------------
+ tests/test_claude_rate_guard_extraction.py | 111 +++++++++++++++++++++
+ 3 files changed, 296 insertions(+), 94 deletions(-)
+```
+
+## Test and CI results (details in `verification.txt`)
+
+| Check | Result |
+|---|---|
+| Candidate `claude_worker.py` size | 42,332 chars (base 44,675) |
+| Log messages from base guard section present verbatim in `claude_rate_guard.py` | 5 of 5 |
+| `tests/test_rate_holdoff.py` | Unchanged (same blob in base and candidate); passes |
+| Import smoke test (clean interpreters) | `claude_rate_guard` imports without `claude_worker`; all import orders succeed |
+| Differential check, base vs candidate | 2,023 sequences, 31,595 operations, **0 mismatches** |
+| Focused tests | 165 passed |
+| Full required suites (`deploy_controller.sh --tests-only`) | 1358 passed; 247 passed |
+| Bypass suite | 8 passed |
+| PR CI | `pytest-unit` pass; `pytest-bypass` pass |
+| Protected-path diff (`controller/`, `hub/hub.py`) | Empty |
+| Verification worktree after all runs | Clean |
+
+## Packet contents
+
+| File | What it is |
+|---|---|
+| `REVIEW.md` | This file |
+| `diff.patch` | `git diff --binary 9287144..c7e7be7` |
+| `diff-stat.txt`, `name-status.txt` | Diff summaries |
+| `protected-path-diff.txt` | `git diff 9287144..c7e7be7 -- controller/ hub/hub.py`, with an explicit empty/non-empty statement |
+| `sources/candidate/` | `claude_worker.py`, `claude_rate_guard.py`, `tests/test_claude_rate_guard_extraction.py`, and the unchanged `tests/test_rate_holdoff.py`, at `c7e7be7` |
+| `sources/base/` | `claude_worker.py` and `tests/test_rate_holdoff.py` at `9287144` |
+| `verification.txt` | Sizes, base-vs-module logic diff, log messages, wrappers, blob checks, smoke test, differential check (with its script in an appendix), focused / full / bypass output, CI, cleanliness |
+| `MANIFEST.sha256` | SHA-256 of every other file in this packet |
+
+## Instructions for Gemini
+
+Perform a **read-only** review. Do not modify anything.
+
+1. If you received the ZIP, check `MANIFEST.sha256`. If you received pasted text, the operator has validated the manifest; mark a criterion UNVERIFIABLE only if the content it depends on is missing or truncated.
+2. Evaluate each of the seven acceptance criteria. For criterion 1, compare the base guard functions (in `diff.patch`'s removed lines, or `sources/base/claude_worker.py`) with `claude_rate_guard.py` directly — not only the recorded diff in `verification.txt` §2. For criterion 7, read the differential script in the appendix and judge whether it compares what it claims.
+3. Report every criterion as **PASS**, **FAIL** (with concrete file and line evidence), or **UNVERIFIABLE** (with the reason).
+4. Then give an overall verdict:
+   - **PASS** only if all seven criteria are PASS.
+   - Otherwise **BLOCKED**, with an itemized list of blockers naming the criterion, file and line, and what would resolve it.
+
+Do not infer a PASS for anything you could not check.
+===== END REVIEW.md =====
+
+===== BEGIN diff.patch (sha256 17ab3b6dfac3a81d0e22d6fa3ca387a92d560e2a90410a0fc586a93ff6a084c9) =====
+diff --git a/claude_rate_guard.py b/claude_rate_guard.py
+new file mode 100644
+index 0000000..ec3a97e
+--- /dev/null
++++ b/claude_rate_guard.py
+@@ -0,0 +1,153 @@
++"""The model-usage rate guard, as logic over state the caller passes in.
++
++Extracted from `claude_worker` unchanged in behaviour, so that module fits the
++author's file view (#25). The state -- the hold-off and usage paths, both
++thresholds, and the in-memory usage window -- still lives in `claude_worker`,
++which passes it in on every call and stores back any window returned. That is
++what keeps a value patched on `claude_worker` effective at call time, and it
++is why this module never imports `claude_worker`. Logging stays on the
++"claude_worker" logger.
++
++After the window trips, the worker waits RATE_LIMIT_COOLDOWN_SECONDS and then
++resumes by itself. Previously it stopped accepting work until somebody
++restarted it, which is a manual step in a system whose whole point is not
++needing one -- and an operator who did not notice would find a worker that
++looked healthy and had quietly stopped working hours earlier.
++"""
++
++from __future__ import annotations
++
++import json
++import logging
++import time
++from pathlib import Path
++
++log = logging.getLogger("claude_worker")
++
++
++def read_holdoff(ratelimit_path: Path) -> float:
++    """The epoch time the current hold-off ends, or 0.0 if there is none."""
++    try:
++        return float(ratelimit_path.read_text(encoding="utf-8").strip())
++    except (OSError, ValueError):
++        # Missing is the ordinary case; unreadable is treated the same way
++        # rather than as an indefinite hold, because a file nothing can parse
++        # would otherwise stop this worker forever.
++        return 0.0
++
++
++def read_usage(usage_path: Path) -> list[tuple[float, float]]:
++    """Persisted (started, seconds) records. Missing is empty; malformed warns."""
++    try:
++        raw = json.loads(usage_path.read_text(encoding="utf-8"))
++        if not isinstance(raw, list):
++            raise TypeError(type(raw).__name__)
++        return [(float(started), float(seconds)) for started, seconds in raw]
++    except FileNotFoundError:
++        return []
++    except (OSError, TypeError, ValueError):
++        log.warning("could not read usage file; treating as empty")
++        return []
++
++
++def write_usage(usage_path: Path, usage_window: list[tuple[float, float]]) -> None:
++    """Persist the rolling window of usage seconds."""
++    try:
++        with open(usage_path, "w", encoding="utf-8") as f:
++            json.dump(usage_window, f)
++    except OSError as exc:
++        log.error("could not persist usage: %s", exc)
++
++
++def purge_old_usage(
++    usage_window: list[tuple[float, float]], now: float, cooldown_seconds: float
++) -> list[tuple[float, float]]:
++    """Remove usage outside the rolling window; returns a new list."""
++    cutoff = now - cooldown_seconds
++    return [
++        (timestamp, usage) for (timestamp, usage) in usage_window
++        if timestamp >= cutoff
++    ]
++
++
++def current_usage_total(
++    usage_window: list[tuple[float, float]], now: float, cooldown_seconds: float
++) -> tuple[list[tuple[float, float]], float]:
++    """The purged window, and the total usage seconds within it."""
++    usage_window = purge_old_usage(usage_window, now, cooldown_seconds)
++    return usage_window, sum(usage for _, usage in usage_window)
++
++
++def record_usage(
++    usage_path: Path, usage_window: list[tuple[float, float]],
++    start_time: float, elapsed_time: float, cooldown_seconds: float,
++) -> list[tuple[float, float]]:
++    """Record model usage; appends to the given list, returns the purged one."""
++    usage_window.append((start_time, elapsed_time))
++    usage_window = purge_old_usage(usage_window, start_time, cooldown_seconds)
++    write_usage(usage_path, usage_window)
++    return usage_window
++
++
++def begin_holdoff(ratelimit_path: Path, now: float, cooldown_seconds: float) -> float:
++    """Start a hold-off and return when it ends."""
++    until = now + cooldown_seconds
++
++    try:
++        ratelimit_path.write_text(f"{until:.0f}", encoding="utf-8")
++    except OSError as exc:
++        log.error("could not persist the rate hold-off: %s", exc)
++
++    return until
++
++
++def end_holdoff(ratelimit_path: Path) -> None:
++    """Clear the hold-off."""
++    try:
++        ratelimit_path.unlink()
++    except FileNotFoundError:
++        pass
++    except OSError as exc:
++        log.warning("could not clear the rate hold-off: %s", exc)
++
++
++def rate_limit_reason(
++    now: float | None, *, ratelimit_path: Path,
++    usage_window: list[tuple[float, float]],
++    warn_seconds: float, cooldown_seconds: float,
++) -> tuple[str | None, list[tuple[float, float]]]:
++    """Why no new work should be claimed right now (or None), and the window.
++
++    Recovers on its own. When the hold-off deadline passes, the deadline is
++    cleared, and work resumes with no restart and no operator action.
++
++    Deliberately returns a reason rather than calling anything: this is
++    consulted before the claim, so a guarded worker takes no activation and
++    makes no provider call at all. Claiming and then refusing would consume
++    work it had already decided not to do.
++    """
++    now = time.time() if now is None else now
++    until = read_holdoff(ratelimit_path)
++
++    if until:
++        if now < until:
++            return (
++                f"rate hold-off until {time.strftime('%H:%M:%S', time.localtime(until))} "
++                f"({(until - now) / 60:.0f} min remaining)"
++            ), usage_window
++
++        end_holdoff(ratelimit_path)
++        log.info("rate hold-off has expired; accepting work again")
++        return None, usage_window
++
++    usage_window, total_usage = current_usage_total(usage_window, now, cooldown_seconds)
++
++    if total_usage >= warn_seconds:
++        until = begin_holdoff(ratelimit_path, now, cooldown_seconds)
++        return (
++            f"worker usage {total_usage/3600:.1f}h reached the "
++            f"{warn_seconds / 3600:.1f}h window; holding off for "
++            f"{cooldown_seconds / 3600:.1f}h"
++        ), usage_window
++
++    return None, usage_window
+diff --git a/claude_worker.py b/claude_worker.py
+index 2e12cf3..cdd157b 100644
+--- a/claude_worker.py
++++ b/claude_worker.py
+@@ -75,6 +75,7 @@ from typing import Any
+ 
+ import authored_change
+ import claude_integration
++import claude_rate_guard
+ import controller_client
+ import swarm_control
+ 
+@@ -164,11 +165,8 @@ RATE_LIMIT_WARN_SECONDS = float(
+     os.environ.get("RATE_LIMIT_WARN_SECONDS", str(4.5 * 3600))
+ )
+ 
+-# After the window trips, the worker waits this long and then resumes by
+-# itself. Previously it stopped accepting work until somebody restarted it,
+-# which is a manual step in a system whose whole point is not needing one --
+-# and an operator who did not notice would find a worker that looked healthy
+-# and had quietly stopped working hours earlier.
++# After the window trips, the worker waits this long, then resumes by itself
++# (see claude_rate_guard).
+ RATE_LIMIT_COOLDOWN_SECONDS = float(
+     os.environ.get("RATE_LIMIT_COOLDOWN_SECONDS", str(5 * 3600))
+ )
+@@ -301,122 +299,62 @@ _process_usage_window: list[tuple[float, float]] = []
+ _rate_limit_alert_sent = False
+ 
+ 
++# The guard's logic is in claude_rate_guard. These keep its names here and
++# pass the state above in at call time, so patches on this module still apply.
+ def _read_holdoff() -> float:
+-    """The epoch time the current hold-off ends, or 0.0 if there is none."""
+-    try:
+-        return float(RATELIMIT_PATH.read_text(encoding="utf-8").strip())
+-    except (OSError, ValueError):
+-        # Missing is the ordinary case; unreadable is treated the same way
+-        # rather than as an indefinite hold, because a file nothing can parse
+-        # would otherwise stop this worker forever.
+-        return 0.0
++    return claude_rate_guard.read_holdoff(RATELIMIT_PATH)
+ 
+ 
+ def _read_usage() -> list[tuple[float, float]]:
+-    """Persisted (started, seconds) records. Missing is empty; malformed warns."""
+-    try:
+-        raw = json.loads(USAGE_PATH.read_text(encoding="utf-8"))
+-        if not isinstance(raw, list):
+-            raise TypeError(type(raw).__name__)
+-        return [(float(started), float(seconds)) for started, seconds in raw]
+-    except FileNotFoundError:
+-        return []
+-    except (OSError, TypeError, ValueError):
+-        log.warning("could not read usage file; treating as empty")
+-        return []
++    return claude_rate_guard.read_usage(USAGE_PATH)
+ 
+ 
+ def _write_usage(usage_window: list[tuple[float, float]]) -> None:
+-    """Persist the rolling window of usage seconds."""
+-    try:
+-        with open(USAGE_PATH, "w", encoding="utf-8") as f:
+-            json.dump(usage_window, f)
+-    except OSError as exc:
+-        log.error("could not persist usage: %s", exc)
++    claude_rate_guard.write_usage(USAGE_PATH, usage_window)
+ 
+ 
+ def _purge_old_usage(now: float) -> None:
+-    """Remove usage outside the rolling window."""
+     global _process_usage_window
+-    cutoff = now - RATE_LIMIT_COOLDOWN_SECONDS
+-    _process_usage_window = [
+-        (timestamp, usage) for (timestamp, usage) in _process_usage_window
+-        if timestamp >= cutoff
+-    ]
++    _process_usage_window = claude_rate_guard.purge_old_usage(
++        _process_usage_window, now, RATE_LIMIT_COOLDOWN_SECONDS
++    )
+ 
+ 
+ def _current_usage_total(now: float) -> float:
+-    """Return the total usage seconds within the rolling window."""
+-    _purge_old_usage(now)
+-    return sum(usage for _, usage in _process_usage_window)
++    global _process_usage_window
++    _process_usage_window, total = claude_rate_guard.current_usage_total(
++        _process_usage_window, now, RATE_LIMIT_COOLDOWN_SECONDS
++    )
++    return total
+ 
+ 
+ def _record_usage(start_time: float, elapsed_time: float) -> None:
+-    """Record model usage."""
+     global _process_usage_window
+-    _process_usage_window.append((start_time, elapsed_time))
+-    _purge_old_usage(start_time)
+-    _write_usage(_process_usage_window)
++    _process_usage_window = claude_rate_guard.record_usage(
++        USAGE_PATH, _process_usage_window, start_time, elapsed_time,
++        RATE_LIMIT_COOLDOWN_SECONDS,
++    )
+ 
+ 
+ def _begin_holdoff(now: float) -> float:
+-    """Start a hold-off and return when it ends."""
+-    until = now + RATE_LIMIT_COOLDOWN_SECONDS
+-
+-    try:
+-        RATELIMIT_PATH.write_text(f"{until:.0f}", encoding="utf-8")
+-    except OSError as exc:
+-        log.error("could not persist the rate hold-off: %s", exc)
+-
+-    return until
++    return claude_rate_guard.begin_holdoff(
++        RATELIMIT_PATH, now, RATE_LIMIT_COOLDOWN_SECONDS
++    )
+ 
+ 
+ def _end_holdoff() -> None:
+-    """Clear the hold-off."""
+-    try:
+-        RATELIMIT_PATH.unlink()
+-    except FileNotFoundError:
+-        pass
+-    except OSError as exc:
+-        log.warning("could not clear the rate hold-off: %s", exc)
++    claude_rate_guard.end_holdoff(RATELIMIT_PATH)
+ 
+ 
+ def rate_limit_reason(now: float | None = None) -> str | None:
+-    """Why no new work should be claimed right now, or None to proceed.
+-
+-    Recovers on its own. When the hold-off deadline passes, the deadline is
+-    cleared, and work resumes with no restart and no operator action.
+-
+-    Deliberately returns a reason rather than calling anything: this is
+-    consulted before the claim, so a guarded worker takes no activation and
+-    makes no provider call at all. Claiming and then refusing would consume
+-    work it had already decided not to do.
+-    """
+-    now = time.time() if now is None else now
+-    until = _read_holdoff()
+-
+-    if until:
+-        if now < until:
+-            return (
+-                f"rate hold-off until {time.strftime('%H:%M:%S', time.localtime(until))} "
+-                f"({(until - now) / 60:.0f} min remaining)"
+-            )
+-
+-        _end_holdoff()
+-        log.info("rate hold-off has expired; accepting work again")
+-        return None
+-
+-    total_usage = _current_usage_total(now)
+-
+-    if total_usage >= RATE_LIMIT_WARN_SECONDS:
+-        until = _begin_holdoff(now)
+-        return (
+-            f"worker usage {total_usage/3600:.1f}h reached the "
+-            f"{RATE_LIMIT_WARN_SECONDS / 3600:.1f}h window; holding off for "
+-            f"{RATE_LIMIT_COOLDOWN_SECONDS / 3600:.1f}h"
+-        )
+-
+-    return None
++    """Why no new work should be claimed now, or None; see claude_rate_guard."""
++    global _process_usage_window
++    reason, _process_usage_window = claude_rate_guard.rate_limit_reason(
++        now, ratelimit_path=RATELIMIT_PATH, usage_window=_process_usage_window,
++        warn_seconds=RATE_LIMIT_WARN_SECONDS,
++        cooldown_seconds=RATE_LIMIT_COOLDOWN_SECONDS,
++    )
++    return reason
+ 
+ 
+ def record_rate_limit_alert_sent() -> None:
+diff --git a/tests/test_claude_rate_guard_extraction.py b/tests/test_claude_rate_guard_extraction.py
+new file mode 100644
+index 0000000..0038752
+--- /dev/null
++++ b/tests/test_claude_rate_guard_extraction.py
+@@ -0,0 +1,111 @@
++"""The rate guard's logic lives in `claude_rate_guard`; its state stays in `claude_worker`.
++
++Extracted so `claude_worker` fits the author's file view (#25). The guard is
++configured by patching `claude_worker` -- in tests, and through the module's
++own globals at runtime -- so the move is only safe if every one of those
++values is still read when the guard runs, not captured when it was imported.
++"""
++
++from __future__ import annotations
++
++import subprocess
++import sys
++from pathlib import Path
++
++import pytest
++
++REPO_ROOT = Path(__file__).resolve().parent.parent
++NOW = 1_000_000.0
++
++
++def _fresh_import(statement: str) -> subprocess.CompletedProcess:
++    return subprocess.run(
++        [sys.executable, "-c", statement],
++        cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=60,
++    )
++
++
++def test_the_guard_module_does_not_import_the_worker():
++    done = _fresh_import(
++        "import sys, claude_rate_guard; "
++        "assert 'claude_worker' not in sys.modules, 'claude_rate_guard imported claude_worker'"
++    )
++    assert done.returncode == 0, done.stderr
++
++
++def test_either_module_imports_first_without_a_cycle():
++    for statement in (
++        "import claude_worker, claude_rate_guard",
++        "import claude_rate_guard, claude_worker",
++    ):
++        done = _fresh_import(statement)
++        assert done.returncode == 0, f"{statement}: {done.stderr}"
++
++
++def test_the_names_stay_on_the_worker_and_share_its_logger():
++    import claude_rate_guard
++    import claude_worker
++
++    for name in ("rate_limit_reason", "_read_holdoff", "_read_usage", "_write_usage",
++                 "_purge_old_usage", "_current_usage_total", "_record_usage",
++                 "_begin_holdoff", "_end_holdoff", "record_rate_limit_alert_sent",
++                 "RATELIMIT_PATH", "USAGE_PATH", "RATE_LIMIT_WARN_SECONDS",
++                 "RATE_LIMIT_COOLDOWN_SECONDS", "_process_usage_window",
++                 "_rate_limit_alert_sent"):
++        assert hasattr(claude_worker, name), name
++    assert claude_rate_guard.log is claude_worker.log
++
++
++@pytest.fixture
++def worker(tmp_path, monkeypatch):
++    import claude_worker
++
++    monkeypatch.setattr(claude_worker, "RATELIMIT_PATH", tmp_path / "first.rl")
++    monkeypatch.setattr(claude_worker, "USAGE_PATH", tmp_path / "first.usage")
++    monkeypatch.setattr(claude_worker, "RATE_LIMIT_WARN_SECONDS", 100.0)
++    monkeypatch.setattr(claude_worker, "RATE_LIMIT_COOLDOWN_SECONDS", 50.0)
++    monkeypatch.setattr(claude_worker, "_process_usage_window", [])
++    return claude_worker
++
++
++def test_paths_patched_after_import_are_the_ones_used(worker, monkeypatch, tmp_path):
++    monkeypatch.setattr(worker, "RATELIMIT_PATH", tmp_path / "second.rl")
++    monkeypatch.setattr(worker, "USAGE_PATH", tmp_path / "second.usage")
++
++    worker._record_usage(NOW - 1.0, 150.0)
++    assert worker.rate_limit_reason(now=NOW) is not None
++
++    assert (tmp_path / "second.usage").exists() and (tmp_path / "second.rl").exists()
++    assert not (tmp_path / "first.usage").exists() and not (tmp_path / "first.rl").exists()
++
++
++def test_thresholds_patched_after_import_are_the_ones_used(worker, monkeypatch):
++    monkeypatch.setattr(worker, "_process_usage_window", [(NOW - 1.0, 150.0)])
++    monkeypatch.setattr(worker, "RATE_LIMIT_WARN_SECONDS", 1000.0)
++    assert worker.rate_limit_reason(now=NOW) is None
++
++    monkeypatch.setattr(worker, "RATE_LIMIT_WARN_SECONDS", 120.0)
++    monkeypatch.setattr(worker, "RATE_LIMIT_COOLDOWN_SECONDS", 7200.0)
++    reason = worker.rate_limit_reason(now=NOW)
++    assert reason == "worker usage 0.0h reached the 0.0h window; holding off for 2.0h"
++    assert float(worker.RATELIMIT_PATH.read_text(encoding="utf-8")) == NOW + 7200.0
++
++
++def test_the_window_is_read_from_and_stored_back_on_the_worker(worker, monkeypatch):
++    patched = [(NOW - 100.0, 5.0), (NOW - 1.0, 7.0)]
++    monkeypatch.setattr(worker, "_process_usage_window", patched)
++
++    assert worker._current_usage_total(NOW) == 7.0
++    assert worker._process_usage_window == [(NOW - 1.0, 7.0)]
++
++    worker._record_usage(NOW, 3.0)
++    assert worker._process_usage_window == [(NOW - 1.0, 7.0), (NOW, 3.0)]
++    assert worker._read_usage() == [(NOW - 1.0, 7.0), (NOW, 3.0)]
++
++
++def test_the_alert_flag_is_still_set_on_the_worker(monkeypatch):
++    import claude_worker
++
++    monkeypatch.setattr(claude_worker, "_rate_limit_alert_sent", False)
++    claude_worker.record_rate_limit_alert_sent()
++    assert claude_worker._rate_limit_alert_sent is True
+===== END diff.patch =====
+
+===== BEGIN verification.txt (sha256 e35da13ed3c8bb0d17e43ad5586b413b9d3ae940f87880823f42c0b93b1434d2) =====
+PR #28 review packet: verification record
+Generated: 2026-09-14 10:25:38 -0600
+Repository: Decksx/agent-swarm
+Base:      9287144db3b466da871940fe77d049e0177b07a1
+Candidate: c7e7be772d10fc54a8a56ee8a685357e9a9a7d30
+Tests ran in a fresh detached worktree created at the candidate commit.
+
+== 1. Character counts
+candidate claude_worker.py:     42332 (base 44675; DEFAULT_FILE_VIEW 50000)
+candidate claude_rate_guard.py: 5857
+
+== 2. Guard logic: base claude_worker.py section vs candidate claude_rate_guard.py (unified diff, 2 lines context)
+--- 9287144:claude_worker.py [_read_holdoff .. rate_limit_reason]
++++ c7e7be7:claude_rate_guard.py [read_holdoff .. rate_limit_reason]
+@@ -1,6 +1,6 @@
+-def _read_holdoff() -> float:
++def read_holdoff(ratelimit_path: Path) -> float:
+     """The epoch time the current hold-off ends, or 0.0 if there is none."""
+     try:
+-        return float(RATELIMIT_PATH.read_text(encoding="utf-8").strip())
++        return float(ratelimit_path.read_text(encoding="utf-8").strip())
+     except (OSError, ValueError):
+         # Missing is the ordinary case; unreadable is treated the same way
+@@ -10,8 +10,8 @@
+ 
+ 
+-def _read_usage() -> list[tuple[float, float]]:
++def read_usage(usage_path: Path) -> list[tuple[float, float]]:
+     """Persisted (started, seconds) records. Missing is empty; malformed warns."""
+     try:
+-        raw = json.loads(USAGE_PATH.read_text(encoding="utf-8"))
++        raw = json.loads(usage_path.read_text(encoding="utf-8"))
+         if not isinstance(raw, list):
+             raise TypeError(type(raw).__name__)
+@@ -24,8 +24,8 @@
+ 
+ 
+-def _write_usage(usage_window: list[tuple[float, float]]) -> None:
++def write_usage(usage_path: Path, usage_window: list[tuple[float, float]]) -> None:
+     """Persist the rolling window of usage seconds."""
+     try:
+-        with open(USAGE_PATH, "w", encoding="utf-8") as f:
++        with open(usage_path, "w", encoding="utf-8") as f:
+             json.dump(usage_window, f)
+     except OSError as exc:
+@@ -33,34 +33,40 @@
+ 
+ 
+-def _purge_old_usage(now: float) -> None:
+-    """Remove usage outside the rolling window."""
+-    global _process_usage_window
+-    cutoff = now - RATE_LIMIT_COOLDOWN_SECONDS
+-    _process_usage_window = [
+-        (timestamp, usage) for (timestamp, usage) in _process_usage_window
++def purge_old_usage(
++    usage_window: list[tuple[float, float]], now: float, cooldown_seconds: float
++) -> list[tuple[float, float]]:
++    """Remove usage outside the rolling window; returns a new list."""
++    cutoff = now - cooldown_seconds
++    return [
++        (timestamp, usage) for (timestamp, usage) in usage_window
+         if timestamp >= cutoff
+     ]
+ 
+ 
+-def _current_usage_total(now: float) -> float:
+-    """Return the total usage seconds within the rolling window."""
+-    _purge_old_usage(now)
+-    return sum(usage for _, usage in _process_usage_window)
++def current_usage_total(
++    usage_window: list[tuple[float, float]], now: float, cooldown_seconds: float
++) -> tuple[list[tuple[float, float]], float]:
++    """The purged window, and the total usage seconds within it."""
++    usage_window = purge_old_usage(usage_window, now, cooldown_seconds)
++    return usage_window, sum(usage for _, usage in usage_window)
+ 
+ 
+-def _record_usage(start_time: float, elapsed_time: float) -> None:
+-    """Record model usage."""
+-    global _process_usage_window
+-    _process_usage_window.append((start_time, elapsed_time))
+-    _purge_old_usage(start_time)
+-    _write_usage(_process_usage_window)
++def record_usage(
++    usage_path: Path, usage_window: list[tuple[float, float]],
++    start_time: float, elapsed_time: float, cooldown_seconds: float,
++) -> list[tuple[float, float]]:
++    """Record model usage; appends to the given list, returns the purged one."""
++    usage_window.append((start_time, elapsed_time))
++    usage_window = purge_old_usage(usage_window, start_time, cooldown_seconds)
++    write_usage(usage_path, usage_window)
++    return usage_window
+ 
+ 
+-def _begin_holdoff(now: float) -> float:
++def begin_holdoff(ratelimit_path: Path, now: float, cooldown_seconds: float) -> float:
+     """Start a hold-off and return when it ends."""
+-    until = now + RATE_LIMIT_COOLDOWN_SECONDS
++    until = now + cooldown_seconds
+ 
+     try:
+-        RATELIMIT_PATH.write_text(f"{until:.0f}", encoding="utf-8")
++        ratelimit_path.write_text(f"{until:.0f}", encoding="utf-8")
+     except OSError as exc:
+         log.error("could not persist the rate hold-off: %s", exc)
+@@ -69,8 +75,8 @@
+ 
+ 
+-def _end_holdoff() -> None:
++def end_holdoff(ratelimit_path: Path) -> None:
+     """Clear the hold-off."""
+     try:
+-        RATELIMIT_PATH.unlink()
++        ratelimit_path.unlink()
+     except FileNotFoundError:
+         pass
+@@ -79,6 +85,10 @@
+ 
+ 
+-def rate_limit_reason(now: float | None = None) -> str | None:
+-    """Why no new work should be claimed right now, or None to proceed.
++def rate_limit_reason(
++    now: float | None, *, ratelimit_path: Path,
++    usage_window: list[tuple[float, float]],
++    warn_seconds: float, cooldown_seconds: float,
++) -> tuple[str | None, list[tuple[float, float]]]:
++    """Why no new work should be claimed right now (or None), and the window.
+ 
+     Recovers on its own. When the hold-off deadline passes, the deadline is
+@@ -91,5 +101,5 @@
+     """
+     now = time.time() if now is None else now
+-    until = _read_holdoff()
++    until = read_holdoff(ratelimit_path)
+ 
+     if until:
+@@ -98,21 +108,19 @@
+                 f"rate hold-off until {time.strftime('%H:%M:%S', time.localtime(until))} "
+                 f"({(until - now) / 60:.0f} min remaining)"
+-            )
++            ), usage_window
+ 
+-        _end_holdoff()
++        end_holdoff(ratelimit_path)
+         log.info("rate hold-off has expired; accepting work again")
+-        return None
++        return None, usage_window
+ 
+-    total_usage = _current_usage_total(now)
++    usage_window, total_usage = current_usage_total(usage_window, now, cooldown_seconds)
+ 
+-    if total_usage >= RATE_LIMIT_WARN_SECONDS:
+-        until = _begin_holdoff(now)
++    if total_usage >= warn_seconds:
++        until = begin_holdoff(ratelimit_path, now, cooldown_seconds)
+         return (
+             f"worker usage {total_usage/3600:.1f}h reached the "
+-            f"{RATE_LIMIT_WARN_SECONDS / 3600:.1f}h window; holding off for "
+-            f"{RATE_LIMIT_COOLDOWN_SECONDS / 3600:.1f}h"
+-        )
++            f"{warn_seconds / 3600:.1f}h window; holding off for "
++            f"{cooldown_seconds / 3600:.1f}h"
++        ), usage_window
+ 
+-    return None
+-
+-
++    return None, usage_window
+
+== 3. Log messages carried over
+log call messages in base section: 5
+  "could not read usage file; treating as empty"
+  "could not persist usage: %s"
+  "could not persist the rate hold-off: %s"
+  "could not clear the rate hold-off: %s"
+  "rate hold-off has expired; accepting work again"
+missing from claude_rate_guard.py: none
+
+== 4. Candidate claude_worker.py compatibility wrappers (verbatim)
+# The guard's logic is in claude_rate_guard. These keep its names here and
+# pass the state above in at call time, so patches on this module still apply.
+def _read_holdoff() -> float:
+    return claude_rate_guard.read_holdoff(RATELIMIT_PATH)
+
+
+def _read_usage() -> list[tuple[float, float]]:
+    return claude_rate_guard.read_usage(USAGE_PATH)
+
+
+def _write_usage(usage_window: list[tuple[float, float]]) -> None:
+    claude_rate_guard.write_usage(USAGE_PATH, usage_window)
+
+
+def _purge_old_usage(now: float) -> None:
+    global _process_usage_window
+    _process_usage_window = claude_rate_guard.purge_old_usage(
+        _process_usage_window, now, RATE_LIMIT_COOLDOWN_SECONDS
+    )
+
+
+def _current_usage_total(now: float) -> float:
+    global _process_usage_window
+    _process_usage_window, total = claude_rate_guard.current_usage_total(
+        _process_usage_window, now, RATE_LIMIT_COOLDOWN_SECONDS
+    )
+    return total
+
+
+def _record_usage(start_time: float, elapsed_time: float) -> None:
+    global _process_usage_window
+    _process_usage_window = claude_rate_guard.record_usage(
+        USAGE_PATH, _process_usage_window, start_time, elapsed_time,
+        RATE_LIMIT_COOLDOWN_SECONDS,
+    )
+
+
+def _begin_holdoff(now: float) -> float:
+    return claude_rate_guard.begin_holdoff(
+        RATELIMIT_PATH, now, RATE_LIMIT_COOLDOWN_SECONDS
+    )
+
+
+def _end_holdoff() -> None:
+    claude_rate_guard.end_holdoff(RATELIMIT_PATH)
+
+
+def rate_limit_reason(now: float | None = None) -> str | None:
+    """Why no new work should be claimed now, or None; see claude_rate_guard."""
+    global _process_usage_window
+    reason, _process_usage_window = claude_rate_guard.rate_limit_reason(
+        now, ratelimit_path=RATELIMIT_PATH, usage_window=_process_usage_window,
+        warn_seconds=RATE_LIMIT_WARN_SECONDS,
+        cooldown_seconds=RATE_LIMIT_COOLDOWN_SECONDS,
+    )
+    return reason
+
+
+def record_rate_limit_alert_sent() -> None:
+    global _rate_limit_alert_sent
+    _rate_limit_alert_sent = True
+
+
+== 5. Source blob checks
+match  sources/candidate/claude_worker.py
+match  sources/candidate/claude_rate_guard.py
+match  sources/candidate/tests/test_claude_rate_guard_extraction.py
+match  sources/candidate/tests/test_rate_holdoff.py
+match  sources/base/claude_worker.py
+match  sources/base/tests/test_rate_holdoff.py
+test_rate_holdoff.py unchanged between base and candidate: yes
+
+== 6. Import / circular-dependency smoke test (clean interpreters)
+$ python -c 'import sys, claude_rate_guard; assert "claude_worker" not in sys.modules'
+claude_rate_guard imported without claude_worker
+exit=0
+$ python -c 'import claude_worker, claude_rate_guard'
+ok
+exit=0
+$ python -c 'import claude_rate_guard, claude_worker'
+ok
+exit=0
+$ python -c 'import claude_worker, claude_integration, claude_rate_guard'
+ok
+exit=0
+
+== 7. Differential equivalence check: base vs candidate
+Method: loads claude_worker.py from the base commit and from the candidate as two modules; runs identical
+operation sequences (23 fixed + 2000 random, seed 20260914) against each in its own temp dir; compares return
+values, raised exceptions, the in-memory usage window, hold-off and usage file bytes, and log records (level,
+message; each run's own temp-dir path normalized to <RUN_DIR>). Operations: rate_limit_reason, _record_usage,
+_current_usage_total, _purge_old_usage, _read_usage, _write_usage, _read_holdoff, _begin_holdoff, _end_holdoff,
+record_rate_limit_alert_sent, simulated restart, threshold/window patches, and junk / missing / directory files.
+Sensitivity (run during authoring): a '>=' -> '>' purge change gave 290 mismatches; one changed log word gave 402.
+Result:
+sequences: 2023 (23 fixed, 2000 random, seed 20260914); operations: 31595; mismatches: 0
+differential exit=0
+
+== 8. Focused tests (rate hold-off [unchanged], rate-guard extraction, integration extraction, view budgets,
+      worker controller source, pause and control, chat cannot activate, prompt contract)
+============================= test session starts =============================
+platform win32 -- Python 3.11.3, pytest-9.1.1, pluggy-1.6.0 -- C:\Python311\python.exe
+rootdir: C:\Users\david\AppData\Local\Temp\claude\C--git\df50afa4-2c3b-416e-bc12-32a33a0b6569\scratchpad\verify-c7e7be7
+configfile: pytest.ini
+plugins: anyio-4.15.0
+collecting ... collected 165 items
+
+tests/test_rate_holdoff.py::test_idle_and_paused_time_accrues_no_usage PASSED [  0%]
+tests/test_rate_holdoff.py::test_usage_older_than_rolling_window_is_purged PASSED [  1%]
+tests/test_rate_holdoff.py::test_a_corrupt_usage_file_does_not_hold_off PASSED [  1%]
+tests/test_rate_holdoff.py::test_unexpired_usage_survives_a_restart_and_still_trips PASSED [  2%]
+tests/test_rate_holdoff.py::test_expired_usage_reloaded_after_a_restart_no_longer_blocks PASSED [  3%]
+tests/test_rate_holdoff.py::test_run_task_records_wall_clock_time_a_later_process_can_compare PASSED [  3%]
+tests/test_rate_holdoff.py::test_a_missing_usage_file_is_empty_and_says_nothing PASSED [  4%]
+tests/test_rate_holdoff.py::test_a_malformed_usage_file_warns_and_does_not_hold_off[not-a-json] PASSED [  4%]
+tests/test_rate_holdoff.py::test_a_malformed_usage_file_warns_and_does_not_hold_off[{] PASSED [  5%]
+tests/test_rate_holdoff.py::test_a_malformed_usage_file_warns_and_does_not_hold_off[{}] PASSED [  6%]
+tests/test_rate_holdoff.py::test_a_malformed_usage_file_warns_and_does_not_hold_off[[1, 2]] PASSED [  6%]
+tests/test_rate_holdoff.py::test_a_malformed_usage_file_warns_and_does_not_hold_off[[["a", 1]]] PASSED [  7%]
+tests/test_rate_holdoff.py::test_a_malformed_usage_file_warns_and_does_not_hold_off[5] PASSED [  7%]
+tests/test_rate_holdoff.py::test_a_fresh_worker_is_not_held_off PASSED   [  8%]
+tests/test_rate_holdoff.py::test_crossing_the_window_starts_a_hold_off PASSED [  9%]
+tests/test_rate_holdoff.py::test_the_deadline_is_recorded_on_disk PASSED [  9%]
+tests/test_rate_holdoff.py::test_a_hold_off_survives_a_restart PASSED    [ 10%]
+tests/test_rate_holdoff.py::test_the_hold_off_ends_by_itself PASSED      [ 10%]
+tests/test_rate_holdoff.py::test_releasing_restarts_the_window_rather_than_tripping_again PASSED [ 11%]
+tests/test_rate_holdoff.py::test_a_hold_off_still_active_is_reported_with_time_remaining PASSED [ 12%]
+tests/test_rate_holdoff.py::test_an_unparseable_deadline_does_not_hold_forever[] PASSED [ 12%]
+tests/test_rate_holdoff.py::test_an_unparseable_deadline_does_not_hold_forever[   ] PASSED [ 13%]
+tests/test_rate_holdoff.py::test_an_unparseable_deadline_does_not_hold_forever[not-a-number] PASSED [ 13%]
+tests/test_rate_holdoff.py::test_an_unparseable_deadline_does_not_hold_forever[1e] PASSED [ 14%]
+tests/test_rate_holdoff.py::test_the_guard_is_consulted_before_any_claim PASSED [ 15%]
+tests/test_claude_rate_guard_extraction.py::test_the_guard_module_does_not_import_the_worker PASSED [ 15%]
+tests/test_claude_rate_guard_extraction.py::test_either_module_imports_first_without_a_cycle PASSED [ 16%]
+tests/test_claude_rate_guard_extraction.py::test_the_names_stay_on_the_worker_and_share_its_logger PASSED [ 16%]
+tests/test_claude_rate_guard_extraction.py::test_paths_patched_after_import_are_the_ones_used PASSED [ 17%]
+tests/test_claude_rate_guard_extraction.py::test_thresholds_patched_after_import_are_the_ones_used PASSED [ 18%]
+tests/test_claude_rate_guard_extraction.py::test_the_window_is_read_from_and_stored_back_on_the_worker PASSED [ 18%]
+tests/test_claude_rate_guard_extraction.py::test_the_alert_flag_is_still_set_on_the_worker PASSED [ 19%]
+tests/test_claude_integration_extraction.py::test_the_extracted_module_does_not_import_the_worker PASSED [ 20%]
+tests/test_claude_integration_extraction.py::test_either_module_imports_first_without_a_cycle PASSED [ 20%]
+tests/test_claude_integration_extraction.py::test_the_worker_entry_point_is_still_where_callers_find_it PASSED [ 21%]
+tests/test_claude_integration_extraction.py::test_a_patched_worker_identity_reaches_the_integrator PASSED [ 21%]
+tests/test_claude_integration_extraction.py::test_dispatch_still_reaches_integration_through_the_worker PASSED [ 22%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[authored_change.py] PASSED [ 23%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[chatgpt_worker.py] PASSED [ 23%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[claude_worker.py] PASSED [ 24%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[controller/activations.py] PASSED [ 24%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[controller/api.py] PASSED [ 25%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[integrator.py] PASSED [ 26%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[supervisor.py] PASSED [ 26%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_a_task_writes_fits_in_one_file_view[swarm_control.py] PASSED [ 27%]
+tests/test_view_budgets_fit_this_repository.py::test_every_other_root_module_fits PASSED [ 27%]
+tests/test_view_budgets_fit_this_repository.py::test_a_module_and_its_tests_fit_together PASSED [ 28%]
+tests/test_view_budgets_fit_this_repository.py::test_the_per_file_cap_does_not_exceed_the_budget_it_spends_from PASSED [ 29%]
+tests/test_view_budgets_fit_this_repository.py::test_two_writable_files_at_the_cap_are_both_shown_whole PASSED [ 29%]
+tests/test_worker_controller_source.py::test_the_controller_source_never_touches_the_local_directory PASSED [ 30%]
+tests/test_worker_controller_source.py::test_the_directory_source_never_touches_the_controller PASSED [ 30%]
+tests/test_worker_controller_source.py::test_an_unknown_source_refuses_to_start PASSED [ 31%]
+tests/test_worker_controller_source.py::test_one_claimed_activation_produces_exactly_one_model_call PASSED [ 32%]
+tests/test_worker_controller_source.py::test_repeated_polling_does_not_rerun_the_same_activation PASSED [ 32%]
+tests/test_worker_controller_source.py::test_the_outcome_is_reported_once_with_the_exit_code PASSED [ 33%]
+tests/test_worker_controller_source.py::test_a_failing_run_is_reported_as_failed_not_as_a_candidate PASSED [ 33%]
+tests/test_worker_controller_source.py::test_pause_prevents_the_claim_being_made_at_all PASSED [ 34%]
+tests/test_worker_controller_source.py::test_an_inflight_marker_is_not_resumed PASSED [ 35%]
+tests/test_worker_controller_source.py::test_the_marker_is_written_before_the_model_runs PASSED [ 35%]
+tests/test_worker_controller_source.py::test_the_marker_is_cleared_after_a_reported_result PASSED [ 36%]
+tests/test_worker_controller_source.py::test_the_result_is_addressed_to_admin_and_no_peer PASSED [ 36%]
+tests/test_worker_controller_source.py::test_chat_still_cannot_reach_a_model_on_the_controller_source PASSED [ 37%]
+tests/test_worker_controller_source.py::test_a_server_outage_backs_off_and_is_bounded PASSED [ 38%]
+tests/test_worker_controller_source.py::test_a_rejected_credential_is_raised_and_not_backed_off PASSED [ 38%]
+tests/test_worker_controller_source.py::test_a_forbidden_claim_is_fatal_too PASSED [ 39%]
+tests/test_worker_controller_source.py::test_a_forbidden_result_is_not_fatal PASSED [ 40%]
+tests/test_worker_controller_source.py::test_a_429_is_honoured_rather_than_guessed_at PASSED [ 40%]
+tests/test_worker_controller_source.py::test_a_missing_retry_after_falls_back_to_a_sane_wait PASSED [ 41%]
+tests/test_worker_controller_source.py::test_a_server_error_backs_off_but_a_fatal_one_does_not PASSED [ 41%]
+tests/test_worker_controller_source.py::test_a_recovered_controller_resets_the_backoff PASSED [ 42%]
+tests/test_worker_controller_source.py::test_a_controller_refusal_is_not_retried_forever PASSED [ 43%]
+tests/test_worker_controller_source.py::test_the_worker_exits_with_a_distinct_code_on_a_rejected_credential PASSED [ 43%]
+tests/test_worker_controller_source.py::test_a_forbidden_claim_also_exits PASSED [ 44%]
+tests/test_worker_controller_source.py::test_a_throttle_paces_the_next_poll PASSED [ 44%]
+tests/test_pause_and_control.py::test_admin_issued_activation_runs PASSED [ 45%]
+tests/test_pause_and_control.py::test_admin_activation_result_is_posted_to_admin PASSED [ 46%]
+tests/test_pause_and_control.py::test_activation_is_consumed_exactly_once_across_many_polls PASSED [ 46%]
+tests/test_pause_and_control.py::test_pause_sentinel_prevents_execution PASSED [ 47%]
+tests/test_pause_and_control.py::test_pause_leaves_the_queued_work_intact PASSED [ 47%]
+tests/test_pause_and_control.py::test_env_var_pause_is_independent_of_the_sentinel PASSED [ 48%]
+tests/test_pause_and_control.py::test_truthy_pause_values_engage[1] PASSED [ 49%]
+tests/test_pause_and_control.py::test_truthy_pause_values_engage[true] PASSED [ 49%]
+tests/test_pause_and_control.py::test_truthy_pause_values_engage[yes] PASSED [ 50%]
+tests/test_pause_and_control.py::test_truthy_pause_values_engage[TRUE] PASSED [ 50%]
+tests/test_pause_and_control.py::test_truthy_pause_values_engage[engaged] PASSED [ 51%]
+tests/test_pause_and_control.py::test_explicitly_off_pause_values_do_not_engage[] PASSED [ 52%]
+tests/test_pause_and_control.py::test_explicitly_off_pause_values_do_not_engage[0] PASSED [ 52%]
+tests/test_pause_and_control.py::test_explicitly_off_pause_values_do_not_engage[false] PASSED [ 53%]
+tests/test_pause_and_control.py::test_explicitly_off_pause_values_do_not_engage[no] PASSED [ 53%]
+tests/test_pause_and_control.py::test_unreadable_pause_flag_fails_closed PASSED [ 54%]
+tests/test_pause_and_control.py::test_control_status_reports_the_containment_facts PASSED [ 55%]
+tests/test_pause_and_control.py::test_status_is_written_where_an_operator_can_read_it PASSED [ 55%]
+tests/test_pause_and_control.py::test_workers_refuse_to_start_if_chat_becomes_authoritative[claude_worker] PASSED [ 56%]
+tests/test_pause_and_control.py::test_workers_refuse_to_start_if_chat_becomes_authoritative[chatgpt_worker] PASSED [ 56%]
+tests/test_pause_and_control.py::test_workers_refuse_to_start_if_chat_becomes_authoritative[gemini_worker] PASSED [ 57%]
+tests/test_chat_cannot_activate.py::test_agent_chat_and_mentions_never_invoke_a_model[claude] PASSED [ 58%]
+tests/test_chat_cannot_activate.py::test_agent_chat_and_mentions_never_invoke_a_model[chatgpt] PASSED [ 58%]
+tests/test_chat_cannot_activate.py::test_agent_chat_and_mentions_never_invoke_a_model[gemini] PASSED [ 59%]
+tests/test_chat_cannot_activate.py::test_no_hub_message_is_ever_addressed_to_a_peer_worker[claude] PASSED [ 60%]
+tests/test_chat_cannot_activate.py::test_no_hub_message_is_ever_addressed_to_a_peer_worker[chatgpt] PASSED [ 60%]
+tests/test_chat_cannot_activate.py::test_no_hub_message_is_ever_addressed_to_a_peer_worker[gemini] PASSED [ 61%]
+tests/test_chat_cannot_activate.py::test_chat_is_still_recorded_and_readable[claude] PASSED [ 61%]
+tests/test_chat_cannot_activate.py::test_chat_is_still_recorded_and_readable[chatgpt] PASSED [ 62%]
+tests/test_chat_cannot_activate.py::test_chat_is_still_recorded_and_readable[gemini] PASSED [ 63%]
+tests/test_chat_cannot_activate.py::test_narration_survives_a_reread PASSED [ 63%]
+tests/test_chat_cannot_activate.py::test_repeated_chat_delivery_creates_no_model_calls[claude] PASSED [ 64%]
+tests/test_chat_cannot_activate.py::test_repeated_chat_delivery_creates_no_model_calls[chatgpt] PASSED [ 64%]
+tests/test_chat_cannot_activate.py::test_repeated_chat_delivery_creates_no_model_calls[gemini] PASSED [ 65%]
+tests/test_chat_cannot_activate.py::test_duplicate_polls_cannot_claim_one_activation_twice PASSED [ 66%]
+tests/test_chat_cannot_activate.py::test_a_worker_cannot_claim_another_workers_activation PASSED [ 66%]
+tests/test_claude_prompt_contract.py::test_the_prompt_reaches_run_task_at_all PASSED [ 67%]
+tests/test_claude_prompt_contract.py::test_the_prompt_states_each_contract_field[task version-3] PASSED [ 67%]
+tests/test_claude_prompt_contract.py::test_the_prompt_states_each_contract_field[base commit-b4f8d21036520856b39f3c919905213da9754622] PASSED [ 68%]
+tests/test_claude_prompt_contract.py::test_the_prompt_states_each_contract_field[proof mode-branch_only] PASSED [ 69%]
+tests/test_claude_prompt_contract.py::test_the_prompt_states_each_contract_field[contract hash-12fa46f9230262b7674ecf9ca8b48d0ecd9ffc04] PASSED [ 69%]
+tests/test_claude_prompt_contract.py::test_the_prompt_states_the_allowed_paths PASSED [ 70%]
+tests/test_claude_prompt_contract.py::test_the_prompt_carries_the_contract_verbatim PASSED [ 70%]
+tests/test_claude_prompt_contract.py::test_the_prompt_says_the_contract_may_not_be_changed PASSED [ 71%]
+tests/test_claude_prompt_contract.py::test_the_prompt_carries_the_operator_response PASSED [ 72%]
+tests/test_claude_prompt_contract.py::test_the_prompt_carries_both_the_boundary_and_the_answer PASSED [ 72%]
+tests/test_claude_prompt_contract.py::test_the_contract_comes_before_the_answer PASSED [ 73%]
+tests/test_claude_prompt_contract.py::test_the_answer_comes_before_the_task_text PASSED [ 73%]
+tests/test_claude_prompt_contract.py::test_the_answer_is_not_said_to_outrank_the_task PASSED [ 74%]
+tests/test_claude_prompt_contract.py::test_a_task_with_no_escalation_still_gets_its_contract PASSED [ 75%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no task record at all] PASSED [ 75%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no contract yaml] PASSED [ 76%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no base commit] PASSED [ 76%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no proof mode] PASSED [ 77%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no contract hash] PASSED [ 78%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no task id] PASSED [ 78%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no version] PASSED [ 79%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[a contract declaring no paths] PASSED [ 80%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[a contract that will not parse] PASSED [ 80%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no task record at all] PASSED [ 81%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no contract yaml] PASSED [ 81%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no base commit] PASSED [ 82%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no proof mode] PASSED [ 83%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no contract hash] PASSED [ 83%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no task id] PASSED [ 84%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no version] PASSED [ 84%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[a contract declaring no paths] PASSED [ 85%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[a contract that will not parse] PASSED [ 86%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no task record at all] PASSED [ 86%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no contract yaml] PASSED [ 87%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no base commit] PASSED [ 87%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no proof mode] PASSED [ 88%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no contract hash] PASSED [ 89%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no task id] PASSED [ 89%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no version] PASSED [ 90%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[a contract declaring no paths] PASSED [ 90%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[a contract that will not parse] PASSED [ 91%]
+tests/test_claude_prompt_contract.py::test_no_placeholder_is_ever_rendered_for_the_paths PASSED [ 92%]
+tests/test_claude_prompt_contract.py::test_a_locally_issued_activation_still_runs PASSED [ 92%]
+tests/test_claude_prompt_contract.py::test_an_empty_resolved_scope_is_refused_even_if_parsing_succeeds PASSED [ 93%]
+tests/test_claude_prompt_contract.py::test_an_unrestricted_contract_reaches_the_cli[list] PASSED [ 93%]
+tests/test_claude_prompt_contract.py::test_an_unrestricted_contract_reaches_the_cli[scalar] PASSED [ 94%]
+tests/test_claude_prompt_contract.py::test_the_prompt_states_repository_wide_authority[list] PASSED [ 95%]
+tests/test_claude_prompt_contract.py::test_the_prompt_states_repository_wide_authority[scalar] PASSED [ 95%]
+tests/test_claude_prompt_contract.py::test_an_unrestricted_prompt_does_not_claim_a_path_list[list] PASSED [ 96%]
+tests/test_claude_prompt_contract.py::test_an_unrestricted_prompt_does_not_claim_a_path_list[scalar] PASSED [ 96%]
+tests/test_claude_prompt_contract.py::test_the_rest_of_the_contract_still_binds[list] PASSED [ 97%]
+tests/test_claude_prompt_contract.py::test_the_rest_of_the_contract_still_binds[scalar] PASSED [ 98%]
+tests/test_claude_prompt_contract.py::test_a_restricted_contract_still_renders_its_exact_paths PASSED [ 98%]
+tests/test_claude_prompt_contract.py::test_a_restricted_contract_with_no_paths_is_still_refused PASSED [ 99%]
+tests/test_claude_prompt_contract.py::test_the_scope_object_survives_validation PASSED [100%]
+
+============================= 165 passed in 5.00s =============================
+focused exit=0
+
+== 9. Full required suites: ./deploy_controller.sh --tests-only
+deploy: 11 files from /tmp/claude/C--git/df50afa4-2c3b-416e-bc12-32a33a0b6569/scratchpad/verify-c7e7be7
+deploy: commit   c7e7be772d10fc54a8a56ee8a685357e9a9a7d30
+deploy: build id 2d7c9f666678 over 11 files
+deploy: running suite -- controller, workers and planning
+deploy: ok   1358 passed, 3 warnings in 363.86s (0:06:03)
+deploy: running suite -- hub and controller HTTP surface
+deploy: ok   247 passed, 1 warning in 41.44s
+deploy: all 2 required suites passed
+deploy: --tests-only, so stopping before the copy
+gate exit=0
+
+== 10. Bypass suite
+============================= test session starts =============================
+platform win32 -- Python 3.11.3, pytest-9.1.1, pluggy-1.6.0 -- C:\Python311\python.exe
+rootdir: C:\Users\david\AppData\Local\Temp\claude\C--git\df50afa4-2c3b-416e-bc12-32a33a0b6569\scratchpad\verify-c7e7be7
+configfile: pytest.ini
+plugins: anyio-4.15.0
+collecting ... collected 1358 items / 1350 deselected / 8 selected
+
+tests/test_chat_ingress_bypass.py::test_every_bypass_names_a_real_test PASSED [ 12%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[create_table_if_not_exists] PASSED [ 25%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[hash_equality] PASSED [ 37%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[compare_and_swap_in_one_transaction] PASSED [ 50%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[pending_only] PASSED [ 62%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[draft_exists] PASSED [ 75%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[hash_sorts_keys] PASSED [ 87%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[rows_read_by_position] PASSED [100%]
+
+===================== 8 passed, 1350 deselected in 1.34s ======================
+bypass exit=0
+
+== 11. PR #28 CI
+pytest-bypass	pass	29s	https://github.com/Decksx/agent-swarm/actions/runs/34867495559/job/104054893576	
+pytest-unit	pass	6m18s	https://github.com/Decksx/agent-swarm/actions/runs/34867495559/job/104054893341	
+
+== 12. Verification worktree cleanliness after all runs
+untracked or modified (git status --porcelain --untracked-files=all):
+[end]
+ignored entries, caches excluded:
+[end]
+HEAD: c7e7be772d10fc54a8a56ee8a685357e9a9a7d30
+
+== 13. Protected paths
+Command: git diff 9287144db3b466da871940fe77d049e0177b07a1..c7e7be772d10fc54a8a56ee8a685357e9a9a7d30 -- controller/ hub/hub.py
+Result: EMPTY -- no changes under controller/ or to hub/hub.py.
+
+== Appendix: differential check script (scratchpad; not committed)
+"""Differential check: the rate guard before (#25 base) and after extraction.
+
+Loads claude_worker.py from the base commit and from the candidate as two
+separate modules, runs identical operation sequences against each in its own
+temp directory, and compares every observable: return values, exceptions, the
+in-memory window, the hold-off and usage files, and log records.
+
+Usage: python rate_guard_differential.py <candidate_checkout> <base_sha> [sequences]
+"""
+from __future__ import annotations
+
+import importlib.util
+import logging
+import os
+import random
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+cand_dir = Path(sys.argv[1]).resolve()
+base_sha = sys.argv[2]
+n_seq = int(sys.argv[3]) if len(sys.argv) > 3 else 2000
+
+sys.path.insert(0, str(cand_dir))  # shared deps (authored_change, claude_integration, ...)
+os.chdir(cand_dir)
+
+base_src = subprocess.run(["git", "-C", str(cand_dir), "show", f"{base_sha}:claude_worker.py"],
+                          capture_output=True, text=True, encoding="utf-8", check=True).stdout
+tmp_root = Path(tempfile.mkdtemp(prefix="rg-diff-"))
+base_file = tmp_root / "claude_worker_base.py"
+base_file.write_text(base_src, encoding="utf-8")
+
+
+def load(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+OLD = load("cw_base", base_file)
+NEW = load("cw_candidate", cand_dir / "claude_worker.py")
+assert OLD.log is NEW.log  # both log on "claude_worker"
+
+
+class Capture(logging.Handler):
+    def __init__(self):
+        super().__init__(logging.DEBUG); self.records = []
+    def emit(self, r):
+        self.records.append((r.levelname, r.getMessage()))
+
+
+cap = Capture()
+logging.getLogger("claude_worker").addHandler(cap)
+logging.getLogger("claude_worker").setLevel(logging.DEBUG)
+logging.getLogger("claude_worker").propagate = False
+
+NOW = 1_000_000.0
+JUNK_HOLDOFF = ["", "   ", "x", "1e", "nan-ish", "123abc"]
+JUNK_USAGE = ["", "not-json", "{", "{}", "5", "[1, 2]", '[["a", 1]]', "[[1]]", "[[1, 2, 3]]", "null", '[[1, "2"]]']
+
+
+def snapshot(mod, d: Path):
+    def rd(p):
+        if p.is_dir():
+            return ("<dir>",)
+        return p.read_bytes() if p.exists() else None
+    return (list(mod._process_usage_window), rd(d / "rl"), rd(d / "usage"))
+
+
+def norm(d: Path, records):
+    """Replace this run's own temp directory in messages; nothing else is altered."""
+    forms = [str(d), str(d).replace("\\", "\\\\")]
+    out = []
+    for level, msg in records:
+        for f in sorted(forms, key=len, reverse=True):
+            msg = msg.replace(f, "<RUN_DIR>")
+        out.append((level, msg))
+    return out
+
+
+def run(mod, d: Path, ops):
+    mod.RATELIMIT_PATH = d / "rl"
+    mod.USAGE_PATH = d / "usage"
+    out = []
+    for op, args in ops:
+        cap.records.clear()
+        try:
+            if op == "set":
+                setattr(mod, args[0], args[1]() if callable(args[1]) else args[1])
+                res = None
+            elif op == "file":
+                name, content = args
+                p = d / name
+                if p.is_dir(): shutil.rmtree(p)
+                elif p.exists(): p.unlink()
+                if content == "<dir>": p.mkdir()
+                elif content is not None: p.write_text(content, encoding="utf-8")
+                res = None
+            elif op == "restart":
+                mod._process_usage_window = []
+                mod._process_usage_window = mod._read_usage()
+                res = None
+            else:
+                res = getattr(mod, op)(*args)
+            out.append(("ok", op, res, snapshot(mod, d), norm(d, cap.records)))
+        except Exception as exc:  # compare exception type and text too
+            out.append(("raise", op, type(exc).__name__, norm(d, [("", str(exc))])[0][1], snapshot(mod, d), norm(d, cap.records)))
+    return out
+
+
+def random_ops(rng: random.Random):
+    ops = [("set", ("_process_usage_window", lambda: [])),
+           ("set", ("RATE_LIMIT_WARN_SECONDS", rng.choice([0.0, 10.0, 100.0, 4.5 * 3600]))),
+           ("set", ("RATE_LIMIT_COOLDOWN_SECONDS", rng.choice([0.0, 1.0, 50.0, 5 * 3600])))]
+    t = NOW
+    for _ in range(rng.randint(1, 25)):
+        t += rng.choice([0.0, 0.5, 1.0, 30.0, 49.9, 50.0, 50.1, 3600.0, 18000.0, -5.0])
+        k = rng.randrange(14)
+        if k == 0: ops.append(("rate_limit_reason", (t,)))
+        elif k == 1: ops.append(("_record_usage", (t - rng.choice([0.0, 1.0, 60.0]), rng.choice([0.0, 1.0, 30.0, 150.0, 20000.0]))))
+        elif k == 2: ops.append(("_current_usage_total", (t,)))
+        elif k == 3: ops.append(("_purge_old_usage", (t,)))
+        elif k == 4: ops.append(("_read_usage", ()))
+        elif k == 5: ops.append(("_write_usage", ([(t, 1.0), (t - 10, 2.0)],)))
+        elif k == 6: ops.append(("_read_holdoff", ()))
+        elif k == 7: ops.append(("_begin_holdoff", (t,)))
+        elif k == 8: ops.append(("_end_holdoff", ()))
+        elif k == 9: ops.append(("file", ("rl", rng.choice([None, "<dir>", str(t + 10), str(t - 10), str(int(t))] + JUNK_HOLDOFF))))
+        elif k == 10: ops.append(("file", ("usage", rng.choice([None, "<dir>", "[]", f"[[{t}, 5.0]]", f"[[{t - 100}, 500.0], [{t}, 1.5]]"] + JUNK_USAGE))))
+        elif k == 11: ops.append(("restart", ()))
+        elif k == 12: ops.append(("set", ("_process_usage_window", lambda tt=t: [(tt - 1, 7.0), [tt - 2, 3.0]])))
+        else: ops.append(("record_rate_limit_alert_sent", ()))
+    return ops
+
+
+FIXED =[[("rate_limit_reason", (NOW,))],
+         [("set", ("RATE_LIMIT_WARN_SECONDS", 100.0)), ("set", ("RATE_LIMIT_COOLDOWN_SECONDS", 50.0)),
+          ("_record_usage", (NOW - 1, 150.0)), ("rate_limit_reason", (NOW,)), ("rate_limit_reason", (NOW + 10,)),
+          ("rate_limit_reason", (NOW + 50,)), ("rate_limit_reason", (NOW + 51,)), ("rate_limit_reason", (NOW + 52,))],
+         [("set", ("RATE_LIMIT_COOLDOWN_SECONDS", 50.0)), ("set", ("_process_usage_window", lambda: [(NOW - 50.0, 1.0), (NOW - 50.0001, 2.0)])),
+          ("_current_usage_total", (NOW,))],
+         [("file", ("usage", "<dir>")), ("_write_usage", ([(NOW, 1.0)],)), ("_read_usage", ()), ("_record_usage", (NOW, 1.0))],
+         [("file", ("rl", "<dir>")), ("_begin_holdoff", (NOW,)), ("_end_holdoff", ()), ("_read_holdoff", ()), ("rate_limit_reason", (NOW,))],
+         [("rate_limit_reason", (None,))]]
+FIXED += [[("file", ("rl", j)), ("rate_limit_reason", (NOW,))] for j in JUNK_HOLDOFF]
+FIXED += [[("file", ("usage", j)), ("restart", ()), ("rate_limit_reason", (NOW,))] for j in JUNK_USAGE]
+
+rng = random.Random(20260914)
+sequences = FIXED + [random_ops(rng) for _ in range(n_seq)]
+mismatches = 0
+ops_total = 0
+for i, ops in enumerate(sequences):
+    d_old = tmp_root / f"old{i}"; d_new = tmp_root / f"new{i}"
+    d_old.mkdir(); d_new.mkdir()
+    a = run(OLD, d_old, ops); b = run(NEW, d_new, ops)
+    ops_total += len(ops)
+    if a != b:
+        mismatches += 1
+        if mismatches <= 5:
+            for x, y in zip(a, b):
+                if x != y:
+                    print(f"MISMATCH seq {i}:\n  base      {x}\n  candidate {y}")
+                    break
+print(f"sequences: {len(sequences)} ({len(FIXED)} fixed, {n_seq} random, seed 20260914); operations: {ops_total}; mismatches: {mismatches}")
+shutil.rmtree(tmp_root, ignore_errors=True)
+sys.exit(1 if mismatches else 0)
+===== END verification.txt =====
+

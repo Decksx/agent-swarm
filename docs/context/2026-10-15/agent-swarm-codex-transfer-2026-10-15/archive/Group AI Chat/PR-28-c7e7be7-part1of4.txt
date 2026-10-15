@@ -1,0 +1,98 @@
+PART 1 OF 4 -- do not give a verdict until all 4 parts are received.
+
+PR #28 review packet (paste form). Decksx/agent-swarm
+Base:      9287144db3b466da871940fe77d049e0177b07a1
+Candidate: c7e7be772d10fc54a8a56ee8a685357e9a9a7d30
+
+Three files from the review packet follow, verbatim, each between BEGIN/END markers with its SHA-256 from the packet's MANIFEST.sha256, which the operator validated. You cannot recompute hashes from pasted text, so the manifest check has been done by the operator; mark a criterion UNVERIFIABLE only if the content it depends on is missing or truncated.
+
+diff.patch shows the base guard functions removed from claude_worker.py in full and claude_rate_guard.py added in full. verification.txt contains the differential check's script (appendix) and results.
+
+===== BEGIN REVIEW.md (sha256 71d55dd41b379bb2b4c9fe93398a082fe9c852e83f26d12a667d4c95deba9815) =====
+# Review packet: Decksx/agent-swarm PR #28
+
+**Title:** Extract the rate guard from claude_worker into claude_rate_guard (#25, part 2)
+
+| | |
+|---|---|
+| Repository | `Decksx/agent-swarm` |
+| Pull request | #28 (open, not merged) |
+| Base commit (`main`) | `9287144db3b466da871940fe77d049e0177b07a1` |
+| Candidate commit (PR head) | `c7e7be772d10fc54a8a56ee8a685357e9a9a7d30` |
+| Authoring route | Operator-authored (documented on issue #25) |
+
+This packet is read-only evidence. Every source file was extracted with `git show <sha>:<path>` from the commits above and checked against the committed blob hash. No working-tree, untracked, environment, credential, database or runtime-state file is included.
+
+## Objective
+
+Move the model-usage rate guard out of `claude_worker.py` into `claude_rate_guard.py` **without changing behaviour**, and without changing how the guard is configured. Tests and the worker configure the guard through values on the `claude_worker` module (`RATELIMIT_PATH`, `USAGE_PATH`, `RATE_LIMIT_WARN_SECONDS`, `RATE_LIMIT_COOLDOWN_SECONDS`, `_process_usage_window`). Those must still be read when the guard runs.
+
+Unlike PR #27, this is not a verbatim move: to keep that state in `claude_worker`, the extracted functions take it as parameters. Equivalence is therefore shown by the unchanged existing tests, new call-time tests, and a differential check of base against candidate.
+
+## Acceptance criteria
+
+1. **Logic preserved.** Each function in `claude_rate_guard.py` matches the corresponding base function in `9287144:claude_worker.py`, except that module globals became parameters and rebinding `_process_usage_window` became a returned list. Conditions, arithmetic, boundaries (`timestamp >= cutoff`), file formats, exception handling, return values, reason strings and log messages are unchanged.
+2. **No reverse dependency.** `claude_rate_guard.py` does not import `claude_worker`, and logs on the `"claude_worker"` logger.
+3. **Compatibility preserved.** All of these remain on `claude_worker`: `rate_limit_reason`, `_read_holdoff`, `_read_usage`, `_write_usage`, `_purge_old_usage`, `_current_usage_total`, `_record_usage`, `_begin_holdoff`, `_end_holdoff`, `record_rate_limit_alert_sent`, `RATELIMIT_PATH`, `USAGE_PATH`, `RATE_LIMIT_WARN_SECONDS`, `RATE_LIMIT_COOLDOWN_SECONDS`, `_process_usage_window`, `_rate_limit_alert_sent`. The wrappers read that state at call time and store back any returned window, so values patched on `claude_worker` are the ones used. `tests/test_rate_holdoff.py` is unchanged and passes.
+4. **Nothing else changes in `claude_worker.py`** beyond the added `import claude_rate_guard`, the wrappers replacing the guard bodies, and the cooldown rationale comment moving into `claude_rate_guard`'s docstring. It stays under 50,000 characters.
+5. **Tests.** No existing test file is modified. `tests/test_claude_rate_guard_extraction.py` tests what it claims.
+6. **Protected paths.** Nothing under `controller/` or `hub/hub.py` changes; no Tower deployment is needed.
+7. **Equivalence evidence.** The differential check in `verification.txt` §7 is a sound comparison of base against candidate, and reports zero differences.
+
+## Changed files (`name-status.txt`)
+
+```
+A	claude_rate_guard.py
+M	claude_worker.py
+A	tests/test_claude_rate_guard_extraction.py
+```
+
+```
+ claude_rate_guard.py                       | 153 +++++++++++++++++++++++++++++
+ claude_worker.py                           | 126 ++++++------------------
+ tests/test_claude_rate_guard_extraction.py | 111 +++++++++++++++++++++
+ 3 files changed, 296 insertions(+), 94 deletions(-)
+```
+
+## Test and CI results (details in `verification.txt`)
+
+| Check | Result |
+|---|---|
+| Candidate `claude_worker.py` size | 42,332 chars (base 44,675) |
+| Log messages from base guard section present verbatim in `claude_rate_guard.py` | 5 of 5 |
+| `tests/test_rate_holdoff.py` | Unchanged (same blob in base and candidate); passes |
+| Import smoke test (clean interpreters) | `claude_rate_guard` imports without `claude_worker`; all import orders succeed |
+| Differential check, base vs candidate | 2,023 sequences, 31,595 operations, **0 mismatches** |
+| Focused tests | 165 passed |
+| Full required suites (`deploy_controller.sh --tests-only`) | 1358 passed; 247 passed |
+| Bypass suite | 8 passed |
+| PR CI | `pytest-unit` pass; `pytest-bypass` pass |
+| Protected-path diff (`controller/`, `hub/hub.py`) | Empty |
+| Verification worktree after all runs | Clean |
+
+## Packet contents
+
+| File | What it is |
+|---|---|
+| `REVIEW.md` | This file |
+| `diff.patch` | `git diff --binary 9287144..c7e7be7` |
+| `diff-stat.txt`, `name-status.txt` | Diff summaries |
+| `protected-path-diff.txt` | `git diff 9287144..c7e7be7 -- controller/ hub/hub.py`, with an explicit empty/non-empty statement |
+| `sources/candidate/` | `claude_worker.py`, `claude_rate_guard.py`, `tests/test_claude_rate_guard_extraction.py`, and the unchanged `tests/test_rate_holdoff.py`, at `c7e7be7` |
+| `sources/base/` | `claude_worker.py` and `tests/test_rate_holdoff.py` at `9287144` |
+| `verification.txt` | Sizes, base-vs-module logic diff, log messages, wrappers, blob checks, smoke test, differential check (with its script in an appendix), focused / full / bypass output, CI, cleanliness |
+| `MANIFEST.sha256` | SHA-256 of every other file in this packet |
+
+## Instructions for Gemini
+
+Perform a **read-only** review. Do not modify anything.
+
+1. If you received the ZIP, check `MANIFEST.sha256`. If you received pasted text, the operator has validated the manifest; mark a criterion UNVERIFIABLE only if the content it depends on is missing or truncated.
+2. Evaluate each of the seven acceptance criteria. For criterion 1, compare the base guard functions (in `diff.patch`'s removed lines, or `sources/base/claude_worker.py`) with `claude_rate_guard.py` directly — not only the recorded diff in `verification.txt` §2. For criterion 7, read the differential script in the appendix and judge whether it compares what it claims.
+3. Report every criterion as **PASS**, **FAIL** (with concrete file and line evidence), or **UNVERIFIABLE** (with the reason).
+4. Then give an overall verdict:
+   - **PASS** only if all seven criteria are PASS.
+   - Otherwise **BLOCKED**, with an itemized list of blockers naming the criterion, file and line, and what would resolve it.
+
+Do not infer a PASS for anything you could not check.
+===== END REVIEW.md =====

@@ -1,0 +1,24 @@
+{
+  "url": "https://github.com/Decksx/agent-swarm/issues/91",
+  "title": "#74 slice 1: external-review states and ledger events (controller only)",
+  "issue_number": 91,
+  "body": "Implements [§4 of the design](docs/design/74-external-review.md) (merged at 983e324). Part of #74.\n\n- Add the seven `EXTERNAL_*` states and the transitions, events and authorities in §4's table, including both blocked states and their `environment_repaired` exits.\n- Add `external_review_judged`, which carries `judgment` (`satisfied` / `changes_requested` / `decision_required`) and `rationale` in its payload and always lands in `EXTERNAL_REVIEWED` (§4, §11.2).\n- `EXTERNAL_REVIEWED` is terminal; `admin_cancelled` applies to the other `EXTERNAL_*` states through the existing generic rule.\n- **Graph-walk test:** from every `EXTERNAL_*` state, `READY_INTEGRATION`, `INTEGRATING`, `INTEGRATION_*` and `COMPLETE` are unreachable. The test walks the transition graph rather than listing edges, and is mutation-tested by adding an edge that opens a path.\n- External tasks never write `approved_candidate_sha`.\n\nController only; nothing can enter these states yet. That comes in slice 2.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nhttps://claude.ai/code/session_01Ruk3qwhMWdupZ7NS8r4RLV",
+  "state": "open",
+  "user": {
+    "login": "Decksx",
+    "name": "Decksx",
+    "email": null,
+    "avatar_url": "https://avatars.githubusercontent.com/u/20764723?v=4",
+    "id": 20764723
+  },
+  "assignees": null,
+  "labels": null,
+  "milestone": null,
+  "state_reason": null,
+  "comments": 0,
+  "created_at": "2026-09-24T21:39:56Z",
+  "updated_at": "2026-09-24T21:39:56Z",
+  "closed_at": null,
+  "display_url": "https://github.com/Decksx/agent-swarm/issues/91",
+  "display_title": "#74 slice 1: external-review states and ledger events (controller only)"
+}

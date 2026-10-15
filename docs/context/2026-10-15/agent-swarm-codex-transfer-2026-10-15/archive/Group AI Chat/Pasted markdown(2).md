@@ -1,0 +1,787 @@
+Here it is in full — `PR_45.md`, all three parts, verbatim. Fenced so the diff's leading whitespace survives the paste.
+
+`PR_45.md` sha256 `b1cc246122d0a446b5da7b3b4a45cf5f0845d92b81bdb90748cadaf9eb01ba24` · 36,141 chars · 751 lines.
+
+```text
+PART 1 OF 3 -- do not give a verdict until all 3 parts are received.
+
+PR #45 review packet (paste form). Decksx/agent-swarm
+Base:      3a0896221f5410e861a088fd3c2ea1331791a9b1
+Candidate: 56e3284717df494ac5ebe88dbf745f0d8d0e5490
+
+Three files from the review packet follow, verbatim, each between BEGIN/END markers with its SHA-256 from the packet's MANIFEST.sha256, which the operator validated. You cannot recompute hashes from pasted text, so the manifest check has been done by the operator; mark a criterion UNVERIFIABLE only if the content it depends on is missing or truncated.
+
+This PR changes no deployed file: controller/ and hub/hub.py are untouched, and the candidate build id equals the base build id (f6f64b351727). It changes only the worker-side chatgpt_worker.py and adds tests.
+
+===== BEGIN REVIEW.md (sha256 e026be1170f69ba95e37ced8063979a840a0d1fee441fe30ecfbc92de9833908) =====
+# Review packet: Decksx/agent-swarm PR #45
+
+**Title:** Name the provider failure in the ledger, not the silence (#20)
+
+| | |
+|---|---|
+| Repository | `Decksx/agent-swarm` |
+| Pull request | #45 (open, not merged) |
+| Base commit (`main`, PR #44 merge) | `3a0896221f5410e861a088fd3c2ea1331791a9b1` |
+| Candidate commit (PR head) | `56e3284717df494ac5ebe88dbf745f0d8d0e5490` |
+| Deployed controller build | `f6f64b351727` (base). The candidate changes no deployed file, so its build id must be the same. |
+| Schema | unchanged (6) |
+
+This packet is read-only evidence. Every source file was extracted with `git show <sha>:<path>` from the commits above and checked against the committed blob hash. No working-tree, untracked, environment, credential, database or runtime-state file is included.
+
+## Problem (issue #20)
+
+`chatgpt_worker.generate_reply` answered `None` for two different events:
+
+1. the OpenAI call raised before producing any text — a 429, a client timeout, a connection error;
+2. the call succeeded and the model returned an empty string.
+
+`execute_author` reported both as outcome `blocked` with reason **"the model returned nothing"**. The ledger therefore could not distinguish a provider refusal from an empty generation, and the operator had to read the worker log on OFFICEPC to find the cause.
+
+Two failures on 2026-09-13 are the shapes this addresses:
+
+- **T-INFRA-11**, event seq 318: `429 … Request too large for gpt-4o … tokens per min (TPM): Limit 30000, Requested 38…`
+- **T-INFRA-12** author attempt 3 (activation `7dfbac6a…`), seq 338: `OpenAI request failed: Request timed out.` after 361.7s
+
+Both were recorded as "the model returned nothing".
+
+## Acceptance criteria
+
+1. **A failed call is distinguishable from an empty generation.** `generate_reply` returns three things rather than two: the reply `str`; `None` when the call succeeded and the model produced an empty string; and a `ProviderFailure` when the call itself raised. The `None` case keeps its existing meaning and its existing reason string, so the honest case is not relabelled.
+
+2. **The failure is classified without importing the SDK.** `classify_provider_error(exc)` reads `status_code` and the exception's class name off whatever it is handed, because `ensure_dependencies` imports the OpenAI SDK lazily and its exception types do not exist at module import time. Classes: `timeout` (class name contains `Timeout`), `rate_limited` and `request_too_large` (429), `auth_rejected` (401/403), `provider_unavailable` (5xx), `connection_failed` (class name contains `Connection`), and `provider_error` for anything unrecognised — with the provider's text preserved, so an unclassified failure still reaches the ledger saying what happened. A `status_code` that is not an `int` is treated as absent rather than trusted.
+
+3. **The two 429s are told apart.** `request_too_large` is this request's own size against the per-minute window: waiting does not help and the task wants decomposing. A plain `rate_limited` clears by itself. They are separated on the provider's own text (`"too large"`), and the distinction is asserted directly rather than only implied by the parametrised cases.
+
+4. **The ledger carries the class, the status and the provider's text.** `execute_author` reports the failure as outcome `blocked` — unchanged, because the model never answered and there is no attempt to judge — with payload `reason` (naming the class, the status and the message), `provider_failure`, `provider_status`, `provider_message`, `elapsed_seconds` and `repaired`. The message is passed through `swarm_control.redact` and capped at `PROVIDER_MESSAGE_CHARS` (500): provider errors quote the request back, and the ledger is not a secret store. A failure during the single repair call (#35) lands in the same branch and is reported with `repaired` true.
+
+5. **Scope, tests and evidence.**
+   - **The hub still hears nothing.** `execute_activation` stays silent for a `ProviderFailure` exactly as it did for `None`. Posting a provider error as an ordinary ChatGPT reply is what turns a transient 429 into a conversation between peers; the classification is for the log and the ledger, not for the hub.
+   - **Files.** Only `chatgpt_worker.py` and a new test file change. No file under `controller/` or `hub/hub.py` changes (`protected-path-diff.txt` must be EMPTY), and the candidate build id equals the base build id.
+   - **Tests.** `tests/test_provider_failure_classification.py` (28 tests) covers criteria 1–5. The two 2026-09-13 failures are driven through the real `generate_reply` by a client that raises at the real call site, not by stubbing the classification — the defect was in the seam between the call and the report, so a test that stubbed the seam would not have caught it.
+   - **Evidence.** Every mutation in `verification.txt` §3 is caught, and the full required suites, the bypass suite and PR CI pass.
+
+## Changed files
+
+See `diff-stat.txt`: `chatgpt_worker.py`, new `tests/test_provider_failure_classification.py`.
+
+## Test and CI results (details in `verification.txt`)
+
+| Check | Result |
+|---|---|
+| Mutation checks (14) | All caught (0 survivors); worktree clean after restores |
+| Focused tests | 173 passed |
+| Full required suites (`deploy_controller.sh --tests-only`) | 1668 passed; 264 passed — candidate build `f6f64b351727` (same as base) |
+| Bypass suite | 8 passed |
+| PR CI | `pytest-unit` pass; `pytest-bypass` pass |
+| Verification worktree after all runs | Clean (0 entries), HEAD `56e3284` |
+
+The base's gate ran 1640 tests in the first suite; the candidate runs 1668. The difference is the 28 tests this PR adds.
+
+## Known limits (not acceptance criteria)
+
+- **Classification is textual and duck-typed.** It reads a status code and a class name, so an SDK that renamed its timeout class, or wrapped one error in another, would fall through to `provider_error`. That is the designed fallback and it still carries the provider's text; it is not silent.
+- **`request_too_large` is decided on the provider's wording.** A future 429 body that means the same thing in different words would be classed `rate_limited`. Both are reported with the full message, so the reviewer and the operator can still see which it was.
+- **Retry and budget policy are untouched.** This PR only names the defect. Whether a `request_too_large` should be retried, repaired or decomposed is #21 and #24, and nothing here decides it.
+- **Only the ChatGPT worker.** `gemini_worker` and `claude_worker` have their own call sites and are out of scope; the issue named this one.
+
+## Instructions for Gemini
+
+Perform a **read-only** review. Do not modify anything.
+
+1. If you received pasted text, the operator has validated `MANIFEST.sha256`; mark a criterion UNVERIFIABLE only if the content it depends on is missing or truncated.
+2. **Check the candidate SHA in this packet against the PR head you were given before anything else**, and stop if they differ.
+3. Evaluate each of the five acceptance criteria against `diff.patch` and `verification.txt`. In particular, confirm:
+   - a 429 and a timeout can no longer be reported as "the model returned nothing";
+   - an empty generation *still* is, and is not relabelled as a provider failure;
+   - the classification does not import the OpenAI SDK at module scope;
+   - a credential quoted back in a provider error cannot reach the ledger;
+   - the hub is still told nothing when a provider call fails;
+   - no deployed file changed.
+4. Report every criterion as **PASS**, **FAIL** (with concrete file and line evidence), or **UNVERIFIABLE** (with the reason).
+5. Then give an overall verdict:
+   - **PASS** only if all five criteria are PASS.
+   - Otherwise **BLOCKED**, with an itemized list of blockers naming the criterion, file and line, and what would resolve it.
+===== END REVIEW.md =====
+
+PART 2 OF 3 -- do not give a verdict until all 3 parts are received.
+
+PR #45 review packet (paste form), continued.
+
+===== BEGIN diff.patch (sha256 49d2cdc4e1a18db49867060f9a518c3be9b449f7230f9c1ea7d0f5dc90cc7ccb) =====
+diff --git a/chatgpt_worker.py b/chatgpt_worker.py
+index a5536dd..2f2f69e 100644
+--- a/chatgpt_worker.py
++++ b/chatgpt_worker.py
+@@ -66,6 +66,7 @@ import signal
+ import subprocess
+ import sys
+ import time
++from dataclasses import dataclass
+ from pathlib import Path
+ from typing import Any
+ 
+@@ -132,6 +133,12 @@ OPENAI_TIMEOUT = float(os.environ.get("OPENAI_TIMEOUT", "120"))
+ # the transport.
+ MAX_REPLY_CHARS = 60_000
+ 
++# How much of the provider's own error text the ledger keeps. Long enough for
++# the numbers a 429 carries ("Limit 30000, Requested 38..."), which are what
++# say whether the request was too big or the window merely full; short enough
++# that a provider traceback cannot become the reason field (#20).
++PROVIDER_MESSAGE_CHARS = 500
++
+ SYSTEM_PROMPT = (
+     "You are ChatGPT, one agent in a small multi-agent engineering swarm "
+     "that coordinates over a shared message hub. The other participants "
+@@ -342,8 +349,82 @@ def build_chat_messages(context: list[dict]) -> list[dict]:
+     return chat
+ 
+ 
+-def generate_reply(client: Any, context: list[dict]) -> str | None:
+-    """Ask the model for one reply, or None if there is nothing to post.
++@dataclass(frozen=True)
++class ProviderFailure:
++    """Why a provider call failed, when it failed before producing any text.
++
++    `generate_reply` answered None both for "the call failed" and for "the
++    model produced an empty string", and the author path reported both as
++    "the model returned nothing" (#20). Those need different responses: a
++    429 over the tokens-per-minute window recurs until the request is
++    smaller or the minute rolls over, a timeout may clear on its own, and a
++    model that genuinely said nothing is an attempt that failed. The ledger
++    could not tell them apart, so the cause was only ever in this worker's
++    log on OFFICEPC.
++    """
++
++    kind: str
++    status: int | None
++    message: str
++
++    def reason(self) -> str:
++        """One line for the ledger: the class, the status, and what was said."""
++        status = f" (HTTP {self.status})" if self.status is not None else ""
++        return f"the provider call failed: {self.kind}{status}: {self.message}"
++
++
++def classify_provider_error(exc: BaseException) -> ProviderFailure:
++    """Name the failure class of an SDK exception, without importing the SDK.
++
++    The OpenAI SDK is imported lazily by `ensure_dependencies`, so its
++    exception classes do not exist at module import time and cannot be
++    caught or isinstance-checked by name here. The status code and the
++    class name are read off the exception instead -- which is also why a
++    test can drive every branch with a fake carrying those two attributes,
++    rather than needing the real SDK installed.
++
++    Anything unrecognised is `provider_error` with its text preserved: an
++    unclassified failure must still reach the ledger saying what happened,
++    because the point of #20 is that the operator stopped having to read
++    the worker log to find out.
++    """
++    status = getattr(exc, "status_code", None)
++
++    if not isinstance(status, int):
++        status = None
++
++    name = type(exc).__name__
++    # str(exc) is empty for some SDK errors; the class name is then the only
++    # thing identifying it, and an empty reason field helps nobody.
++    text = swarm_control.redact(str(exc).strip() or name)[:PROVIDER_MESSAGE_CHARS]
++
++    if "Timeout" in name:
++        kind = "timeout"
++    elif status == 429:
++        # Both arrive as 429. "Request too large" is this request's own size
++        # against the per-minute window, so waiting does not help and the task
++        # wants decomposing; a plain rate limit clears by itself.
++        kind = "request_too_large" if "too large" in text.lower() else "rate_limited"
++    elif status in (401, 403):
++        kind = "auth_rejected"
++    elif status is not None and 500 <= status < 600:
++        kind = "provider_unavailable"
++    elif "Connection" in name:
++        kind = "connection_failed"
++    else:
++        kind = "provider_error"
++
++    return ProviderFailure(kind=kind, status=status, message=text)
++
++
++def generate_reply(client: Any, context: list[dict]) -> str | ProviderFailure | None:
++    """Ask the model for one reply.
++
++    Three distinct answers, because the callers need to tell them apart:
++    the reply text; `None` when the call succeeded and the model returned
++    nothing; and a `ProviderFailure` when the call itself failed (#20).
++    Answering None for both is what put a 429 in the ledger as "the model
++    returned nothing".
+ 
+     Any SDK/API failure is caught rather than propagated -- one failed
+     generation must not kill the daemon -- but it is recorded *here*, in
+@@ -357,7 +438,7 @@ def generate_reply(client: Any, context: list[dict]) -> str | None:
+     hub. (This mirrors the Gemini worker, which was hardened the same way.)
+ 
+     The response extraction is inside the try as well: an empty ``choices``
+-    list would make ``choices[0]`` raise, and that must fail to None like
++    list would make ``choices[0]`` raise, and that must be classified like
+     any other API problem rather than crash the poll loop.
+     """
+     try:
+@@ -368,10 +449,12 @@ def generate_reply(client: Any, context: list[dict]) -> str | None:
+         )
+         reply = (completion.choices[0].message.content or "").strip()
+     except Exception as exc:
+-        # exc_info, because the message alone loses which SDK call failed --
+-        # and this is now the only record of the failure anywhere.
+-        log.error("OpenAI request failed: %s", exc, exc_info=True)
+-        return None
++        # exc_info stays: the classified message is bounded and redacted, so
++        # the log is still the only place with the full traceback and which
++        # SDK call it came from.
++        failure = classify_provider_error(exc)
++        log.error("OpenAI request failed (%s): %s", failure.kind, exc, exc_info=True)
++        return failure
+ 
+     if not reply:
+         log.warning("OpenAI returned an empty reply; nothing to post")
+@@ -625,6 +708,22 @@ def execute_author(client: Any, activation: dict, queue: Any) -> None:
+     while True:
+         elapsed = time.monotonic() - started
+ 
++        if isinstance(reply, ProviderFailure):
++            # Still `blocked`, not `failed`: the model never answered, so
++            # there is no attempt to judge. What changes is that the ledger
++            # now names the defect instead of describing the silence (#20).
++            log.warning("activation %s blocked after %.1fs: %s",
++                        activation_id, elapsed, reply.reason())
++            queue.report(activation_id, outcome="blocked", payload={
++                "reason": reply.reason(),
++                "provider_failure": reply.kind,
++                "provider_status": reply.status,
++                "provider_message": reply.message,
++                "elapsed_seconds": round(elapsed, 1),
++                "repaired": repaired,
++            })
++            return
++
+         if reply is None:
+             log.warning("no reply for activation %s after %.1fs", activation_id, elapsed)
+             queue.report(activation_id, outcome="blocked",
+@@ -825,11 +924,15 @@ def execute_activation(requests: Any, client: Any, activation: dict) -> None:
+     reply = generate_reply(client, context)
+     elapsed = time.monotonic() - started
+ 
+-    if reply is None:
++    # Silence on the hub for a failure as much as for an empty answer: posting
++    # a provider error as a ChatGPT message is what the docstring above refuses
++    # to do. The classification is for the log here, not for peers to read.
++    if not isinstance(reply, str):
+         log.warning(
+-            "NO REPLY for activation %s after %.1fs; nothing posted",
++            "NO REPLY for activation %s after %.1fs; nothing posted%s",
+             activation_id,
+             elapsed,
++            f" ({reply.reason()})" if isinstance(reply, ProviderFailure) else "",
+         )
+         return
+ 
+diff --git a/tests/test_provider_failure_classification.py b/tests/test_provider_failure_classification.py
+new file mode 100644
+index 0000000..f27a0bb
+--- /dev/null
++++ b/tests/test_provider_failure_classification.py
+@@ -0,0 +1,384 @@
++"""A provider failure reaches the ledger as itself, not as silence (#20).
++
++When the OpenAI call failed before producing any text -- a 429 over the
++tokens-per-minute window, or a client timeout -- `generate_reply` answered
++None, which is the same answer it gives when the model succeeds and returns
++an empty string. The author path reported both as `blocked` with the reason
++"the model returned nothing", so the ledger could not tell a provider
++refusal from an empty generation and the operator had to read the worker log
++on OFFICEPC to find the cause.
++
++Two failures from 2026-09-13 are the shapes under test here:
++
++  - T-INFRA-11, seq 318: `429 ... Request too large for gpt-4o ... tokens per
++    min (TPM): Limit 30000, Requested 38...`
++  - T-INFRA-12 author attempt 3, seq 338: `OpenAI request failed: Request
++    timed out.` after 361.7s
++
++Both are driven through the real `generate_reply`, by a client that raises,
++rather than by stubbing the classification -- the defect was in the seam
++between the call and the report, so a test that stubs the seam would not
++have caught it.
++"""
++
++from __future__ import annotations
++
++import json
++import subprocess
++
++import pytest
++
++import authored_change
++import authored_edits
++import chatgpt_worker
++import repo_registry
++import repo_snapshot
++
++
++# --- Exception shapes the SDK raises ---------------------------------------------
++#
++# The OpenAI SDK is imported lazily by `ensure_dependencies`, so these cannot
++# be its real classes and must not be: the point of `classify_provider_error`
++# is that it reads a status code and a class name off whatever it is handed.
++
++
++class FakeAPIError(Exception):
++    """An SDK error carrying a status code, as openai.APIStatusError does."""
++
++    def __init__(self, message, status_code=None):
++        super().__init__(message)
++        self.status_code = status_code
++
++
++class APITimeoutError(FakeAPIError):
++    """Name-matched, because the SDK's timeout carries no status code."""
++
++
++class APIConnectionError(FakeAPIError):
++    pass
++
++
++TPM_429 = (
++    "Error code: 429 - Request too large for gpt-4o in organization org-x on "
++    "tokens per min (TPM): Limit 30000, Requested 38412."
++)
++RATE_429 = "Error code: 429 - Rate limit reached for gpt-4o. Please try again in 1s."
++
++
++class Raises:
++    """A model client whose completion call raises, at the real call site."""
++
++    def __init__(self, exc):
++        self.exc = exc
++
++    @property
++    def chat(self):
++        return self
++
++    @property
++    def completions(self):
++        return self
++
++    def create(self, **kwargs):
++        raise self.exc
++
++
++class Answers:
++    """A model client that returns one scripted completion."""
++
++    def __init__(self, content):
++        self.content = content
++
++    @property
++    def chat(self):
++        return self
++
++    @property
++    def completions(self):
++        return self
++
++    def create(self, **kwargs):
++        message = type("M", (), {"content": self.content})
++        choice = type("C", (), {"message": message})
++        return type("R", (), {"choices": [choice]})
++
++
++# --- What each failure is called --------------------------------------------------
++
++
++@pytest.mark.parametrize("exc,kind,status", [
++    (APITimeoutError("Request timed out."), "timeout", None),
++    (FakeAPIError(TPM_429, 429), "request_too_large", 429),
++    (FakeAPIError(RATE_429, 429), "rate_limited", 429),
++    (FakeAPIError("Incorrect API key provided", 401), "auth_rejected", 401),
++    (FakeAPIError("Forbidden", 403), "auth_rejected", 403),
++    (FakeAPIError("Bad gateway", 502), "provider_unavailable", 502),
++    (FakeAPIError("Service unavailable", 503), "provider_unavailable", 503),
++    (APIConnectionError("Connection error."), "connection_failed", None),
++    (FakeAPIError("Invalid value for 'model'", 400), "provider_error", 400),
++    (ValueError("something the SDK never documented"), "provider_error", None),
++])
++def test_each_failure_is_named(exc, kind, status):
++    failure = chatgpt_worker.classify_provider_error(exc)
++
++    assert (failure.kind, failure.status) == (kind, status)
++
++
++def test_a_timeout_is_a_timeout_even_with_a_status():
++    """Class name wins: a timeout is a timeout whatever the transport says."""
++    failure = chatgpt_worker.classify_provider_error(APITimeoutError("timed out", 408))
++
++    assert failure.kind == "timeout" and failure.status == 408
++
++
++def test_the_two_429s_are_told_apart():
++    """Waiting fixes one and never fixes the other, so they cannot share a name."""
++    too_large = chatgpt_worker.classify_provider_error(FakeAPIError(TPM_429, 429))
++    limited = chatgpt_worker.classify_provider_error(FakeAPIError(RATE_429, 429))
++
++    assert too_large.kind == "request_too_large"
++    assert limited.kind == "rate_limited"
++    assert too_large.kind != limited.kind
++
++
++def test_a_status_that_is_not_an_integer_is_ignored():
++    """`status_code` is whatever the exception carries; None beats a wrong number."""
++    failure = chatgpt_worker.classify_provider_error(FakeAPIError("odd", "429"))
++
++    assert failure.status is None and failure.kind == "provider_error"
++
++
++def test_an_error_with_no_text_is_named_by_its_class():
++    failure = chatgpt_worker.classify_provider_error(APITimeoutError(""))
++
++    assert failure.message == "APITimeoutError"
++
++
++def test_the_provider_message_is_bounded():
++    failure = chatgpt_worker.classify_provider_error(FakeAPIError("x" * 5000, 500))
++
++    assert len(failure.message) == chatgpt_worker.PROVIDER_MESSAGE_CHARS
++
++
++def test_a_credential_in_the_provider_message_is_redacted():
++    """Provider errors quote the request, and the ledger is not a secret store."""
++    failure = chatgpt_worker.classify_provider_error(
++        FakeAPIError("Incorrect API key provided: sk-proj-abcdefghijklmnop1234567890", 401))
++
++    assert "sk-proj-abcdefghijklmnop1234567890" not in failure.message
++
++
++def test_the_reason_names_the_class_the_status_and_the_text():
++    reason = chatgpt_worker.classify_provider_error(FakeAPIError(TPM_429, 429)).reason()
++
++    assert "request_too_large" in reason
++    assert "HTTP 429" in reason
++    assert "Limit 30000" in reason
++
++
++def test_a_reason_without_a_status_says_no_status():
++    reason = chatgpt_worker.classify_provider_error(APITimeoutError("Request timed out.")).reason()
++
++    assert "HTTP" not in reason and "timeout" in reason
++
++
++# --- What generate_reply answers --------------------------------------------------
++
++
++CONTEXT = [{"sender": "controller", "target": "@chatgpt", "content": "do the thing"}]
++
++
++def test_a_failed_call_answers_a_provider_failure():
++    reply = chatgpt_worker.generate_reply(Raises(FakeAPIError(TPM_429, 429)), CONTEXT)
++
++    assert isinstance(reply, chatgpt_worker.ProviderFailure)
++    assert reply.kind == "request_too_large"
++
++
++def test_an_empty_generation_still_answers_none():
++    """The other half of the old conflation has to keep its own answer."""
++    assert chatgpt_worker.generate_reply(Answers("   "), CONTEXT) is None
++
++
++def test_a_good_generation_answers_text():
++    assert chatgpt_worker.generate_reply(Answers(" hello "), CONTEXT) == "hello"
++
++
++def test_an_unusable_response_shape_is_a_provider_failure():
++    """An empty `choices` list raises inside the try; it must not crash the loop."""
++    class NoChoices(Answers):
++        def create(self, **kwargs):
++            return type("R", (), {"choices": []})
++
++    assert isinstance(chatgpt_worker.generate_reply(NoChoices(""), CONTEXT),
++                      chatgpt_worker.ProviderFailure)
++
++
++# --- What the ledger is told ------------------------------------------------------
++
++
++def git(repo, *args):
++    result = subprocess.run(
++        ["git", *args], cwd=str(repo), capture_output=True,
++        encoding="utf-8", errors="replace", check=False,
++    )
++
++    assert result.returncode == 0, f"git {' '.join(args)}: {result.stderr}"
++    return result.stdout
++
++
++@pytest.fixture
++def author_repo(tmp_path, monkeypatch):
++    root = tmp_path / "work"
++    root.mkdir()
++    git(root, "init", "-q", "-b", "main")
++    git(root, "config", "user.email", "worker@test")
++    git(root, "config", "user.name", "Worker Test")
++    (root / "README.md").write_text("# project\n", encoding="utf-8")
++    (root / "notes").mkdir()
++    (root / "notes" / "existing.txt").write_text("old\n", encoding="utf-8")
++    git(root, "add", "-A")
++    git(root, "commit", "-q", "-m", "initial")
++
++    registry = tmp_path / "repos.json"
++    registry.write_text(json.dumps({
++        "demo": {
++            "path": str(root),
++            "repo_id": repo_snapshot.repo_id(str(root)),
++            "planning_ref": "refs/heads/main",
++            "worktree_root": str(tmp_path / "worktrees"),
++        }
++    }), encoding="utf-8")
++
++    monkeypatch.setattr(repo_registry, "DEFAULT_REGISTRY", registry)
++    monkeypatch.setattr(chatgpt_worker, "AUTHOR_PROJECT", "demo")
++    return root
++
++
++class Queue:
++    def __init__(self):
++        self.reports = []
++
++    def report(self, activation_id, *, outcome, payload=None):
++        self.reports.append({
++            "activation_id": activation_id,
++            "outcome": outcome,
++            "payload": payload or {},
++        })
++
++    @property
++    def last(self):
++        assert self.reports, "the worker reported nothing at all"
++        return self.reports[-1]
++
++
++CONTRACT = "task_id: T-1\nallowed_paths:\n  - notes\n"
++
++
++def activation(base):
++    return {
++        "activation_id": "A-1",
++        "task_id": "T-1",
++        "expected_branch": "task/T-1-a1",
++        "task_record": {
++            "task_id": "T-1",
++            "title": "add a note",
++            "base_sha": base,
++            "current_version": 1,
++            "contract_hash": "c" * 64,
++            "objective": "add a note",
++            "contract_yaml": CONTRACT,
++            "allowed_paths": ["notes"],
++            "proof_mode": "branch_only",
++        },
++    }
++
++
++def author_with(repo, exc):
++    queue = Queue()
++    base = git(repo, "rev-parse", "HEAD").strip()
++    chatgpt_worker.execute_author(Raises(exc), activation(base), queue)
++    return queue.last
++
++
++def test_the_tpm_429_is_recorded_as_itself(author_repo):
++    """T-INFRA-11 seq 318: recorded as "the model returned nothing" before #20."""
++    report = author_with(author_repo, FakeAPIError(TPM_429, 429))
++
++    assert report["outcome"] == "blocked"
++    assert report["payload"]["provider_failure"] == "request_too_large"
++    assert report["payload"]["provider_status"] == 429
++    assert "Limit 30000" in report["payload"]["provider_message"]
++    assert "the model returned nothing" not in report["payload"]["reason"]
++
++
++def test_the_timeout_is_recorded_as_itself(author_repo):
++    """T-INFRA-12 attempt 3, seq 338: a 361.7s client timeout."""
++    report = author_with(author_repo, APITimeoutError("Request timed out."))
++
++    assert report["outcome"] == "blocked"
++    assert report["payload"]["provider_failure"] == "timeout"
++    assert report["payload"]["provider_status"] is None
++    assert "timeout" in report["payload"]["reason"]
++    assert "the model returned nothing" not in report["payload"]["reason"]
++
++
++def test_a_blocked_provider_failure_carries_how_long_it_took(author_repo):
++    report = author_with(author_repo, FakeAPIError(RATE_429, 429))
++
++    assert report["payload"]["elapsed_seconds"] >= 0
++    assert report["payload"]["repaired"] is False
++
++
++def test_an_empty_generation_is_still_the_model_returning_nothing(author_repo):
++    """The regression guard: the honest case keeps the honest reason."""
++    queue = Queue()
++    base = git(author_repo, "rev-parse", "HEAD").strip()
++    chatgpt_worker.execute_author(Answers(""), activation(base), queue)
++
++    assert queue.last["outcome"] == "blocked"
++    assert queue.last["payload"]["reason"] == "the model returned nothing"
++    assert "provider_failure" not in queue.last["payload"]
++
++
++def test_a_failure_during_the_repair_call_is_reported_as_the_failure(author_repo):
++    """The second call can fail too, and it lands in the same branch (#35 repair)."""
++    # A SEARCH that is not in the file: refused, and worth one repair (#35).
++    answers = [
++        f"EDIT: notes/existing.txt\n{authored_edits.SEARCH}\nnot in the file\n"
++        f"{authored_edits.REPLACE}\nx\n{authored_change.END}\n",
++    ]
++
++    class ThenFails(Answers):
++        def create(self, **kwargs):
++            if answers:
++                self.content = answers.pop(0)
++                return super().create(**kwargs)
++            raise APITimeoutError("Request timed out.")
++
++    queue = Queue()
++    base = git(author_repo, "rev-parse", "HEAD").strip()
++    chatgpt_worker.execute_author(ThenFails(""), activation(base), queue)
++
++    assert queue.last["outcome"] == "blocked"
++    assert queue.last["payload"]["provider_failure"] == "timeout"
++    assert queue.last["payload"]["repaired"] is True
++
++
++# --- What the hub is told ---------------------------------------------------------
++
++
++def test_the_chat_path_still_says_nothing_on_a_failure(monkeypatch):
++    """Silence on the hub is deliberate: a 429 posted as a reply becomes a thread."""
++    class Posted(Exception):
++        pass
++
++    def never_post(*args, **kwargs):
++        raise Posted("a provider failure was posted to the hub")
++
++    monkeypatch.setattr(chatgpt_worker, "post_reply", never_post)
++
++    chatgpt_worker.execute_activation(
++        None, Raises(FakeAPIError(TPM_429, 429)),
++        {"activation_id": "A-1", "task": "say hello", "issued_by": "admin"},
++    )
+===== END diff.patch =====
+
+PART 3 OF 3 -- do not give a verdict until all 3 parts are received.
+
+PR #45 review packet (paste form), continued.
+
+===== BEGIN verification.txt (sha256 ffc569dacf730e84d0d999495b0bc7ac2fde695648c8bc5f65f66387ec47c664) =====
+PR #45 review packet: verification record
+Base:      3a0896221f5410e861a088fd3c2ea1331791a9b1
+Candidate: 56e3284717df494ac5ebe88dbf745f0d8d0e5490
+Tests ran in a fresh detached worktree created at the candidate commit.
+
+== 1. Deployed controller build
+Base build (running on Tower now): f6f64b351727
+Candidate build (deploy_controller.sh --tests-only in the candidate worktree): f6f64b351727
+
+== 2. Source blob checks
+match  sources/candidate/chatgpt_worker.py
+match  sources/base/chatgpt_worker.py
+match  sources/candidate/tests/test_provider_failure_classification.py
+
+== 3. Mutation checks against committed code (restored from git after each)
+CAUGHT the failure is swallowed into None :: FAILED tests/test_provider_failure_classification.py::test_a_failed_call_answers_a_provider_failure | 1 failed, 18 passed in 0.27s
+CAUGHT timeouts are not recognised :: FAILED tests/test_provider_failure_classification.py::test_each_failure_is_named[exc0-timeout-None] | 1 failed in 0.25s
+CAUGHT both 429s share one name :: FAILED tests/test_provider_failure_classification.py::test_each_failure_is_named[exc1-request_too_large-429] | 1 failed, 1 passed in 0.24s
+CAUGHT auth failures are generic :: FAILED tests/test_provider_failure_classification.py::test_each_failure_is_named[exc3-auth_rejected-401] | 1 failed, 3 passed in 0.25s
+CAUGHT 5xx is generic :: FAILED tests/test_provider_failure_classification.py::test_each_failure_is_named[exc5-provider_unavailable-502] | 1 failed, 5 passed in 0.30s
+CAUGHT connection errors are generic :: FAILED tests/test_provider_failure_classification.py::test_each_failure_is_named[exc7-connection_failed-None] | 1 failed, 7 passed in 0.24s
+CAUGHT a non-integer status is trusted :: FAILED tests/test_provider_failure_classification.py::test_a_status_that_is_not_an_integer_is_ignored | 1 failed, 12 passed in 0.34s
+CAUGHT the provider message is not redacted :: FAILED tests/test_provider_failure_classification.py::test_a_credential_in_the_provider_message_is_redacted | 1 failed, 15 passed in 0.34s
+CAUGHT the provider message is unbounded :: FAILED tests/test_provider_failure_classification.py::test_the_provider_message_is_bounded | 1 failed, 14 passed in 0.34s
+CAUGHT an empty error text is left empty :: FAILED tests/test_provider_failure_classification.py::test_an_error_with_no_text_is_named_by_its_class | 1 failed, 13 passed in 0.33s
+CAUGHT the status is dropped from the reason :: FAILED tests/test_provider_failure_classification.py::test_the_reason_names_the_class_the_status_and_the_text | 1 failed, 16 passed in 0.38s
+CAUGHT the ledger is not told which failure :: FAILED tests/test_provider_failure_classification.py::test_the_tpm_429_is_recorded_as_itself | 1 failed, 22 passed in 1.63s
+CAUGHT the repair flag is dropped :: FAILED tests/test_provider_failure_classification.py::test_a_blocked_provider_failure_carries_how_long_it_took | 1 failed, 24 passed in 7.68s
+CAUGHT a provider failure is posted to the hub :: FAILED tests/test_provider_failure_classification.py::test_the_chat_path_still_says_nothing_on_a_failure | 1 failed, 27 passed in 7.66s
+survivors: 0
+mutations exit=0
+worktree status after restores: 0 entries
+
+Note: the mutation script restores each mutation with `git checkout -- <path>`, so it
+runs only against committed code. An earlier run against an uncommitted working tree
+reverted the change itself rather than the mutation; the run recorded here is at the
+candidate commit, whose tree was verified clean before and after.
+
+== 4. Focused tests
+Command: pytest -q tests/test_provider_failure_classification.py tests/test_author_activation.py tests/test_authored_edits.py tests/test_operator_context_at_the_model_call.py tests/test_project_publishing.py tests/test_model_call_path.py tests/test_narration_containment.py
+173 passed, 1 warning in 83.40s (0:01:23)
+
+== 5. Full required suites: ./deploy_controller.sh --tests-only
+deploy: 12 files from /tmp/claude/C--git/49a983d1-0794-48fa-8f7d-eaee719390cf/scratchpad/verify-56e3284
+deploy: commit   56e3284717df494ac5ebe88dbf745f0d8d0e5490
+deploy: build id f6f64b351727 over 12 files
+deploy: running suite -- controller, workers and planning
+deploy: ok   1668 passed, 3 warnings in 469.24s (0:07:49)
+deploy: running suite -- hub and controller HTTP surface
+deploy: ok   264 passed, 1 warning in 41.06s
+deploy: all 2 required suites passed
+deploy: --tests-only, so stopping before the copy
+gate exit=0
+
+== 6. Bypass suite
+Command: pytest -q tests -k bypass
+8 passed, 1660 deselected, 2 warnings in 3.26s
+
+== 7. PR CI
+pytest-bypass	pass	43s	https://github.com/Decksx/agent-swarm/actions/runs/35368471442/job/105676516970	
+pytest-unit	pass	6m32s	https://github.com/Decksx/agent-swarm/actions/runs/35368471442/job/105676517282	
+
+== 8. Verification worktree cleanliness after all runs
+Command: git status --porcelain (untracked included)
+entries: 0
+HEAD: 56e3284717df494ac5ebe88dbf745f0d8d0e5490
+
+===== END verification.txt =====
+
+END OF PART 3 OF 3. All parts sent; please review per REVIEW.md.
+
+```
+
+That's the complete packet — all three parts in one block, so the "wait for all 3" condition is met on arrival.
+
+One caveat on this delivery route: I reproduced the file by hand into chat, so unlike the copy page it isn't a byte-guaranteed copy. If any criterion turns on exact whitespace in the diff, the authoritative copies are `C:\git\.review-packets\PR_45.md` and the copy page at https\://claude.ai/code/artifact/1008b914-177c-4660-9ca8-489df0596f6d.
+
+PR head re-checked a moment ago: `56e3284717df494ac5ebe88dbf745f0d8d0e5490`, matching the candidate above. Nothing merged — waiting on the verdict and your go-ahead.
+
+All five criteria PASS. Recording the verdict and re-confirming the head.
+
+Verdict recorded at `C:\git\.review-packets\PR-45-56e3284-gemini-verdict.md`. Head re-checked: still `56e3284`, `MERGEABLE`, mergeState `CLEAN` — the review describes exactly what would land.
+
+**Not merged. Say go and I'll run:**
+
+```bash
+gh pr merge 45 --merge --match-head-commit 56e3284717df494ac5ebe88dbf745f0d8d0e5490
+git fetch -q origin && git merge --ff-only -q origin/main
+
+```
+
+then the paused restart (`pause` → confirm 0 in-flight → `stop`/`start`/`resume` → `status`), then remove `C:\git\.wt-20` and the local branch. GitHub closes #20 on merge.
+
+**No Tower deploy again** — `chatgpt_worker.py` isn't a deployed file, build stays `f6f64b351727`. Same guardrail as last time: if in-flight is non-zero after the pause, I stop and show you rather than killing work mid-task.
+
+Two notes for after:
+
+**The supervisor outage is still unexplained.** It died sometime after 2026-09-15 17:20 and stayed down until I restarted it today. Nothing in this PR touches that. Worth a look at `supervisor.log` around that gap before the next unattended run — if it exits silently again, the swarm goes quiet for days without anyone noticing.
+
+**`mut20.py`** **still has the trap that cost me the rebuild.** It restores with `git checkout --`, so running it against uncommitted work destroys the work. A three-line guard (`git status --porcelain` must be empty, else refuse) would close it. That's tooling, not #20 — happy to do it as its own small change whenever you want, and it'd be the first thing #21 or #24 benefits from.
+
+Remaining backlog after this: **#26** (out-of-band integrations), **#24** (author input size preflight), **#21** (budget vs. repair).

@@ -1,0 +1,275 @@
+PART 4 OF 4 -- do not give a verdict until all 4 parts are received.
+
+PR #28 review packet (paste form), continued.
+
+[continuation 2/2 of verification.txt; joins directly to the previous part]
+tests/test_claude_prompt_contract.py::test_the_contract_comes_before_the_answer PASSED [ 73%]
+tests/test_claude_prompt_contract.py::test_the_answer_comes_before_the_task_text PASSED [ 73%]
+tests/test_claude_prompt_contract.py::test_the_answer_is_not_said_to_outrank_the_task PASSED [ 74%]
+tests/test_claude_prompt_contract.py::test_a_task_with_no_escalation_still_gets_its_contract PASSED [ 75%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no task record at all] PASSED [ 75%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no contract yaml] PASSED [ 76%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no base commit] PASSED [ 76%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no proof mode] PASSED [ 77%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no contract hash] PASSED [ 78%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no task id] PASSED [ 78%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[no version] PASSED [ 79%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[a contract declaring no paths] PASSED [ 80%]
+tests/test_claude_prompt_contract.py::test_a_contract_bound_run_without_a_usable_contract_calls_nothing[a contract that will not parse] PASSED [ 80%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no task record at all] PASSED [ 81%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no contract yaml] PASSED [ 81%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no base commit] PASSED [ 82%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no proof mode] PASSED [ 83%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no contract hash] PASSED [ 83%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no task id] PASSED [ 84%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[no version] PASSED [ 84%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[a contract declaring no paths] PASSED [ 85%]
+tests/test_claude_prompt_contract.py::test_the_refusal_names_the_specific_defect[a contract that will not parse] PASSED [ 86%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no task record at all] PASSED [ 86%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no contract yaml] PASSED [ 87%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no base commit] PASSED [ 87%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no proof mode] PASSED [ 88%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no contract hash] PASSED [ 89%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no task id] PASSED [ 89%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[no version] PASSED [ 90%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[a contract declaring no paths] PASSED [ 90%]
+tests/test_claude_prompt_contract.py::test_the_activation_is_reported_rather_than_dropped[a contract that will not parse] PASSED [ 91%]
+tests/test_claude_prompt_contract.py::test_no_placeholder_is_ever_rendered_for_the_paths PASSED [ 92%]
+tests/test_claude_prompt_contract.py::test_a_locally_issued_activation_still_runs PASSED [ 92%]
+tests/test_claude_prompt_contract.py::test_an_empty_resolved_scope_is_refused_even_if_parsing_succeeds PASSED [ 93%]
+tests/test_claude_prompt_contract.py::test_an_unrestricted_contract_reaches_the_cli[list] PASSED [ 93%]
+tests/test_claude_prompt_contract.py::test_an_unrestricted_contract_reaches_the_cli[scalar] PASSED [ 94%]
+tests/test_claude_prompt_contract.py::test_the_prompt_states_repository_wide_authority[list] PASSED [ 95%]
+tests/test_claude_prompt_contract.py::test_the_prompt_states_repository_wide_authority[scalar] PASSED [ 95%]
+tests/test_claude_prompt_contract.py::test_an_unrestricted_prompt_does_not_claim_a_path_list[list] PASSED [ 96%]
+tests/test_claude_prompt_contract.py::test_an_unrestricted_prompt_does_not_claim_a_path_list[scalar] PASSED [ 96%]
+tests/test_claude_prompt_contract.py::test_the_rest_of_the_contract_still_binds[list] PASSED [ 97%]
+tests/test_claude_prompt_contract.py::test_the_rest_of_the_contract_still_binds[scalar] PASSED [ 98%]
+tests/test_claude_prompt_contract.py::test_a_restricted_contract_still_renders_its_exact_paths PASSED [ 98%]
+tests/test_claude_prompt_contract.py::test_a_restricted_contract_with_no_paths_is_still_refused PASSED [ 99%]
+tests/test_claude_prompt_contract.py::test_the_scope_object_survives_validation PASSED [100%]
+
+============================= 165 passed in 5.00s =============================
+focused exit=0
+
+== 9. Full required suites: ./deploy_controller.sh --tests-only
+deploy: 11 files from /tmp/claude/C--git/df50afa4-2c3b-416e-bc12-32a33a0b6569/scratchpad/verify-c7e7be7
+deploy: commit   c7e7be772d10fc54a8a56ee8a685357e9a9a7d30
+deploy: build id 2d7c9f666678 over 11 files
+deploy: running suite -- controller, workers and planning
+deploy: ok   1358 passed, 3 warnings in 363.86s (0:06:03)
+deploy: running suite -- hub and controller HTTP surface
+deploy: ok   247 passed, 1 warning in 41.44s
+deploy: all 2 required suites passed
+deploy: --tests-only, so stopping before the copy
+gate exit=0
+
+== 10. Bypass suite
+============================= test session starts =============================
+platform win32 -- Python 3.11.3, pytest-9.1.1, pluggy-1.6.0 -- C:\Python311\python.exe
+rootdir: C:\Users\david\AppData\Local\Temp\claude\C--git\df50afa4-2c3b-416e-bc12-32a33a0b6569\scratchpad\verify-c7e7be7
+configfile: pytest.ini
+plugins: anyio-4.15.0
+collecting ... collected 1358 items / 1350 deselected / 8 selected
+
+tests/test_chat_ingress_bypass.py::test_every_bypass_names_a_real_test PASSED [ 12%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[create_table_if_not_exists] PASSED [ 25%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[hash_equality] PASSED [ 37%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[compare_and_swap_in_one_transaction] PASSED [ 50%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[pending_only] PASSED [ 62%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[draft_exists] PASSED [ 75%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[hash_sorts_keys] PASSED [ 87%]
+tests/test_chat_ingress_bypass.py::test_guard_is_load_bearing[rows_read_by_position] PASSED [100%]
+
+===================== 8 passed, 1350 deselected in 1.34s ======================
+bypass exit=0
+
+== 11. PR #28 CI
+pytest-bypass	pass	29s	https://github.com/Decksx/agent-swarm/actions/runs/34867495559/job/104054893576	
+pytest-unit	pass	6m18s	https://github.com/Decksx/agent-swarm/actions/runs/34867495559/job/104054893341	
+
+== 12. Verification worktree cleanliness after all runs
+untracked or modified (git status --porcelain --untracked-files=all):
+[end]
+ignored entries, caches excluded:
+[end]
+HEAD: c7e7be772d10fc54a8a56ee8a685357e9a9a7d30
+
+== 13. Protected paths
+Command: git diff 9287144db3b466da871940fe77d049e0177b07a1..c7e7be772d10fc54a8a56ee8a685357e9a9a7d30 -- controller/ hub/hub.py
+Result: EMPTY -- no changes under controller/ or to hub/hub.py.
+
+== Appendix: differential check script (scratchpad; not committed)
+"""Differential check: the rate guard before (#25 base) and after extraction.
+
+Loads claude_worker.py from the base commit and from the candidate as two
+separate modules, runs identical operation sequences against each in its own
+temp directory, and compares every observable: return values, exceptions, the
+in-memory window, the hold-off and usage files, and log records.
+
+Usage: python rate_guard_differential.py <candidate_checkout> <base_sha> [sequences]
+"""
+from __future__ import annotations
+
+import importlib.util
+import logging
+import os
+import random
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+cand_dir = Path(sys.argv[1]).resolve()
+base_sha = sys.argv[2]
+n_seq = int(sys.argv[3]) if len(sys.argv) > 3 else 2000
+
+sys.path.insert(0, str(cand_dir))  # shared deps (authored_change, claude_integration, ...)
+os.chdir(cand_dir)
+
+base_src = subprocess.run(["git", "-C", str(cand_dir), "show", f"{base_sha}:claude_worker.py"],
+                          capture_output=True, text=True, encoding="utf-8", check=True).stdout
+tmp_root = Path(tempfile.mkdtemp(prefix="rg-diff-"))
+base_file = tmp_root / "claude_worker_base.py"
+base_file.write_text(base_src, encoding="utf-8")
+
+
+def load(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+OLD = load("cw_base", base_file)
+NEW = load("cw_candidate", cand_dir / "claude_worker.py")
+assert OLD.log is NEW.log  # both log on "claude_worker"
+
+
+class Capture(logging.Handler):
+    def __init__(self):
+        super().__init__(logging.DEBUG); self.records = []
+    def emit(self, r):
+        self.records.append((r.levelname, r.getMessage()))
+
+
+cap = Capture()
+logging.getLogger("claude_worker").addHandler(cap)
+logging.getLogger("claude_worker").setLevel(logging.DEBUG)
+logging.getLogger("claude_worker").propagate = False
+
+NOW = 1_000_000.0
+JUNK_HOLDOFF = ["", "   ", "x", "1e", "nan-ish", "123abc"]
+JUNK_USAGE = ["", "not-json", "{", "{}", "5", "[1, 2]", '[["a", 1]]', "[[1]]", "[[1, 2, 3]]", "null", '[[1, "2"]]']
+
+
+def snapshot(mod, d: Path):
+    def rd(p):
+        if p.is_dir():
+            return ("<dir>",)
+        return p.read_bytes() if p.exists() else None
+    return (list(mod._process_usage_window), rd(d / "rl"), rd(d / "usage"))
+
+
+def norm(d: Path, records):
+    """Replace this run's own temp directory in messages; nothing else is altered."""
+    forms = [str(d), str(d).replace("\\", "\\\\")]
+    out = []
+    for level, msg in records:
+        for f in sorted(forms, key=len, reverse=True):
+            msg = msg.replace(f, "<RUN_DIR>")
+        out.append((level, msg))
+    return out
+
+
+def run(mod, d: Path, ops):
+    mod.RATELIMIT_PATH = d / "rl"
+    mod.USAGE_PATH = d / "usage"
+    out = []
+    for op, args in ops:
+        cap.records.clear()
+        try:
+            if op == "set":
+                setattr(mod, args[0], args[1]() if callable(args[1]) else args[1])
+                res = None
+            elif op == "file":
+                name, content = args
+                p = d / name
+                if p.is_dir(): shutil.rmtree(p)
+                elif p.exists(): p.unlink()
+                if content == "<dir>": p.mkdir()
+                elif content is not None: p.write_text(content, encoding="utf-8")
+                res = None
+            elif op == "restart":
+                mod._process_usage_window = []
+                mod._process_usage_window = mod._read_usage()
+                res = None
+            else:
+                res = getattr(mod, op)(*args)
+            out.append(("ok", op, res, snapshot(mod, d), norm(d, cap.records)))
+        except Exception as exc:  # compare exception type and text too
+            out.append(("raise", op, type(exc).__name__, norm(d, [("", str(exc))])[0][1], snapshot(mod, d), norm(d, cap.records)))
+    return out
+
+
+def random_ops(rng: random.Random):
+    ops = [("set", ("_process_usage_window", lambda: [])),
+           ("set", ("RATE_LIMIT_WARN_SECONDS", rng.choice([0.0, 10.0, 100.0, 4.5 * 3600]))),
+           ("set", ("RATE_LIMIT_COOLDOWN_SECONDS", rng.choice([0.0, 1.0, 50.0, 5 * 3600])))]
+    t = NOW
+    for _ in range(rng.randint(1, 25)):
+        t += rng.choice([0.0, 0.5, 1.0, 30.0, 49.9, 50.0, 50.1, 3600.0, 18000.0, -5.0])
+        k = rng.randrange(14)
+        if k == 0: ops.append(("rate_limit_reason", (t,)))
+        elif k == 1: ops.append(("_record_usage", (t - rng.choice([0.0, 1.0, 60.0]), rng.choice([0.0, 1.0, 30.0, 150.0, 20000.0]))))
+        elif k == 2: ops.append(("_current_usage_total", (t,)))
+        elif k == 3: ops.append(("_purge_old_usage", (t,)))
+        elif k == 4: ops.append(("_read_usage", ()))
+        elif k == 5: ops.append(("_write_usage", ([(t, 1.0), (t - 10, 2.0)],)))
+        elif k == 6: ops.append(("_read_holdoff", ()))
+        elif k == 7: ops.append(("_begin_holdoff", (t,)))
+        elif k == 8: ops.append(("_end_holdoff", ()))
+        elif k == 9: ops.append(("file", ("rl", rng.choice([None, "<dir>", str(t + 10), str(t - 10), str(int(t))] + JUNK_HOLDOFF))))
+        elif k == 10: ops.append(("file", ("usage", rng.choice([None, "<dir>", "[]", f"[[{t}, 5.0]]", f"[[{t - 100}, 500.0], [{t}, 1.5]]"] + JUNK_USAGE))))
+        elif k == 11: ops.append(("restart", ()))
+        elif k == 12: ops.append(("set", ("_process_usage_window", lambda tt=t: [(tt - 1, 7.0), [tt - 2, 3.0]])))
+        else: ops.append(("record_rate_limit_alert_sent", ()))
+    return ops
+
+
+FIXED =[[("rate_limit_reason", (NOW,))],
+         [("set", ("RATE_LIMIT_WARN_SECONDS", 100.0)), ("set", ("RATE_LIMIT_COOLDOWN_SECONDS", 50.0)),
+          ("_record_usage", (NOW - 1, 150.0)), ("rate_limit_reason", (NOW,)), ("rate_limit_reason", (NOW + 10,)),
+          ("rate_limit_reason", (NOW + 50,)), ("rate_limit_reason", (NOW + 51,)), ("rate_limit_reason", (NOW + 52,))],
+         [("set", ("RATE_LIMIT_COOLDOWN_SECONDS", 50.0)), ("set", ("_process_usage_window", lambda: [(NOW - 50.0, 1.0), (NOW - 50.0001, 2.0)])),
+          ("_current_usage_total", (NOW,))],
+         [("file", ("usage", "<dir>")), ("_write_usage", ([(NOW, 1.0)],)), ("_read_usage", ()), ("_record_usage", (NOW, 1.0))],
+         [("file", ("rl", "<dir>")), ("_begin_holdoff", (NOW,)), ("_end_holdoff", ()), ("_read_holdoff", ()), ("rate_limit_reason", (NOW,))],
+         [("rate_limit_reason", (None,))]]
+FIXED += [[("file", ("rl", j)), ("rate_limit_reason", (NOW,))] for j in JUNK_HOLDOFF]
+FIXED += [[("file", ("usage", j)), ("restart", ()), ("rate_limit_reason", (NOW,))] for j in JUNK_USAGE]
+
+rng = random.Random(20260914)
+sequences = FIXED + [random_ops(rng) for _ in range(n_seq)]
+mismatches = 0
+ops_total = 0
+for i, ops in enumerate(sequences):
+    d_old = tmp_root / f"old{i}"; d_new = tmp_root / f"new{i}"
+    d_old.mkdir(); d_new.mkdir()
+    a = run(OLD, d_old, ops); b = run(NEW, d_new, ops)
+    ops_total += len(ops)
+    if a != b:
+        mismatches += 1
+        if mismatches <= 5:
+            for x, y in zip(a, b):
+                if x != y:
+                    print(f"MISMATCH seq {i}:\n  base      {x}\n  candidate {y}")
+                    break
+print(f"sequences: {len(sequences)} ({len(FIXED)} fixed, {n_seq} random, seed 20260914); operations: {ops_total}; mismatches: {mismatches}")
+shutil.rmtree(tmp_root, ignore_errors=True)
+sys.exit(1 if mismatches else 0)
+===== END verification.txt =====
+
+END OF PART 4 OF 4. All parts sent; please review per REVIEW.md.

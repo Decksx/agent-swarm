@@ -1,0 +1,24 @@
+{
+  "url": "https://github.com/Decksx/agent-swarm/issues/94",
+  "title": "#74 slice 4: publish the external verdict (ledger, room, PR)",
+  "issue_number": 94,
+  "body": "Implements [§9 of the design](docs/design/74-external-review.md). Part of #74; depends on slice 3.\n\n- Map the reviewer's judgment to `external_review_judged`, with `{judgment, rationale, head_sha, merge_base, pr_number, verifier, verifier_family, author_families}`.\n- The narrator posts the verdict to the room.\n- The ingest worker posts a PR comment naming the SHA, judgment, rationale, verifier and ledger event id. It carries a marker so it is posted once, and states that a new push voids the verdict.\n- Delete `refs/swarm/external/<task_id>` once the task is terminal.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nhttps://claude.ai/code/session_01Ruk3qwhMWdupZ7NS8r4RLV",
+  "state": "open",
+  "user": {
+    "login": "Decksx",
+    "name": "Decksx",
+    "email": null,
+    "avatar_url": "https://avatars.githubusercontent.com/u/20764723?v=4",
+    "id": 20764723
+  },
+  "assignees": null,
+  "labels": null,
+  "milestone": null,
+  "state_reason": null,
+  "comments": 0,
+  "created_at": "2026-09-24T21:40:00Z",
+  "updated_at": "2026-09-24T21:40:00Z",
+  "closed_at": null,
+  "display_url": "https://github.com/Decksx/agent-swarm/issues/94",
+  "display_title": "#74 slice 4: publish the external verdict (ledger, room, PR)"
+}
