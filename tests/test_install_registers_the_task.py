@@ -36,9 +36,21 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 BASH = shutil.which("bash") or r"C:\Program Files\Git\bin\bash.exe"
 POWERSHELL = shutil.which("powershell") or "powershell.exe"
 
+def probe_task_name(environ=os.environ) -> str:
+    """The throwaway task name, one per pytest-xdist worker.
+
+    Task Scheduler names are global to the host, and every test here deletes
+    the task before and after it runs. Under `-n auto` two workers sharing one
+    name would delete each other's task mid-test -- and the collection-time
+    probe below runs once per worker, so it would collide too. A serial run has
+    no worker id and keeps the original name.
+    """
+    return "AgentSwarmSupervisorTest48" + environ.get("PYTEST_XDIST_WORKER", "")
+
+
 # Never the real one. Every test here registers and unregisters under this
 # name, so a bug in the fixture cannot disturb the task the host runs on.
-PROBE_TASK = "AgentSwarmSupervisorTest48"
+PROBE_TASK = probe_task_name()
 
 
 def powershell(script: str) -> subprocess.CompletedProcess:
@@ -158,6 +170,23 @@ def stored_task() -> dict | None:
     text = (result.stdout or "").strip()
 
     return None if text == "NONE" or not text else json.loads(text)
+
+
+# --- Parallel workers do not share a task -------------------------------------
+
+
+def test_each_parallel_worker_registers_under_its_own_name():
+    """Not gated on the scheduler: this is the guard that makes `-n auto` safe
+    for every test below, so it has to run on hosts that skip them too."""
+    names = {probe_task_name({"PYTEST_XDIST_WORKER": w}) for w in ("gw0", "gw1")}
+
+    assert len(names) == 2
+    # Still never the host's real task, whatever the worker is called.
+    assert all(name.startswith("AgentSwarmSupervisorTest48") for name in names)
+
+
+def test_a_serial_run_keeps_the_original_name():
+    assert probe_task_name({}) == "AgentSwarmSupervisorTest48"
 
 
 # --- What it registers --------------------------------------------------------
