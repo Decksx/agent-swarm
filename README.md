@@ -162,6 +162,57 @@ Produces a proposal and stops. `--create` writes the tasks as `DRAFT`;
 `--from-reply` re-parses a saved reply without calling the model, which is how
 the refusal paths are exercised without spending a call.
 
+Codex is the default engineering planner. Use `--planner claude` or
+`--planner gemini` to select another lead, or set `SWARM_PLANNER`. Codex and
+Claude use their installed CLIs and cached authentication; inherited provider API
+keys and token overrides are removed from their child environments. Gemini uses its API
+credential. There is no fallback to another provider on failure.
+Token-only CLI hosts must first establish a stored CLI login: inherited
+`CLAUDE_CODE_OAUTH_TOKEN` and `CODEX_ACCESS_TOKEN` are deliberately not forwarded.
+
+`--model` overrides the selected provider's model. `CODEX_PLANNER_MODEL`,
+`CLAUDE_PLANNER_MODEL`, and `GEMINI_PLANNER_MODEL` supply provider-specific
+overrides. Without an override, Codex uses its CLI built-in default (user config
+is excluded from the isolated planning call), Claude uses its CLI default, and
+Gemini uses Argon. CLI calls run in an empty temporary directory with execution,
+hooks and integrations disabled; context requests go through the shared snapshot
+pipeline. Keep the CLIs on PATH when launching the planner.
+
+If a CLI is absent from a normal shell's PATH, set `CODEX_CLI` or `CLAUDE_CLI`
+to an absolute executable path. On Windows these non-secret settings also read
+fresh values from the user's Environment registry entry, so an app with an older
+inherited environment sees a newly configured path. An invalid explicit path
+is an error, not permission to select another binary.
+
+Before Claude planning, set `CLAUDE_RATE_GUARD_DIR` to the live worker's state
+directory (OfficePC: `C:\swarm-prod\agent-swarm`). The planner refuses without
+this explicit shared directory, honors the worker hold and usage thresholds,
+and records elapsed time for successful, failed and timed-out calls. The worker
+uses the same setting, refreshes completed planner usage before claiming model
+work, and merges updates under a kernel lock. This remains the existing model-time
+proxy for subscription usage, not an authoritative provider quota measurement.
+If the shared usage mutex cannot be opened or acquired, the worker preserves
+its in-memory usage, allows only model-free controller claims, and retries on
+each poll. Directory-mode workers take no work until the read succeeds.
+Do not use `--planner claude` until the updated worker has been deployed and
+restarted. The older worker neither refreshes other processes' records nor
+merges them on write; its next call can erase planner usage. Before restarting,
+verify the effective `CLAUDE_RATE_GUARD_DIR` names the worker's existing state
+directory. Changing that location would hide its active hold and usage history.
+Preserve both files, verify the running worker's source and effective directory,
+then enable Claude planning. Source review alone does not complete this rollout.
+
+Plan JSON records `planner_provider`, `planner_source`, and the models a CLI
+reported using in `planner_reported_models` (including any auxiliary models).
+This list does not identify a primary model. The existing `planner` field
+is the requested model selector, or `cli-default`; it does not invent an exact
+model version when the CLI omits one. Saved replies record null for both
+`planner` and `planner_provider`, even if a model selector was configured.
+
+Both Codex and Claude may also lead interactive repository work. See the shared
+`AGENTS.md`, Claude's `CLAUDE.md` entry point, and the
+[leadership design](docs/design/engineering-leadership.md).
+
 ### Deployment
 
 ```bash

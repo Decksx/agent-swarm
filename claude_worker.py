@@ -77,6 +77,7 @@ import authored_change
 import claude_author_worktree
 import claude_integration
 import claude_rate_guard
+from host_settings import setting
 import controller_client
 import swarm_control
 
@@ -104,10 +105,11 @@ STATE_FILE = HERE / "claude_worker.state"
 # Holds the epoch time at which the rate hold-off ends. On disk rather than in
 # memory so a restart during the hold-off honours it instead of clearing it --
 # restarting to escape a rate limit is precisely what should not work.
-RATELIMIT_PATH = HERE / "claude_worker.ratelimit"
+RATE_GUARD_DIR = Path(setting("CLAUDE_RATE_GUARD_DIR") or HERE)
+RATELIMIT_PATH = RATE_GUARD_DIR / "claude_worker.ratelimit"
 
 # Model-time records; see rate_limit_reason.
-USAGE_PATH = HERE / "claude_worker.usage"
+USAGE_PATH = RATE_GUARD_DIR / "claude_worker.usage"
 
 # Written before a model is invoked and removed after the result is reported.
 # Its presence at startup means the process died mid-task. See main().
@@ -300,6 +302,7 @@ def save_last_seen_id(message_id: int) -> None:
 # (started, seconds) records, loaded by main().
 _process_usage_window: list[tuple[float, float]] = []
 _rate_limit_alert_sent = False
+_usage_read_failed = False
 
 
 # The guard's logic is in claude_rate_guard. These keep its names here and
@@ -310,6 +313,21 @@ def _read_holdoff() -> float:
 
 def _read_usage() -> list[tuple[float, float]]:
     return claude_rate_guard.read_usage(USAGE_PATH)
+
+
+def _refresh_usage() -> bool:
+    """Keep pending usage and pause model work while the shared read is unavailable."""
+    global _process_usage_window, _usage_read_failed
+    try:
+        persisted = _read_usage()
+    except (OSError, swarm_control.AlreadyRunning):
+        if not _usage_read_failed:
+            log.warning("shared usage unavailable; pausing model work until it can be read")
+        _usage_read_failed = True
+        return False
+    _process_usage_window = claude_rate_guard.merge_usage(persisted, _process_usage_window)
+    _usage_read_failed = False
+    return True
 
 
 def _write_usage(usage_window: list[tuple[float, float]]) -> None:
@@ -352,6 +370,8 @@ def _end_holdoff() -> None:
 def rate_limit_reason(now: float | None = None) -> str | None:
     """Why no new work should be claimed now, or None; see claude_rate_guard."""
     global _process_usage_window
+    if not _refresh_usage():
+        return "shared usage unavailable; pausing model work"
     reason, _process_usage_window = claude_rate_guard.rate_limit_reason(
         now, ratelimit_path=RATELIMIT_PATH, usage_window=_process_usage_window,
         warn_seconds=RATE_LIMIT_WARN_SECONDS,
@@ -837,9 +857,9 @@ def main() -> int:
         log.error("%s", exc)
         return 1
 
-    # Load usage state
-    global _process_usage_window
-    _process_usage_window = _read_usage()
+    # A busy/unwritable usage mutex must not kill startup. Each poll retries
+    # and permits only model-free claims until the shared state is readable.
+    _refresh_usage()
 
     # Containment invariant, checked at startup rather than assumed.
     #

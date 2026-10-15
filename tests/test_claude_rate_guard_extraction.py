@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -65,6 +66,7 @@ def worker(tmp_path, monkeypatch):
     monkeypatch.setattr(claude_worker, "RATE_LIMIT_WARN_SECONDS", 100.0)
     monkeypatch.setattr(claude_worker, "RATE_LIMIT_COOLDOWN_SECONDS", 50.0)
     monkeypatch.setattr(claude_worker, "_process_usage_window", [])
+    monkeypatch.setattr(claude_worker, "_usage_read_failed", False)
     return claude_worker
 
 
@@ -109,3 +111,115 @@ def test_the_alert_flag_is_still_set_on_the_worker(monkeypatch):
     monkeypatch.setattr(claude_worker, "_rate_limit_alert_sent", False)
     claude_worker.record_rate_limit_alert_sent()
     assert claude_worker._rate_limit_alert_sent is True
+
+
+def test_worker_observes_planner_usage_recorded_after_worker_start(worker):
+    import claude_rate_guard
+    claude_rate_guard.record_usage(worker.USAGE_PATH, [], NOW, 150.0, 50.0)
+    assert worker._process_usage_window == []
+    assert worker.rate_limit_reason(now=NOW) is not None
+
+
+def test_worker_holds_during_usage_mutex_contention_and_recovers(worker, monkeypatch, caplog):
+    import claude_rate_guard
+    from swarm_control import _exclusive
+
+    remembered = [(NOW - 1, 7.0)]
+    monkeypatch.setattr(worker, "_process_usage_window", remembered.copy())
+    claude_rate_guard.record_usage(worker.USAGE_PATH, [], NOW - 2, 5.0, 50.0)
+    lock = worker.USAGE_PATH.with_name(worker.USAGE_PATH.name + ".lock")
+    monkeypatch.setattr(claude_rate_guard, "_exclusive", lambda path: _exclusive(path, timeout=0))
+    with _exclusive(lock):
+        for _ in range(2):
+            reason = worker.rate_limit_reason(now=NOW)
+            assert reason is not None and "shared usage unavailable" in reason
+            assert claude_rate_guard.claim_stages(True) == ("integrate",)
+            assert worker._process_usage_window == remembered
+    assert sum("until it can be read" in r.message for r in caplog.records) == 1
+
+    assert worker.rate_limit_reason(now=NOW) is None
+    assert worker._process_usage_window == [(NOW - 2, 5.0), *remembered]
+    assert worker._usage_read_failed is False
+
+
+def test_stale_writer_cannot_erase_another_process_usage(tmp_path):
+    import claude_rate_guard
+    path = tmp_path / "shared.usage"
+    claude_rate_guard.record_usage(path, [], NOW, 5.0, 50.0)
+    claude_rate_guard.record_usage(path, [], NOW + 1, 7.0, 50.0)
+    assert claude_rate_guard.read_usage(path) == [(NOW, 5.0), (NOW + 1, 7.0)]
+
+
+def test_identical_completed_records_keep_their_multiplicity(tmp_path):
+    import claude_rate_guard
+    path = tmp_path / "shared.usage"
+    for _ in range(3):
+        claude_rate_guard.record_usage(path, [], NOW, 5.0, 50.0)
+    records = [(NOW, 5.0)] * 3
+    assert claude_rate_guard.read_usage(path) == records
+    assert claude_rate_guard.merge_usage(records, records[:2]) == records
+
+
+@pytest.mark.parametrize("operation", ["read", "write"])
+def test_open_usage_reader_excludes_other_access_until_file_is_closed(tmp_path, operation):
+    """Real cross-process open handle: Windows replace must never race it."""
+    import claude_rate_guard
+    from swarm_control import AlreadyRunning, _exclusive
+
+    path = tmp_path / "shared.usage"
+    claude_rate_guard.record_usage(path, [], NOW, 5.0, 50.0)
+    opened, release = tmp_path / "opened", tmp_path / "release"
+    script = '''
+import sys, time
+from pathlib import Path
+import claude_rate_guard
+usage, opened, release = map(Path, sys.argv[1:])
+original = Path.read_text
+def held_read(self, *args, **kwargs):
+    if self != usage:
+        return original(self, *args, **kwargs)
+    with self.open("r", encoding="utf-8") as handle:
+        opened.touch()
+        deadline = time.monotonic() + 10
+        while not release.exists():
+            if time.monotonic() >= deadline:
+                raise TimeoutError("test did not release reader")
+            time.sleep(0.01)
+        return handle.read()
+Path.read_text = held_read
+assert claude_rate_guard.read_usage(usage) == [(1000000.0, 5.0)]
+'''
+    reader = subprocess.Popen(
+        [sys.executable, "-c", script, str(path), str(opened), str(release)],
+        cwd=str(REPO_ROOT), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    try:
+        deadline = time.monotonic() + 8
+        while not opened.exists() and reader.poll() is None:
+            assert time.monotonic() < deadline, "reader did not open the usage file"
+            time.sleep(0.01)
+        assert opened.exists(), "reader exited before holding the file open"
+
+        # A short timeout proves both entry points use the same mutex; in the
+        # write case it avoids attempting replace against the open handle.
+        def short_lock(lock_path):
+            return _exclusive(lock_path, timeout=0.15)
+
+        from unittest.mock import patch
+        with patch.object(claude_rate_guard, "_exclusive", short_lock):
+            with pytest.raises(AlreadyRunning):
+                if operation == "read":
+                    claude_rate_guard.read_usage(path)
+                else:
+                    claude_rate_guard.record_usage(path, [], NOW + 1, 7.0, 50.0, strict=True)
+        release.touch()
+        stdout, stderr = reader.communicate(timeout=10)
+        assert reader.returncode == 0, stdout + stderr
+
+        claude_rate_guard.record_usage(path, [], NOW + 1, 7.0, 50.0, strict=True)
+        assert claude_rate_guard.read_usage(path) == [(NOW, 5.0), (NOW + 1, 7.0)]
+    finally:
+        release.touch()
+        if reader.poll() is None:
+            reader.kill()
+        reader.communicate(timeout=10)

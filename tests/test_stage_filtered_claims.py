@@ -186,6 +186,7 @@ def rate_files(monkeypatch, control):
     monkeypatch.setattr(claude_worker, "RATELIMIT_PATH", control.CONTROL_DIR / "rl")
     monkeypatch.setattr(claude_worker, "USAGE_PATH", control.CONTROL_DIR / "usage")
     monkeypatch.setattr(claude_worker, "_process_usage_window", [])
+    monkeypatch.setattr(claude_worker, "_usage_read_failed", False)
     return control.CONTROL_DIR
 
 
@@ -260,3 +261,43 @@ def test_a_held_worker_on_the_local_directory_still_takes_nothing(monkeypatch, c
     invocations, _ = run_loop(monkeypatch, control, polls=2, source="directory")
 
     assert taken == [] and invocations == []
+
+
+@pytest.mark.parametrize("failure", ["busy", "unwritable"])
+@pytest.mark.parametrize("when", ["startup", "poll"])
+@pytest.mark.parametrize("source", ["controller", "directory"])
+def test_unavailable_usage_keeps_worker_alive_and_model_work_queued(
+    monkeypatch, control, rate_files, caplog, failure, when, source,
+):
+    remembered = [(time.time(), 7.0)]
+    monkeypatch.setattr(claude_worker, "_process_usage_window", remembered.copy())
+    reads = []
+
+    def read():
+        reads.append(None)
+        if when == "poll" and len(reads) == 1:
+            return []
+        if failure == "busy":
+            raise claude_worker.swarm_control.AlreadyRunning("test usage lock busy")
+        raise PermissionError("test usage lock unwritable")
+
+    monkeypatch.setattr(claude_worker, "_read_usage", read)
+    authoring = worker_activation("a", "author")
+    integrating = worker_activation("i", "integrate")
+    queue = StubQueue([authoring, integrating])
+    integrated, local_claims = [], []
+    monkeypatch.setattr(claude_worker, "execute_integration",
+                        lambda activation, q=None: integrated.append(activation["activation_id"]))
+    monkeypatch.setattr(control, "claim_activation", lambda *a: local_claims.append(a))
+
+    invocations, _ = run_loop(monkeypatch, control, queue=queue, polls=3, source=source)
+
+    assert len(reads) == 4, "startup and every poll must retry the shared usage read"
+    assert invocations == [] and local_claims == []
+    assert claude_worker._process_usage_window == remembered
+    assert sum("until it can be read" in r.message for r in caplog.records) == 1
+    if source == "controller":
+        assert integrated == ["i"] and queue.pending == [authoring]
+        assert queue.claim_stages == [("integrate",)] * 3
+    else:
+        assert integrated == [] and queue.claims == 0

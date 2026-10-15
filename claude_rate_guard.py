@@ -19,8 +19,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
+from collections import Counter
 from pathlib import Path
+
+from swarm_control import AlreadyRunning, _exclusive
 
 log = logging.getLogger("claude_worker")
 
@@ -51,7 +55,17 @@ def read_holdoff(ratelimit_path: Path) -> float:
 
 
 def read_usage(usage_path: Path) -> list[tuple[float, float]]:
-    """Persisted (started, seconds) records. Missing is empty; malformed warns."""
+    """Read under the writer's mutex, including the open file's lifetime.
+
+    Windows cannot replace a destination held open by a reader. Serializing
+    both sides prevents a completed planner call losing its usage write.
+    """
+    with _exclusive(usage_path.with_name(usage_path.name + ".lock")):
+        return _read_usage_unlocked(usage_path)
+
+
+def _read_usage_unlocked(usage_path: Path) -> list[tuple[float, float]]:
+    """Caller holds the usage mutex. Missing is empty; malformed warns."""
     try:
         raw = json.loads(usage_path.read_text(encoding="utf-8"))
         if not isinstance(raw, list):
@@ -64,13 +78,17 @@ def read_usage(usage_path: Path) -> list[tuple[float, float]]:
         return []
 
 
-def write_usage(usage_path: Path, usage_window: list[tuple[float, float]]) -> None:
+def write_usage(usage_path: Path, usage_window: list[tuple[float, float]]) -> bool:
     """Persist the rolling window of usage seconds."""
     try:
-        with open(usage_path, "w", encoding="utf-8") as f:
+        temporary = usage_path.with_name(usage_path.name + ".tmp")
+        with open(temporary, "w", encoding="utf-8") as f:
             json.dump(usage_window, f)
+        os.replace(temporary, usage_path)
+        return True
     except OSError as exc:
         log.error("could not persist usage: %s", exc)
+        return False
 
 
 def purge_old_usage(
@@ -92,15 +110,49 @@ def current_usage_total(
     return usage_window, sum(usage for _, usage in usage_window)
 
 
+def merge_usage(persisted: list, in_memory: list) -> list:
+    """Merge two views without deleting legitimate identical call records.
+
+    The legacy format has no record IDs. Preserve the greatest multiplicity
+    observed in either view, rather than treating each (time, duration) pair
+    as a set member or charging the same mirrored window twice.
+    """
+    result = list(persisted)
+    missing = Counter(in_memory) - Counter(persisted)
+    for record in in_memory:
+        if missing[record]:
+            result.append(record)
+            missing[record] -= 1
+    return result
+
+
 def record_usage(
     usage_path: Path, usage_window: list[tuple[float, float]],
     start_time: float, elapsed_time: float, cooldown_seconds: float,
+    *, strict: bool = False,
 ) -> list[tuple[float, float]]:
-    """Record model usage; appends to the given list, returns the purged one."""
-    usage_window.append((start_time, elapsed_time))
-    usage_window = purge_old_usage(usage_window, start_time, cooldown_seconds)
-    write_usage(usage_path, usage_window)
-    return usage_window
+    """Merge completed calls under a kernel lock; return the updated window."""
+    # A planner and a worker can finish in either order. Refresh while holding
+    # the same kernel lock, so a stale in-memory window cannot erase a peer's
+    # completed call. Retain callers' in-memory records if an earlier disk
+    # write failed. Identical persisted records are not charged twice.
+    pending = [*usage_window, (start_time, elapsed_time)]
+    try:
+        with _exclusive(usage_path.with_name(usage_path.name + ".lock")):
+            # Already holding the mutex; taking it again would deadlock.
+            combined = merge_usage(_read_usage_unlocked(usage_path), usage_window)
+            combined.append((start_time, elapsed_time))
+            pending = purge_old_usage(combined, start_time, cooldown_seconds)
+            if not write_usage(usage_path, pending) and strict:
+                raise OSError("could not persist Claude model usage")
+    except (OSError, AlreadyRunning) as exc:
+        if strict:
+            raise
+        # The long-lived worker retains its in-memory record and can persist
+        # it with the next completed call, matching the existing write-failure
+        # behavior. The planner requests strict accounting instead.
+        log.error("could not persist usage: %s", exc)
+    return purge_old_usage(pending, start_time, cooldown_seconds)
 
 
 def begin_holdoff(ratelimit_path: Path, now: float, cooldown_seconds: float) -> float:

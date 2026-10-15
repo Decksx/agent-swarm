@@ -1,5 +1,185 @@
 # Agent Swarm imported project context
 
+## PR #102 worker read-failure recovery and final contract conditions — 2026-10-15
+
+Claude reviewed `0fbdc67869a121b7ba5181e8da9709e4b452a396` at
+https://github.com/Decksx/agent-swarm/pull/102#issuecomment-6202675380.
+That exact head passed all four checks in CI `38808564835`: 1,982 core,
+318 hub and eight bypass tests (2,308 passed, no failures/skips), in 3m12s.
+The Windows read-lock race and deploy-order findings were accepted as resolved.
+Claude identified a worker crash if the new usage mutex cannot be acquired or
+opened; the planner already handles that error.
+
+The worker now uses one guarded refresh at startup and on every unpaused poll.
+OSError/AlreadyRunning preserves in-memory usage, logs once per failure streak,
+and pauses model claims while allowing model-free controller stages. Directory
+mode takes no work during this hold. A successful later read merges disk and
+memory and clears the failure flag. 159 focused worker-loop, rate-guard,
+planner, host-setting and prompt tests passed on Windows. Coverage includes
+startup/poll failures for both busy and unwritable locks in both queue modes,
+real held-mutex recovery, preserved pending usage and automatic retry. Five
+new mutations were caught, together with the previous thirteen. Fresh CI and
+Claude's exact-head review remain required for this follow-up candidate.
+
+EXTERNAL_REVIEW_REPOS is approved subject to Claude's conditions, now in the
+#92 contract: both maps required, existing REPO_SLUG validation, bad settings
+disable only external review without blocking controller startup, case-insensitive
+slug/URL matching, fixable slug mismatches, and deployment presence reporting
+without printing values. SERIAL enforcement is explicitly unimplemented; the
+acceptance wording now says ingest does not count toward any execution lane.
+Fetch the exact reported baseRefOid as well as the head, including for merged
+PRs, keeping both objects through range computation. No #92 runtime code,
+merge, deployment, restart, paid planner call or real task issuance occurred.
+Claude planning remains off until the updated worker is deployed and verified.
+
+## PR #102 Windows read locking and accepted #92 amendments — 2026-10-15
+
+Claude's re-review of `d9762b7b274be5093ceec4c0d6b496e836c27d92` is at
+https://github.com/Decksx/agent-swarm/pull/102#issuecomment-6201870664.
+All six earlier findings were accepted as fixed. That exact candidate passed
+all four CI checks in run `38802984535`: 1,979 core, 318 hub and eight bypass
+tests (2,305 passed, no failures/skips), in 3m50s. This evidence belongs to
+that commit, not the subsequent read-lock changes below.
+
+The new source takes the usage writer's OS mutex for public reads, holding it
+until the read handle closes. The writer uses a private already-locked reader
+to avoid recursive acquisition. Planner preflight converts mutex contention
+into a clear refusal before any call. A real cross-process open-file test
+checks read/write exclusion and persistence after the reader closes. All 126
+focused planner/host-setting/rate-guard/prompt tests passed on Windows. Three
+new in-memory mutations (unlocked read, different read mutex and unhandled
+preflight lock contention) were caught, as were the ten previous mutations.
+Fresh exact-head CI and Claude's renewed review are required after this change.
+
+Deployment order is explicit in README and the leadership design: do not use
+Claude planning until the updated worker has been deployed/restarted and its
+running source and effective guard directory checked. Keep the existing state
+directory (`C:\swarm-prod\agent-swarm` on OfficePC), hold and usage files. The
+old worker can erase planner records; the documentation change does not fix
+the already-running old process. No deployment/restart or paid planner call
+was performed in this follow-up. Token-only CLI hosts need a stored login;
+inherited OAuth/access-token overrides remain intentionally excluded.
+
+David explicitly chose all PR states (open, draft, closed, merged) and normal
+host-slot consumption outside the SERIAL engineering limit. Historical reviews
+record their actual review time without changing PR state or implying approval
+preceded an old merge. The #92 contract now includes Claude's amendments:
+OPERATOR boundary tests, generic full-base validation, branch_only proof_mode,
+controller-owned result checks, deadline-derived timeouts, task-scoped scratch
+cleanup and the exact admin request. The accepted #74 design lists the new
+assigned/running states and revised pin procedure. A proposed trusted controller
+EXTERNAL_REVIEW_REPOS map closes the missing-slug source; Claude still needs
+to check that configuration detail. No #92 runtime implementation is included.
+
+## PR #102 review follow-up and #92 contract answers — 2026-10-15
+
+Claude's independent engineering review of `055471f` is recorded at
+https://github.com/Decksx/agent-swarm/pull/102#issuecomment-6201292059.
+It requests fixes before leaving draft; it is not a controller-ledger verdict.
+
+The follow-up source removes inherited provider API keys/token overrides from
+CLI child environments, adds explicit CODEX_CLI / CLAUDE_CLI binary settings,
+and makes Claude planning honor the live worker's shared usage directory and
+hold. Failed and timed-out calls record duration too. The worker refreshes the
+shared file before checking its budget; completed calls merge under a kernel
+lock and persist with atomic replacement so stale process windows cannot erase
+each other. The elapsed-time proxy is retained, not presented as a provider
+quota measurement. Shared accounting requires deploying/restarting the updated
+Claude worker; no such deployment has occurred.
+Merging legacy usage windows also preserves repeated identical call records;
+the timestamp/duration pair is not treated as a unique record ID.
+
+On OfficePC, non-secret Windows user settings now name the installed Codex
+executable in CODEX_CLI and the existing production state directory in
+CLAUDE_RATE_GUARD_DIR. The resolver sees fresh user settings even from an app
+with older inherited environment. A check with Codex removed from PATH still
+resolved the configured executable; cached login reports ChatGPT with API-key
+overrides removed. Existing keys were not changed or printed.
+
+Saved replies now record null planner/provider values; reported-model metadata
+is explicitly all models the CLI reports using, including auxiliaries. The
+leadership design's deploy note identifies the Gemini system-prompt change and
+the Claude accounting change. Tests include mixed success/error provider
+responses, missing/explicit executable paths, environment filtering, shared
+holds and usage, duration on failure/timeout and accounting-write refusal.
+The first focused run passed 97 checks; broader regressions and exact-head CI
+are required for the follow-up candidate, followed by Claude's renewed review.
+
+`docs/design/92-ingest-contract.md` records Codex's five technical answers for
+Claude to check before #92 implementation: FAILED for refusal; explicit assigned
+and running ingest states with recovery; an empty external-only base sentinel
+kept on the immutable request version and the real range in the registered event;
+bounded structured event evidence; and create-only final pins with SHA compare-
+and-swap, distinct from activation/lease fencing. Claude leads controller work;
+Codex implements the model-free worker/admin CLI against the agreed contract.
+No #92 code, task issuance, merge or runtime rollout is part of this follow-up.
+
+## Parallel CI merged; leadership branch refreshed — 2026-10-15
+
+Claude implemented CI parallelization in PR #103. Codex independently reviewed
+`2332071beb6acd4fad75018e5997d9445994d783` with no blocking findings: focused
+local checks passed (15 passed, ten scheduler-permission skips), all 16 aggregate
+status combinations behaved correctly, and six workflow mutations were caught.
+The final clarification commit `602ed8ec30eeb9e31c7ee48ab8dc2f1cdddb812d` changes
+comments, docstrings and an assertion diagnostic only. Codex subsequently
+verified equal parsed workflow semantics and equal test logic after excluding
+documentation and assertion messages; the original review is not relabelled as
+a fresh full review of that later commit.
+
+PR #103 merged as `fa02750f872f184ae7c8e7244ec8805ec56c5ceb`. Candidate CI run
+`38796469904` passed all four checks in 3m55s with the pip cache restored.
+Merged-main run `38797078339` passed all four in 4m26s: 1,926 core, 318 hub and
+eight bypass tests, 2,252 total with no failures or skips. The first parallel run
+`38793695024` took 4m38s versus 15m49s for baseline `38783027648`. These are
+observed runs, not a guarantee of future runner duration.
+
+The workflow now runs core and hub suites concurrently with pytest-xdist and
+uses a pip cache. `pytest-unit` remains the required aggregate, always reports,
+and demands success from both suites; `pytest-bypass` remains required. The
+scheduled-task fixture isolates both tests and collection probes per worker.
+No tests were removed or moved to a lighter tier. A skipped check is tolerated
+while waiting for CI but rejected by the integrator's final evidence validation.
+
+Codex merged this main into PR #102's development branch at
+`12a19162cf881e4b6bc87f9efbbdfb28fc36e3cb`, without rebasing or altering Claude's
+work. The merge was clean; 33 workflow, planner-transport and model-call checks
+passed locally. This context update accompanies the refreshed candidate; fresh
+CI and Claude's exact-head engineering review remain the next gates. PR #102
+stays draft. Production remains at the Argon release below; no worker restart,
+Tower deployment, real task issuance or additional merge was performed here.
+
+Follow-up: make `test_worker_ctl_root.py` select Git Bash explicitly on OfficePC
+instead of accepting the WSL launcher first on PATH. Keep that separate from
+the leadership change. Claude's CI worktree was reported removed after merge;
+the remote CI branch need not be deleted to use the merged workflow.
+
+## Shared engineering leadership — 2026-10-15
+
+David confirmed that both Codex and Claude should lead interactive project work
+and serve as automated planners. The development implementation now defaults
+`plan_run.py` to Codex and supports `--planner claude` / `--planner gemini` and
+`SWARM_PLANNER`. Existing snapshot, context/search budget, validation and DRAFT
+creation logic remains shared. The installed CLIs run prompt-only in temporary
+directories; controller credentials are excluded, execution/integrations are
+disabled, and provider failure does not select another lead.
+
+`AGENTS.md` and the new `CLAUDE.md` establish the interactive co-lead workflow.
+See `docs/design/engineering-leadership.md` for the interfaces and Claude's
+immediate assignment: independently review this implementation, then propose
+and lead the next #92 ingress slice. No review was sent on David's behalf and
+no controller-ledger verdict is claimed. This source is pending CI/review and
+is not yet the production checkout.
+
+Validation: 220 targeted tests passed, including planner transports, the shared
+planning pipeline and the worker model-call path. Three independent in-memory
+mutations were caught: leaked controller credentials, enabled shell execution,
+and acceptance of an incomplete Codex turn. Real Codex and Claude CLI adapters
+passed connectivity checks and generated grounded proposals for a disposable
+repository through the full planning pipeline (two Codex calls including search;
+one Claude call). The fixture repository stayed unchanged and no controller
+task was created. Claude reported `claude-opus-5-5`; Codex did not report a model
+version, so its evidence honestly records `cli-default` with no reported model.
+
 ## Gemini Argon configuration — 2026-10-15
 
 David requested the newer Argon model for Gemini and asked whether hive
@@ -15,11 +195,20 @@ No SDK upgrade or automatic fallback was introduced.
 Authenticated hive reads and controller status both returned HTTP 200; Gemini
 and Claude workers were running. Chat remains narration: ordinary mentions
 cannot call models, and work still requires controller-issued activations.
-The retired `hub/gemini_lead.py` is not the active worker. This source checkpoint
-does not by itself establish that a running process has loaded the new default;
-check the Gemini startup model line after rollout.
+The retired `hub/gemini_lead.py` is not the active worker.
 
-## Current deployed checkpoint — 2026-10-15
+PR #101 merged at `db0bd5b64af89bef2ad2d86b53950d96527b1c96`; its candidate
+`9b02c97da29b7cc42ed9b581435ba33a9992b54a` passed all 2,245 CI tests in run
+`38783027648`, plus 307 targeted local tests. Production is pinned to that merge.
+Supported pause/stop and hidden start/resume controls restarted the workers;
+the Gemini startup log confirms `gemini-4-argon`. Supervisor PID 42044 and
+ChatGPT/Gemini/Claude PIDs 41380/17344/26120 were healthy and unpaused, with a
+fresh heartbeat. All worker cursors stayed at 1490 and narrator cursor at 525.
+Gemini preflight passed at unchanged controller build
+`cc1d4f0214fe903a64a4a9edf491ef8cc00cc014d04ab9e69f7e4b6fdc2cde97`.
+Tower code was unchanged; no controller restart or real task issuance occurred.
+
+## Previous controller deployment checkpoint — 2026-10-15
 
 David authorized commit, merge and deployment. PRs #96, #97, #98 and #99 are
 merged, and production is pinned to runtime source commit
