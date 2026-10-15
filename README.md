@@ -162,6 +162,28 @@ Produces a proposal and stops. `--create` writes the tasks as `DRAFT`;
 `--from-reply` re-parses a saved reply without calling the model, which is how
 the refusal paths are exercised without spending a call.
 
+Codex is the default engineering planner. Use `--planner claude` or
+`--planner gemini` to select another lead, or set `SWARM_PLANNER`. Codex and
+Claude use their installed CLIs and existing authentication; Gemini uses its API
+credential. There is no fallback to another provider on failure.
+
+`--model` overrides the selected provider's model. `CODEX_PLANNER_MODEL`,
+`CLAUDE_PLANNER_MODEL`, and `GEMINI_PLANNER_MODEL` supply provider-specific
+overrides. Without an override, Codex uses its CLI built-in default (user config
+is excluded from the isolated planning call), Claude uses its CLI default, and
+Gemini uses Argon. CLI calls run in an empty temporary directory with execution,
+hooks and integrations disabled; context requests go through the shared snapshot
+pipeline. Keep the CLIs on PATH when launching the planner.
+
+Plan JSON records `planner_provider`, `planner_source`, and any model names
+reported by the CLI in `planner_reported_models`. The existing `planner` field
+is the requested model selector, or `cli-default`; it does not invent an exact
+model version when the CLI omits one. Saved replies record no live provider.
+
+Both Codex and Claude may also lead interactive repository work. See the shared
+`AGENTS.md`, Claude's `CLAUDE.md` entry point, and the
+[leadership design](docs/design/engineering-leadership.md).
+
 ### Deployment
 
 ```bash

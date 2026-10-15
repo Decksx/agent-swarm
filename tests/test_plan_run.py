@@ -33,6 +33,9 @@ def git(repo, *args):
 @pytest.fixture
 def project(tmp_path, monkeypatch):
     """A registered, plannable project with a few real files in it."""
+    # Existing loop/validation tests exercise the Gemini adapter with scripted
+    # replies. Never let a developer's configured lead invoke a real CLI here.
+    monkeypatch.setenv("SWARM_PLANNER", "gemini")
     root = tmp_path / "repo"
     root.mkdir()
     git(root, "init", "-q", "-b", "master")
@@ -100,7 +103,146 @@ def run(*args):
     return plan_run.main(["plan_run.py", *args])
 
 
+@pytest.mark.parametrize("provider", ["codex", "claude"])
+def test_cli_leads_use_common_validation_and_record_provider(
+    provider, project, tmp_path, monkeypatch,
+):
+    seen = []
+
+    def generate(name, prompt, **kwargs):
+        seen.append((name, prompt, kwargs))
+        return plan_run.planner_cli.Reply(reply_text(task()), ("reported-model",))
+
+    monkeypatch.setattr(plan_run.planner_cli, "generate", generate)
+    saved = tmp_path / "plan.json"
+    assert run("--project", "demo", "--planner", provider, "--model", "selected-model",
+               "--out", str(saved)) == 0
+    evidence = json.loads(saved.read_text(encoding="utf-8"))
+    assert evidence["planner_provider"] == provider
+    assert evidence["planner"] == "selected-model"
+    assert evidence["planner_reported_models"] == ["reported-model"]
+    assert evidence["model_calls"] == 1 and evidence["planner_source"] == "live"
+    assert seen[0][0] == provider and "src/api.py" in seen[0][1]
+
+
+def test_codex_is_default_without_claiming_an_unreported_model(
+    project, tmp_path, monkeypatch,
+):
+    monkeypatch.delenv("SWARM_PLANNER", raising=False)
+    monkeypatch.delenv("CODEX_PLANNER_MODEL", raising=False)
+    seen = []
+
+    def generate(name, prompt, **kwargs):
+        seen.append((name, kwargs["model"]))
+        return plan_run.planner_cli.Reply(reply_text(task()))
+
+    monkeypatch.setattr(plan_run.planner_cli, "generate", generate)
+    saved = tmp_path / "default.json"
+    assert run("--project", "demo", "--out", str(saved)) == 0
+    evidence = json.loads(saved.read_text(encoding="utf-8"))
+    assert seen == [("codex", None)]
+    assert evidence["planner"] == "cli-default"
+    assert evidence["planner_reported_models"] == []
+
+
+@pytest.mark.parametrize("provider", ["codex", "claude"])
+def test_saved_replies_never_call_or_claim_a_cli_lead(
+    provider, project, tmp_path, monkeypatch,
+):
+    def refuse(*a, **kw):
+        raise AssertionError("saved replies must not call a provider")
+
+    monkeypatch.setattr(plan_run.planner_cli, "generate", refuse)
+    saved = tmp_path / "saved.json"
+    assert run("--project", "demo", "--planner", provider,
+               "--from-reply", str(reply_file(tmp_path, [task()])),
+               "--out", str(saved)) == 0
+    evidence = json.loads(saved.read_text(encoding="utf-8"))
+    assert evidence["planner_provider"] is None
+    assert evidence["planner_source"] == "saved-reply" and evidence["model_calls"] == 0
+
+
+@pytest.mark.parametrize("provider", ["codex", "claude"])
+def test_cli_failure_never_falls_back_to_gemini(provider, project, monkeypatch):
+    def fail(*a, **kw):
+        raise plan_run.planner_cli.PlannerCliError("provider unavailable")
+
+    def fallback(*a, **kw):
+        raise AssertionError("provider failure must not select another lead")
+
+    monkeypatch.setattr(plan_run.planner_cli, "generate", fail)
+    monkeypatch.setattr(plan_run, "ask_gemini", fallback)
+    assert run("--project", "demo", "--planner", provider) == 1
+
+
+@pytest.mark.parametrize("provider", ["codex", "claude"])
+def test_cli_reply_cannot_skip_plan_validation(provider, project, monkeypatch):
+    monkeypatch.setattr(plan_run.planner_cli, "generate", lambda *a, **kw:
+                        plan_run.planner_cli.Reply("make an unscoped change now"))
+    assert run("--project", "demo", "--planner", provider) == 1
+
+
+@pytest.mark.parametrize("provider", ["codex", "claude"])
+def test_cli_context_requests_obey_shared_call_budget(provider, project, monkeypatch):
+    calls = []
+
+    def generate(*a, **kw):
+        calls.append(a)
+        return plan_run.planner_cli.Reply(search_request_reply("Reader"))
+
+    monkeypatch.setattr(plan_run.planner_cli, "generate", generate)
+    assert run("--project", "demo", "--planner", provider, "--max-calls", "1") == 1
+    assert len(calls) == 1
+
+
 # --- A proposal is not state -------------------------------------------------
+
+
+@pytest.mark.parametrize("provider", ["codex", "claude"])
+def test_environment_can_choose_cli_lead_and_model(provider, project, monkeypatch):
+    monkeypatch.setenv("SWARM_PLANNER", provider)
+    monkeypatch.setenv(f"{provider.upper()}_PLANNER_MODEL", "environment-model")
+    seen = []
+
+    def generate(name, prompt, **kwargs):
+        seen.append((name, kwargs["model"]))
+        return plan_run.planner_cli.Reply(reply_text(task()))
+
+    monkeypatch.setattr(plan_run.planner_cli, "generate", generate)
+    assert run("--project", "demo") == 0
+    assert seen == [(provider, "environment-model")]
+
+
+def test_gemini_remains_an_explicit_planner(project, tmp_path, monkeypatch):
+    monkeypatch.setenv("GEMINI_PLANNER_MODEL", "selected-gemini-model")
+    seen = []
+
+    def gemini(prompt, *, model):
+        seen.append(model)
+        return reply_text(task())
+
+    monkeypatch.setattr(plan_run, "ask_gemini", gemini)
+    saved = tmp_path / "gemini.json"
+    assert run("--project", "demo", "--planner", "gemini", "--out", str(saved)) == 0
+    evidence = json.loads(saved.read_text(encoding="utf-8"))
+    assert seen == ["selected-gemini-model"]
+    assert evidence["planner_provider"] == "gemini" and evidence["model_calls"] == 1
+
+
+def test_cli_terminal_outcome_keeps_provider_evidence(project, tmp_path, monkeypatch):
+    monkeypatch.setattr(plan_run.planner_cli, "generate", lambda *a, **kw:
+                        plan_run.planner_cli.Reply(terminal_reply("milestone_ready")))
+    saved = tmp_path / "terminal.json"
+    assert run("--project", "demo", "--planner", "claude", "--out", str(saved)) == 0
+    evidence = json.loads(saved.read_text(encoding="utf-8"))
+    assert evidence["planner_provider"] == "claude" and evidence["model_calls"] == 1
+
+
+def test_invalid_configured_lead_is_refused(project, monkeypatch):
+    monkeypatch.setenv("SWARM_PLANNER", "unknown-provider")
+    with pytest.raises(SystemExit) as caught:
+        run("--project", "demo")
+    assert caught.value.code == 2
 
 
 def test_a_good_plan_is_reported_and_nothing_is_created(project, tmp_path, capsys):

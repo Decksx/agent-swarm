@@ -8,6 +8,10 @@ execution requests or automatic instructions.
 
 - Develop here in `C:\git\agent-swarm`. Keep the pinned production checkout at
   `C:\swarm-prod\agent-swarm` isolated from development branches.
+- Codex and Claude may both lead engineering interactively and through the
+  selectable planner. Choose one accountable lead per workstream; use the other
+  for review or handoff. Gemini remains available as a planner/reviewer. Read
+  `docs/design/engineering-leadership.md` for the interfaces and current assignment.
 - Inspect existing changes before editing. Preserve other work and stage only
   files belonging to the current task. Do not add runtime logs, credentials,
   controller databases, worker state/cursors, or control artifacts to Git.

@@ -56,6 +56,7 @@ from pathlib import Path
 from typing import Optional
 
 import plan
+import planner_cli
 import repo_registry
 import repo_snapshot
 
@@ -827,7 +828,12 @@ def main(argv) -> int:
         help="read the guidance from a file instead, for anything longer than "
              "a shell argument should be.",
     )
-    parser.add_argument("--model", default=GEMINI_MODEL)
+    parser.add_argument(
+        "--planner", choices=("codex", "claude", "gemini"),
+        default=os.environ.get("SWARM_PLANNER", "codex"),
+        help="engineering lead for this planning run (default: Codex)",
+    )
+    parser.add_argument("--model", default=None)
     parser.add_argument(
         "--out", default=None,
         help="write the accepted plan here as JSON, for the ledger",
@@ -878,6 +884,20 @@ def main(argv) -> int:
              "current branch, which is where work in progress actually is.",
     )
     args = parser.parse_args(argv[1:])
+    if args.planner not in ("codex", "claude", "gemini"):
+        parser.error("SWARM_PLANNER must be codex, claude or gemini")
+    if args.model is None:
+        args.model = os.environ.get(f"{args.planner.upper()}_PLANNER_MODEL")
+        if args.planner == "gemini" and not args.model:
+            args.model = GEMINI_MODEL
+    planner_evidence = {
+        # Preserve the legacy field as a model selector. Do not claim that a
+        # CLI's unreported default is a known concrete model version.
+        "planner": args.model or "cli-default",
+        "planner_provider": None if args.from_reply else args.planner,
+        "planner_source": "saved-reply" if args.from_reply else "live",
+        "planner_reported_models": [],
+    }
 
     # The snapshot quotes documents, and documents contain arrows and accented
     # names. A Windows console is cp1252, so printing one unprepared raises
@@ -1013,9 +1033,18 @@ def main(argv) -> int:
                 return 1
 
             try:
-                reply = ask_gemini(attempt_prompt, model=args.model)
+                if args.planner == "gemini":
+                    reply = ask_gemini(attempt_prompt, model=args.model)
+                else:
+                    result = planner_cli.generate(
+                        args.planner, attempt_prompt, model=args.model,
+                    )
+                    reply = result.text
+                    planner_evidence["planner_reported_models"] = sorted(set(
+                        planner_evidence["planner_reported_models"]
+                    ).union(result.reported_models))
                 calls += 1
-            except PlanRunError as exc:
+            except (PlanRunError, planner_cli.PlannerCliError) as exc:
                 print(f"plan: {exc}")
                 return 1
 
@@ -1061,7 +1090,7 @@ def main(argv) -> int:
             if args.out:
                 Path(args.out).write_text(
                     json.dumps({
-                        "outcome": outcome, "planner": args.model,
+                        "outcome": outcome, **planner_evidence,
                         "guidance": guidance, "model_calls": calls,
                         "max_calls": args.max_calls,
                         "base_sha": resolved.sha,
@@ -1189,7 +1218,7 @@ def main(argv) -> int:
         Path(args.out).write_text(
             json.dumps(
                 {"plan": parsed, "grounding": grounding,
-                 "planner": args.model, "guidance": guidance,
+                 **planner_evidence, "guidance": guidance,
                  "model_calls": calls, "max_calls": args.max_calls,
                  "context_supplied": context_supplied,
                  "searches_run": searches_run,

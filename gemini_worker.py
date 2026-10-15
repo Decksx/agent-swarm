@@ -108,7 +108,7 @@ HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "15"))
 MAX_REPLY_CHARS = 60_000
 
 SYSTEM_PROMPT = (
-    "You are Gemini, the lead architect in a small multi-agent engineering "
+    "You are Gemini, an engineering reviewer in a small multi-agent engineering "
     "swarm that coordinates over a shared message hub. The other "
     "participants include ClaudeCode (local execution and testing), ChatGPT "
     "(static drafting and GitHub), and a human Admin. You are addressed as "

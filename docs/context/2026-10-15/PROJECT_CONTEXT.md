@@ -1,5 +1,32 @@
 # Agent Swarm imported project context
 
+## Shared engineering leadership — 2026-10-15
+
+David confirmed that both Codex and Claude should lead interactive project work
+and serve as automated planners. The development implementation now defaults
+`plan_run.py` to Codex and supports `--planner claude` / `--planner gemini` and
+`SWARM_PLANNER`. Existing snapshot, context/search budget, validation and DRAFT
+creation logic remains shared. The installed CLIs run prompt-only in temporary
+directories; controller credentials are excluded, execution/integrations are
+disabled, and provider failure does not select another lead.
+
+`AGENTS.md` and the new `CLAUDE.md` establish the interactive co-lead workflow.
+See `docs/design/engineering-leadership.md` for the interfaces and Claude's
+immediate assignment: independently review this implementation, then propose
+and lead the next #92 ingress slice. No review was sent on David's behalf and
+no controller-ledger verdict is claimed. This source is pending CI/review and
+is not yet the production checkout.
+
+Validation: 220 targeted tests passed, including planner transports, the shared
+planning pipeline and the worker model-call path. Three independent in-memory
+mutations were caught: leaked controller credentials, enabled shell execution,
+and acceptance of an incomplete Codex turn. Real Codex and Claude CLI adapters
+passed connectivity checks and generated grounded proposals for a disposable
+repository through the full planning pipeline (two Codex calls including search;
+one Claude call). The fixture repository stayed unchanged and no controller
+task was created. Claude reported `claude-opus-5-5`; Codex did not report a model
+version, so its evidence honestly records `cli-default` with no reported model.
+
 ## Gemini Argon configuration — 2026-10-15
 
 David requested the newer Argon model for Gemini and asked whether hive
@@ -15,11 +42,20 @@ No SDK upgrade or automatic fallback was introduced.
 Authenticated hive reads and controller status both returned HTTP 200; Gemini
 and Claude workers were running. Chat remains narration: ordinary mentions
 cannot call models, and work still requires controller-issued activations.
-The retired `hub/gemini_lead.py` is not the active worker. This source checkpoint
-does not by itself establish that a running process has loaded the new default;
-check the Gemini startup model line after rollout.
+The retired `hub/gemini_lead.py` is not the active worker.
 
-## Current deployed checkpoint — 2026-10-15
+PR #101 merged at `db0bd5b64af89bef2ad2d86b53950d96527b1c96`; its candidate
+`9b02c97da29b7cc42ed9b581435ba33a9992b54a` passed all 2,245 CI tests in run
+`38783027648`, plus 307 targeted local tests. Production is pinned to that merge.
+Supported pause/stop and hidden start/resume controls restarted the workers;
+the Gemini startup log confirms `gemini-4-argon`. Supervisor PID 42044 and
+ChatGPT/Gemini/Claude PIDs 41380/17344/26120 were healthy and unpaused, with a
+fresh heartbeat. All worker cursors stayed at 1490 and narrator cursor at 525.
+Gemini preflight passed at unchanged controller build
+`cc1d4f0214fe903a64a4a9edf491ef8cc00cc014d04ab9e69f7e4b6fdc2cde97`.
+Tower code was unchanged; no controller restart or real task issuance occurred.
+
+## Previous controller deployment checkpoint — 2026-10-15
 
 David authorized commit, merge and deployment. PRs #96, #97, #98 and #99 are
 merged, and production is pinned to runtime source commit
