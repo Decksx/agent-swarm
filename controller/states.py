@@ -82,6 +82,20 @@ STATES: FrozenSet[str] = frozenset({
     "SUPERSEDED",
     "EXPIRED",
     "REVERTED",
+    # Reviewing a change the swarm did not author (#74, docs/design/
+    # 74-external-review.md). A parallel chain, and deliberately so: this
+    # table maps (state, event) and cannot tell an external task from one the
+    # swarm authored, so "an external change is never integrated" has to be
+    # a property of where these states can lead -- none of them reaches
+    # READY_INTEGRATION, INTEGRATING or COMPLETE, and a graph walk in the
+    # tests holds that. The swarm judges; a person merges.
+    "EXTERNAL_PENDING",           # submitted; the PR head is being pinned
+    "EXTERNAL_INGEST_BLOCKED",    # pinning could not be performed
+    "READY_EXTERNAL_REVIEW",      # pinned; waiting for a review activation
+    "EXTERNAL_REVIEW_ASSIGNED",
+    "EXTERNAL_REVIEWING",
+    "EXTERNAL_REVIEW_BLOCKED",    # the review could not be performed
+    "EXTERNAL_REVIEWED",          # terminal: a verdict at one exact SHA
 })
 
 # A terminal state accepts nothing further. `COMPLETE` is the one exception and
@@ -96,6 +110,9 @@ TERMINAL_STATES: FrozenSet[str] = frozenset({
     "SUPERSEDED",
     "EXPIRED",
     "REVERTED",
+    # A verdict names one SHA. A re-review of the same pull request at a new
+    # head is a new task, never a new event on this one (#74, design 11.1).
+    "EXTERNAL_REVIEWED",
 })
 
 assert TERMINAL_STATES <= STATES
@@ -336,7 +353,76 @@ TRANSITIONS: Dict[Tuple[str, str], Transition] = {
     ("NEEDS_HUMAN", "escalation_expired"): _t("EXPIRED", CONTROLLER),
 
     ("COMPLETE", "regression_reverted"): _t("REVERTED", ADMIN, CONTROLLER),
+
+    # --- External review (#74) -------------------------------------------
+    #
+    # Entered only by an operator's request, never by an author: nothing a
+    # worker reports can put a change it did not produce in front of a
+    # reviewer, and nothing here can be read as `candidate_submitted`.
+    ("DRAFT", "external_review_requested"): _t("EXTERNAL_PENDING", ADMIN),
+
+    # The ingest worker verified the PR head and pinned it. Its own event, so
+    # the ledger can always tell "the operator asked for this commit to be
+    # reviewed" from "an author the controller activated produced this".
+    ("EXTERNAL_PENDING", "external_candidate_registered"): _t(
+        "READY_EXTERNAL_REVIEW", CONTROLLER
+    ),
+    # One blocked state per stage, because a (state, event) pair has exactly
+    # one destination: a single EXTERNAL_BLOCKED could not return to both.
+    ("EXTERNAL_PENDING", "environment_defect"): _t(
+        "EXTERNAL_INGEST_BLOCKED", CONTROLLER
+    ),
+    ("EXTERNAL_INGEST_BLOCKED", "environment_repaired"): _t(
+        "EXTERNAL_PENDING", CONTROLLER
+    ),
+
+    ("READY_EXTERNAL_REVIEW", "review_activation_issued"): _t(
+        "EXTERNAL_REVIEW_ASSIGNED", CONTROLLER
+    ),
+    ("EXTERNAL_REVIEW_ASSIGNED", "activation_claimed"): _t(
+        "EXTERNAL_REVIEWING", VERIFIER
+    ),
+    ("EXTERNAL_REVIEW_ASSIGNED", "lease_expired"): _t(
+        "READY_EXTERNAL_REVIEW", CONTROLLER
+    ),
+    ("EXTERNAL_REVIEW_ASSIGNED", "hard_deadline_reached"): _t(
+        "READY_EXTERNAL_REVIEW", CONTROLLER
+    ),
+
+    # The verdict. One event whatever the judgment -- satisfied,
+    # changes_requested or decision_required ride in its payload -- because
+    # there is no author to send anything back to: the operator owns the
+    # pull request and acts on the verdict. Controller authority for the same
+    # reason `review_requirements_satisfied` is: a verifier does not get to
+    # write its own verdict into the ledger, the controller applies it on the
+    # strength of the verifier holding the live activation.
+    ("EXTERNAL_REVIEWING", "external_review_judged"): _t(
+        "EXTERNAL_REVIEWED", CONTROLLER
+    ),
+    ("EXTERNAL_REVIEWING", "environment_defect"): _t(
+        "EXTERNAL_REVIEW_BLOCKED", CONTROLLER
+    ),
+    ("EXTERNAL_REVIEWING", "lease_expired"): _t(
+        "READY_EXTERNAL_REVIEW", CONTROLLER
+    ),
+    ("EXTERNAL_REVIEWING", "deadline_without_checkpoint"): _t(
+        "READY_EXTERNAL_REVIEW", CONTROLLER
+    ),
+    ("EXTERNAL_REVIEW_BLOCKED", "environment_repaired"): _t(
+        "READY_EXTERNAL_REVIEW", CONTROLLER
+    ),
 }
+
+# The states an external review (#74) may occupy, and the ones it must never
+# reach. Named here, beside the table, so the test that walks the graph and
+# anything else that needs the boundary read one definition.
+EXTERNAL_STATES: FrozenSet[str] = frozenset(
+    s for s in STATES if s.startswith("EXTERNAL_") or s == "READY_EXTERNAL_REVIEW"
+)
+INTEGRATION_STATES: FrozenSet[str] = frozenset({
+    "READY_INTEGRATION", "INTEGRATING", "INTEGRATION_BLOCKED",
+    "INTEGRATION_UNCERTAIN", "COMPLETE",
+})
 
 # §8: "Every nonterminal state also accepts Admin cancellation or
 # supersession." Generated rather than written out, so a state added to STATES

@@ -234,6 +234,11 @@ def test_the_refused_set_is_exactly_what_has_a_route_of_its_own(client):
     `reconciliation_observation` (#57) is refused because its `source_event_id`
     is the whole of its meaning -- emitted here it would record what somebody
     says they saw, attached to no reconciliation at all.
+    `external_review_requested` (#91) is refused because it is ADMIN
+    authority and the only way into external review: applied here it would
+    move a DRAFT task into EXTERNAL_PENDING with no ingest to pin the PR head.
+    Its validated route arrives with #74 slice 2 (#92), which replaces this
+    entry.
     """
     assert set(api.ROUTED_ELSEWHERE) == {
         "operator_response",
@@ -243,6 +248,7 @@ def test_the_refused_set_is_exactly_what_has_a_route_of_its_own(client):
         "create_contract_version",
         "out_of_band_merge_reported",
         "reconciliation_observation",
+        "external_review_requested",
     }
     assert "admin_cancelled" not in api.ROUTED_ELSEWHERE
     assert "superseded" not in api.ROUTED_ELSEWHERE

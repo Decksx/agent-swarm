@@ -230,6 +230,13 @@ ROUTED_ELSEWHERE = {
     # reports without anything having checked that the task was ever approved,
     # that the report names a merge, or that the candidate reported is the one
     # the approval was issued against.
+    # The one way into external review (#74), and ADMIN authority, so without
+    # this line it would apply here -- stranding a DRAFT task in
+    # EXTERNAL_PENDING with no ingest to pin it. Its validated route, which
+    # pins the PR head first, arrives with slice 2 (#92).
+    "external_review_requested":
+        "the external-review ingress of #74 slice 2 (#92), which pins the PR "
+        "head before a task may enter external review; it does not exist yet",
     "out_of_band_merge_reported":
         "POST /controller/tasks/{task_id}/out-of-band-merge, which checks the "
         "task carries an approval and makes the report name what landed, "
