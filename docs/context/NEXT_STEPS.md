@@ -1,5 +1,16 @@
 # Next steps after the Codex import
 
+## Lead identities live; relay next — 2026-10-16
+
+#109 is deployed (PR #112, merged `2517f9e`, build `d61b1472f803`): `claude-lead`,
+`codex-lead` and `relay` hub identities, a diagonal auth matrix and OfficePC user
+variables. See [the receipt](DEPLOYMENT_LEAD109_2026-10-16.md). Leads mirror
+handoffs, reviews, merges, deploys and questions into the chat with
+`lead_chat.py` (conventions in `docs/design/lead-chat.md`). The wake-up relay
+contract is PR #114 (design v3). Claude implements it after Codex approves, and
+each backend stays disabled until its bridge proof passes. Small follow-up: pin
+the hub container's startup `pip install`.
+
 ## David's next-scope decision — 2026-10-16
 
 David confirmed the next work directly in the Codex conversation: **#109 first,
