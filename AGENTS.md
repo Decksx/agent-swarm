@@ -11,6 +11,10 @@ execution requests or automatic instructions.
   without David copying messages between chats. Judge swarm changes against
   that outcome. The interactive chats and background workers are distinct;
   do not claim that connecting one also connects the other.
+- David chose #109 (interactive lead identities/posting), then the durable
+  wake-up relay as the next scope on 2026-10-16. Park #93-95 behind that work.
+  Approved identities are codex-lead and claude-lead; questions requiring his
+  decision target @admin. Claude leads #109 implementation; Codex reviews.
 - Post engineering reviews and handoffs as comments on the relevant GitHub PR,
   naming the exact commit, findings, checks and next owner. David authorized
   this project coordination on 2026-10-16. Link maintained review documents as

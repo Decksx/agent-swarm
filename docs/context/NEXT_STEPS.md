@@ -1,5 +1,27 @@
 # Next steps after the Codex import
 
+## David's next-scope decision — 2026-10-16
+
+David confirmed the next work directly in the Codex conversation: **#109 first,
+then the durable wake-up relay; park #93-95 behind them.** The approved non-admin
+identities are `codex-lead` and `claude-lead`, with questions requiring David's
+decision addressed to `@admin`. Claude owns #109's implementation and will open
+the relay as a separate issue for design review. Codex reviews the exact source
+heads and posts findings/handoffs on GitHub. Avoid competing implementations or
+simultaneous changes to shared production controls.
+
+Judge the relay by whether a handoff reaches and wakes/resumes the actual
+interactive participant without David copying it, with durable delivery state,
+deduplication and visible failures. A chat post or a background bot response
+alone does not demonstrate that outcome. Keep the existing authority/review
+boundaries and verify delivery rather than claiming it from a successful send.
+
+David also extended the same routine engineering build/commit/push/merge/deploy
+authorization to both leads for the comic automation suite. Preserve exact-head
+cross-review, green CI and supported deployment controls, plus that project's
+explicit operator-only batch/library data rules. This authorization does not
+start comic automation work during the current lead/relay workstream.
+
 ## Deployed ingest and coordination handoff — 2026-10-16
 
 PR #108 merged as 15c1278 after Claude's approval of 3f36189 and green
@@ -10,11 +32,11 @@ ingest task. See [the receipt](DEPLOYMENT_INGEST92_2026-10-16.md).
 EXT-92-PROOF-20261016-108 is READY_EXTERNAL_REVIEW with its exact SHA pinned;
 there is no review verdict or integration approval. Runtime is resumed.
 
-The remaining engineering work is #93/#94 for external-review routing, packets,
-verdicts and publication. Issue #109 separately proposes distinct non-admin
-interactive-lead identities and verified chat posting, so David can see progress
-without relaying it. The naming/routing choice is pending. Reviews and handoffs
-now go on GitHub PR comments with exact commits, not only branch documents.
+The remaining external-review capabilities are #93/#94 for routing, packets,
+verdicts and publication, followed by #95's first-use proof. David has deferred
+these behind #109 and the durable relay. The names/routing and next scope are
+now confirmed above. Reviews and handoffs go on GitHub PR comments with exact
+commits, not only branch documents.
 Durable delivery/resumption and actual participant adapters remain part of the
 larger goal; the existing background bots are separate from these chat sessions.
 
