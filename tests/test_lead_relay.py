@@ -50,7 +50,11 @@ class FakeHub:
         self._check()
         return self.is_paused
 
+    post_fails = False
+
     def post(self, content, target=None):
+        if self.post_fails:
+            return None          # the hub's reply was lost: unconfirmed
         self.posts.append(content)
         return self.add("relay", content)
 
@@ -399,6 +403,98 @@ def test_a_restart_after_an_ack_and_exit_is_delivered_not_uncertain(tmp_path):
 
     assert w.delivery(mid) == ("delivered", "ack")
     assert len(w.spawned) == 1
+
+
+@pytest.mark.parametrize("ownership", [CLOSED, OPEN], ids=["headless", "live"])
+def test_nothing_starts_when_the_deliver_notice_cannot_be_posted(tmp_path, ownership):
+    """Review bot, #116 at 2bd1623: without a visible token there can be no ACK,
+    so a failed DELIVER post must hold the delivery, not launch blind."""
+    w = World(tmp_path, ownership=ownership)
+    w.tick()
+    mid = w.hub.add("codex-lead", "HANDOFF @claude-lead: x")
+    w.hub.post_fails = True
+    w.tick()
+
+    assert w.delivery(mid) == ("held", "deliver-unposted")
+    assert w.spawned == []
+    assert w.relay.db.execute("SELECT COUNT(*) FROM reservations").fetchone()[0] == 0
+    assert w.relay.db.execute("SELECT COUNT(*) FROM wakes").fetchone()[0] == 0
+    assert w.relay.meta("chain") in (None, "0")
+
+    w.hub.post_fails = False
+    w.tick()
+    expected = ("running", None) if ownership == CLOSED else ("notified", None)
+    assert w.delivery(mid) == expected
+    assert len(w.spawned) == (1 if ownership == CLOSED else 0)
+
+
+def test_a_run_that_exited_while_the_relay_was_down_is_charged_and_released(tmp_path):
+    """Review bot, #116 at 2bd1623: recovery marked the attempt exited without
+    recording usage, so the reservation was never released and every later
+    handoff to that lead stayed held."""
+    w = World(tmp_path)
+    first = started(w)
+    w.ack(first, w.token(first))
+    w.tick()
+    w.exit()
+    w.t[0] += 120
+    w.restart()
+    second = w.hub.add("codex-lead", "HANDOFF @claude-lead: next")
+    w.tick()
+    w.tick()
+
+    assert len(w.recorded) == 1 and w.recorded[0][1] == pytest.approx(120, abs=1)
+    assert w.delivery(first) == ("delivered", "ack")
+    assert w.delivery(second) == ("running", None) and len(w.spawned) == 2
+
+
+def test_a_failed_usage_write_keeps_the_reservation_and_is_retried(tmp_path):
+    w = World(tmp_path)
+    mid = started(w)
+    w.ack(mid, w.token(mid))
+    locked = [True]
+
+    def flaky(start, elapsed):
+        if locked[0]:
+            raise OSError("guard file locked")
+        w.recorded.append((start, elapsed))
+
+    w.relay.usage = (lambda: None, flaky)
+    w.exit()
+    w.tick()
+    w.tick()
+    assert w.recorded == []
+    assert w.relay.db.execute("SELECT COUNT(*) FROM reservations").fetchone()[0] == 1
+
+    locked[0] = False
+    w.tick()
+    assert len(w.recorded) == 1
+    assert w.relay.db.execute("SELECT COUNT(*) FROM reservations").fetchone()[0] == 0
+
+
+def test_a_woken_run_gets_its_own_process_group():
+    """Review bot, #116 at 2bd1623: a timeout's tree kill must never reach the relay."""
+    assert lead_relay.separate_process_group("posix") == {"start_new_session": True}
+    assert lead_relay.separate_process_group("nt")["creationflags"] & 0x200     # new group
+    assert lead_relay.separate_process_group("nt")["creationflags"] & 0x08000000  # no window
+
+
+def test_spawn_uses_the_separate_process_group(tmp_path, monkeypatch):
+    w = World(tmp_path)
+    seen = {}
+
+    class Popen:
+        pid = 4242
+
+        def __init__(self, command, **kwargs):
+            seen.update(kwargs)
+
+    monkeypatch.setattr(lead_relay.subprocess, "Popen", Popen)
+    session = lead_relay.Session("claude-lead", "claude", "s", str(tmp_path), None, True)
+    w.relay._spawn(["claude"], session, "a1")
+
+    for key, value in lead_relay.separate_process_group().items():
+        assert seen[key] == value
 
 
 def test_a_run_past_its_timeout_is_killed_and_recorded(tmp_path):

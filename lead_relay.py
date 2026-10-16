@@ -314,6 +314,15 @@ def prompt_for(message: dict, recipient: str, token: str) -> str:
     )
 
 
+def separate_process_group(system: str = os.name) -> dict:
+    """Popen options that put a woken run in its own process group, so a
+    timeout's tree kill can never reach the relay or its siblings (review bot,
+    #116 at 2bd1623). Windows: a new group with no console window."""
+    if system == "nt":
+        return {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200) | 0x08000000}
+    return {"start_new_session": True}
+
+
 def child_environment(environ, recipient: str) -> dict:
     """The woken lead's environment: the user's, minus every hub credential
     except its own. The supervisor's environment carries `HUB_SECRET` (admin)
@@ -380,12 +389,16 @@ class Relay:
         return Session(row["recipient"], row["backend"], row["session_id"], row["workspace"],
                        row["cli"], bool(row["enabled"]))
 
-    def say(self, content: str) -> None:
+    def say(self, content: str) -> bool:
+        """Post one line. True only when the hub returned a message id."""
         try:
             if self.hub.post(content) is None:
                 log.warning("relay post unconfirmed: %s", content[:120])
+                return False
         except (OSError, lead_chat.LeadChatError) as exc:
             log.warning("relay post failed (%s): %s", exc, content[:120])
+            return False
+        return True
 
     def locally_paused(self) -> bool:
         return bool(self.control_dir) and (Path(self.control_dir) / "PAUSED").exists()
@@ -534,16 +547,31 @@ class Relay:
         self.popen.pop(attempt["attempt_id"], None)
         self.db.execute("UPDATE attempts SET state = 'exited', exit_code = ?, ended_at = ? "
                         "WHERE attempt_id = ?", (code, now, attempt["attempt_id"]))
-        if self.usage and not attempt["usage_recorded"] and attempt["launched_at"]:
-            try:
-                self.usage[1](attempt["launched_at"], now - attempt["launched_at"])
-                self.db.execute("UPDATE attempts SET usage_recorded = 1 WHERE attempt_id = ?",
-                                (attempt["attempt_id"],))
-            except Exception as exc:  # noqa: BLE001 -- visible, and retried next tick
-                log.error("could not record Claude usage for %s: %s", attempt["attempt_id"], exc)
+        self._record_usage(self._attempt(attempt["attempt_id"]))
         if how == "timeout":
             self.say(f"RELAY TIMEOUT #{attempt['message_id']} → {attempt['recipient']}: "
                      f"run killed after {RUN_TIMEOUT / 60:.0f} min")
+
+    def _record_usage(self, attempt) -> None:
+        """Charge a launched run's duration to the shared Claude guard, once.
+
+        Called at exit, and again on every later tick until it succeeds, which
+        covers a run that recovery marked exited after a restart: without it,
+        `usage_recorded` stays 0 and the reservation is never released
+        (review bot, #116 at 2bd1623). After a restart the end time is not
+        known, so the charge runs to the moment recovery saw it gone, which
+        over- rather than under-counts.
+        """
+        if not self.usage or attempt["usage_recorded"] or not attempt["launched_at"]:
+            return
+        end = attempt["ended_at"] or self.now()
+        try:
+            self.usage[1](attempt["launched_at"], max(0.0, end - attempt["launched_at"]))
+        except Exception as exc:  # noqa: BLE001 -- visible, and retried next tick
+            log.error("could not record Claude usage for %s: %s", attempt["attempt_id"], exc)
+            return
+        self.db.execute("UPDATE attempts SET usage_recorded = 1 WHERE attempt_id = ?",
+                        (attempt["attempt_id"],))
 
     def _maybe_release(self, attempt) -> None:
         """Release the session only after exit AND a backend idle check (§5).
@@ -558,6 +586,8 @@ class Relay:
             backend = self.backends.get(session.backend) if session else None
             if backend is None or backend.ownership(session) != CLOSED:
                 return  # unknown or open: keep the reservation
+            self._record_usage(attempt)
+            attempt = self._attempt(attempt["attempt_id"])
             if attempt["usage_recorded"] == 0 and self.usage and attempt["launched_at"]:
                 return  # usage not yet persisted; try again next tick
             self.db.execute("DELETE FROM reservations WHERE recipient = ? AND attempt_id = ?",
@@ -688,8 +718,26 @@ class Relay:
                 self.db.execute("INSERT OR REPLACE INTO meta VALUES ('chain', ?)",
                                 (str(int(self.meta("chain") or 0) + 1),))
 
-        self.say(f"RELAY DELIVER #{delivery['message_id']} → @{delivery['recipient']} "
-                 f"attempt={token} ({'live' if live else 'headless'})")
+        posted = self.say(f"RELAY DELIVER #{delivery['message_id']} → @{delivery['recipient']} "
+                          f"attempt={token} ({'live' if live else 'headless'})")
+        if not posted:
+            # No visible token means no possible ACK: never launch blind. Undo
+            # the unstarted attempt and hold; it is retried when the hub is back.
+            # (Review bot, #116 at 2bd1623.)
+            with self.txn():
+                self.db.execute("UPDATE attempts SET state = 'superseded' WHERE attempt_id = ?",
+                                (attempt_id,))
+                self.db.execute("DELETE FROM reservations WHERE attempt_id = ?", (attempt_id,))
+                self.db.execute("DELETE FROM wakes WHERE recipient = ? AND at = ?",
+                                (delivery["recipient"], now))
+                if delivery["from_lead"]:
+                    self.db.execute("UPDATE meta SET value = CAST(MAX(CAST(value AS INTEGER) - 1, 0) "
+                                    "AS TEXT) WHERE key = 'chain'")
+                self.db.execute("UPDATE deliveries SET state = 'held', reason = 'deliver-unposted', "
+                                "attempt_id = NULL, updated_at = ? WHERE message_id = ? AND "
+                                "recipient = ?", (self.now(), delivery["message_id"],
+                                                  delivery["recipient"]))
+            return
         if live:
             return
 
@@ -719,11 +767,10 @@ class Relay:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         log_path = self.log_dir / f"{attempt_id}.log"
         out = open(log_path, "ab")
-        flags = (subprocess.CREATE_NEW_PROCESS_GROUP | 0x08000000) if os.name == "nt" else 0
         env = child_environment(os.environ, session.recipient)
         handle = subprocess.Popen(command, cwd=session.workspace, stdin=subprocess.DEVNULL,
                                   stdout=out, stderr=subprocess.STDOUT, env=env,
-                                  creationflags=flags)
+                                  **separate_process_group())
         out.close()
         return handle.pid, self.processes.creation_time(handle.pid), handle, log_path
 
