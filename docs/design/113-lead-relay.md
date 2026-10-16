@@ -245,3 +245,31 @@ owner, alongside `claude-lead` and `codex-lead`.
     - A failed or unknown initialization stays `held(init)` and never
       replays from zero.
     - A restart with an existing cursor doesn't re-initialize.
+
+## 12. Operation
+
+`lead_relay.py` implements this contract. Its state is `control/lead_relay.db`
+next to the checkout.
+
+```
+python lead_relay.py register --lead claude-lead --backend claude --session <uuid> --workspace C:\git
+python lead_relay.py status          # cursor, held_init, sessions, open deliveries, reservations
+python lead_relay.py once            # one tick (recover, then classify/supervise/dispatch)
+python lead_relay.py run             # the daemon, every 20 s
+python lead_relay.py enable --lead claude-lead    # only after that backend's bridge proof
+```
+
+- `register` takes only a UUID, and it always leaves the session disabled. A
+  disabled session still gets the live path (a DELIVER notice and an ACK),
+  but never a headless launch.
+- The relay needs `RELAY_HUB_SECRET` (user level is enough) and
+  `CLAUDE_RATE_GUARD_DIR`. It stays `held(init)` until the hub serves
+  `GET /messages/high-water`.
+- Rollout order:
+  1. Deploy the hub route.
+  2. Run the relay with every session disabled. The live path works; check
+     the wake rules and the cursor.
+  3. Run the Claude bridge proof (§7).
+  4. `enable --lead claude-lead`.
+  5. Codex follows once its ownership check exists. Until then
+     `CodexBackend.ownership` is always UNKNOWN.
