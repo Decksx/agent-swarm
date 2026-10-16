@@ -24,9 +24,14 @@ class Forge(ingest.Commands):
         self.metadata = metadata
         self.commands = []
         self.missing = False
+        self.origin = "https://github.com/Owner/Repo.git"
 
     def run(self, args, repo, **kwargs):
         self.commands.append(args)
+        # Only URL discovery is stubbed; the fetch itself uses the local bare
+        # remote below so these tests never contact GitHub.
+        if args[0] == "git" and "remote" in args and "get-url" in args:
+            return 0, self.origin + "\n"
         if args[0] == "gh":
             self.checkpoint()
             if "/pulls/" not in args[-1]:
@@ -245,7 +250,7 @@ def test_scratch_ref_moved_after_listing_is_preserved(fixture, monkeypatch):
 
 
 def test_body_truncation_keeps_utf8_boundary_hash_and_late_footer(fixture):
-    full = "\U0001f680" * 17_000 + "\nGenerated with Claude Code"
+    full = "\U0001f680" * 17_000 + "\n\nGenerated with Claude Code"
     fixture[2].metadata["body"] = full
     evidence = run(fixture)
     assert evidence["pr_body_truncated"] is True
@@ -256,7 +261,7 @@ def test_body_truncation_keeps_utf8_boundary_hash_and_late_footer(fixture):
             "source": "pr_body"} in evidence["author_signals"]
 
 
-@pytest.mark.parametrize("mode", ["long_signal", "many_signals"])
+@pytest.mark.parametrize("mode", ["long_signal", "many_signals", "unique_signals"])
 def test_authorship_evidence_is_never_silently_truncated(fixture, monkeypatch, mode):
     if mode == "long_signal":
         fixture[2].metadata["body"] = "Generated with " + "x" * 513
@@ -265,14 +270,23 @@ def test_authorship_evidence_is_never_silently_truncated(fixture, monkeypatch, m
         original = commands.run
         def lots(args, repo, **kwargs):
             if "show" in args:
-                return 0, "a@example.test\0" + "Co-Authored-By: Agent\n" * 501
+                lines = (f"Co-Authored-By: Agent{i}\n" for i in range(501)) if mode == "unique_signals" else ["Co-Authored-By: Agent\n"] * 501
+                return 0, "a@example.test\0" + "".join(lines)
             return original(args, repo, **kwargs)
         monkeypatch.setattr(commands, "run", lots)
-    with pytest.raises(ingest.IngestError) as exc:
-        run(fixture)
-    outcome, payload = ingest.failure_payload(exc.value)
-    assert outcome == "refused" and payload["reason_code"] == "evidence_too_large"
-    assert payload["observed"]["head_sha"] == fixture[7]
+    if mode == "unique_signals":
+        with pytest.raises(ingest.IngestError) as exc:
+            run(fixture)
+        outcome, payload = ingest.failure_payload(exc.value)
+        assert outcome == "refused" and payload["reason_code"] == "evidence_too_large"
+        assert payload["observed"]["head_sha"] == fixture[7]
+    else:
+        evidence = run(fixture)
+        assert len(evidence["author_signals"]) <= 4
+        assert all(len(signal["value"]) <= 512 for signal in evidence["author_signals"])
+        if mode == "long_signal":
+            assert any("\u2026" in signal["value"] for signal in evidence["author_signals"])
+            assert evidence["pr_body"] == fixture[2].metadata["body"]
 
 
 @pytest.mark.parametrize("prefix", ["refs/swarm/ingest-tmp/EXT-2/expired",
@@ -280,6 +294,22 @@ def test_authorship_evidence_is_never_silently_truncated(fixture, monkeypatch, m
 def test_bad_reclaim_prefix_cannot_delete_refs(fixture, prefix):
     with pytest.raises(ingest.IngestError, match="invalid_scratch_prefix"):
         run((replace(fixture[0], reclaimable_scratch_prefixes=(prefix,)), *fixture[1:]))
+
+
+def test_origin_mismatch_is_repairable_before_reading_the_pr(fixture):
+    fixture[2].origin = "https://github.com/Fork/Repo.git"
+    with pytest.raises(ingest.IngestError) as exc:
+        run(fixture)
+    outcome, payload = ingest.failure_payload(exc.value)
+    assert outcome == "blocked" and payload["reason_code"] == "repo_slug_mismatch"
+    assert not any(args[0] == "gh" or "fetch" in args for args in fixture[2].commands)
+
+
+def test_prose_model_mentions_never_become_signals(fixture):
+    fixture[2].metadata["body"] = "Gemini remains a reviewer. Claude Code configuration changes here."
+    evidence = run(fixture)
+    assert not any(s["kind"] == "pr_body_footer" for s in evidence["author_signals"])
+    assert evidence["pr_body"] == fixture[2].metadata["body"]
 
 
 def test_complete_evidence_overflow_refuses_before_final_pin(fixture, monkeypatch):

@@ -87,9 +87,9 @@ def test_heartbeat_can_shorten_but_never_reset_command_deadline(monkeypatch):
     def engine(request, **kwargs):
         command = kwargs["commands"]
         assert command.deadline == 119.0
-        command.checkpoint()
+        command.checkpoint(force=True)
         assert command.deadline == 102.0
-        command.checkpoint()
+        command.checkpoint(force=True)
         assert command.deadline == 102.0
         return {}
     monkeypatch.setattr(ingest, "ingest", engine)
@@ -134,7 +134,12 @@ def test_report_ingest_retries_transport_only_and_uses_exact_wire(monkeypatch, s
     queue = controller_client.ControllerQueue(SimpleNamespace(request=request),
         base_url="http://test", auth=("claudecode", "test"), agent="claudecode")
     payload = {"schema_version": 1, "reason_code": "worker_error", "detail": "d"}
-    queue.report_ingest("act-1", outcome="blocked", payload=payload)
+    if statuses[-1] >= 400:
+        with pytest.raises(controller_client.Refused) as exc:
+            queue.report_ingest("act-1", outcome="blocked", payload=payload)
+        assert exc.value.status_code == statuses[-1]
+    else:
+        queue.report_ingest("act-1", outcome="blocked", payload=payload)
     assert len(calls) == len(statuses)
     assert all(c == ("POST", "http://test/controller/activations/act-1/ingest",
                     {"outcome": "blocked", "payload": payload}) for c in calls)

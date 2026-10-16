@@ -100,6 +100,10 @@ class RateLimited(ControllerError):
 class Refused(ControllerError):
     """The controller declined for a reason that will not change on retry."""
 
+    def __init__(self, message: str, *, status_code: Optional[int] = None, detail: str = ""):
+        super().__init__(message)
+        self.status_code, self.detail = status_code, detail
+
 
 class Backoff:
     """Bounded exponential backoff with a readable log.
@@ -233,7 +237,7 @@ class ControllerQueue:
             # other 4xx is a decision, and sending the same request again
             # produces the same decision.
             if response.status_code < 500:
-                raise Refused(message)
+                raise Refused(message, status_code=response.status_code, detail=detail)
 
             raise ControllerError(message)
 
@@ -324,9 +328,12 @@ class ControllerQueue:
             log.error("claimed %s but could not read task %s: %s",
                       activation.get("activation_id"), task_id, exc)
             if activation.get("stage") == "ingest":
-                self.report_ingest(activation.get("activation_id"), outcome="blocked",
-                    payload={"schema_version": 1, "reason_code": "worker_error",
-                             "detail": "Claimed ingest task could not be read.", "observed": {}})
+                try:
+                    self.report_ingest(activation.get("activation_id"), outcome="blocked",
+                        payload={"schema_version": 1, "reason_code": "worker_error",
+                                 "detail": "Claimed ingest task could not be read.", "observed": {}})
+                except Refused as refused:
+                    log.warning("unreadable ingest task report refused (status %s)", refused.status_code)
             else:
                 self.report(
                     activation.get("activation_id"),
@@ -411,7 +418,7 @@ class ControllerQueue:
         """Deliver an ingest report with the shared retry/replay discipline."""
         return self._submit(
             f"/controller/activations/{activation_id}/ingest",
-            {"outcome": outcome, "payload": payload}, activation_id,
+            {"outcome": outcome, "payload": payload}, activation_id, raise_refused=True,
         )
 
     def report_integration(
@@ -436,7 +443,8 @@ class ControllerQueue:
             activation_id,
         )
 
-    def _submit(self, path: str, body: dict, activation_id: str) -> Optional[dict]:
+    def _submit(self, path: str, body: dict, activation_id: str, *,
+                raise_refused: bool = False) -> Optional[dict]:
         """Deliver one terminal submission, retrying only what retrying helps.
 
         Shared by `report` and `judge` because the delivery discipline is the
@@ -453,6 +461,8 @@ class ControllerQueue:
                 log.error("cannot report %s: %s", activation_id, exc)
                 return None
             except Refused as exc:
+                if raise_refused:
+                    raise
                 # The controller decided: a lapsed lease, a conflicting result,
                 # an activation that is not this worker's. Retrying sends the
                 # same request and gets the same answer. Notably NOT fatal to

@@ -21,6 +21,17 @@ signals, repo_id, PR title/body/hash/truncation provenance and pin_created.
 Worker dispatch and ingest claim-stage changes remain unwired until both halves
 pass independent review. No runtime setting or production code changed.
 
+Claude's fb021e1 review is addressed in the next candidate: report_ingest
+surfaces refusals, a rejected registered report gets one sanitized blocked
+correction, only explicit trailing attribution blocks produce PR-body signals,
+and long values use marked excerpts preserving attribution matches. Repeated
+signals retain their first provenance instead of consuming the 500-entry cap.
+Origin is checked against the snapshotted GitHub slug before reading the PR;
+Git overrides and worker/model credentials are removed from child environments
+while gh authentication remains available. Heartbeats are throttled to 15s,
+with deadline checks per command and fresh checks before/after pin creation.
+The accompanying section-8 clarifications require Claude's renewed review.
+
 ## Worker changes
 
 1. Add `claude_ingest.py`, independent of model adapters. Resolve only the

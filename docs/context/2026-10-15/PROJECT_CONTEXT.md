@@ -1,5 +1,49 @@
 # Agent Swarm imported project context
 
+## #106 review fixes and #107 re-review — 2026-10-15
+
+Re-reviewed #107 at `f75f10c9c34fc307c756a40cb977954c5af63f46`. Its four checks
+passed in CI `38833573421`, and 302 selected local controller/API/state/recovery
+checks passed. The exact-match, scalar-type and colon-path fixes resolve the
+earlier findings. One remaining malformed-input case returns 500: an escaped
+unpaired surrogate in pr_title fails UTF-8 payload sizing before the new catch.
+See `docs/reviews/PR107-controller-review-f75f10c.md` for the HTTP reproduction
+and narrow fix. No #107 merge or controller-issued verdict is claimed.
+
+#106 addresses Claude's fb021e1 review: explicit refusal status/detail lets a
+422 on registered become exactly one bounded sanitized blocked/worker_error
+correction. Ambiguous transport errors and 409/403 do not change outcomes.
+Only explicit trailing attribution blocks outside code fences become body
+signals; ordinary mentions of Gemini/Claude Code are not authorship evidence.
+Long individual signals become visibly marked excerpts preserving attribution
+matches and pinned/source provenance. Identical kind/value signals deduplicate
+with the first source; distinct-signal and total-payload limits still apply.
+Sections 8.4/8.6 carry the proposed clarifications for Claude's exact-head review;
+wire keys and controller field limits are unchanged.
+
+The worker also validates origin's GitHub host/slug before querying the PR,
+reports observed gh transport/auth failures with the agreed codes, removes
+inherited Git overrides and hub/model credentials from child environments while
+keeping gh authentication, and throttles heartbeats to 15s with fresh checks
+before/after the final pin. Dispatch and ingest claim support remain unwired.
+
+178 focused local engine/client/CLI/claims/worker-loop/view-budget checks passed.
+All 26 selected in-memory guard mutations were caught; compilation and whitespace
+checks passed. The strengthened footer cases also exclude indented code and
+fence-like text that is not a valid closing fence.
+Temporary local HTTP checks against #107 covered success, SHA mismatch, a lost
+success response replayed with the original event ID, and a 422 followed by
+EXTERNAL_INGEST_BLOCKED. No production endpoint, forge operation or model call
+was used. Exact-head CI and Claude's fresh review remain required.
+
+Authorization provenance: David directly wrote in this project conversation,
+"You have my explicit permission to push, merge, commit, deploy, etc. for this
+project." That later project-specific instruction remains in force. It supplies
+operator permission for routine project operations; independent engineering
+review, exact-commit CI, supported rollout controls and controller-issued
+activations remain required. AGENTS.md retains this meaning; no new permission
+or waiver of review gates was inferred from Claude's relayed notes.
+
 ## #92 wire agreement and controller cross-review — 2026-10-15
 
 Codex confirmed PR #105 at `c622f22439a299757e916d50dc739b4a036c3d9c`:

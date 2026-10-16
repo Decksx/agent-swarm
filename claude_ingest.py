@@ -19,14 +19,94 @@ import tempfile
 import time
 from dataclasses import dataclass
 from typing import Callable
+from urllib.parse import urlsplit
 
 import repo_registry
+import controller_client
+import swarm_control
 
 MAX_EVIDENCE = 128 * 1024
 SHA = re.compile(r"[0-9a-fA-F]{40}")
 COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 TASK_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
 log = logging.getLogger("claude_ingest")
+FOOTER = re.compile(r"^[ ]{0,3}(?:\U0001f916[ \t]*)?(?:generated (?:with|by)\s+|co-authored-by:\s*)", re.I)
+
+
+def footer_lines(body: str) -> list[str]:
+    """Only an explicit trailing attribution block, outside Markdown fences."""
+    lines = body.rstrip().splitlines()
+    start = len(lines)
+    while start and lines[start - 1].strip():
+        start -= 1
+    block = lines[start:]
+    if not block or any(not FOOTER.match(line) and line.strip() not in {"---", "___", "***"}
+                        for line in block):
+        return []
+    # A blank line inside a still-open code fence cannot turn an example into
+    # an attribution claim. Fence length follows Markdown's closing rule.
+    fence_char, fence_size = None, 0
+    for line in lines[:start]:
+        marker = re.match(r"^\s{0,3}(`{3,}|~{3,})", line)
+        if marker:
+            token = marker.group(1)
+            if fence_char is None:
+                fence_char, fence_size = token[0], len(token)
+            elif (token[0] == fence_char and len(token) >= fence_size
+                  and not line[marker.end():].strip()):
+                fence_char = None
+    return [] if fence_char else [line for line in block if FOOTER.match(line)]
+
+
+def signal_excerpts(value: str):
+    if len(value) <= 512:
+        yield value
+        return
+    found = False
+    seen = set()
+    for anchor in re.finditer(r"claude|anthropic|codex|openai|gemini|google|<[^>\n]+>", value, re.I):
+        found = True
+        center = anchor.start()
+        start = max(0, min(center - 200, len(value) - 510))
+        end = min(len(value), start + 510)
+        excerpt = ("\u2026" if start else "") + value[start:end] + ("\u2026" if end < len(value) else "")
+        if excerpt not in seen:
+            seen.add(excerpt)
+            yield excerpt
+    if not found:
+        yield value[:511] + "\u2026"
+        yield "\u2026" + value[-511:]
+
+
+def command_environment() -> dict:
+    """Keep gh authentication, remove worker credentials and Git overrides."""
+    model_keys = {"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"}
+    env = {k: v for k, v in os.environ.items()
+           if not k.upper().startswith("GIT_") and k.upper() != "HUB_SECRET"
+           and not k.upper().endswith("_HUB_SECRET") and k.upper() not in model_keys}
+    env.update(GIT_TERMINAL_PROMPT="0", GCM_INTERACTIVE="never",
+               GIT_NO_LAZY_FETCH="1", GIT_NO_REPLACE_OBJECTS="1")
+    return env
+
+
+def origin_matches(url: str, slug: str) -> bool:
+    """Recognise GitHub fetch URL forms without exposing embedded credentials."""
+    if url.casefold().startswith("git@github.com:"):
+        path = url[len("git@github.com:"):]
+    else:
+        try:
+            parsed = urlsplit(url)
+            if (parsed.scheme not in {"https", "ssh"} or not parsed.hostname
+                    or parsed.hostname.casefold() != "github.com" or parsed.query or parsed.fragment
+                    or parsed.port not in {None, 443 if parsed.scheme == "https" else 22}):
+                return False
+            path = parsed.path.removeprefix("/")
+        except ValueError:
+            return False
+    path = path.removesuffix("/")
+    if path.casefold().endswith(".git"):
+        path = path[:-4]
+    return path.casefold() == slug.casefold()
 
 
 class IngestError(Exception):
@@ -58,16 +138,20 @@ class Commands:
             raise IngestError("deadline_exhausted")
         self.deadline = time.monotonic() + remaining - 1  # reserve result-report time
         self.heartbeat = heartbeat
+        self.next_heartbeat = float("-inf")
 
-    def checkpoint(self):
+    def checkpoint(self, *, force=False):
         if time.monotonic() >= self.deadline:
             raise IngestError("deadline_exhausted")
+        if not force and time.monotonic() < self.next_heartbeat:
+            return
         try:
             live = self.heartbeat()
         except Exception:
             raise IngestError("lease_lost") from None
         if live is not True:
             raise IngestError("lease_lost")
+        self.next_heartbeat = time.monotonic() + 15
         if time.monotonic() >= self.deadline:
             raise IngestError("deadline_exhausted")
 
@@ -75,8 +159,7 @@ class Commands:
             output_limit=None) -> tuple[int, str]:
         self.checkpoint()
         limit = MAX_EVIDENCE if output_limit is None else output_limit
-        env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GCM_INTERACTIVE="never",
-                   GIT_NO_LAZY_FETCH="1", GIT_NO_REPLACE_OBJECTS="1")
+        env = command_environment()
         with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
             try:
                 process = subprocess.Popen(args, cwd=repo, env=env, stdin=subprocess.DEVNULL,
@@ -84,7 +167,8 @@ class Commands:
                     **({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
                        if os.name == "nt" else {"start_new_session": True}))
             except OSError:
-                raise IngestError("command_unavailable", command=args[0]) from None
+                raise IngestError("gh_error" if args[0] == "gh" else "command_unavailable",
+                                  command=args[0]) from None
             try:
                 next_heartbeat = time.monotonic() + 2
                 while process.poll() is None:
@@ -133,6 +217,12 @@ class Commands:
                 missing = args[0] == "gh" and b"HTTP 404" in diagnostic
                 if args[0] == "gh" and (process.returncode == 4 or b"HTTP 401" in diagnostic):
                     raise IngestError("gh_auth")
+                if args[0] == "gh" and not missing:
+                    network = (b"could not resolve", b"no such host", b"dial tcp", b"error connecting",
+                               b"failed to connect", b"connection refused", b"network is unreachable",
+                               b"tls handshake timeout")
+                    raise IngestError("github_unreachable" if any(
+                        marker in diagnostic.lower() for marker in network) else "gh_error")
                 raise IngestError("not_found" if missing else "command_failed",
                                   command=args[0], exit_code=process.returncode)
             try:
@@ -180,7 +270,7 @@ def ingest(request: Request, *, remaining: float, heartbeat: Callable[[], bool],
         raise IngestError("invalid_external_request")
     if request.at_sha is not None:
         _sha(request.at_sha, "at_sha")
-    command.checkpoint()
+    command.checkpoint(force=True)
     try:
         project = repo_registry.get(request.project, registry)
         if not project.path.is_absolute() or not Path(request.repo_location).is_absolute():
@@ -206,6 +296,9 @@ def ingest(request: Request, *, remaining: float, heartbeat: Callable[[], bool],
         identity = hashlib.sha256("\n".join(roots).encode()).hexdigest()[:16]
         if not roots or identity != project.repo_id:
             raise IngestError("repository_identity_mismatch")
+        origins = git("remote", "get-url", "--all", "origin")[1].splitlines()
+        if len(origins) != 1 or not origin_matches(origins[0], request.repo_slug):
+            raise IngestError("repository_slug_mismatch")
         pin = f"refs/swarm/external/{request.task_id}"
         scratch_prefix = f"refs/swarm/ingest-tmp/{request.task_id}/"
         scratch = f"{scratch_prefix}{request.activation_id}"
@@ -248,8 +341,13 @@ def _fetch_pin(request, project, repo, pin, scratch, git, command):
     expected = _sha(request.at_sha, "at_sha") if request.at_sha is not None else None
     try:
 
-        repo_metadata = _json(command, ["gh", "api", "--hostname", "github.com",
-                                      f"repos/{request.repo_slug}"], repo)
+        try:
+            repo_metadata = _json(command, ["gh", "api", "--hostname", "github.com",
+                                          f"repos/{request.repo_slug}"], repo)
+        except IngestError as exc:
+            if exc.code == "not_found":
+                raise IngestError("gh_error") from None
+            raise
         if str(repo_metadata.get("full_name", "")).casefold() != request.repo_slug.casefold():
             raise IngestError("repository_slug_mismatch")
         try:
@@ -301,10 +399,16 @@ def _fetch_pin(request, project, repo, pin, scratch, git, command):
         if ancestor == head or not files:
             raise IngestError("empty_review_range", refusal=True)
         signals = []
+        seen_signals = set()
         def signal(kind, value, source):
-            if len(value) > 512 or len(signals) >= 500:
-                raise IngestError("evidence_too_large", refusal=True)
-            signals.append({"kind": kind, "value": value, "source": source})
+            for excerpt in signal_excerpts(value):
+                key = (kind, excerpt)
+                if key in seen_signals:
+                    continue
+                if len(signals) >= 500:
+                    raise IngestError("evidence_too_large", refusal=True)
+                seen_signals.add(key)
+                signals.append({"kind": kind, "value": excerpt, "source": source})
         for commit in git("rev-list", f"{ancestor}..{head}", evidence=True)[1].splitlines():
             commit = _sha(commit, "commit_sha")
             raw = git("show", "--no-patch", "--format=%ae%x00%B", commit, evidence=True)[1]
@@ -315,9 +419,8 @@ def _fetch_pin(request, project, repo, pin, scratch, git, command):
             for match in re.finditer(r"^Co-Authored-By:[ \t]*(.*)$", body, re.I | re.M):
                 signal("co_authored_by", match.group(1).rstrip("\r"), f"commit:{commit}")
         full_body = metadata.get("body") or ""
-        for line in full_body.splitlines():
-            if re.search(r"generated (?:with|by)|co-authored-by|claude code|openai codex|gemini", line, re.I):
-                signal("pr_body_footer", line, "pr_body")
+        for line in footer_lines(full_body):
+            signal("pr_body_footer", line, "pr_body")
         raw_body = full_body.encode("utf-8")
         truncated = len(raw_body) > 65_536
         saved_body = raw_body[:65_536].decode("utf-8", "ignore")
@@ -337,13 +440,14 @@ def _fetch_pin(request, project, repo, pin, scratch, git, command):
             raise IngestError("evidence_too_large", refusal=True)
         # CAS is distinct from lease fencing. A stale attempt can leave an
         # orphan, but may never replace an existing candidate or authorize it.
+        command.checkpoint(force=True)
         code, _ = git("update-ref", pin, head, "0" * 40, allowed=(0, 128))
         if code:
             actual = git("rev-parse", "--verify", pin)[1].strip()
             if actual != head:
                 raise IngestError("pin_conflict", refusal=True, observed_sha=actual, expected_sha=head)
         evidence["pin_created"] = code == 0
-        command.checkpoint()
+        command.checkpoint(force=True)
         return evidence
     except IngestError as exc:
         # Every refusal except pr_not_found needs the observed head on the wire.
@@ -438,4 +542,22 @@ def execute_ingest(activation: dict, queue, *, registry: Path | None = None) -> 
         outcome, payload = failure_payload(exc)
     except Exception:
         outcome, payload = failure_payload(IngestError("worker_error"))
-    queue.report_ingest(activation_id, outcome=outcome, payload=payload)
+    try:
+        response = queue.report_ingest(activation_id, outcome=outcome, payload=payload)
+        if response is None:
+            log.warning("ingest report delivery unconfirmed for %s", activation_id)
+    except controller_client.Refused as exc:
+        if outcome != "registered" or exc.status_code != 422:
+            log.warning("ingest report refused for %s (status %s)", activation_id, exc.status_code)
+            return
+        detail = exc.detail
+        for key, value in os.environ.items():
+            if value and ("SECRET" in key.upper() or "TOKEN" in key.upper() or "API_KEY" in key.upper()):
+                detail = detail.replace(value, "[REDACTED-CREDENTIAL]")
+        detail = swarm_control.redact(detail).encode("utf-8", "replace").decode("utf-8")
+        blocked = {"schema_version": 1, "reason_code": "worker_error", "observed": {},
+                   "detail": ("Controller rejected registered ingest report (422): " + detail)[:2000]}
+        try:
+            queue.report_ingest(activation_id, outcome="blocked", payload=blocked)
+        except controller_client.ControllerError:
+            log.warning("corrected blocked ingest report was not accepted for %s", activation_id)
