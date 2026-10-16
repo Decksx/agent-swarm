@@ -49,7 +49,8 @@ from typing import Any, Callable, Dict, List, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 
-from . import activations, build, engine, outcomes, reconciliation, states
+from . import activations, build, engine, external, outcomes, reconciliation, states
+from . import external_routes
 from .db import transaction
 from . import progression
 from .db import connect, initialize, open_controller_db
@@ -78,6 +79,10 @@ _STATUS_FOR = {
     activations.BudgetExhausted: 409,
     activations.EvidenceNotDurable: 409,
     activations.InvalidClaimStages: 422,
+    # An ingest report the stored request contradicts (#92). Nothing was
+    # recorded and the activation is still live.
+    activations.IngestReportInvalid: 422,
+    external.ExternalRequestRefused: 400,
     # A report the ledger will not accept (#26). 422 for one that does not say
     # what landed; 409 for the three that are conflicts with what the ledger
     # already holds -- listed before the base class so neither is swallowed.
@@ -231,12 +236,11 @@ ROUTED_ELSEWHERE = {
     # that the report names a merge, or that the candidate reported is the one
     # the approval was issued against.
     # The one way into external review (#74), and ADMIN authority, so without
-    # this line it would apply here -- stranding a DRAFT task in
-    # EXTERNAL_PENDING with no ingest to pin it. Its validated route, which
-    # pins the PR head first, arrives with slice 2 (#92).
+    # this line it would apply here -- moving a DRAFT task into
+    # EXTERNAL_PENDING with no stored request for ingest to pin.
     "external_review_requested":
-        "the external-review ingress of #74 slice 2 (#92), which pins the PR "
-        "head before a task may enter external review; it does not exist yet",
+        "POST /controller/external-reviews (#92), which validates the request, "
+        "stores it immutably and creates the task in one step",
     "out_of_band_merge_reported":
         "POST /controller/tasks/{task_id}/out-of-band-merge, which checks the "
         "task carries an approval and makes the report name what landed, "
@@ -496,6 +500,15 @@ def build_router(
         component: str = Depends(require_admin),
         conn: sqlite3.Connection = Depends(get_conn),
     ):
+        # A full SHA, refused before anything is written (#92). The empty base
+        # is an external review's sentinel and only its own route may store it;
+        # here it would be an authored task with no baseline at all.
+        if not activations.SHA_RE.match((body.base_sha or "").strip().lower()):
+            raise HTTPException(
+                status_code=400,
+                detail="base_sha must be a full 40-character commit SHA",
+            )
+
         try:
             return engine.create_task(
                 conn,
@@ -1141,6 +1154,7 @@ def build_router(
             integrator=os.environ.get("PROGRESSION_INTEGRATOR", ""),
             host=os.environ.get("PROGRESSION_HOST", ""),
             repo_location=os.environ.get("PROGRESSION_REPO_LOCATION", ""),
+            ingester=os.environ.get("PROGRESSION_INGESTER", ""),
         )
 
         try:
@@ -1157,6 +1171,13 @@ def build_router(
     ):
         """Reclaim expired activations and recover their tasks."""
         return {"reclaimed": activations.sweep_expired(conn)}
+
+    # External review's two routes (#92), kept in their own module so this
+    # one stays inside the author's file view.
+    external_routes.add_routes(
+        router, authenticate=authenticate, require_admin=require_admin,
+        get_conn=get_conn, to_http=_http,
+    )
 
     return router
 
