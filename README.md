@@ -213,6 +213,26 @@ Both Codex and Claude may also lead interactive repository work. See the shared
 `AGENTS.md`, Claude's `CLAUDE.md` entry point, and the
 [leadership design](docs/design/engineering-leadership.md).
 
+### External PR administration (in development)
+
+The #92 admin command targets the dedicated external-review ingress:
+
+```bash
+./worker_ctl.sh admin external-review EXT-102 agenthub 102 "Review against the agreed acceptance criteria" \
+  --at-sha 9b7282a39fc3ed0b5698d4f07d905f90d1be8e73 --authored-by openai
+```
+
+Repeat `--path` for optional scope and `--authored-by` for family claims. The
+objective is preserved as entered; omitted optional values stay omitted. This
+requires the #92 controller API, which is not deployed yet. An unavailable or
+refused route fails without falling back to ordinary task creation or issuance.
+
+`claude_ingest.py` contains the model-free fetch/pin engine and callable controller
+adapter; `controller_client.report_ingest` uses the dedicated result route.
+Activation dispatch and ingest claims remain unwired until the controller/worker
+implementations both pass independent review. See the
+[worker implementation plan](docs/design/92-worker-implementation-plan.md).
+
 ### Deployment
 
 ```bash

@@ -1,5 +1,209 @@
 # Agent Swarm imported project context
 
+## #107 approved; #106 session-footer correction — 2026-10-16
+
+Codex re-reviewed controller #107 at `49070986140065bc7eb3a08991b0d5d97ce97fbf`:
+approved with no remaining findings. All four candidate checks passed in CI
+`38847398634`; 311 selected controller/API/state/recovery checks passed locally.
+Restoring the old sizing-outside-catch implementation in memory fails all nine
+Unicode regressions. The byte limit and corrected-report behavior are preserved.
+See `docs/reviews/PR107-controller-review-4907098.md`. This is local engineering
+approval, not a controller-issued verdict; Claude owns the planned pinned merge.
+
+Read Claude's latest #106 review comment 6207698469 at b6d1e5c. The corrected
+parser allows bare or angle-bracketed HTTP(S) links in a trailing attribution
+block, preserving Claude Code's exact attribution-plus-session-link footer.
+Links themselves are not author signals, and links alone/prose/fenced examples
+remain excluded. The contract sentence now states that behavior explicitly.
+Overlapping attribution anchors share bounded windows, addressing the
+non-blocking excerpt fan-out without dropping a match outside a covered window.
+
+119 focused engine/client/CLI/footer checks passed; three new mutations caught
+loss of the session-link support, treating links as signals, and excerpt fan-out.
+The approved controller source joined this isolated worker branch at merge
+`669a076dc911a49978f6f380e5ab62a427237a6f`; its controller bytes are unchanged
+from 4907098. The shared conftest merged cleanly without duplicating its fixture.
+The combined local selection passed 430 tests, and all 29 selected worker guard
+mutations were caught. The combined HTTP/Git probe preserved the exact Claude
+footer/session-link attribution and exercised success, mismatch, lost-response
+replay and 422-to-blocked correction against these merged sources.
+CI on the pushed candidate will therefore exercise both halves together.
+Worker dispatch/ingest claims remain unwired.
+Claude must re-review the new exact worker head; no production, Tower setting,
+deployment or real-controller task was changed.
+
+## #106 review fixes and #107 re-review — 2026-10-15
+
+Re-reviewed #107 at `f75f10c9c34fc307c756a40cb977954c5af63f46`. Its four checks
+passed in CI `38833573421`, and 302 selected local controller/API/state/recovery
+checks passed. The exact-match, scalar-type and colon-path fixes resolve the
+earlier findings. One remaining malformed-input case returns 500: an escaped
+unpaired surrogate in pr_title fails UTF-8 payload sizing before the new catch.
+See `docs/reviews/PR107-controller-review-f75f10c.md` for the HTTP reproduction
+and narrow fix. No #107 merge or controller-issued verdict is claimed.
+
+#106 addresses Claude's fb021e1 review: explicit refusal status/detail lets a
+422 on registered become exactly one bounded sanitized blocked/worker_error
+correction. Ambiguous transport errors and 409/403 do not change outcomes.
+Only explicit trailing attribution blocks outside code fences become body
+signals; ordinary mentions of Gemini/Claude Code are not authorship evidence.
+Long individual signals become visibly marked excerpts preserving attribution
+matches and pinned/source provenance. Identical kind/value signals deduplicate
+with the first source; distinct-signal and total-payload limits still apply.
+Sections 8.4/8.6 carry the proposed clarifications for Claude's exact-head review;
+wire keys and controller field limits are unchanged.
+
+The worker also validates origin's GitHub host/slug before querying the PR,
+reports observed gh transport/auth failures with the agreed codes, removes
+inherited Git overrides and hub/model credentials from child environments while
+keeping gh authentication, and throttles heartbeats to 15s with fresh checks
+before/after the final pin. Dispatch and ingest claim support remain unwired.
+
+179 focused local engine/client/CLI/claims/worker-loop/view-budget checks passed.
+All 26 selected in-memory guard mutations were caught; compilation and whitespace
+checks passed. The strengthened footer cases also exclude indented code and
+fence-like text that is not a valid closing fence.
+Blank lines between trailing attribution paragraphs preserve every claim.
+Temporary local HTTP checks against #107 covered success, SHA mismatch, a lost
+success response replayed with the original event ID, and a 422 followed by
+EXTERNAL_INGEST_BLOCKED. No production endpoint, forge operation or model call
+was used. Exact-head CI and Claude's fresh review remain required.
+
+Authorization provenance: David directly wrote in this project conversation,
+"You have my explicit permission to push, merge, commit, deploy, etc. for this
+project." That later project-specific instruction remains in force. It supplies
+operator permission for routine project operations; independent engineering
+review, exact-commit CI, supported rollout controls and controller-issued
+activations remain required. AGENTS.md retains this meaning; no new permission
+or waiver of review gates was inferred from Claude's relayed notes.
+
+## #92 wire agreement and controller cross-review — 2026-10-15
+
+Codex confirmed PR #105 at `c622f22439a299757e916d50dc739b4a036c3d9c`:
+all three interface findings and the replay-ordering clarification are resolved.
+All four checks passed in run `38828613881`. It merged with a head pin as
+`8bf9ea564ff8ba60a42c28afcf11906a26f9d79c`, documentation only.
+
+Reviewed controller PR #107 at `aaf3ec0487aaad961a50d1f39c21183654da750a`.
+All four candidate checks passed in run `38828730451`; 252 targeted controller,
+API, state and recovery checks passed locally. Two remaining validation findings
+are reproduced in `docs/reviews/PR107-controller-review-aaf3ec0.md`: regex match
+accepts newline-terminated SHAs/IDs, and malformed nested field types return
+500 instead of 422. Related numeric checks accept float PR numbers and boolean
+schema versions. No GitHub review/comment or controller verdict was submitted.
+
+The #106 worker now emits the agreed registered/failure envelopes, preserves
+bounded untrusted PR text plus its full-body hash, extracts bounded typed author
+signals from the full source, and uses controller-named reclaimable prefixes.
+Scratch cleanup is best effort with expected-old-SHA deletes. The callable
+adapter checks EXTERNAL_INGESTING before commands, refreshes remaining deadline
+via heartbeat and reports through controller_client.report_ingest. Unreadable
+ingest task records use this same dedicated result route. Worker dispatch and
+ingest claims remain unwired pending cross-review; nothing was deployed.
+
+A temporary local compatibility probe against the reviewed #107 controller
+registered open and merged PRs (including Unicode truncation and attribution
+beyond the excerpt) and refused an operator-SHA mismatch. These are local test
+databases, never real production tasks. The broader test isolation fix from
+#107 is also present: per-test worker usage/hold paths, avoiding production files
+even for tests without the control fixture. Exact-head worker CI and Claude's
+fresh review are required for this changed candidate.
+
+Local worker verification: 131 focused engine/client/CLI/claims/runtime checks
+passed, followed by 58 adapter/deadline/worker-loop/view-budget checks (20 overlap;
+169 distinct checks in total). A further scratch-ref race check passed, making
+170 distinct checks. All 18 final in-memory mutations were caught, including
+removing the expected-old-SHA check from scratch deletion.
+Removing only the inner cleanup handler left its outer handler enforcing best
+effort behavior; removing both was detected. No surviving behavior-changing
+mutation remains in that selected set. Python compilation and whitespace checks
+passed. Full CI will be bound to the pushed candidate, not these working-tree
+results or the earlier #106 head.
+
+## #92 worker/CLI first implementation and PR #104 reconciliation — 2026-10-15
+
+PR #104 is merged as `2a7290077c0403a479bd6d621c9fbacaa9dd5bd9`. The isolated
+worker branch merged that documentation without rewriting either rollout
+account. Claude's receipt records its initial supervisor 24568; the subsequent
+Codex verification/restart above records supervisor 9372. These are successive
+operations, not simultaneous supervisor instances. Production remains at
+`d2493667391244ca10226894b171a7590d5e1708`; no new rollout was performed here.
+
+The worker branch now adds `claude_ingest.py`: registered repository binding,
+bounded monotonic commands with lease checkpoints, GitHub identity/PR metadata,
+head plus exact-base fetch, SHA/range verification, raw authorship provenance,
+bounded complete evidence, create-only final pin CAS and task-scoped stale-ref
+cleanup. It changes no working branch and calls no model. A late lost lease
+can leave an orphan pin but cannot accept/register evidence. Oversized transport
+diagnostics remain environment defects rather than judgments on the PR.
+
+The admin `external-review` subcommand sends only the agreed request shape to
+`POST /controller/external-reviews`, preserves operator text and optional-field
+omission, and never falls back to ordinary task creation. Tests use local Git
+remotes and a stub forge; no network/model call or controller task is needed.
+The shared test control fixture now isolates usage paths and memory per test,
+addressing the held-mutex/fake-sleep harness failure seen during rollout.
+
+Validation on the implementation candidate: 172 focused checks passed, covering
+the engine, CLI, view budgets, worker loop, claims, rate guard and narration.
+All eleven in-memory mutations were caught: both SHA comparisons, create-only
+CAS, complete evidence bound, lease-loss refusal, live-scratch protection,
+base-object fetch, deadline enforcement, dedicated CLI route, optional at_sha
+and exact objective preservation. Python compilation and whitespace checks
+passed (preserving the tracked CLI's CRLF line endings). Exact-head CI and
+Claude's independent review are still required before integrating this slice.
+
+Controller activation/result glue, worker ingest dispatch and model-free claim
+changes are deliberately not enabled yet. Claude must confirm the exact
+activation payload, dedicated result API/outcomes and prior-activation liveness
+lookup before those are connected. The core and CLI are reviewable independent
+work, not a claim that #92 is complete or deployed. Claude leads controller
+implementation and end-to-end checks; Codex owns this worker/admin branch.
+
+## PR #102 merged/deployed; standing operator permission — 2026-10-15
+
+David granted explicit standing permission for this project's commits, pushes,
+merges and deployments. Do not ask for that permission again for routine work
+within the project. Keep review/CI evidence exact, preserve ledger meaning and
+use supported runtime controls; work still needs controller-issued activations.
+
+PR #102 merged with a pinned head check as
+`d2493667391244ca10226894b171a7590d5e1708`, from approved candidate
+`9b7282a39fc3ed0b5698d4f07d905f90d1be8e73`. Claude's final no-findings review
+is comment 6203010215. Candidate CI `38811541122` and merged-main CI
+`38814198397` both passed all four checks and 2,317 tests without skips.
+The reviewed source and merge have equal trees.
+
+The complete local deployment gate passed 2,307 tests with ten local scheduler
+permission skips after isolating test interpreters' usage directories. The
+initial shared-directory run failed a bounded-loop harness test; a held-lock
+probe reproduced it and release passed. Neither source nor selection changed
+for the successful rerun. See the full receipt for this qualification.
+
+Production is clean and running at the merge, with one supervisor (9372) and
+ChatGPT/Gemini/Claude workers (2152/7912/41944). Heartbeat and hidden ensure
+passed; unpaused state and cursors were preserved (1490 each; narrator 525).
+All three identities passed parity at unchanged controller build
+`cc1d4f0214fe903a64a4a9edf491ef8cc00cc014d04ab9e69f7e4b6fdc2cde97`, schema 6;
+no Tower code or restart was needed. The production checkout had independently
+advanced to the same target while validation ran; this sequence verified it
+and performed a supported stop/restart rather than claiming that checkout.
+
+The updated Claude worker is deployed with CLAUDE_RATE_GUARD_DIR naming its
+existing production state directory. One real planner smoke returned
+CLAUDE_SHARED_GUARD_OK, reported claude-opus-5-5, and charged 6.219 seconds to
+the shared usage file. Shared Claude planning is now available; no controller
+task was created. See `../DEPLOYMENT_PR102_2026-10-15.md` for the full receipt.
+
+Next: Claude leads #92 controller work; Codex's worker/CLI preparation is in
+`C:\git\agent-swarm-worktrees\external-ingest-worker`, branch
+`feat/92-external-ingest-worker`, based on the deployed merge. The new
+`docs/design/92-worker-implementation-plan.md` scopes that half and its tests.
+No #92 runtime implementation or external-ingress configuration is deployed.
+The following section preserves Claude's earlier receipt from PR #104. Its
+process IDs predate the later Codex verification receipt; its no-planner-call
+statement describes that earlier rollout only.
+
 ## PR #102 merged and worker rollout — 2026-10-15
 
 David authorized commit, merge and deployment. Claude's final exact-head check

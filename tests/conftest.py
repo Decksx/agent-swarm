@@ -55,6 +55,15 @@ def control(tmp_path, monkeypatch):
     monkeypatch.setattr(swarm_control, "PAUSE_PATH", tmp_path / "PAUSED")
     monkeypatch.setattr(swarm_control, "STATUS_PATH", tmp_path / "status.json")
 
+    # Worker-loop tests fake time.sleep to end polling. A shared usage mutex
+    # can call that fake sleep during startup and end the test before cleanup.
+    # Keep this runtime state per test too, and never read the host's live guard.
+    import claude_worker
+    monkeypatch.setattr(claude_worker, "USAGE_PATH", tmp_path / "claude_worker.usage")
+    monkeypatch.setattr(claude_worker, "RATELIMIT_PATH", tmp_path / "claude_worker.ratelimit")
+    monkeypatch.setattr(claude_worker, "_process_usage_window", [])
+    monkeypatch.setattr(claude_worker, "_usage_read_failed", False)
+
     # A stray SWARM_PAUSED in the developer's shell would otherwise make the
     # "not paused" tests pass for the wrong reason.
     monkeypatch.delenv("SWARM_PAUSED", raising=False)
