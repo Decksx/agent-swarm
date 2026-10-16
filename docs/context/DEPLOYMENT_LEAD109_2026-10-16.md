@@ -54,9 +54,18 @@ tree computed before merging.
 Nine older backups in `/mnt/user/appdata/agent-swarm` contained hub
 credentials and were mode 666: `hub.env.pre-*`,
 `agent-hub.inspect.backup.json` and `container.pre-*.json`. They are now 600.
-The `appdata` share is not exported (`shareExport="-"`), so exposure was local
-to Tower. Rotating the older worker credentials is optional hygiene, not a
-known compromise.
+Exposure was checked, not assumed:
+
+- The `appdata` share is not exported (`shareExport="-"`).
+- No container mounts `/mnt/user`, `/mnt/user/appdata` or the
+  `agent-swarm` root where the files sat. The hub containers, current and
+  stopped rollback copies alike, mount only its `app/` and `data/`
+  subdirectories.
+
+The only readers were therefore root-level sessions on Tower itself. Rotating
+the older worker credentials is not required on this evidence. If David
+wants it anyway, it is a coordinated deploy, since every worker's
+`HUB_SECRET` changes with it.
 
 ## Open
 
