@@ -48,16 +48,28 @@ SQLite in the control directory holds four kinds of row:
     transaction, with the reason counted. So an ignored item never stalls a
     later handoff.
   - The cursor never moves past a message that hasn't been classified.
-- **First run.** There is no cursor yet, and history is never replayed.
-  1. The relay reads the hub's own clock (`server_time` from
-     `/control/status`) as `T0`.
-  2. It sets the cursor to the highest id whose stored timestamp is before
-     `T0`. A NULL timestamp counts as history.
-  3. It writes the cursor and `T0` in one transaction.
-
-  Everything posted at or after `T0` is processed, including a handoff that
-  lands while the relay is starting. An existing cursor is never
-  re-initialized.
+- **First run.** There is no cursor yet, and history is never replayed. The
+  start fence is a **hub-side committed id**, not a timestamp.
+  - **Why not timestamps.** The hub stamps `time.time()` before it opens the
+    database. Concurrent sends can commit in a different order from their
+    timestamps, so "the highest id before T0" can sit above a handoff that
+    was stamped later but committed earlier. Codex reproduced that loss
+    against `send_message` (#114 review at `c80a01d`).
+  - **Ids are a sound fence.** SQLite assigns a `messages` id at insert,
+    under the write lock it holds until commit, so ids become visible in
+    commit order. Once `MAX(id)` has been read, every later committed message
+    has a higher id.
+  - **The protocol.** The hub gets a small authenticated route,
+    `GET /messages/high-water`, which returns `MAX(id)` from one read (0 for
+    an empty table). The relay stores the returned id as its cursor, together
+    with the time it was read, before processing anything. Messages with
+    higher ids are processed, including a handoff that lands during startup.
+  - **Failure.** If initialization fails (route missing, auth or transport
+    error), the relay stays disabled, as `held(init)`. It never defaults to
+    replaying from zero. An existing cursor is never re-initialized.
+  - Timestamps remain for display and audit only. The ongoing cursor is
+    `since_id` over ids sorted by the relay, which is the same commit-order
+    property.
 
 ## 4. Delivery (receipt)
 
@@ -223,7 +235,13 @@ owner, alongside `claude-lead` and `codex-lead`.
    mention) followed by a valid `HANDOFF` delivers the handoff. A crash
    between classifying and committing re-classifies the same message once and
    creates no duplicate row.
-10. **First run.** Existing history, including old admin mentions and
-    handoffs, wakes nobody. A handoff stored after `T0` but before the cursor
-    commit is delivered. A restart with an existing cursor doesn't
-    re-initialize.
+10. **First run.**
+    - Existing history, including old admin mentions and handoffs, wakes
+      nobody.
+    - A handoff committed after the high-water read is delivered.
+    - **Codex's interleaving:** an older send is stamped 100 but commits
+      after a newer handoff stamped 200. The fence still delivers the
+      handoff, because the fence is the committed id and not a timestamp.
+    - A failed or unknown initialization stays `held(init)` and never
+      replays from zero.
+    - A restart with an existing cursor doesn't re-initialize.
