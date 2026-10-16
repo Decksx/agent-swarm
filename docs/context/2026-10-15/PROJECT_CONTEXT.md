@@ -34,7 +34,9 @@ fresh review are required for this changed candidate.
 
 Local worker verification: 131 focused engine/client/CLI/claims/runtime checks
 passed, followed by 58 adapter/deadline/worker-loop/view-budget checks (20 overlap;
-169 distinct checks in total). All 17 final in-memory mutations were caught.
+169 distinct checks in total). A further scratch-ref race check passed, making
+170 distinct checks. All 18 final in-memory mutations were caught, including
+removing the expected-old-SHA check from scratch deletion.
 Removing only the inner cleanup handler left its outer handler enforcing best
 effort behavior; removing both was detected. No surviving behavior-changing
 mutation remains in that selected set. Python compilation and whitespace checks

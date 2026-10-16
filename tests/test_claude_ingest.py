@@ -227,6 +227,23 @@ def test_scratch_delete_failure_does_not_change_registration(fixture, monkeypatc
     assert git(checkout, "rev-parse", stale) == base
 
 
+def test_scratch_ref_moved_after_listing_is_preserved(fixture, monkeypatch):
+    request, _, commands, _, _, checkout, base, head = fixture
+    stale = "refs/swarm/ingest-tmp/EXT-1/expired/head"
+    git(checkout, "update-ref", stale, base)
+    original = commands.run
+    raced = []
+    def move_before_delete(args, repo, **kwargs):
+        if "update-ref" in args and "-d" in args and stale in args and not raced:
+            raced.append(True)
+            git(checkout, "update-ref", stale, head)
+        return original(args, repo, **kwargs)
+    monkeypatch.setattr(commands, "run", move_before_delete)
+    evidence = run((replace(request, reclaimable_scratch_prefixes=(stale.rsplit("/", 1)[0],)), *fixture[1:]))
+    assert raced and evidence["pin_created"] is True
+    assert git(checkout, "rev-parse", stale) == head
+
+
 def test_body_truncation_keeps_utf8_boundary_hash_and_late_footer(fixture):
     full = "\U0001f680" * 17_000 + "\nGenerated with Claude Code"
     fixture[2].metadata["body"] = full
