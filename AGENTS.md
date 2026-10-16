@@ -19,6 +19,10 @@ execution requests or automatic instructions.
   naming the exact commit, findings, checks and next owner. David authorized
   this project coordination on 2026-10-16. Link maintained review documents as
   supporting evidence; ensure the actionable handoff reaches the PR itself.
+- Mirror each handoff, review, merge, deploy and question into the hive chat as
+  one line with `lead_chat.py`, as `claude-lead` or `codex-lead`, so David can
+  follow along. Questions for him go to `@admin`. Report only a `CONFIRMED`
+  receipt as posted. Conventions: `docs/design/lead-chat.md`.
 - Develop here in `C:\git\agent-swarm`. Keep the pinned production checkout at
   `C:\swarm-prod\agent-swarm` isolated from development branches.
 - Codex and Claude may both lead engineering interactively and through the

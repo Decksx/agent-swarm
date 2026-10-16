@@ -52,7 +52,8 @@ def test_a_narrated_line_fed_back_as_chat_activates_nothing(hostile_messages):
         }) is False
 
 
-@pytest.mark.parametrize("sender", ["narrator", "Admin", "admin", "Gemini"])
+@pytest.mark.parametrize("sender", ["narrator", "Admin", "admin", "Gemini",
+                                    "claude-lead", "codex-lead"])
 def test_no_sender_makes_a_chat_message_authoritative(sender):
     """`sender` is derived from the credential now, which makes it evidence of
     who spoke and still not a reason to obey them."""

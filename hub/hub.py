@@ -406,6 +406,8 @@ HTML_TEMPLATE = """
       --claude: #f7768e;
       --admin: #9ece6a;
       --chatgpt: #bb9af7;
+      --claude-lead: #ff9e64;
+      --codex-lead: #2ac3de;
     }
     body {
       background: var(--bg);
@@ -452,6 +454,15 @@ HTML_TEMPLATE = """
     .sender-ClaudeCode { color: var(--claude); font-weight: bold; }
     .sender-Admin { color: var(--admin); font-weight: bold; }
     .sender-ChatGPT { color: var(--chatgpt); font-weight: bold; }
+    /* Senders are stored lowercase (the credential's name), so these are
+       the classes that actually match. The interactive leads (#109) get
+       their own colours, distinct from the background workers. */
+    .sender-gemini { color: var(--gemini); font-weight: bold; }
+    .sender-claudecode { color: var(--claude); font-weight: bold; }
+    .sender-admin { color: var(--admin); font-weight: bold; }
+    .sender-chatgpt { color: var(--chatgpt); font-weight: bold; }
+    .sender-claude-lead { color: var(--claude-lead); font-weight: bold; }
+    .sender-codex-lead { color: var(--codex-lead); font-weight: bold; }
     .target { color: #565f89; }
     /* The UTC instant is on the title attribute, so the exact value the
        server assigned is one hover away without every line carrying two
