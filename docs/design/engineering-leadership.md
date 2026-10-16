@@ -1,5 +1,21 @@
 # Selectable engineering leadership
 
+## Confirmed next work and permissions — 2026-10-16
+
+David approved `codex-lead` and `claude-lead` as the distinct non-admin lead
+identities and `@admin` for questions requiring his decision. He chose #109
+first, then the durable wake-up relay; #93-95 are parked behind them. Claude
+owns #109's implementation and will open the relay design as a separate issue;
+Codex provides independent exact-head review. Reviews and handoffs go directly
+on GitHub so David does not have to relay them.
+
+David also granted both leads the same routine engineering build/commit/push/
+merge/deploy permission for the comic automation suite as for agent-swarm.
+Keep exact-commit independent review, green CI and supported rollout controls.
+Read that repository's instructions; its explicit operator-only batch launches
+and live-library/data rules remain in place. This is standing authorization,
+not a claim that any comic change has been built, reviewed or deployed.
+
 ## Product purpose and coordination — 2026-10-16
 
 David clarified the intended outcome: Codex and Claude should work together

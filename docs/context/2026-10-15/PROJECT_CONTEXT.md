@@ -1,5 +1,42 @@
 # Agent Swarm imported project context
 
+## Confirmed names, scope and comic permissions — 2026-10-16
+
+David directly confirmed in this Codex conversation:
+
+> I'm fine with the names. Yes I would like you to have the same permissions for the comic automation suite project. Do #109  and the relay first.
+
+The chosen sequence is #109 (distinct interactive lead identities/posting), then
+the durable wake-up relay; #93-95 are parked behind them. Names are codex-lead
+and claude-lead, both non-admin, with @admin for questions requiring David's
+decision. Claude's matching record/ownership is issue #109 comment 6220726510:
+Claude implements #109, Codex independently reviews exact heads, and the relay
+gets its own issue/design review. This scope decision is no longer pending.
+NEXT_STEPS.md and AGENTS.md now reflect it. No credential or runtime deployment
+is performed by this documentation update.
+
+Both Codex and Claude also have standing permission for routine engineering
+builds, commits, pushes, merges and deployments on the comic automation suite
+(Decksx/cbz-automation-suite, C:\git\ComicAutomation), as on agent-swarm.
+Independent review, exact-commit CI and supported deployment controls remain.
+The comic project's explicit operator-only backfill/library data rules still
+apply. Read that destination's applicable instructions before changing it.
+Its existing dirty development checkout was inspected and left untouched;
+no comic source, runtime, data or batch operation was changed here.
+
+The practical acceptance goal remains delivery to and resumption of the actual
+interactive leads without David as the relay. Posting successfully to a room
+or running one of the existing background workers is insufficient. Preserve
+durable state, deduplication and visible failure/recovery evidence in the relay
+design, while retaining controller activation and engineering review authority.
+
+David subsequently requested a later CI-efficiency follow-up for the comic
+automation suite, using the measured agent-swarm improvement as a reference.
+Recorded at https://github.com/Decksx/cbz-automation-suite/issues/92. Profile its
+own workflow, trial safe parallelism/caching and preserve coverage/check meaning;
+do not assume its bottleneck matches agent-swarm. This backlog item does not
+change the current #109/relay priority. No comic source or CI was changed.
+
 ## #92 deployed; direct coordination is the product goal — 2026-10-16
 
 David clarified the goal: Codex and Claude should collaborate efficiently and
@@ -38,10 +75,11 @@ cd5243a16bad42b5a6407dbc83888365. Controller registration event
 worktree were unchanged and model usage/hold files stayed byte-identical.
 There is no review verdict or integration approval. #93/#94 remain to build.
 
-Read issue #109's lead-identity proposal. Recommended codex-lead/claude-lead and
-@admin decision routing are awaiting David's response; no new identity or
-credential was installed by this deployment. Record the decision before that
-separate implementation and review.
+At the time of that rollout, issue #109's names/routing decision had not yet
+arrived. That historical checkpoint is superseded by the confirmed decision at
+the top of this file: codex-lead/claude-lead and @admin are approved, with #109
+and the relay first. No new lead identity or credential was installed by the
+ingest deployment itself.
 
 ## #92 merged halves and dispatch follow-up — 2026-10-16
 
