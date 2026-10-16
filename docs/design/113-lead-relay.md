@@ -38,9 +38,26 @@ SQLite in the control directory holds four kinds of row:
   the session id, the exit code and the log path.
 - **`reservations`.** At most one row per recipient session: the execution
   owner (§5).
-- **`counters` and `cursor`.** The rate and chain caps (§9) and the last
-  processed hub message id. The cursor advances only after the delivery row
-  is written.
+- **`counters`.** The rate and chain caps (§9).
+- **`cursor`.** The last hub message id that is **fully classified**.
+  - The relay sorts by id itself, because `/messages` orders by timestamp, and
+    classifies strictly in id order.
+  - A wake-worthy message's delivery rows and the cursor advance commit in
+    **one transaction**.
+  - A message that wakes nobody (§2) advances the cursor in its own
+    transaction, with the reason counted. So an ignored item never stalls a
+    later handoff.
+  - The cursor never moves past a message that hasn't been classified.
+- **First run.** There is no cursor yet, and history is never replayed.
+  1. The relay reads the hub's own clock (`server_time` from
+     `/control/status`) as `T0`.
+  2. It sets the cursor to the highest id whose stored timestamp is before
+     `T0`. A NULL timestamp counts as history.
+  3. It writes the cursor and `T0` in one transaction.
+
+  Everything posted at or after `T0` is processed, including a handoff that
+  lands while the relay is starting. An existing cursor is never
+  re-initialized.
 
 ## 4. Delivery (receipt)
 
@@ -202,3 +219,11 @@ owner, alongside `claude-lead` and `codex-lead`.
 7. **Holds.** Pause, auth or unreachable gives `held` with no launch, and one
    recovery notice.
 8. **The bridge proof** (§7), per backend, before enabling it.
+9. **Cursor.** An ignored item (a worker post, an ACK, a non-envelope lead
+   mention) followed by a valid `HANDOFF` delivers the handoff. A crash
+   between classifying and committing re-classifies the same message once and
+   creates no duplicate row.
+10. **First run.** Existing history, including old admin mentions and
+    handoffs, wakes nobody. A handoff stored after `T0` but before the cursor
+    commit is delivered. A restart with an existing cursor doesn't
+    re-initialize.
