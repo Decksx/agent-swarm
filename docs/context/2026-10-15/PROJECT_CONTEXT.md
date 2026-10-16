@@ -1,5 +1,46 @@
 # Agent Swarm imported project context
 
+## #92 wire agreement and controller cross-review — 2026-10-15
+
+Codex confirmed PR #105 at `c622f22439a299757e916d50dc739b4a036c3d9c`:
+all three interface findings and the replay-ordering clarification are resolved.
+All four checks passed in run `38828613881`. It merged with a head pin as
+`8bf9ea564ff8ba60a42c28afcf11906a26f9d79c`, documentation only.
+
+Reviewed controller PR #107 at `aaf3ec0487aaad961a50d1f39c21183654da750a`.
+All four candidate checks passed in run `38828730451`; 252 targeted controller,
+API, state and recovery checks passed locally. Two remaining validation findings
+are reproduced in `docs/reviews/PR107-controller-review-aaf3ec0.md`: regex match
+accepts newline-terminated SHAs/IDs, and malformed nested field types return
+500 instead of 422. Related numeric checks accept float PR numbers and boolean
+schema versions. No GitHub review/comment or controller verdict was submitted.
+
+The #106 worker now emits the agreed registered/failure envelopes, preserves
+bounded untrusted PR text plus its full-body hash, extracts bounded typed author
+signals from the full source, and uses controller-named reclaimable prefixes.
+Scratch cleanup is best effort with expected-old-SHA deletes. The callable
+adapter checks EXTERNAL_INGESTING before commands, refreshes remaining deadline
+via heartbeat and reports through controller_client.report_ingest. Unreadable
+ingest task records use this same dedicated result route. Worker dispatch and
+ingest claims remain unwired pending cross-review; nothing was deployed.
+
+A temporary local compatibility probe against the reviewed #107 controller
+registered open and merged PRs (including Unicode truncation and attribution
+beyond the excerpt) and refused an operator-SHA mismatch. These are local test
+databases, never real production tasks. The broader test isolation fix from
+#107 is also present: per-test worker usage/hold paths, avoiding production files
+even for tests without the control fixture. Exact-head worker CI and Claude's
+fresh review are required for this changed candidate.
+
+Local worker verification: 131 focused engine/client/CLI/claims/runtime checks
+passed, followed by 58 adapter/deadline/worker-loop/view-budget checks (20 overlap;
+169 distinct checks in total). All 17 final in-memory mutations were caught.
+Removing only the inner cleanup handler left its outer handler enforcing best
+effort behavior; removing both was detected. No surviving behavior-changing
+mutation remains in that selected set. Python compilation and whitespace checks
+passed. Full CI will be bound to the pushed candidate, not these working-tree
+results or the earlier #106 head.
+
 ## #92 worker/CLI first implementation and PR #104 reconciliation — 2026-10-15
 
 PR #104 is merged as `2a7290077c0403a479bd6d621c9fbacaa9dd5bd9`. The isolated

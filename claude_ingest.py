@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 from pathlib import Path
@@ -24,6 +25,8 @@ import repo_registry
 MAX_EVIDENCE = 128 * 1024
 SHA = re.compile(r"[0-9a-fA-F]{40}")
 COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+TASK_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
+log = logging.getLogger("claude_ingest")
 
 
 class IngestError(Exception):
@@ -43,6 +46,7 @@ class Request:
     repo_slug: str
     pr_number: int
     at_sha: str | None = None
+    reclaimable_scratch_prefixes: tuple[str, ...] = ()
 
 
 class Commands:
@@ -67,8 +71,10 @@ class Commands:
         if time.monotonic() >= self.deadline:
             raise IngestError("deadline_exhausted")
 
-    def run(self, args: list[str], repo: Path, *, allowed=(0,), evidence=False) -> tuple[int, str]:
+    def run(self, args: list[str], repo: Path, *, allowed=(0,), evidence=False,
+            output_limit=None) -> tuple[int, str]:
         self.checkpoint()
+        limit = MAX_EVIDENCE if output_limit is None else output_limit
         env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GCM_INTERACTIVE="never",
                    GIT_NO_LAZY_FETCH="1", GIT_NO_REPLACE_OBJECTS="1")
         with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
@@ -84,7 +90,7 @@ class Commands:
                 while process.poll() is None:
                     if os.fstat(stderr.fileno()).st_size > MAX_EVIDENCE:
                         raise IngestError("diagnostic_overflow")
-                    if os.fstat(stdout.fileno()).st_size > MAX_EVIDENCE:
+                    if os.fstat(stdout.fileno()).st_size > limit:
                         raise IngestError("evidence_too_large" if evidence else "command_output_overflow",
                                           refusal=evidence)
                     if time.monotonic() >= self.deadline:
@@ -115,16 +121,18 @@ class Commands:
             self.checkpoint()
             stdout.seek(0)
             stderr.seek(0)
-            output, diagnostic = stdout.read(MAX_EVIDENCE + 1), stderr.read(MAX_EVIDENCE + 1)
+            output, diagnostic = stdout.read(limit + 1), stderr.read(MAX_EVIDENCE + 1)
             if len(diagnostic) > MAX_EVIDENCE:
                 raise IngestError("diagnostic_overflow")
-            if len(output) > MAX_EVIDENCE:
+            if len(output) > limit:
                 raise IngestError("evidence_too_large" if evidence else "command_output_overflow",
                                   refusal=evidence)
             if process.returncode not in allowed:
                 # gh's machine-observable HTTP status distinguishes a missing
                 # PR only after the caller has verified repository access.
                 missing = args[0] == "gh" and b"HTTP 404" in diagnostic
+                if args[0] == "gh" and (process.returncode == 4 or b"HTTP 401" in diagnostic):
+                    raise IngestError("gh_auth")
                 raise IngestError("not_found" if missing else "command_failed",
                                   command=args[0], exit_code=process.returncode)
             try:
@@ -139,9 +147,9 @@ def _sha(value, name: str) -> str:
     return value.lower()
 
 
-def _json(command, args: list[str], repo: Path, *, evidence=False):
+def _json(command, args: list[str], repo: Path, *, evidence=False, output_limit=None):
     try:
-        value = json.loads(command.run(args, repo, evidence=evidence)[1])
+        value = json.loads(command.run(args, repo, evidence=evidence, output_limit=output_limit)[1])
     except (ValueError, TypeError):
         raise IngestError("invalid_forge_metadata") from None
     if not isinstance(value, dict):
@@ -150,26 +158,28 @@ def _json(command, args: list[str], repo: Path, *, evidence=False):
 
 
 def ingest(request: Request, *, remaining: float, heartbeat: Callable[[], bool],
-           registry: Path | None = None, commands: Commands | None = None,
-           scratch_is_live: Callable[[str], bool | None] | None = None) -> dict:
+           registry: Path | None = None, commands: Commands | None = None) -> dict:
     """Return complete evidence, or raise IngestError. No controller side effects.
 
-    heartbeat must affirm the current lease; scratch_is_live must freshly
-    identify a previous activation as not live before its scratch refs are
-    removed. Unknown status is preserved. Neither callback grants authority
-    to accept evidence: that remains the controller's fenced result route.
+    heartbeat must affirm the current lease. Only controller-named terminal
+    attempts' scratch prefixes may be reclaimed. Result acceptance remains
+    the controller's decision, separately from Git pin protection.
     """
     command = commands or Commands(remaining, heartbeat)
     for name in (request.task_id, request.activation_id):
-        if not isinstance(name, str) or not COMPONENT.fullmatch(name):
+        if (not isinstance(name, str) or not COMPONENT.fullmatch(name)
+                or ".." in name or name.endswith((".lock", "."))):
             raise IngestError("invalid_activation_identity")
+    if not TASK_ID.fullmatch(request.task_id):
+        raise IngestError("invalid_activation_identity")
     if (isinstance(request.pr_number, bool) or not isinstance(request.pr_number, int)
             or request.pr_number <= 0 or not isinstance(request.repo_slug, str)
             or not isinstance(request.project, str) or not request.project.strip()
             or not isinstance(request.repo_location, str) or not request.repo_location.strip()
             or not repo_registry.REPO_SLUG.fullmatch(request.repo_slug)):
         raise IngestError("invalid_external_request")
-    expected = _sha(request.at_sha, "at_sha") if request.at_sha is not None else None
+    if request.at_sha is not None:
+        _sha(request.at_sha, "at_sha")
     command.checkpoint()
     try:
         project = repo_registry.get(request.project, registry)
@@ -180,7 +190,9 @@ def ingest(request: Request, *, remaining: float, heartbeat: Callable[[], bool],
             raise IngestError("repository_location_mismatch")
     except (OSError, repo_registry.RegistryError):
         raise IngestError("repository_unavailable") from None
-    if not project.publish_repo_slug or project.publish_repo_slug.casefold() != request.repo_slug.casefold():
+    if not project.publish_repo_slug:
+        raise IngestError("slug_not_configured")
+    if project.publish_repo_slug.casefold() != request.repo_slug.casefold():
         raise IngestError("repository_slug_mismatch")
     # Disable fetch hooks without changing repository config or relying on a
     # platform-specific null path. Every Git command shares this empty hook dir.
@@ -199,23 +211,42 @@ def ingest(request: Request, *, remaining: float, heartbeat: Callable[[], bool],
         scratch = f"{scratch_prefix}{request.activation_id}"
         for ref in (pin, scratch + "/head", scratch + "/base"):
             git("check-ref-format", ref)
-        if scratch_is_live is not None:
-            listed = git("for-each-ref", "--format=%(refname) %(objectname)", scratch_prefix)[1]
-            for line in listed.splitlines():
-                ref, old = line.split(" ", 1)
-                parts = ref[len(scratch_prefix):].split("/")
-                if (not ref.startswith(scratch_prefix) or len(parts) != 2
-                        or not COMPONENT.fullmatch(parts[0]) or parts[0] == request.activation_id
-                        or parts[1] not in {"head", "base"}):
-                    continue
-                command.checkpoint()
+        for prefix in request.reclaimable_scratch_prefixes:
+            if not isinstance(prefix, str) or not prefix.startswith(scratch_prefix):
+                raise IngestError("invalid_scratch_prefix")
+            old_id = prefix[len(scratch_prefix):]
+            if (not COMPONENT.fullmatch(old_id) or ".." in old_id
+                    or old_id.endswith((".lock", ".")) or old_id == request.activation_id):
+                raise IngestError("invalid_scratch_prefix")
+
+        def cleanup(prefixes):
+            # Best effort: failure to delete cannot change a measured outcome.
+            # The next ordinary command/checkpoint still fences a lost lease.
+            for prefix in prefixes:
                 try:
-                    live = scratch_is_live(parts[0])
-                except Exception:
-                    raise IngestError("scratch_status_unavailable") from None
-                if live is False:
-                    command.checkpoint()
-                    git("update-ref", "-d", ref, _sha(old, "scratch_sha"))
+                    listed = git("for-each-ref", "--format=%(refname) %(objectname)", prefix + "/")[1]
+                    for line in listed.splitlines():
+                        ref, old = line.split(" ", 1)
+                        if not ref.startswith(prefix + "/"):
+                            continue
+                        try:
+                            git("update-ref", "-d", ref, _sha(old, "scratch_sha"))
+                        except IngestError:
+                            log.warning("scratch delete failed; leaving ref in place")
+                except (IngestError, ValueError):
+                    log.warning("scratch cleanup unavailable; leaving refs in place")
+
+        cleanup(request.reclaimable_scratch_prefixes)
+        try:
+            return _fetch_pin(request, project, repo, pin, scratch, git, command)
+        finally:
+            cleanup((scratch,))
+
+
+def _fetch_pin(request, project, repo, pin, scratch, git, command):
+    head = base = None
+    expected = _sha(request.at_sha, "at_sha") if request.at_sha is not None else None
+    try:
 
         repo_metadata = _json(command, ["gh", "api", "--hostname", "github.com",
                                       f"repos/{request.repo_slug}"], repo)
@@ -223,7 +254,8 @@ def ingest(request: Request, *, remaining: float, heartbeat: Callable[[], bool],
             raise IngestError("repository_slug_mismatch")
         try:
             metadata = _json(command, ["gh", "api", "--hostname", "github.com",
-                f"repos/{request.repo_slug}/pulls/{request.pr_number}"], repo, evidence=True)
+                f"repos/{request.repo_slug}/pulls/{request.pr_number}"], repo,
+                output_limit=2 * 1024 * 1024)
         except IngestError as exc:
             if exc.code == "not_found":
                 raise IngestError("pr_not_found", refusal=True) from None
@@ -235,6 +267,8 @@ def ingest(request: Request, *, remaining: float, heartbeat: Callable[[], bool],
             raise IngestError("invalid_forge_metadata")
         head = _sha(metadata["head"].get("sha"), "head_sha")
         base = _sha(metadata["base"].get("sha"), "base_ref_sha")
+        if not isinstance(metadata.get("title"), str):
+            raise IngestError("invalid_forge_metadata")
         url = f"https://github.com/{request.repo_slug}/pull/{request.pr_number}"
         if str(metadata.get("html_url", "")).casefold() != url.casefold():
             raise IngestError("repository_slug_mismatch")
@@ -245,8 +279,13 @@ def ingest(request: Request, *, remaining: float, heartbeat: Callable[[], bool],
         existing_code, existing = git("show-ref", "--verify", "--hash", pin, allowed=(0, 1, 128))
         if existing_code == 0 and _sha(existing.strip(), "pin_sha") != head:
             raise IngestError("pin_conflict", refusal=True, observed_sha=existing.strip(), expected_sha=head)
-        git("fetch", "--no-tags", "--no-write-fetch-head", "origin",
-            f"+refs/pull/{request.pr_number}/head:{scratch}/head", f"+{base}:{scratch}/base")
+        try:
+            git("fetch", "--no-tags", "--no-write-fetch-head", "origin",
+                f"+refs/pull/{request.pr_number}/head:{scratch}/head", f"+{base}:{scratch}/base")
+        except IngestError as exc:
+            if exc.code in {"command_failed", "command_unavailable"}:
+                raise IngestError("git_fetch_failed") from None
+            raise
         resolved = _sha(git("rev-parse", "--verify", scratch + "/head^{commit}")[1].strip(), "resolved_ref_sha")
         resolved_base = _sha(git("rev-parse", "--verify", scratch + "/base^{commit}")[1].strip(), "resolved_base_sha")
         if resolved != head:
@@ -258,32 +297,42 @@ def ingest(request: Request, *, remaining: float, heartbeat: Callable[[], bool],
             raise IngestError("no_common_ancestor", refusal=True)
         ancestor = _sha(ancestor.strip(), "merge_base")
         changed = git("diff", "--no-ext-diff", "--no-textconv", "--name-only", "-z", ancestor, head, "--", evidence=True)[1]
-        files = changed.split("\0")[:-1]
+        files = sorted(set(changed.split("\0")[:-1]))
         if ancestor == head or not files:
             raise IngestError("empty_review_range", refusal=True)
         signals = []
-        signal_bytes = 0
+        def signal(kind, value, source):
+            if len(value) > 512 or len(signals) >= 500:
+                raise IngestError("evidence_too_large", refusal=True)
+            signals.append({"kind": kind, "value": value, "source": source})
         for commit in git("rev-list", f"{ancestor}..{head}", evidence=True)[1].splitlines():
             commit = _sha(commit, "commit_sha")
             raw = git("show", "--no-patch", "--format=%ae%x00%B", commit, evidence=True)[1]
             email, separator, body = raw.partition("\0")
             if not separator:
                 raise IngestError("invalid_commit_metadata")
-            signal = {"source": "git_commit", "commit_sha": commit,
-                      "author_email": email, "message": body}
-            signal_bytes += len(json.dumps(signal, ensure_ascii=False).encode())
-            if signal_bytes > MAX_EVIDENCE:
-                raise IngestError("evidence_too_large", refusal=True)
-            signals.append(signal)
-        signals.append({"source": "github_pr", "pr_url": url,
-                        "title": metadata.get("title"), "body": metadata.get("body") or "",
-                        "author": metadata.get("user")})
-        evidence = {"schema_version": 1, "repo_id": project.repo_id,
-            "repo_location": str(repo), "pr_number": request.pr_number, "pr_url": url,
+            signal("commit_author_email", email, f"commit:{commit}")
+            for match in re.finditer(r"^Co-Authored-By:[ \t]*(.*)$", body, re.I | re.M):
+                signal("co_authored_by", match.group(1).rstrip("\r"), f"commit:{commit}")
+        full_body = metadata.get("body") or ""
+        for line in full_body.splitlines():
+            if re.search(r"generated (?:with|by)|co-authored-by|claude code|openai codex|gemini", line, re.I):
+                signal("pr_body_footer", line, "pr_body")
+        raw_body = full_body.encode("utf-8")
+        truncated = len(raw_body) > 65_536
+        saved_body = raw_body[:65_536].decode("utf-8", "ignore")
+        if len(metadata["title"]) > 1_024:
+            raise IngestError("evidence_too_large", refusal=True)
+        evidence = {"schema_version": 1, "project": request.project,
+            "repo_slug": request.repo_slug, "repo_id": project.repo_id,
+            "repo_location": request.repo_location, "pr_number": request.pr_number, "pr_url": url,
             "head_sha": head, "resolved_ref_sha": resolved, "base_ref_sha": base,
             "merge_base": ancestor, "pin_ref": pin, "changed_files": files,
-            "author_signals": signals, "pr_state": metadata.get("state"),
-            "pr_draft": metadata.get("draft"), "merged_at": metadata.get("merged_at")}
+            "author_signals": signals,
+            "pr_state": "merged" if metadata.get("merged_at") else metadata["state"],
+            "pr_draft": metadata["draft"], "pr_title": metadata["title"],
+            "pr_body": saved_body, "pr_body_truncated": truncated,
+            "pr_body_sha256": hashlib.sha256(raw_body).hexdigest(), "pin_created": False}
         if len(json.dumps(evidence, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()) > MAX_EVIDENCE:
             raise IngestError("evidence_too_large", refusal=True)
         # CAS is distinct from lease fencing. A stale attempt can leave an
@@ -293,5 +342,100 @@ def ingest(request: Request, *, remaining: float, heartbeat: Callable[[], bool],
             actual = git("rev-parse", "--verify", pin)[1].strip()
             if actual != head:
                 raise IngestError("pin_conflict", refusal=True, observed_sha=actual, expected_sha=head)
+        evidence["pin_created"] = code == 0
         command.checkpoint()
         return evidence
+    except IngestError as exc:
+        # Every refusal except pr_not_found needs the observed head on the wire.
+        if head is not None:
+            exc.facts.setdefault("head_sha", head)
+        if base is not None:
+            exc.facts.setdefault("base_ref_sha", base)
+        raise
+
+
+def failure_payload(error: IngestError) -> tuple[str, dict]:
+    """Translate internal errors to the fixed section 8.5 report vocabulary."""
+    refusal_codes = {
+        "pr_not_found": "pr_not_found", "operator_sha_mismatch": "at_sha_mismatch",
+        "pr_moved": "head_moved", "pin_conflict": "pin_conflict",
+        "no_common_ancestor": "no_merge_base", "empty_review_range": "empty_range",
+        "evidence_too_large": "evidence_too_large",
+    }
+    blocked_codes = {
+        "repository_unavailable": "repo_unusable", "repository_location_mismatch": "repo_unusable",
+        "repository_identity_mismatch": "repo_unusable", "repository_slug_mismatch": "repo_slug_mismatch",
+        "deadline_exhausted": "deadline_exhausted", "git_fetch_failed": "git_fetch_failed",
+        "base_object_mismatch": "object_missing", "gh_auth": "gh_auth",
+        "slug_not_configured": "slug_not_configured",
+        "gh_error": "gh_error", "github_unreachable": "github_unreachable",
+    }
+    outcome, code = "blocked", blocked_codes.get(error.code, "worker_error")
+    observed = {k: v for k, v in error.facts.items()
+                if k in {"head_sha", "base_ref_sha"} and isinstance(v, str)
+                and re.fullmatch(r"[0-9a-f]{40}", v)}
+    if error.refusal and error.code in refusal_codes:
+        if error.code == "pr_not_found" or "head_sha" in observed:
+            outcome, code = "refused", refusal_codes[error.code]
+    if code == "head_moved":
+        observed["resolved_ref_sha"] = _sha(error.facts["observed_sha"], "resolved_ref_sha")
+    elif code == "pin_conflict":
+        observed["existing_pin_sha"] = _sha(error.facts["observed_sha"], "existing_pin_sha")
+    return outcome, {"schema_version": 1, "reason_code": code,
+                     "detail": f"External ingest stopped: {code}.", "observed": observed}
+
+
+def execute_ingest(activation: dict, queue, *, registry: Path | None = None) -> None:
+    """Controller adapter, available for review but not dispatched by the worker.
+
+    The production worker's claim filters and dispatch are deliberately unchanged
+    until both halves pass independent review. Tests call this adapter directly.
+    """
+    activation_id = activation.get("activation_id")
+    if queue is None:
+        log.error("ingest requires the controller queue")
+        return
+    try:
+        external = activation.get("external")
+        if (activation.get("source") != "controller" or activation.get("stage") != "ingest"
+                or activation.get("role") != "operator"
+                or (activation.get("task_record") or {}).get("state") != "EXTERNAL_INGESTING"
+                or not isinstance(external, dict) or type(external.get("schema_version")) is not int
+                or external["schema_version"] != 1):
+            raise IngestError("invalid_external_activation")
+        request = Request(
+            task_id=activation["task_id"], activation_id=activation_id,
+            project=external["project"], repo_location=external["repo_location"],
+            repo_slug=external["repo_slug"], pr_number=external["pr_number"],
+            at_sha=external["at_sha"],
+            reclaimable_scratch_prefixes=tuple(external["reclaimable_scratch_prefixes"]),
+        )
+        if (external.get("pin_ref") != f"refs/swarm/external/{request.task_id}"
+                or external.get("scratch_ref_prefix") !=
+                f"refs/swarm/ingest-tmp/{request.task_id}/{request.activation_id}"
+                or not isinstance(external["reclaimable_scratch_prefixes"], list)):
+            raise IngestError("invalid_external_activation")
+        timing = queue.heartbeat(activation_id, 900.0)
+        if not timing:
+            raise IngestError("lease_lost")
+        command = None
+        def heartbeat():
+            fresh = queue.heartbeat(activation_id, 900.0)
+            if not fresh:
+                return False
+            remaining = fresh.get("hard_deadline_seconds_remaining")
+            if (isinstance(remaining, bool) or not isinstance(remaining, (float, int))
+                    or not math.isfinite(remaining) or remaining <= 1):
+                return False
+            if command is not None:
+                command.deadline = min(command.deadline, time.monotonic() + remaining - 1)
+            return True
+        command = Commands(timing.get("hard_deadline_seconds_remaining"), heartbeat)
+        evidence = ingest(request, remaining=timing["hard_deadline_seconds_remaining"],
+                          heartbeat=heartbeat, registry=registry, commands=command)
+        outcome, payload = "registered", evidence
+    except IngestError as exc:
+        outcome, payload = failure_payload(exc)
+    except Exception:
+        outcome, payload = failure_payload(IngestError("worker_error"))
+    queue.report_ingest(activation_id, outcome=outcome, payload=payload)

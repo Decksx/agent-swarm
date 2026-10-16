@@ -84,12 +84,16 @@ def test_pins_all_pr_states_without_touching_worktree(fixture, state, draft, mer
     assert evidence["head_sha"] == evidence["resolved_ref_sha"] == head
     assert evidence["base_ref_sha"] == evidence["merge_base"] == base
     assert evidence["changed_files"] == ["new.txt"]
-    assert evidence["pr_state"] == state and evidence["pr_draft"] == draft
+    assert evidence["pr_state"] == ("merged" if merged else state) and evidence["pr_draft"] == draft
     assert evidence["pin_ref"] == "refs/swarm/external/EXT-1"
     assert git(checkout, "rev-parse", evidence["pin_ref"]) == head
     assert (git(checkout, "rev-parse", "HEAD"), git(checkout, "status", "--porcelain")) == before
-    assert "Co-Authored-By" in evidence["author_signals"][0]["message"]
-    assert evidence["author_signals"][-1]["body"] == commands.metadata["body"]
+    assert {"kind": "co_authored_by", "value": "Agent <noreply@anthropic.com>",
+            "source": f"commit:{head}"} in evidence["author_signals"]
+    assert evidence["pr_body"] == commands.metadata["body"]
+    assert evidence["pr_body_sha256"] == hashlib.sha256(evidence["pr_body"].encode()).hexdigest()
+    assert evidence["pin_created"] is True
+    assert not git(checkout, "for-each-ref", f"refs/swarm/ingest-tmp/{request.task_id}/{request.activation_id}")
     fetch = next(c for c in commands.commands if "fetch" in c)
     assert f"+{base}:refs/swarm/ingest-tmp/{request.task_id}/{request.activation_id}/base" in fetch
     assert not any("checkout" in c or "push" in c for c in commands.commands)
@@ -127,6 +131,8 @@ def test_input_refusals_never_replace_or_create_a_bad_pin(fixture, mode):
 def test_existing_identical_pin_is_idempotent(fixture):
     first = run(fixture)
     second = run(fixture)
+    assert first.pop("pin_created") is True
+    assert second.pop("pin_created") is False
     assert first == second
 
 
@@ -199,10 +205,64 @@ def test_only_proven_stale_refs_of_the_same_task_are_deleted(fixture):
     other = "refs/swarm/ingest-tmp/EXT-2/expired/head"
     for ref in (stale,live,unknown,other):
         git(checkout, "update-ref", ref, base)
-    run(fixture, scratch_is_live=lambda aid: {"expired":False,"live":True}.get(aid))
+    request = replace(fixture[0], reclaimable_scratch_prefixes=("refs/swarm/ingest-tmp/EXT-1/expired",))
+    run((request, *fixture[1:]))
     assert not git(checkout, "show-ref", "--verify", "--hash", stale, check=False)
     for ref in (live,unknown,other):
         assert git(checkout, "rev-parse", ref) == base
+
+
+def test_scratch_delete_failure_does_not_change_registration(fixture, monkeypatch):
+    request, _, commands, _, _, checkout, base, _ = fixture
+    stale = "refs/swarm/ingest-tmp/EXT-1/expired/head"
+    git(checkout, "update-ref", stale, base)
+    original = commands.run
+    def failed_delete(args, repo, **kwargs):
+        if "update-ref" in args and "-d" in args:
+            raise ingest.IngestError("command_failed")
+        return original(args, repo, **kwargs)
+    monkeypatch.setattr(commands, "run", failed_delete)
+    evidence = run((replace(request, reclaimable_scratch_prefixes=(stale.rsplit("/", 1)[0],)), *fixture[1:]))
+    assert evidence["pin_created"] is True
+    assert git(checkout, "rev-parse", stale) == base
+
+
+def test_body_truncation_keeps_utf8_boundary_hash_and_late_footer(fixture):
+    full = "\U0001f680" * 17_000 + "\nGenerated with Claude Code"
+    fixture[2].metadata["body"] = full
+    evidence = run(fixture)
+    assert evidence["pr_body_truncated"] is True
+    assert len(evidence["pr_body"].encode()) <= 65_536
+    assert full.startswith(evidence["pr_body"])
+    assert evidence["pr_body_sha256"] == hashlib.sha256(full.encode()).hexdigest()
+    assert {"kind": "pr_body_footer", "value": "Generated with Claude Code",
+            "source": "pr_body"} in evidence["author_signals"]
+
+
+@pytest.mark.parametrize("mode", ["long_signal", "many_signals"])
+def test_authorship_evidence_is_never_silently_truncated(fixture, monkeypatch, mode):
+    if mode == "long_signal":
+        fixture[2].metadata["body"] = "Generated with " + "x" * 513
+    else:
+        commands = fixture[2]
+        original = commands.run
+        def lots(args, repo, **kwargs):
+            if "show" in args:
+                return 0, "a@example.test\0" + "Co-Authored-By: Agent\n" * 501
+            return original(args, repo, **kwargs)
+        monkeypatch.setattr(commands, "run", lots)
+    with pytest.raises(ingest.IngestError) as exc:
+        run(fixture)
+    outcome, payload = ingest.failure_payload(exc.value)
+    assert outcome == "refused" and payload["reason_code"] == "evidence_too_large"
+    assert payload["observed"]["head_sha"] == fixture[7]
+
+
+@pytest.mark.parametrize("prefix", ["refs/swarm/ingest-tmp/EXT-2/expired",
+    "refs/swarm/ingest-tmp/EXT-1/../expired", "refs/swarm/ingest-tmp/EXT-1/act-1"])
+def test_bad_reclaim_prefix_cannot_delete_refs(fixture, prefix):
+    with pytest.raises(ingest.IngestError, match="invalid_scratch_prefix"):
+        run((replace(fixture[0], reclaimable_scratch_prefixes=(prefix,)), *fixture[1:]))
 
 
 def test_complete_evidence_overflow_refuses_before_final_pin(fixture, monkeypatch):

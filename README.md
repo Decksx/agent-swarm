@@ -227,9 +227,10 @@ objective is preserved as entered; omitted optional values stay omitted. This
 requires the #92 controller API, which is not deployed yet. An unavailable or
 refused route fails without falling back to ordinary task creation or issuance.
 
-`claude_ingest.py` contains the model-free fetch/pin engine. Activation dispatch,
-result delivery and ingest claims remain disabled until the controller/worker
-envelope is agreed and reviewed. See the
+`claude_ingest.py` contains the model-free fetch/pin engine and callable controller
+adapter; `controller_client.report_ingest` uses the dedicated result route.
+Activation dispatch and ingest claims remain unwired until the controller/worker
+implementations both pass independent review. See the
 [worker implementation plan](docs/design/92-worker-implementation-plan.md).
 
 ### Deployment

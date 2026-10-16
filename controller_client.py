@@ -323,11 +323,16 @@ class ControllerQueue:
         except ControllerError as exc:
             log.error("claimed %s but could not read task %s: %s",
                       activation.get("activation_id"), task_id, exc)
-            self.report(
-                activation.get("activation_id"),
-                outcome="blocked",
-                payload={"reason": f"task {task_id} unreadable"},
-            )
+            if activation.get("stage") == "ingest":
+                self.report_ingest(activation.get("activation_id"), outcome="blocked",
+                    payload={"schema_version": 1, "reason_code": "worker_error",
+                             "detail": "Claimed ingest task could not be read.", "observed": {}})
+            else:
+                self.report(
+                    activation.get("activation_id"),
+                    outcome="blocked",
+                    payload={"reason": f"task {task_id} unreadable"},
+                )
             return None
 
         objective = (task.get("objective") or "").strip()
@@ -400,6 +405,13 @@ class ControllerQueue:
             f"/controller/activations/{activation_id}/outcome",
             {"outcome": outcome, "payload": payload or {}},
             activation_id,
+        )
+
+    def report_ingest(self, activation_id: str, *, outcome: str, payload: dict) -> Optional[dict]:
+        """Deliver an ingest report with the shared retry/replay discipline."""
+        return self._submit(
+            f"/controller/activations/{activation_id}/ingest",
+            {"outcome": outcome, "payload": payload}, activation_id,
         )
 
     def report_integration(

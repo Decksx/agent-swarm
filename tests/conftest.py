@@ -24,6 +24,27 @@ sys.path.insert(0, str(REPO_ROOT))
 import swarm_control  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def isolated_claude_rate_guard(tmp_path, monkeypatch):
+    """Give every test its own Claude usage, lock and hold-off files.
+
+    `claude_worker` keeps them beside itself unless `CLAUDE_RATE_GUARD_DIR`
+    says otherwise, so tests that run its loop shared one usage file and one
+    `claude_worker.usage.lock` in the checkout. Under `pytest -n` that lock was
+    contended across worker processes, and those tests patch `time.sleep` (the
+    module is shared) to count polls -- so the lock's retry sleep spent the
+    poll budget and the loop ended before the model ran (a CI-only flake on
+    #107). Per-test paths remove the shared file instead of tuning a timeout.
+    """
+    worker = sys.modules.get("claude_worker")
+
+    if worker is not None:
+        guard = tmp_path / "rate-guard"
+        guard.mkdir(exist_ok=True)
+        monkeypatch.setattr(worker, "RATELIMIT_PATH", guard / "claude_worker.ratelimit")
+        monkeypatch.setattr(worker, "USAGE_PATH", guard / "claude_worker.usage")
+
+
 @pytest.fixture
 def control(tmp_path, monkeypatch):
     """Point swarm_control at a tmpdir and hand back the module."""

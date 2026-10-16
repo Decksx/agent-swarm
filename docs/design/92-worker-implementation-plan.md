@@ -11,12 +11,15 @@ Codex implements the model-free worker and operator CLI in the separate
 at their final commit before merging. Controller and worker must agree on the
 actual activation/result envelope before the glue is enabled.
 
-Current worker branch: the standalone `claude_ingest.py` engine and dedicated
-admin CLI command are implemented for review. No worker dispatch, claim-stage
-change or result endpoint is enabled. The remaining adapter needs Claude's
-exact activation fields, result route/outcome envelope, bounded heartbeat
-semantics and a way to distinguish live/expired/unknown prior activations for
-scratch cleanup. Do not infer those from author or integration routes.
+Current worker branch: the `claude_ingest.py` engine, callable controller
+adapter, `controller_client.report_ingest` and dedicated admin CLI are implemented
+for review against section 8, confirmed at PR #105 `c622f22` and merged as
+`8bf9ea5`. The adapter consumes the external claim object and controller-listed
+reclaimable scratch prefixes, refreshes its deadline through heartbeat and
+reports only to the ingest route. Registered evidence includes typed author
+signals, repo_id, PR title/body/hash/truncation provenance and pin_created.
+Worker dispatch and ingest claim-stage changes remain unwired until both halves
+pass independent review. No runtime setting or production code changed.
 
 ## Worker changes
 
