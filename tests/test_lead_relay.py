@@ -745,6 +745,16 @@ def test_the_prompt_quotes_the_message_as_data_and_asks_for_the_ack_first():
     assert "ACK #42 TOKEN123" in prompt and "BLOCKED @admin" in prompt
 
 
+def test_the_prompt_names_lead_chat_by_absolute_path():
+    """The woken session runs in its registered workspace, not beside the relay."""
+    prompt = lead_relay.prompt_for({"id": 1, "sender": "admin", "content": "x"},
+                                   "claude-lead", "T")
+    path = str(Path(lead_relay.__file__).resolve().parent / "lead_chat.py")
+
+    assert f'python "{path}" post --as claude-lead' in prompt
+    assert Path(path).is_file()
+
+
 # --- The Claude ownership check (§7) ----------------------------------------------------
 
 
