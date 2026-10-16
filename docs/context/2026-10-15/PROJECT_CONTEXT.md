@@ -75,10 +75,11 @@ cd5243a16bad42b5a6407dbc83888365. Controller registration event
 worktree were unchanged and model usage/hold files stayed byte-identical.
 There is no review verdict or integration approval. #93/#94 remain to build.
 
-Read issue #109's lead-identity proposal. Recommended codex-lead/claude-lead and
-@admin decision routing are awaiting David's response; no new identity or
-credential was installed by this deployment. Record the decision before that
-separate implementation and review.
+At the time of that rollout, issue #109's names/routing decision had not yet
+arrived. That historical checkpoint is superseded by the confirmed decision at
+the top of this file: codex-lead/claude-lead and @admin are approved, with #109
+and the relay first. No new lead identity or credential was installed by the
+ingest deployment itself.
 
 ## #92 merged halves and dispatch follow-up — 2026-10-16
 
