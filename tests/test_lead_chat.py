@@ -222,6 +222,8 @@ def test_a_mention_is_the_whole_handle(content, target, addressed):
     "HANDOFF @claude-lead: review #111", "thanks (@claude-lead).", "@claude-leader please",
     "See @claude-lead.example", "mail x@claude-lead.example", "about claude-lead",
     "QUESTION @admin: and @claude-lead too",
+    # Codex, #112 at 1d9fa43: trimming hyphens turned another handle into this lead.
+    "See @claude-lead-", "See @claude-lead---",
 ])
 def test_the_posted_target_never_addresses_a_lead_the_text_does_not_mention(content):
     """Codex, #112 at 9f36273: `See @claude-lead.example` was posted to

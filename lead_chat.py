@@ -184,7 +184,7 @@ def target_for(content: str) -> str:
     their kind (HANDOFF, REVIEW, QUESTION), so the addressee comes second.
     """
     match = MENTION.search(content)
-    return "@" + match.group(1).rstrip("-") if match else DEFAULT_TARGET
+    return "@" + match.group(1) if match else DEFAULT_TARGET
 
 
 @dataclass
