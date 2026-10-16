@@ -443,6 +443,100 @@ def test_a_duplicate_report_replays_and_a_different_one_conflicts(conn):
                                       "reason_code": "worker_error", "detail": "x"})
 
 
+# --- Replay before liveness (contract 8.3) ------------------------------------------
+#
+# A worker whose accepted report lost its response must be able to resend it
+# and get the same answer, however late. Nothing else may skip liveness.
+
+
+@pytest.mark.parametrize("outcome, payload, to_state", [
+    ("registered", registered(), "READY_EXTERNAL_REVIEW"),
+    ("refused", {"schema_version": 1, "reason_code": "pr_not_found", "detail": "d"},
+     "FAILED"),
+    ("blocked", {"schema_version": 1, "reason_code": "gh_auth", "detail": "d"},
+     "EXTERNAL_INGEST_BLOCKED"),
+])
+@pytest.mark.parametrize("resend_at", [
+    T0 + 3,                      # immediately, against a DONE activation
+    T0 + LEASE + 5,              # after the lease lapsed
+    T0 + DEADLINE + 5,           # after the hard deadline
+], ids=["done", "after-lease", "after-deadline"])
+def test_a_lost_response_is_answered_by_an_identical_redelivery(
+    conn, outcome, payload, to_state, resend_at,
+):
+    aid = ingesting(conn)
+    accepted = report(conn, aid, outcome, payload)
+    assert activations.get_activation(conn, aid)["status"] == activations.DONE
+
+    activations.sweep_expired(conn, now=resend_at)
+    again = report(conn, aid, outcome, payload, now=resend_at)
+
+    assert again["replayed"] is True
+    assert again["event_id"] == accepted["event_id"]
+    assert again["to_state"] == to_state
+    assert conn.execute(
+        "SELECT COUNT(*) FROM events WHERE activation_id = ? "
+        "AND kind NOT IN ('ingest_activation_issued', 'activation_claimed')",
+        (aid,),
+    ).fetchone()[0] == 1, "a replay must not append a second event"
+
+
+@pytest.mark.parametrize("resend_at", [T0 + 3, T0 + DEADLINE + 5])
+def test_a_differing_redelivery_is_refused_even_late(conn, resend_at):
+    aid = ingesting(conn)
+    report(conn, aid, "registered", registered())
+
+    with pytest.raises(activations.ConflictingResult):
+        report(conn, aid, "registered", registered(pin_created=False), now=resend_at)
+
+
+@pytest.mark.parametrize("after_result", [False, True])
+def test_another_agent_cannot_report_or_replay(conn, after_result):
+    aid = ingesting(conn)
+    if after_result:
+        report(conn, aid, "registered", registered())
+
+    with pytest.raises(activations.NotTheAssignedWorker):
+        outcomes.submit_ingest_outcome(conn, activation_id=aid, agent="gemini",
+                                       outcome="registered", payload=registered(),
+                                       now=T0 + 3)
+
+
+@pytest.mark.parametrize("late_at, refusal", [
+    (T0 + LEASE, activations.LeaseExpired),
+    (T0 + DEADLINE, activations.DeadlineExceeded),
+])
+def test_a_genuinely_new_late_report_is_refused(conn, late_at, refusal):
+    """No result was recorded, so this is a first submission and liveness
+    applies -- before any sweep has run, and whatever the worker believed."""
+    aid = ingesting(conn)
+
+    with pytest.raises(refusal):
+        report(conn, aid, "registered", registered(), now=late_at)
+
+    assert state(conn) == "EXTERNAL_INGESTING"
+    assert activations.get_activation(conn, aid)["result_request_hash"] is None
+
+
+def test_an_ingest_report_against_another_stages_result_is_a_conflict(conn):
+    """The replay key carries the stage, so it can never match another stage's
+    recorded result -- it is a conflict, not a replay and not a new result."""
+    aid = ingesting(conn)
+    report(conn, aid, "registered", registered())
+    review = activations.issue(
+        conn, task_id=TASK, agent="claudecode", host="OFFICEPC", stage="review",
+        lease_seconds=LEASE, hard_deadline_seconds=DEADLINE,
+        expected_branch=f"refs/swarm/external/{TASK}", expected_parent=MERGE_BASE,
+        expected_candidate=HEAD, repo_location=REPO, now=T0 + 3,
+    )["activation_id"]
+    activations.claim(conn, activation_id=review, agent="claudecode", now=T0 + 4)
+    outcomes.submit_result(conn, activation_id=review, agent="claudecode",
+                           kind="note", payload={"text": "x"}, now=T0 + 5)
+
+    with pytest.raises(activations.ConflictingResult):
+        report(conn, review, "registered", registered(), now=T0 + 6)
+
+
 @pytest.mark.parametrize("overrides", [
     {"project": "other"},
     {"repo_location": "C:/elsewhere"},
