@@ -76,12 +76,47 @@ credentials and were mode 666: `hub.env.pre-*`,
   in 4 of the 9. The new `claude-lead`, `codex-lead` and `relay` secrets
   appear in none.
 
-**Follow-up, owner Claude:** a coordinated rotation of those five. Generate
+**Follow-up, owner Claude, done below:** a coordinated rotation of those five. Generate
 new values in `hub.env`, recreate the hub with preserved options, then stop
 and restart the OfficePC supervisor and workers through the supported
 controls. `swarm_ctl.sh` fetches their secrets from `hub.env` at start.
 Finish with the `auth_matrix.py` diagonal and component parity. Rotating
 `admin` also changes David's chat-page login, so it is coordinated with him.
+
+## Rotation of the exposed credentials (David chose option 1)
+
+1. Paused with `swarm_ctl.sh pause`. There were no live activations
+   (121 DONE, 6 EXPIRED). `swarm_ctl.sh stop` left no swarm processes.
+2. Backed up `container.json` and `hub.env` to
+   `data/backups/rotate115-20261016T182117Z/` (0700/0600).
+3. Rotated `admin`, `claudecode`, `gemini`, `chatgpt` and `narrator` in
+   `HUB_CREDENTIALS`, each a fresh `secrets.token_urlsafe(32)` that was never
+   printed. The lead and relay secrets were untouched. Recreated the
+   container: the scripted comparison found no option differences, and only
+   `HUB_CREDENTIALS` changed.
+4. `auth_matrix.py` is still diagonal over 8 identities. Rechecked by name:
+   none of the current secrets appears in any of the nine old backups.
+5. The new admin password went only to
+   `Desktop\hive-chat-admin-password.txt` on OfficePC, for David to save in
+   his browser and delete. It never went to chat or GitHub.
+6. **Gap found and fixed.** The #112 deploy changed `hub.py` on Tower but
+   left the OfficePC production checkout at `15c1278`. The first restart
+   was correctly refused by preflight (`checkout vs hub: differs: hub.py`).
+   Running processes had masked this, but any restart, including the
+   scheduled ensure, would have failed the same way. Production was advanced
+   to detached `2517f9e`, with a clean status and every tracked file
+   byte-equal to its Git object. There was no worker-code change in that
+   range. Preflight then passed at build `d61b1472f803`.
+7. Started hidden through `run_hidden.pyw` → `swarm_ctl.sh start`, which
+   fetches the new secrets from `hub.env`. Supervisor 47976; workers
+   chatgpt 24712, gemini 4204 and claudecode 24772. `ensure` reports a
+   heartbeating supervisor. Resumed. In the first 90 s the hub logged
+   claims, message reads, the narrator's event feed, advance and sweep: all
+   200, with no 401.
+
+Lesson for future hub deploys: advance the production checkout in the
+same rollout whenever a deployed file changes, even when the workers keep
+running.
 
 ## Open
 
