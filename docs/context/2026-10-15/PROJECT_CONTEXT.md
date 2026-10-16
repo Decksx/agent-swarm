@@ -20,8 +20,15 @@ non-blocking excerpt fan-out without dropping a match outside a covered window.
 
 119 focused engine/client/CLI/footer checks passed; three new mutations caught
 loss of the session-link support, treating links as signals, and excerpt fan-out.
-The approved controller source will join this isolated worker branch so CI
-exercises both halves together. Worker dispatch/ingest claims remain unwired.
+The approved controller source joined this isolated worker branch at merge
+`669a076dc911a49978f6f380e5ab62a427237a6f`; its controller bytes are unchanged
+from 4907098. The shared conftest merged cleanly without duplicating its fixture.
+The combined local selection passed 430 tests, and all 29 selected worker guard
+mutations were caught. The combined HTTP/Git probe preserved the exact Claude
+footer/session-link attribution and exercised success, mismatch, lost-response
+replay and 422-to-blocked correction against these merged sources.
+CI on the pushed candidate will therefore exercise both halves together.
+Worker dispatch/ingest claims remain unwired.
 Claude must re-review the new exact worker head; no production, Tower setting,
 deployment or real-controller task was changed.
 

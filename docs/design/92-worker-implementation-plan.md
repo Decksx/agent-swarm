@@ -32,6 +32,13 @@ while gh authentication remains available. Heartbeats are throttled to 15s,
 with deadline checks per command and fresh checks before/after pin creation.
 The accompanying section-8 clarifications require Claude's renewed review.
 
+The latest footer correction accepts standalone HTTP(S) links accompanying the
+trailing block, so Claude Code's session link does not hide its attribution.
+Links are not signals. Overlapping anchor windows are coalesced while retaining
+matches beyond an already covered window. Controller #107 at approved 4907098
+is merged into the isolated worker branch for combined CI; its GitHub merge is
+still owned by Claude. This does not connect worker dispatch or change production.
+
 ## Worker changes
 
 1. Add `claude_ingest.py`, independent of model adapters. Resolve only the
