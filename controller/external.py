@@ -435,14 +435,17 @@ def check_report(request: dict, task_id: str, outcome: str, payload: Any) -> Non
     if not _is_int(payload.get("schema_version")) or payload["schema_version"] != REPORT_SCHEMA:
         raise ReportInvalid(f"schema_version must be {REPORT_SCHEMA}")
 
-    size = len(canonical(payload).encode("utf-8"))
-    if size > MAX_REPORT_BYTES:
-        raise ReportInvalid(
-            f"report is {size} bytes, over {MAX_REPORT_BYTES}; report refused "
-            "with evidence_too_large instead"
-        )
-
     try:
+        # Inside the catch: JSON can carry an escaped lone surrogate
+        # ("\ud800"), which is a valid str but not encodable as UTF-8.
+        # UnicodeEncodeError is a ValueError, so it becomes a 422 below.
+        size = len(canonical(payload).encode("utf-8"))
+        if size > MAX_REPORT_BYTES:
+            raise ReportInvalid(
+                f"report is {size} bytes, over {MAX_REPORT_BYTES}; report refused "
+                "with evidence_too_large instead"
+            )
+
         if outcome == "registered":
             _check_registered(request, task_id, payload)
         elif outcome in ("refused", "blocked"):

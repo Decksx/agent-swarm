@@ -234,6 +234,40 @@ def test_a_malformed_report_is_422_records_nothing_and_can_be_corrected(client, 
     assert corrected.json()["to_state"] == "READY_EXTERNAL_REVIEW"
 
 
+@pytest.mark.parametrize("outcome, bad", [
+    ("registered", {"pr_title": "t\ud800"}),
+    ("registered", {"pr_body": "body\udfff"}),
+    ("registered", {"author_signals": [
+        {"kind": "pr_body_footer", "value": "Generated with \ud800", "source": "pr_body"}]}),
+    ("blocked", {"detail": "gh said \ud800"}),
+], ids=["title", "body", "signal", "detail"])
+def test_an_escaped_lone_surrogate_is_422_and_can_be_corrected(client, outcome, bad):
+    """Codex's reproduction on #107 at f75f10c: ASCII JSON carrying `\\ud800`
+    parses to a str that UTF-8 cannot encode, and sizing the report raised
+    outside the validation catch -- a 500 the worker retries unchanged."""
+    import json
+
+    activation = claimed_ingest(client)
+    path = f"/controller/activations/{activation['activation_id']}/ingest"
+    base = (registered() if outcome == "registered"
+            else {"schema_version": 1, "reason_code": "worker_error", "detail": "d"})
+    raw = json.dumps({"outcome": outcome, "payload": {**base, **bad}})  # ASCII-escaped
+    assert "\\ud" in raw and raw.isascii()
+
+    refused = client.post(path, content=raw.encode("ascii"), headers={
+        "X-Test-Agent": "claudecode", "Content-Type": "application/json"})
+    assert refused.status_code == 422, refused.text
+    assert "ingest_report_invalid" in refused.content.decode("utf-8")
+
+    task = as_(client, "admin", "get", "/controller/tasks/EXT-1").json()
+    assert task["state"] == "EXTERNAL_INGESTING"
+
+    corrected = as_(client, "claudecode", "post", path,
+                    json={"outcome": "registered", "payload": registered()})
+    assert corrected.status_code == 200, corrected.text
+    assert corrected.json()["to_state"] == "READY_EXTERNAL_REVIEW"
+
+
 @pytest.mark.parametrize("reason", [["pr_not_found"], {"x": 1}])
 @pytest.mark.parametrize("outcome", ["refused", "blocked"])
 def test_a_failure_report_with_a_non_string_reason_is_422(client, outcome, reason):

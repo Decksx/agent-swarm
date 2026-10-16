@@ -662,6 +662,31 @@ def test_an_oversized_report_is_refused(conn):
         report(conn, aid, "registered", registered(author_signals=signals))
 
 
+@pytest.mark.parametrize("outcome, bad", [
+    ("registered", {"pr_title": "t\ud800"}),
+    ("registered", {"pr_body": "b\udfff"}),
+    ("registered", {"author_signals": [
+        {"kind": "co_authored_by", "value": "\ud800", "source": "pr_body"}]}),
+    ("refused", {"detail": "x\ud800"}),
+    ("blocked", {"detail": "x\ud800"}),
+], ids=["title", "body", "signal", "refused-detail", "blocked-detail"])
+def test_a_lone_surrogate_is_a_refused_report_not_a_crash(conn, outcome, bad):
+    """A lone surrogate is a valid str that UTF-8 cannot encode. Sizing the
+    report must fail as ReportInvalid (422), with a static message, and the
+    activation must still accept a corrected report (Codex, #107 at f75f10c)."""
+    aid = ingesting(conn)
+    base = (registered() if outcome == "registered"
+            else {"schema_version": 1, "reason_code": "pr_not_found" if outcome == "refused"
+                  else "worker_error", "detail": "d", "observed": {}})
+
+    with pytest.raises(activations.IngestReportInvalid) as caught:
+        report(conn, aid, outcome, {**base, **bad})
+
+    str(caught.value).encode("utf-8")  # the diagnostic itself stays encodable
+    assert state(conn) == "EXTERNAL_INGESTING"
+    assert report(conn, aid, "registered", registered())["to_state"] == "READY_EXTERNAL_REVIEW"
+
+
 @pytest.mark.parametrize("reason, observed", [
     ("pr_not_found", {}),
     ("head_moved", {"head_sha": HEAD, "resolved_ref_sha": "d" * 40}),
