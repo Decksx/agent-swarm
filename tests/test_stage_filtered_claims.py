@@ -103,10 +103,10 @@ def test_a_filter_that_could_match_nothing_is_refused(conn, bad):
 # --- Rate guard seam ---------------------------------------------------------
 
 
-def test_the_seam_names_integration_as_the_only_model_free_stage():
-    assert claude_rate_guard.MODEL_FREE_STAGES == frozenset({"integrate"})
+def test_the_seam_names_only_integration_and_ingest_as_model_free():
+    assert claude_rate_guard.MODEL_FREE_STAGES == frozenset({"ingest", "integrate"})
     assert claude_rate_guard.claim_stages(False) is None
-    assert claude_rate_guard.claim_stages(True) == ("integrate",)
+    assert claude_rate_guard.claim_stages(True) == ("ingest", "integrate")
     assert isinstance(claude_rate_guard.claim_stages(True), tuple)
 
 
@@ -213,7 +213,7 @@ def test_a_held_worker_runs_integration_and_leaves_author_work_queued(monkeypatc
     assert integrated == ["i"]
     assert invocations == []
     assert queue.pending == [authoring]
-    assert set(queue.claim_stages) == {("integrate",)}
+    assert set(queue.claim_stages) == {("ingest", "integrate")}
 
 
 def test_a_worker_that_is_not_held_claims_without_a_filter(monkeypatch, control, rate_files):
@@ -298,6 +298,6 @@ def test_unavailable_usage_keeps_worker_alive_and_model_work_queued(
     assert sum("until it can be read" in r.message for r in caplog.records) == 1
     if source == "controller":
         assert integrated == ["i"] and queue.pending == [authoring]
-        assert queue.claim_stages == [("integrate",)] * 3
+        assert queue.claim_stages == [("ingest", "integrate")] * 3
     else:
         assert integrated == [] and queue.claims == 0

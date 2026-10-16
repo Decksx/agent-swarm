@@ -28,10 +28,9 @@ from swarm_control import AlreadyRunning, _exclusive
 
 log = logging.getLogger("claude_worker")
 
-# Stages whose execution never invokes the model (#23). Integration is git and
-# the forge, checked fact by fact; a hold-off on model usage has no reason to
-# stop it, and stopping it strands approved work in INTEGRATING.
-MODEL_FREE_STAGES = frozenset({"integrate"})
+# Stages whose execution never invokes the model (#23, #92). Integration and
+# external ingest check git/forge facts; a model usage hold must not strand them.
+MODEL_FREE_STAGES = frozenset({"integrate", "ingest"})
 
 
 def claim_stages(held: bool) -> tuple[str, ...] | None:

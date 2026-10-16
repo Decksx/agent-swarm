@@ -11,15 +11,16 @@ Codex implements the model-free worker and operator CLI in the separate
 at their final commit before merging. Controller and worker must agree on the
 actual activation/result envelope before the glue is enabled.
 
-Current worker branch: the `claude_ingest.py` engine, callable controller
-adapter, `controller_client.report_ingest` and dedicated admin CLI are implemented
-for review against section 8, confirmed at PR #105 `c622f22` and merged as
-`8bf9ea5`. The adapter consumes the external claim object and controller-listed
-reclaimable scratch prefixes, refreshes its deadline through heartbeat and
-reports only to the ingest route. Registered evidence includes typed author
-signals, repo_id, PR title/body/hash/truncation provenance and pin_created.
-Worker dispatch and ingest claim-stage changes remain unwired until both halves
-pass independent review. No runtime setting or production code changed.
+Current checkpoint (2026-10-16): controller #107 and worker #106 merged as
+37701ad and babea85 after approval of 4907098 and 12188e5 respectively. The
+combined tree passed all four CI checks. The `claude_ingest.py` adapter consumes
+the external claim object and controller-listed reclaimable scratch prefixes,
+refreshes its deadline through heartbeat and reports only to the ingest route.
+Evidence includes typed author signals, repo_id, PR title/body/hash/truncation
+provenance and pin_created. The `feat/92-ingest-dispatch` follow-up connects that
+adapter to the dispatcher and model-free claim filters, with tests through the
+worker loop, real Git and controller HTTP routes. It requires fresh Claude
+review and exact-head CI. No runtime setting or production code changed.
 
 Claude's fb021e1 review is addressed in the next candidate: report_ingest
 surfaces refusals, a rejected registered report gets one sanitized blocked
@@ -35,9 +36,8 @@ The accompanying section-8 clarifications require Claude's renewed review.
 The latest footer correction accepts standalone HTTP(S) links accompanying the
 trailing block, so Claude Code's session link does not hide its attribution.
 Links are not signals. Overlapping anchor windows are coalesced while retaining
-matches beyond an already covered window. Controller #107 at approved 4907098
-is merged into the isolated worker branch for combined CI; its GitHub merge is
-still owned by Claude. This does not connect worker dispatch or change production.
+matches beyond an already covered window. Claude approved this at 12188e5,
+including the section-8 clarifications, before merging the combined sources.
 
 ## Worker changes
 

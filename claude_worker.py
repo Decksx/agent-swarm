@@ -76,6 +76,7 @@ from typing import Any
 import authored_change
 import claude_author_worktree
 import claude_integration
+import claude_ingest
 import claude_rate_guard
 from host_settings import setting
 import controller_client
@@ -587,7 +588,7 @@ def clear_inflight() -> None:
 # What this worker knows how to run. An activation naming anything else is
 # refused before a model is called -- the point of checking is that the check
 # happens first.
-KNOWN_STAGES = frozenset({"author", "integrate"})
+KNOWN_STAGES = frozenset({"author", "integrate", "ingest"})
 
 
 def execute_activation(
@@ -618,6 +619,12 @@ def execute_activation(
             "reason": f"stage {stage!r} is not one this worker runs; "
                       f"expected one of {sorted(KNOWN_STAGES)}",
         })
+        return
+
+    if stage == "ingest":
+        # The adapter checks controller provenance and EXTERNAL_INGESTING
+        # before any git/gh command, and owns heartbeat and ingest reporting.
+        claude_ingest.execute_ingest(activation, queue)
         return
 
     if stage == "integrate":
@@ -1073,8 +1080,19 @@ def main() -> int:
                     # expire and not executed.
                     log.error("claim filter not honoured: %s", exc)
                     if exc.activation is not None:
-                        _report(queue, exc.activation.get("activation_id"),
-                                "blocked", {"reason": f"claim filter not honoured: {exc}"})
+                        aid = exc.activation.get("activation_id")
+                        if exc.activation.get("stage") == "ingest":
+                            try:
+                                queue.report_ingest(aid, outcome="blocked", payload={
+                                    "schema_version": 1, "reason_code": "worker_error",
+                                    "detail": "Controller claim filter not honoured.",
+                                    "observed": {},
+                                })
+                            except controller_client.ControllerError:
+                                log.warning("ingest claim-filter report unconfirmed for %s", aid)
+                        else:
+                            _report(queue, aid, "blocked",
+                                    {"reason": f"claim filter not honoured: {exc}"})
                     activation = None
                 except (
                     controller_client.Unauthenticated,
