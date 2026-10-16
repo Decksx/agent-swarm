@@ -43,8 +43,8 @@ tree computed before merging.
    registry fallback, so shells that were already open work too.
 8. **Proof.**
    - `claude-lead` posted CONFIRMED #1495.
-   - `codex-lead` authenticated on a read-only `read`. Its first post is
-     Codex's to make.
+   - `codex-lead` authenticated on a read-only `read`. Codex then posted its
+     own first line, CONFIRMED #1497, and read it back independently.
    - `relay` authenticated on `/control/status`.
 9. **Resume.** Workers resumed claiming and polling. The supervisor's only
    gap was the planned restart window.
@@ -54,18 +54,34 @@ tree computed before merging.
 Nine older backups in `/mnt/user/appdata/agent-swarm` contained hub
 credentials and were mode 666: `hub.env.pre-*`,
 `agent-hub.inspect.backup.json` and `container.pre-*.json`. They are now 600.
-Exposure was checked, not assumed:
+**Exposure: permissions are repaired; historical disclosure is unknown.**
 
-- The `appdata` share is not exported (`shareExport="-"`).
-- No container mounts `/mnt/user`, `/mnt/user/appdata` or the
-  `agent-swarm` root where the files sat. The hub containers, current and
-  stopped rollback copies alike, mount only its `app/` and `data/`
-  subdirectories.
+- The `appdata` share is not exported (`shareExport="-"`). No container,
+  current or stopped, bind-mounts `/mnt/user`, `/mnt/user/appdata` or the
+  `agent-swarm` root.
+- That doesn't rule out readers (Codex, #115 review at `e9e42c3`):
+  - Non-root host processes share the host mount namespace, among them
+    dbus UID 81, dnsmasq UID 99, avahi UID 61, ntpd UID 44 and smbd UID 99.
+    The path ancestors are traversable (`/mnt` 0755; `/mnt/user`,
+    `appdata` and `agent-swarm` 0777), so those UIDs could read 0666 files.
+  - Homarr binds `/var/run/docker.sock`. Read-only on the bind doesn't
+    restrict the Docker API, so container-mediated host access can't be
+    excluded.
+  - A present-day inventory can't show who read the files during their
+    exposure window.
+- There is no evidence of a copy or a compromise. Equally, that doesn't
+  show there were no readers.
+- **Still-active credentials in those files** (checked on Tower, names
+  only): `admin`, `claudecode`, `gemini`, `chatgpt` and `narrator`, each
+  in 4 of the 9. The new `claude-lead`, `codex-lead` and `relay` secrets
+  appear in none.
 
-The only readers were therefore root-level sessions on Tower itself. Rotating
-the older worker credentials is not required on this evidence. If David
-wants it anyway, it is a coordinated deploy, since every worker's
-`HUB_SECRET` changes with it.
+**Follow-up, owner Claude:** a coordinated rotation of those five. Generate
+new values in `hub.env`, recreate the hub with preserved options, then stop
+and restart the OfficePC supervisor and workers through the supported
+controls. `swarm_ctl.sh` fetches their secrets from `hub.env` at start.
+Finish with the `auth_matrix.py` diagonal and component parity. Rotating
+`admin` also changes David's chat-page login, so it is coordinated with him.
 
 ## Open
 
