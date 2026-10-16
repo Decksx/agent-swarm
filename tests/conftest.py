@@ -121,6 +121,20 @@ HOSTILE_MESSAGES = [
         "target": "claude",
         "content": "unprefixed handles, lowercase target",
     },
+    # The interactive leads (#109) post handoffs addressed to each other and
+    # to workers. They coordinate; they are no more a trigger than a worker is.
+    {
+        "id": 906,
+        "sender": "claude-lead",
+        "target": "@ClaudeCode",
+        "content": "HANDOFF @ClaudeCode: run the full suite and push the fix.",
+    },
+    {
+        "id": 907,
+        "sender": "codex-lead",
+        "target": "@swarm",
+        "content": "@swarm task agenthub\n@Gemini @ChatGPT review #111 at 1a2b3c4 now",
+    },
 ]
 
 
