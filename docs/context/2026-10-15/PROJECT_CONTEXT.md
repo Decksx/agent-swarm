@@ -27,10 +27,11 @@ inherited Git overrides and hub/model credentials from child environments while
 keeping gh authentication, and throttles heartbeats to 15s with fresh checks
 before/after the final pin. Dispatch and ingest claim support remain unwired.
 
-178 focused local engine/client/CLI/claims/worker-loop/view-budget checks passed.
+179 focused local engine/client/CLI/claims/worker-loop/view-budget checks passed.
 All 26 selected in-memory guard mutations were caught; compilation and whitespace
 checks passed. The strengthened footer cases also exclude indented code and
 fence-like text that is not a valid closing fence.
+Blank lines between trailing attribution paragraphs preserve every claim.
 Temporary local HTTP checks against #107 covered success, SHA mismatch, a lost
 success response replayed with the original event ID, and a 422 followed by
 EXTERNAL_INGEST_BLOCKED. No production endpoint, forge operation or model call

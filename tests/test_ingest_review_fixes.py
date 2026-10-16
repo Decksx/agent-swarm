@@ -70,6 +70,11 @@ def test_explicit_trailing_attribution_is_recorded_verbatim(footer):
     assert ingest.footer_lines("Review objective and body.\n\n" + footer) == [footer]
 
 
+def test_trailing_attribution_paragraphs_preserve_every_claim():
+    first, second = "Generated with Claude Code", "Co-Authored-By: Gemini CLI"
+    assert ingest.footer_lines("Body discusses tools.\n\n" + first + "\n\n" + second) == [first, second]
+
+
 def test_long_attribution_excerpts_keep_middle_and_end_family_evidence():
     value = "Generated with " + "x" * 2000 + "Claude Code" + "x" * 2000 + "Gemini"
     excerpts = list(ingest.signal_excerpts(value))

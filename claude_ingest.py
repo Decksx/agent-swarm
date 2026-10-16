@@ -37,11 +37,15 @@ def footer_lines(body: str) -> list[str]:
     """Only an explicit trailing attribution block, outside Markdown fences."""
     lines = body.rstrip().splitlines()
     start = len(lines)
-    while start and lines[start - 1].strip():
+    separators = {"---", "___", "***"}
+    while start:
+        previous = lines[start - 1]
+        if previous.strip() and not FOOTER.match(previous) and previous.strip() not in separators:
+            break
         start -= 1
     block = lines[start:]
-    if not block or any(not FOOTER.match(line) and line.strip() not in {"---", "___", "***"}
-                        for line in block):
+    if (not block or not any(FOOTER.match(line) for line in block)
+            or (start and block[0].strip() and block[0].strip() not in separators)):
         return []
     # A blank line inside a still-open code fence cannot turn an example into
     # an attribution claim. Fence length follows Markdown's closing rule.
