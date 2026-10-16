@@ -566,6 +566,31 @@ def test_an_ingest_report_against_another_stages_result_is_a_conflict(conn):
     {"author_signals": [{"kind": "co_authored_by", "value": "x", "source": "commit:abc"}]},
     {"schema_version": 2},
     {"sha_matches": True},
+    # Exact matching: `$` also matches before a trailing newline (Codex, #107).
+    {"head_sha": HEAD + "\n", "resolved_ref_sha": HEAD + "\n"},
+    {"base_ref_sha": BASE + "\n"},
+    {"merge_base": MERGE_BASE + "\n"},
+    {"repo_id": "0dc8a2e4d227ab03\n"},
+    {"pr_body_truncated": True,
+     "pr_body_sha256": hashlib.sha256(b"x").hexdigest() + "\n"},
+    {"author_signals": [{"kind": "co_authored_by", "value": "x",
+                         "source": "commit:" + HEAD + "\n"}]},
+    # Integers are ints, not floats or booleans.
+    {"pr_number": 102.0},
+    {"schema_version": True},
+    {"schema_version": 1.0},
+    # Wrong types where a membership test follows: a 422, never a 500.
+    {"pr_state": []},
+    {"pr_state": {"open": True}},
+    {"author_signals": [{"kind": [], "value": "x", "source": "pr_body"}]},
+    {"author_signals": [{"kind": "co_authored_by", "value": [], "source": "pr_body"}]},
+    {"author_signals": [{"kind": "co_authored_by", "value": "x", "source": {}}]},
+    {"author_signals": ["not an object"]},
+    {"author_signals": {"kind": "co_authored_by"}},
+    {"changed_files": [["README.md"]]},
+    {"changed_files": "README.md"},
+    {"pr_title": None},
+    {"pr_body": 7},
 ])
 def test_a_report_the_request_contradicts_is_refused_and_records_nothing(conn, overrides):
     aid = ingesting(conn)
@@ -658,6 +683,13 @@ def test_an_at_sha_mismatch_refusal_is_checked_against_the_request(conn):
     {"reason_code": "pr_not_found", "observed": {"other_sha": HEAD}},
     {"reason_code": "pr_not_found", "observed": {}, "stderr": "raw"},
     {"reason_code": "pr_not_found", "observed": {}, "detail": "x" * 2001},
+    # Wrong types before membership tests (Codex, #107).
+    {"reason_code": ["pr_not_found"], "observed": {}},
+    {"reason_code": {"pr_not_found": 1}, "observed": {}},
+    {"reason_code": None, "observed": {}},
+    {"reason_code": "pr_not_found", "observed": []},
+    {"reason_code": "pr_not_found", "observed": {"head_sha": HEAD + "\n"}},
+    {"reason_code": "pr_not_found", "observed": {}, "schema_version": True},
 ])
 def test_an_inconsistent_refusal_is_refused(conn, payload):
     aid = ingesting(conn)
@@ -681,6 +713,44 @@ def test_blocked_is_repairable_and_not_charged(conn, reason):
     engine.apply_transition(conn, task_id=TASK, kind="environment_repaired",
                             actor="admin", authority=CONTROLLER)
     assert state(conn) == "EXTERNAL_PENDING"
+
+
+@pytest.mark.parametrize("reason", [["gh_auth"], {"gh_auth": 1}, 3])
+def test_a_blocked_report_with_a_non_string_reason_is_refused(conn, reason):
+    aid = ingesting(conn)
+
+    with pytest.raises(activations.IngestReportInvalid):
+        report(conn, aid, "blocked", {"schema_version": 1, "reason_code": reason,
+                                      "detail": "d"})
+
+    assert state(conn) == "EXTERNAL_INGESTING"
+
+
+def test_any_unanticipated_shape_is_a_refused_report_not_a_crash(conn, monkeypatch):
+    """The safety net behind the explicit type checks: whatever a check trips
+    over becomes ReportInvalid, so the route answers 422 rather than 500."""
+    aid = ingesting(conn)
+
+    def explode(*args, **kwargs):
+        raise TypeError("unhashable type: 'list'")
+
+    monkeypatch.setattr(external, "_check_registered", explode)
+
+    with pytest.raises(activations.IngestReportInvalid, match="malformed report"):
+        report(conn, aid, "registered", registered())
+
+    assert state(conn) == "EXTERNAL_INGESTING"
+
+
+@pytest.mark.parametrize("task_id", ["EXT-1\n", "ok\n"])
+def test_a_task_id_with_a_trailing_newline_is_refused(conn, task_id):
+    with pytest.raises(external.ExternalRequestRefused, match="task_id"):
+        request(conn, task_id=task_id)
+
+
+def test_a_slug_with_a_trailing_newline_disables_external_review():
+    with pytest.raises(external.ExternalReviewDisabled):
+        external.parse_repos('{"agenthub": "Decksx/agent-swarm\\n"}')
 
 
 def test_an_unknown_blocked_reason_is_refused(conn):

@@ -503,7 +503,9 @@ def build_router(
         # A full SHA, refused before anything is written (#92). The empty base
         # is an external review's sentinel and only its own route may store it;
         # here it would be an authored task with no baseline at all.
-        if not activations.SHA_RE.match((body.base_sha or "").strip().lower()):
+        # Exactly what is stored: checked unstripped, because the value is
+        # written as given and `$` would also accept a trailing newline.
+        if not external.SHA_RE.fullmatch(body.base_sha or ""):
             raise HTTPException(
                 status_code=400,
                 detail="base_sha must be a full 40-character commit SHA",

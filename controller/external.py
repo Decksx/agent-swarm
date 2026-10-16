@@ -121,7 +121,7 @@ def scratch_prefix(task_id: str, activation_id: str) -> str:
 
 def valid_task_id(task_id: str) -> bool:
     return bool(
-        isinstance(task_id, str) and TASK_ID_RE.match(task_id)
+        isinstance(task_id, str) and TASK_ID_RE.fullmatch(task_id)
         and ".." not in task_id and not task_id.endswith((".lock", "."))
     )
 
@@ -154,7 +154,7 @@ def parse_repos(value: Optional[str]) -> dict:
 
     for project, slug in repos.items():
         if not isinstance(project, str) or not isinstance(slug, str) \
-                or not REPO_SLUG_RE.match(slug):
+                or not REPO_SLUG_RE.fullmatch(slug):
             raise ExternalReviewDisabled(
                 f"external review is disabled: EXTERNAL_REVIEW_REPOS entry "
                 f"{project!r} is not an owner/name slug"
@@ -208,11 +208,12 @@ def build_request(
 
     if at_sha is not None:
         at_sha = at_sha.strip().lower() if isinstance(at_sha, str) else at_sha
-        if not isinstance(at_sha, str) or not SHA_RE.match(at_sha):
+        if not isinstance(at_sha, str) or not SHA_RE.fullmatch(at_sha):
             raise ExternalRequestRefused("at_sha must be a full 40-character commit SHA")
 
-    families = sorted(set(authored_by or []))
-    if not all(isinstance(f, str) and f in FAMILIES for f in families):
+    families = authored_by or []
+    if not isinstance(families, list) or not all(
+            isinstance(f, str) and f in FAMILIES for f in families):
         raise ExternalRequestRefused(
             f"authored_by must name families from {sorted(FAMILIES)}"
         )
@@ -225,7 +226,7 @@ def build_request(
         "pr_number": pr_number,
         "at_sha": at_sha,
         "paths": None if paths is None else _sorted_unique_paths(paths),
-        "authored_by": families,
+        "authored_by": sorted(set(families)),
     }
 
 
@@ -383,7 +384,7 @@ def claim_inputs(conn: sqlite3.Connection, row: sqlite3.Row) -> dict:
 def _sha(payload: dict, key: str) -> str:
     value = payload.get(key)
 
-    if not isinstance(value, str) or not SHA_RE.match(value):
+    if not isinstance(value, str) or not SHA_RE.fullmatch(value):
         raise ReportInvalid(f"{key} must be a lowercase 40-character SHA")
 
     return value
@@ -407,6 +408,11 @@ def _bool(payload: dict, key: str) -> bool:
     return value
 
 
+def _is_int(value: Any) -> bool:
+    """An integer in the JSON sense: `True` and `102.0` are not."""
+    return type(value) is int
+
+
 def _same_slug(a: str, b: str) -> bool:
     return isinstance(a, str) and isinstance(b, str) and a.casefold() == b.casefold()
 
@@ -422,7 +428,7 @@ def check_report(request: dict, task_id: str, outcome: str, payload: Any) -> Non
     if not isinstance(payload, dict):
         raise ReportInvalid("payload must be an object")
 
-    if payload.get("schema_version") != REPORT_SCHEMA:
+    if not _is_int(payload.get("schema_version")) or payload["schema_version"] != REPORT_SCHEMA:
         raise ReportInvalid(f"schema_version must be {REPORT_SCHEMA}")
 
     size = len(canonical(payload).encode("utf-8"))
@@ -432,12 +438,18 @@ def check_report(request: dict, task_id: str, outcome: str, payload: Any) -> Non
             "with evidence_too_large instead"
         )
 
-    if outcome == "registered":
-        _check_registered(request, task_id, payload)
-    elif outcome in ("refused", "blocked"):
-        _check_failure(request, outcome, payload)
-    else:
-        raise ReportInvalid(f"unknown ingest outcome {outcome!r}")
+    try:
+        if outcome == "registered":
+            _check_registered(request, task_id, payload)
+        elif outcome in ("refused", "blocked"):
+            _check_failure(request, outcome, payload)
+        else:
+            raise ReportInvalid(f"unknown ingest outcome {outcome!r}")
+    except (TypeError, ValueError, AttributeError, KeyError) as exc:
+        # The explicit type checks above should make this unreachable. It is
+        # here so a shape nobody anticipated is still a refused report (422)
+        # rather than a server error the worker would retry unchanged.
+        raise ReportInvalid(f"malformed report: {type(exc).__name__}") from None
 
 
 def _check_registered(request: dict, task_id: str, payload: dict) -> None:
@@ -457,11 +469,11 @@ def _check_registered(request: dict, task_id: str, payload: dict) -> None:
         raise ReportInvalid("repo_slug does not match the request")
 
     repo_id = payload["repo_id"]
-    if not isinstance(repo_id, str) or not REPO_ID_RE.match(repo_id):
+    if not isinstance(repo_id, str) or not REPO_ID_RE.fullmatch(repo_id):
         raise ReportInvalid("repo_id must be 16 lowercase hex characters")
 
     number = payload["pr_number"]
-    if isinstance(number, bool) or number != request["pr_number"]:
+    if not _is_int(number) or number != request["pr_number"]:
         raise ReportInvalid("pr_number does not match the request")
 
     url = payload["pr_url"]
@@ -473,7 +485,7 @@ def _check_registered(request: dict, task_id: str, payload: dict) -> None:
             f"pr_url must be {prefix}{request['repo_slug']}{expected_tail}"
         )
 
-    if payload["pr_state"] not in PR_STATES:
+    if not isinstance(payload["pr_state"], str) or payload["pr_state"] not in PR_STATES:
         raise ReportInvalid(f"pr_state must be one of {sorted(PR_STATES)}")
     _bool(payload, "pr_draft")
 
@@ -483,7 +495,7 @@ def _check_registered(request: dict, task_id: str, payload: dict) -> None:
         raise ReportInvalid(f"pr_body must be a string of at most {MAX_BODY_BYTES} bytes")
     truncated = _bool(payload, "pr_body_truncated")
     digest = payload["pr_body_sha256"]
-    if not isinstance(digest, str) or not SHA256_RE.match(digest):
+    if not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
         raise ReportInvalid("pr_body_sha256 must be 64 lowercase hex characters")
     if not truncated and hashlib.sha256(body.encode("utf-8")).hexdigest() != digest:
         raise ReportInvalid("pr_body_sha256 is not the SHA-256 of an untruncated pr_body")
@@ -517,13 +529,13 @@ def _check_registered(request: dict, task_id: str, payload: dict) -> None:
         raise ReportInvalid(f"author_signals must be a list of at most {MAX_SIGNALS}")
     for signal in signals:
         if not (isinstance(signal, dict) and set(signal) == {"kind", "value", "source"}
-                and signal["kind"] in SIGNAL_KINDS
+                and isinstance(signal["kind"], str) and signal["kind"] in SIGNAL_KINDS
                 and isinstance(signal["value"], str)
                 and len(signal["value"]) <= MAX_SIGNAL_CHARS
                 and isinstance(signal["source"], str)
                 and (signal["source"] == "pr_body"
                      or (signal["source"].startswith("commit:")
-                         and SHA_RE.match(signal["source"][len("commit:"):])))):
+                         and SHA_RE.fullmatch(signal["source"][len("commit:"):])))):
             raise ReportInvalid(f"author signal {signal!r} is not kind/value/source as specified")
 
 
@@ -533,6 +545,8 @@ def _check_failure(request: dict, outcome: str, payload: dict) -> None:
         raise ReportInvalid(f"unknown keys {unknown}")
 
     reason = payload.get("reason_code")
+    if not isinstance(reason, str):
+        raise ReportInvalid("reason_code must be a string")
     _string(payload, "detail", max_chars=MAX_DETAIL_CHARS)
 
     observed = payload.get("observed", {})

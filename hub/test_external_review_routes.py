@@ -206,6 +206,57 @@ def test_an_invalid_report_is_422_and_the_activation_stays_live(client):
     assert good.status_code == 200, good.text
 
 
+@pytest.mark.parametrize("bad", [
+    # Codex's reproductions on #107 at aaf3ec0: the first was a 200 that
+    # registered a candidate no git lookup could find, the next two were 500s.
+    {"head_sha": HEAD + "\n", "resolved_ref_sha": HEAD + "\n"},
+    {"pr_state": []},
+    {"author_signals": [{"kind": [], "value": "x", "source": "pr_body"}]},
+    {"repo_id": "0dc8a2e4d227ab03\n"},
+    {"pr_number": 102.0},
+    {"schema_version": True},
+], ids=["newline-sha", "list-state", "list-signal-kind", "newline-repo-id",
+        "float-pr-number", "bool-schema"])
+def test_a_malformed_report_is_422_records_nothing_and_can_be_corrected(client, bad):
+    activation = claimed_ingest(client)
+    path = f"/controller/activations/{activation['activation_id']}/ingest"
+
+    refused = as_(client, "claudecode", "post", path,
+                  json={"outcome": "registered", "payload": {**registered(), **bad}})
+    assert refused.status_code == 422, refused.text
+
+    task = as_(client, "admin", "get", "/controller/tasks/EXT-1").json()
+    assert task["state"] == "EXTERNAL_INGESTING"
+
+    corrected = as_(client, "claudecode", "post", path,
+                    json={"outcome": "registered", "payload": registered()})
+    assert corrected.status_code == 200, corrected.text
+    assert corrected.json()["to_state"] == "READY_EXTERNAL_REVIEW"
+
+
+@pytest.mark.parametrize("reason", [["pr_not_found"], {"x": 1}])
+@pytest.mark.parametrize("outcome", ["refused", "blocked"])
+def test_a_failure_report_with_a_non_string_reason_is_422(client, outcome, reason):
+    activation = claimed_ingest(client)
+    path = f"/controller/activations/{activation['activation_id']}/ingest"
+
+    response = as_(client, "claudecode", "post", path, json={
+        "outcome": outcome,
+        "payload": {"schema_version": 1, "reason_code": reason, "detail": "d"},
+    })
+
+    assert response.status_code == 422, response.text
+
+
+def test_the_generic_task_route_refuses_a_newline_terminated_base(client):
+    response = as_(client, "admin", "post", "/controller/tasks", json={
+        "task_id": "T-1", "title": "t", "objective": "o", "base_sha": "0" * 40 + "\n",
+    })
+
+    assert response.status_code == 400
+    assert task_count(client) == 0
+
+
 def test_another_agent_cannot_report_this_ingest(client):
     activation = claimed_ingest(client)
     response = as_(client, "gemini", "post",
