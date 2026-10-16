@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import http.client
 import json
 import os
 import re
@@ -90,12 +91,20 @@ def urllib_transport(method: str, url: str, headers: dict, body: Optional[dict])
         **headers, **({"Content-Type": "application/json"} if data is not None else {}),
     })
 
+    # Every way the exchange can break becomes OSError, the one transport
+    # failure `post` reports as UNCONFIRMED. A reply cut short (a declared
+    # Content-Length that never arrives) raises http.client.IncompleteRead,
+    # which is not an OSError, and the request may already have been stored
+    # (Codex, #112 at 9f36273).
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as reply:
-            raw = reply.read()
-            status = reply.status
-    except urllib.error.HTTPError as exc:
-        raw, status = exc.read(), exc.code
+        try:
+            with urllib.request.urlopen(request, timeout=TIMEOUT) as reply:
+                raw = reply.read()
+                status = reply.status
+        except urllib.error.HTTPError as exc:
+            raw, status = exc.read(), exc.code
+    except http.client.HTTPException as exc:
+        raise OSError(f"incomplete HTTP exchange ({type(exc).__name__})") from None
 
     try:
         parsed = json.loads(raw.decode("utf-8")) if raw else None
@@ -159,7 +168,13 @@ def _messages(transport: Transport, url: str, headers: dict, since_id: int) -> l
     return reply.body
 
 
-MENTION = re.compile(r"(?<![\w@.-])@([A-Za-z][\w-]*)")
+# A whole handle: not inside a word or an address before it, and not followed
+# by more handle characters or a domain-like `.x` after it. `target_for` and
+# `mentions` share these boundaries so a post can never be addressed to a lead
+# that reading it back would not count as mentioned (Codex, #112 at 9f36273).
+HANDLE_BEFORE = r"(?<![\w@.-])"
+HANDLE_AFTER = r"(?![\w-]|\.\w)"
+MENTION = re.compile(HANDLE_BEFORE + r"@([A-Za-z][\w-]*)" + HANDLE_AFTER)
 
 
 def target_for(content: str) -> str:
@@ -221,9 +236,14 @@ def post(identity: str, content: str, *, target: Optional[str] = None,
     try:
         stored = [m for m in _messages(transport, url, headers, message_id - 1)
                   if isinstance(m, dict) and m.get("id") == message_id]
-    except OSError as exc:
+    except (OSError, LeadChatError) as exc:
+        # The POST already returned an id, so the send was accepted. A read-back
+        # that fails -- including a 401 if the credential rotated in between --
+        # says nothing about that; keep the id and leave the outcome unknown
+        # rather than report a rejection (Codex, #112 at 9f36273).
         return Receipt("unconfirmed", message_id,
-                       f"stored as #{message_id}, but the read-back failed ({exc})")
+                       f"the hub assigned #{message_id}, but reading it back failed ({exc}); "
+                       "run `find` before posting again")
 
     if not stored:
         return Receipt("unconfirmed", message_id, f"#{message_id} was not found on read-back")
@@ -254,7 +274,7 @@ def mentions(message: dict, identity: str) -> bool:
     target = str(message.get("target", "")).strip().lower()
     # Whole handle only: `@claude-lead:` and `(@claude-lead)` are mentions,
     # `@claude-leader` and `x@claude-lead.example` are not.
-    pattern = r"(?<![\w@.-])" + re.escape(handle) + r"(?![\w-]|\.\w)"
+    pattern = HANDLE_BEFORE + re.escape(handle) + HANDLE_AFTER
 
     return target == handle or re.search(pattern, str(message.get("content", "")).lower()) is not None
 
