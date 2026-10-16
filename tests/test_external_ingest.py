@@ -629,6 +629,21 @@ def test_a_truncated_body_may_carry_the_full_bodys_hash(conn):
     assert report(conn, aid, "registered", payload)["to_state"] == "READY_EXTERNAL_REVIEW"
 
 
+def test_a_colon_inside_a_git_path_is_an_ordinary_character(conn):
+    aid = ingesting(conn)
+    payload = registered(changed_files=["a:b.md", "docs/x:y.txt"])
+
+    assert report(conn, aid, "registered", payload)["to_state"] == "READY_EXTERNAL_REVIEW"
+
+
+@pytest.mark.parametrize("path", ["C:/x.py", "c:x.py", "/abs.py", "\\abs.py"])
+def test_absolute_and_drive_paths_are_still_refused(conn, path):
+    aid = ingesting(conn)
+
+    with pytest.raises(activations.IngestReportInvalid):
+        report(conn, aid, "registered", registered(changed_files=[path]))
+
+
 def test_the_pr_slug_compares_case_insensitively(conn):
     aid = ingesting(conn)
     payload = registered(repo_slug=SLUG.lower(),

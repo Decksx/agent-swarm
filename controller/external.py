@@ -176,9 +176,12 @@ def _sorted_unique_paths(paths: Any) -> list:
 
 
 def _safe_path(path: Any) -> bool:
+    # Absolute and drive-qualified paths are refused; a colon elsewhere is an
+    # ordinary character in a git path (`a:b` is valid), so it is allowed.
     return (
         isinstance(path, str) and 0 < len(path) <= MAX_PATH_CHARS
-        and not path.startswith(("/", "\\")) and ":" not in path[:2]
+        and not path.startswith(("/", "\\"))
+        and not re.match(r"[A-Za-z]:", path)
         and ".." not in re.split(r"[\\/]", path) and "\x00" not in path
     )
 
