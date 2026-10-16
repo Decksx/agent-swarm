@@ -351,11 +351,33 @@ outcome the worker reports.
 `POST /controller/activations/{activation_id}/ingest`. It is authenticated as
 the activation's agent; the body is
 `{"outcome": "...", "payload": {...}, "expected_state_seq": <optional int>}`.
-It follows the same discipline as `/integration`:
-- the caller and the live lease are checked first;
-- a submission against a non-ingest activation is refused (403);
-- an identical replay returns the cached response; a different second result
-  is refused (409).
+It uses the same shared path as `/integration`
+(`outcomes._result_preconditions`), and the order of the checks is part of the
+contract:
+
+1. **The caller.** The authenticated agent must be the activation's assigned
+   agent (otherwise 403). Nothing else is revealed to anyone else.
+2. **Replay before liveness.** If this activation already has a recorded
+   result:
+   - an identical report gets the cached response, even after the activation
+     is `DONE` and even after its lease or hard deadline has passed. A worker
+     whose response was lost can therefore resend safely;
+   - a report that differs is refused with 409. The replay key includes the
+     stage, so an ingest report against another stage's resulted activation
+     also lands here.
+3. **A first submission only:**
+   - the activation must be live, its lease and hard deadline unexpired, and
+     its task version current;
+   - it must be an `ingest` activation (otherwise 403);
+   - the report must pass validation (8.4/8.5; otherwise 422);
+   - the transition must be defined from the task's current state (otherwise
+     409).
+
+   Only then is anything recorded.
+
+Only an exact redelivery of an accepted report skips the liveness checks. A new
+report after expiry is still refused (409), and a stale report never becomes
+acceptable.
 
 | `outcome` | Event | From → to |
 | --- | --- | --- |
