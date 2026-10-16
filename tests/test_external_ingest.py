@@ -630,13 +630,15 @@ def test_a_truncated_body_may_carry_the_full_bodys_hash(conn):
 
 
 def test_a_colon_inside_a_git_path_is_an_ordinary_character(conn):
+    """Only a one-letter first segment before the colon (`a:b`) is refused,
+    because on Windows that is a drive-relative path, not a repository one."""
     aid = ingesting(conn)
-    payload = registered(changed_files=["a:b.md", "docs/x:y.txt"])
+    payload = registered(changed_files=["docs/x:y.txt", "notes:2026.md"])
 
     assert report(conn, aid, "registered", payload)["to_state"] == "READY_EXTERNAL_REVIEW"
 
 
-@pytest.mark.parametrize("path", ["C:/x.py", "c:x.py", "/abs.py", "\\abs.py"])
+@pytest.mark.parametrize("path", ["C:/x.py", "c:x.py", "a:b", "/abs.py", "\\abs.py"])
 def test_absolute_and_drive_paths_are_still_refused(conn, path):
     aid = ingesting(conn)
 
