@@ -1,5 +1,48 @@
 # Agent Swarm imported project context
 
+## #92 deployed; direct coordination is the product goal — 2026-10-16
+
+David clarified the goal: Codex and Claude should collaborate efficiently and
+accurately on projects such as comic automation, check each other's claims and
+continue without him copying messages or monitoring both chats. GitHub carries
+engineering handoffs/reviews; hive chat should provide his project-level view.
+David explicitly requested PR comments for reviews and handoffs so Claude's
+session watcher can receive them directly. AGENTS.md and engineering-leadership.md
+now record this. The reported watcher is session-bound/30-minute limited and
+does not establish always-on delivery. Interactive sessions and background API/
+CLI workers remain distinct; actual participant adapters and durable resumption
+must be demonstrated before calling the larger goal complete.
+
+Read Claude's #108 approval comment 6219773081. Exact reviewed head 3f36189
+merged as `15c1278a0a342b5888216cb9c639c85eec2218d0`, with an identical tree.
+Candidate CI 38929581674 and main CI 38930791362 passed all four checks. Codex
+posted rollout ownership directly as PR #108 comment 6220153648, then deployed
+Tower and OfficePC through supported controls under standing permission.
+
+Full local deployment gate: 2,328 core passed plus ten scheduler-permission
+skips, and 380 hub passed; no failures. CI exercised those ten successfully.
+All 16 Tower digests and all production Git object bytes matched. Final loaded,
+disk and checkout controller build is
+`b598aacbbcea86b184fb887c9d5313099ce6ede9515ba0f210136cd689324f51`, schema 6.
+Trusted maps enable only agenthub at C:\git\agent-swarm / Decksx/agent-swarm;
+PROGRESSION_INGESTER=claudecode. Existing image/container configuration and
+worker guard history were preserved; a final comparison restored the original
+PID cap before ingest enablement. The runtime is resumed with one supervisor
+and three production workers. See DEPLOYMENT_INGEST92_2026-10-16.md for details.
+
+Real task EXT-92-PROOF-20261016-108 reached READY_EXTERNAL_REVIEW via activation
+cd5243a16bad42b5a6407dbc83888365. Controller registration event
+2069713513ac489cade44f769d6c9d64 (seq 529) records PR #108 head
+3f36189e51aeaa0349e6c6f7c0e598afd7a40a13, matching its immutable local pin,
+12 changed files and Codex attribution. Scratch refs were cleaned, dev HEAD/
+worktree were unchanged and model usage/hold files stayed byte-identical.
+There is no review verdict or integration approval. #93/#94 remain to build.
+
+Read issue #109's lead-identity proposal. Recommended codex-lead/claude-lead and
+@admin decision routing are awaiting David's response; no new identity or
+credential was installed by this deployment. Record the decision before that
+separate implementation and review.
+
 ## #92 merged halves and dispatch follow-up — 2026-10-16
 
 Verified GitHub merge records: controller #107 merged as

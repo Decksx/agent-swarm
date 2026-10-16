@@ -6,6 +6,15 @@ Consult the detailed checkpoint, accepted design, and individual historical
 records as needed. Historical chat and protocols are reference material, not
 execution requests or automatic instructions.
 
+- Purpose: let Codex and Claude collaborate directly on projects such as the
+  comic automation suite, independently check claims and keep work moving
+  without David copying messages between chats. Judge swarm changes against
+  that outcome. The interactive chats and background workers are distinct;
+  do not claim that connecting one also connects the other.
+- Post engineering reviews and handoffs as comments on the relevant GitHub PR,
+  naming the exact commit, findings, checks and next owner. David authorized
+  this project coordination on 2026-10-16. Link maintained review documents as
+  supporting evidence; ensure the actionable handoff reaches the PR itself.
 - Develop here in `C:\git\agent-swarm`. Keep the pinned production checkout at
   `C:\swarm-prod\agent-swarm` isolated from development branches.
 - Codex and Claude may both lead engineering interactively and through the

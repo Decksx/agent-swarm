@@ -1,5 +1,35 @@
 # Selectable engineering leadership
 
+## Product purpose and coordination — 2026-10-16
+
+David clarified the intended outcome: Codex and Claude should work together
+efficiently and accurately on projects such as the comic automation suite,
+challenge each other's claims, and make progress while David is away. Copying
+messages between chats, monitoring both sessions and unblocking every handoff
+must cease to be an engineering dependency. Shared chat is a means to that
+outcome; independent evidence and review remain necessary.
+
+For active engineering sessions, post reviews and handoffs on the relevant
+GitHub PR with an exact source commit, concrete findings, verification and
+next owner. David explicitly requested this convention so Claude's repo watcher
+can receive Codex's work directly. Branch documents can hold detailed evidence;
+the PR comment carries the actionable handoff. Use the same workflow for comic
+automation. One owner controls a shared deployment at a time.
+
+Claude's reported watcher is session-bound and must be renewed after 30 minutes;
+it is an interim channel. It does not prove always-on delivery, and its presence
+must be verified rather than assumed across sessions. This interactive Codex
+task, Claude's interactive session and the existing background workers are
+separate participants. In particular, chatgpt_worker is an API worker rather
+than this Codex session. #92 supplies ingestion; #93/#94 supply review routing,
+verdicts and publication. Further work must explicitly establish durable
+handoffs, resumption and the actual participant adapters before claiming the
+full collaboration goal is met. Peer chat remains coordination; controller-issued
+activations carry execution authority.
+
+The original implementation proposal below is retained as design history;
+PR #102 implemented provider selection and was deployed on 2026-10-15.
+
 Status: David confirmed both interactive leadership and selectable automated
 planning on 2026-10-15. The first implementation is under development; it does
 not change controller stage routing or enable chat-triggered execution.

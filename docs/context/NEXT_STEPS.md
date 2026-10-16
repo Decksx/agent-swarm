@@ -1,5 +1,25 @@
 # Next steps after the Codex import
 
+## Deployed ingest and coordination handoff — 2026-10-16
+
+PR #108 merged as 15c1278 after Claude's approval of 3f36189 and green
+candidate/main CI. Codex deployed controller and workers at 15c1278, passed the
+full deployment gate and all component parity checks, enabled the trusted
+agenthub maps and claudecode ingester, and proved a real controller-issued
+ingest task. See [the receipt](DEPLOYMENT_INGEST92_2026-10-16.md).
+EXT-92-PROOF-20261016-108 is READY_EXTERNAL_REVIEW with its exact SHA pinned;
+there is no review verdict or integration approval. Runtime is resumed.
+
+The remaining engineering work is #93/#94 for external-review routing, packets,
+verdicts and publication. Issue #109 separately proposes distinct non-admin
+interactive-lead identities and verified chat posting, so David can see progress
+without relaying it. The naming/routing choice is pending. Reviews and handoffs
+now go on GitHub PR comments with exact commits, not only branch documents.
+Durable delivery/resumption and actual participant adapters remain part of the
+larger goal; the existing background bots are separate from these chat sessions.
+
+The rollout plan immediately below is retained as the plan that was executed.
+
 ## Current #92 checkpoint — 2026-10-16
 
 Controller #107 and worker #106 are merged as 37701ad and babea85. Their
