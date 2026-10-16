@@ -53,6 +53,10 @@ def start_review(conn, *, claimed, lease_seconds=LEASE):
         created_by="admin", now=T0,
     )
     transition(conn, "external_review_requested", states.ADMIN)
+    # Through the ingest stage's own transitions (#92); these tests are about
+    # the review stage that follows it.
+    transition(conn, "ingest_activation_issued")
+    transition(conn, "activation_claimed", states.OPERATOR)
     transition(conn, "external_candidate_registered", payload={
         "pr_number": 96, "head_sha": CANDIDATE, "merge_base": PARENT,
     })

@@ -34,9 +34,9 @@ import hashlib
 import json
 import sqlite3
 import time
-from typing import Optional
+from typing import Callable, Optional
 
-from . import engine
+from . import engine, external
 from .activations import (
     ActivationError,
     ActivationNotFound,
@@ -47,6 +47,7 @@ from .activations import (
     DONE,
     EvidenceNotDurable,
     ISSUED,
+    IngestReportInvalid,
     LIVE_STATUSES,
     LeaseExpired,
     NotAReviewActivation,
@@ -348,6 +349,56 @@ INTEGRATION_OUTCOMES = {
     "uncertain": ("integration_outcome_unknown", CONTROLLER),
 }
 
+# What an ingest activation may report (#92, contract section 8.3). All three
+# are controller authority: the worker holding the live ingest activation says
+# what it observed, and the controller -- having checked the report against the
+# stored request -- moves the task. `blocked` is `environment_defect`, so it is
+# not charged and `repair` returns the task to EXTERNAL_PENDING.
+INGEST_OUTCOMES = {
+    "registered": ("external_candidate_registered", CONTROLLER),
+    "refused": ("external_ingest_refused", CONTROLLER),
+    "blocked": ("environment_defect", CONTROLLER),
+}
+
+
+def submit_ingest_outcome(
+    conn: sqlite3.Connection,
+    *,
+    activation_id: str,
+    agent: str,
+    outcome: str,
+    payload: Optional[dict] = None,
+    expected_state_seq: Optional[int] = None,
+    now: Optional[float] = None,
+) -> dict:
+    """Report how an ingest activation ended, checked before it is applied.
+
+    A report the stored request contradicts raises `IngestReportInvalid` and
+    records nothing: the activation stays live, so the worker can send the
+    report it should have sent -- usually `refused` or `blocked`.
+    """
+    def check(row: sqlite3.Row) -> None:
+        request = external.load_request(conn, row["task_id"], row["task_version"])
+
+        try:
+            external.check_report(request, row["task_id"], outcome, payload)
+        except external.ReportInvalid as exc:
+            raise IngestReportInvalid(f"ingest_report_invalid: {exc}") from None
+
+    return _submit_stage_outcome(
+        conn,
+        activation_id=activation_id,
+        agent=agent,
+        stage="ingest",
+        outcome=outcome,
+        outcome_map=INGEST_OUTCOMES,
+        payload=payload,
+        expected_state_seq=expected_state_seq,
+        now=now,
+        check=check,
+    )
+
+
 def submit_integration_outcome(
     conn: sqlite3.Connection,
     *,
@@ -468,6 +519,7 @@ def _submit_stage_outcome(
     expected_state_seq: Optional[int] = None,
     now: Optional[float] = None,
     outcome_key: str = "outcome",
+    check: Optional[Callable[[sqlite3.Row], None]] = None,
 ) -> dict:
     """Apply a stage's terminal outcome with controller authority.
 
@@ -519,6 +571,12 @@ def _submit_stage_outcome(
         raise NotAReviewActivation(
             f"activation is a {row['stage']!r} activation, not a {stage}"
         )
+
+    # A stage's own content check, after the caller and the stage are
+    # established and before anything is written. Raising here leaves the
+    # activation live and unresulted.
+    if check is not None:
+        check(row)
 
     outcome_record = {outcome_key: outcome, f"{outcome_key}_by": agent}
 

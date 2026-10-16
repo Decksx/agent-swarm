@@ -78,25 +78,60 @@ def create_task(
     a task created alone could not record its own creation and would be
     invisible to replay.
     """
+    with transaction(conn):
+        return create_task_within(
+            conn, task_id=task_id, title=title, objective=objective,
+            contract_yaml=contract_yaml, base_sha=base_sha,
+            created_by=created_by, proof_mode=proof_mode,
+            protocol_schema_version=protocol_schema_version,
+            priority=priority, now=now,
+        )
+
+
+def create_task_within(
+    conn: sqlite3.Connection,
+    *,
+    task_id: str,
+    title: str,
+    objective: str,
+    contract_yaml: str,
+    base_sha: str,
+    created_by: str,
+    proof_mode: str = "baseline",
+    protocol_schema_version: int = 7,
+    priority: int = 50,
+    now: Optional[float] = None,
+) -> dict:
+    """`create_task`, for a caller already inside a transaction.
+
+    The external-review route (#92) creates its task and applies
+    `external_review_requested` together, so a request that fails half way
+    leaves no DRAFT row behind for anything else to pick up.
+    """
+    if not conn.in_transaction:
+        raise RuntimeError(
+            "create_task_within must run inside a transaction; use "
+            "create_task to open one"
+        )
+
     now = time.time() if now is None else now
     digest = contract_hash(contract_yaml)
 
-    with transaction(conn):
-        conn.execute(
-            "INSERT INTO tasks (task_id, title, objective, priority, "
-            "current_version, state, state_seq, created_at, created_by) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
-            (task_id, title, objective, priority, 1, "DRAFT", 0, now, created_by),
-        )
-        conn.execute(
-            "INSERT INTO task_versions (task_id, version, contract_yaml, "
-            "contract_hash, protocol_schema_version, base_sha, proof_mode, "
-            "created_at, created_by) VALUES (?,?,?,?,?,?,?,?,?)",
-            (
-                task_id, 1, contract_yaml, digest, protocol_schema_version,
-                base_sha, proof_mode, now, created_by,
-            ),
-        )
+    conn.execute(
+        "INSERT INTO tasks (task_id, title, objective, priority, "
+        "current_version, state, state_seq, created_at, created_by) "
+        "VALUES (?,?,?,?,?,?,?,?,?)",
+        (task_id, title, objective, priority, 1, "DRAFT", 0, now, created_by),
+    )
+    conn.execute(
+        "INSERT INTO task_versions (task_id, version, contract_yaml, "
+        "contract_hash, protocol_schema_version, base_sha, proof_mode, "
+        "created_at, created_by) VALUES (?,?,?,?,?,?,?,?,?)",
+        (
+            task_id, 1, contract_yaml, digest, protocol_schema_version,
+            base_sha, proof_mode, now, created_by,
+        ),
+    )
 
     return {"task_id": task_id, "version": 1, "contract_hash": digest, "state": "DRAFT"}
 

@@ -36,7 +36,7 @@ import time
 import uuid
 from typing import Any, Optional
 
-from . import engine
+from . import engine, external
 from .db import transaction
 from .states import AUTHOR, CONTROLLER, OPERATOR, VERIFIER
 
@@ -62,6 +62,11 @@ STAGE_ROLES = {
     # fourth actor in the protocol's authority table to describe a capability
     # the table already covers.
     "integrate": (OPERATOR, "integration_started"),
+    # Fetch and pin a pull request's head for external review (#92). Model-
+    # free, like integrate, and OPERATOR for the same reason: it acts on an
+    # operator's request and decides nothing about the work. On the external
+    # chain that role may only claim; the outcome is the controller's.
+    "ingest": (OPERATOR, "ingest_activation_issued"),
 }
 
 
@@ -128,6 +133,10 @@ class ConflictingResult(ActivationError):
 
 class InvalidClaimStages(ActivationError):
     """A claim's stage filter names no stage, or a stage that does not exist."""
+
+
+class IngestReportInvalid(ActivationError):
+    """An ingest report the stored request contradicts (#92). Nothing recorded."""
 
 
 def build_timing(row: sqlite3.Row, now: float) -> dict:
@@ -280,6 +289,21 @@ def issue(
                 conn, task_id=task_id, max_attempts=max_attempts)
 
         task = engine.get_task(conn, task_id)
+
+        # An ingest activation's inputs come from the stored request and
+        # nowhere else (#92, contract section 8.2). A caller may leave them
+        # out, and is refused if it names anything different: an activation
+        # pointed at another pin or another checkout would pin something the
+        # operator never asked to have reviewed.
+        if stage == "ingest":
+            expected_branch, expected_parent, expected_candidate, repo_location = (
+                _ingest_inputs(
+                    conn, task_id=task_id, expected_branch=expected_branch,
+                    expected_parent=expected_parent,
+                    expected_candidate=expected_candidate,
+                    repo_location=repo_location,
+                )
+            )
 
         # Integration needs exactly what review needs, and for the same
         # reason: the controller has no working copy, so naming the branch and
@@ -453,6 +477,46 @@ def _review_evidence(
     return parent, candidate
 
 
+def _ingest_inputs(
+    conn: sqlite3.Connection,
+    *,
+    task_id: str,
+    expected_branch: Optional[str],
+    expected_parent: Optional[str],
+    expected_candidate: Optional[str],
+    repo_location: Optional[str],
+) -> tuple:
+    """(branch, parent, candidate, repo) for an ingest activation, or refuse."""
+    request = external.load_request(conn, task_id)
+
+    if request is None:
+        raise ActivationError(
+            f"{task_id} is not an external-review request; an ingest activation "
+            "pins a pull request someone asked to have reviewed, and nothing else"
+        )
+
+    wanted = {
+        "expected_branch": external.pin_ref(task_id),
+        "expected_parent": None,
+        "expected_candidate": request.get("at_sha"),
+        "repo_location": request["repo_location"],
+    }
+    given = {
+        "expected_branch": expected_branch, "expected_parent": expected_parent,
+        "expected_candidate": expected_candidate, "repo_location": repo_location,
+    }
+
+    for name, value in given.items():
+        if (value or None) is not None and value != wanted[name]:
+            raise ActivationError(
+                f"an ingest activation's {name} comes from the stored request "
+                f"({wanted[name]!r}), not {value!r}"
+            )
+
+    return (wanted["expected_branch"], wanted["expected_parent"],
+            wanted["expected_candidate"], wanted["repo_location"])
+
+
 def operator_context(conn: sqlite3.Connection, task_id: str, version: int):
     """The operator's answer this activation is being issued to act on, as JSON.
 
@@ -539,7 +603,16 @@ def claim(
         "SELECT * FROM activations WHERE activation_id = ?", (activation_id,)
     ).fetchone()
 
+    # An ingest worker's only input about the pull request (#92, section
+    # 8.2). Built from the stored request, so a worker never has to parse a
+    # contract, a PR description or a chat message to learn what to pin.
+    extra = (
+        {"external": external.claim_inputs(conn, fresh)}
+        if row["stage"] == "ingest" else {}
+    )
+
     return {
+        **extra,
         "activation_id": activation_id,
         "task_id": row["task_id"],
         "task_version": row["task_version"],
@@ -797,9 +870,14 @@ def sweep_expired(
 # only their activation would leave the task assigned/running with no live
 # permission, so no later sweep could recover it.
 # States where work had not started yet, so the plain recovery event applies.
-_ASSIGNED_STATES = {"AUTHOR_ASSIGNED", "REVIEW_ASSIGNED", "EXTERNAL_REVIEW_ASSIGNED"}
+_ASSIGNED_STATES = {
+    "AUTHOR_ASSIGNED", "REVIEW_ASSIGNED", "EXTERNAL_REVIEW_ASSIGNED",
+    "EXTERNAL_INGEST_ASSIGNED",
+}
 # States where an attempt was underway.
-_RUNNING_STATES = {"AUTHORING", "REVIEWING", "EXTERNAL_REVIEWING"}
+_RUNNING_STATES = {
+    "AUTHORING", "REVIEWING", "EXTERNAL_REVIEWING", "EXTERNAL_INGESTING",
+}
 
 
 def _recovery_kind(reason: str, task_state: str) -> Optional[str]:

@@ -18,8 +18,10 @@ from controller.states import (
 )
 
 # Where an external task may end up besides its own states: closed by a
-# person, and nowhere else.
-EXITS = frozenset({"CANCELLED", "SUPERSEDED"})
+# person, or FAILED when ingest refuses the request (#92) -- the PR is missing,
+# moved, or not what the operator named. Widened deliberately: FAILED is
+# terminal, so it opens no path anywhere.
+EXITS = frozenset({"CANCELLED", "SUPERSEDED", "FAILED"})
 
 
 def reachable_from(start: str) -> set:
@@ -42,8 +44,10 @@ def reachable_from(start: str) -> set:
 def test_the_boundary_names_real_states():
     """A misspelt name would make the walk below pass vacuously."""
     assert INTEGRATION_STATES <= states.STATES
-    assert len(EXTERNAL_STATES) == 7
+    # Nine since #92 added the ingest stage's assigned and running states.
+    assert len(EXTERNAL_STATES) == 9
     assert EXTERNAL_STATES <= states.STATES
+    assert states.is_terminal("FAILED")
 
 
 @pytest.mark.parametrize("start", sorted(EXTERNAL_STATES))
@@ -97,7 +101,7 @@ def test_only_an_admin_requests_an_external_review(authority):
 @pytest.mark.parametrize("authority", [AUTHOR, VERIFIER, OPERATOR])
 def test_only_the_controller_registers_the_pinned_candidate(authority):
     with pytest.raises(states.NotAuthorized):
-        states.resolve("EXTERNAL_PENDING", "external_candidate_registered", authority)
+        states.resolve("EXTERNAL_INGESTING", "external_candidate_registered", authority)
 
 
 @pytest.mark.parametrize("start", sorted(EXTERNAL_STATES))
@@ -158,13 +162,19 @@ def apply(conn, task_id, kind, authority, payload=None):
     )
 
 
+def pin(conn, task_id, payload=None):
+    """Through the ingest stage (#92): issued, claimed, registered."""
+    apply(conn, task_id, "ingest_activation_issued", CONTROLLER)
+    apply(conn, task_id, "activation_claimed", OPERATOR)
+    apply(conn, task_id, "external_candidate_registered", CONTROLLER, payload)
+
+
 @pytest.mark.parametrize("judgment", ["satisfied", "changes_requested", "decision_required"])
 def test_every_judgment_lands_in_the_verdict_state_and_writes_no_approval(conn, judgment):
     task = external_task(conn)
 
     apply(conn, task, "external_review_requested", ADMIN, {"pr_number": 79})
-    apply(conn, task, "external_candidate_registered", CONTROLLER,
-          {"head_sha": "a" * 40, "merge_base": "b" * 40})
+    pin(conn, task, {"head_sha": "a" * 40, "merge_base": "b" * 40})
     apply(conn, task, "review_activation_issued", CONTROLLER)
     apply(conn, task, "activation_claimed", VERIFIER)
     apply(conn, task, "external_review_judged", CONTROLLER,
@@ -183,7 +193,7 @@ def test_a_note_can_be_added_to_a_verdict(conn):
     way to correct the record without rewriting it."""
     task = external_task(conn)
     apply(conn, task, "external_review_requested", ADMIN)
-    apply(conn, task, "external_candidate_registered", CONTROLLER)
+    pin(conn, task)
     apply(conn, task, "review_activation_issued", CONTROLLER)
     apply(conn, task, "activation_claimed", VERIFIER)
     apply(conn, task, "external_review_judged", CONTROLLER, {"judgment": "satisfied"})
