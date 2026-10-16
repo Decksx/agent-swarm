@@ -312,6 +312,25 @@ def test_prose_model_mentions_never_become_signals(fixture):
     assert evidence["pr_body"] == fixture[2].metadata["body"]
 
 
+def test_claude_session_footer_is_recorded_in_registered_evidence(fixture):
+    footer = "\U0001f916 Generated with [Claude Code](https://claude.com/claude-code)"
+    link = "https://claude.ai/code/session_01VSdU7KuoxeWRTYAx57W5P4"
+    fixture[2].metadata["body"] = "PR description.\n\n" + footer + "\n\n" + link
+    evidence = run(fixture)
+    assert [s for s in evidence["author_signals"] if s["kind"] == "pr_body_footer"] == [
+        {"kind": "pr_body_footer", "value": footer, "source": "pr_body"}]
+    assert evidence["pr_body"] == fixture[2].metadata["body"]
+
+
+def test_long_footer_with_overlapping_anchors_does_not_refuse_ingest(fixture):
+    fixture[2].metadata["body"] = "Generated with " + " ".join(
+        f"claude-{i:08d}" for i in range(1500)) + " Gemini"
+    evidence = run(fixture)
+    assert evidence["pin_created"] is True
+    assert len(evidence["author_signals"]) < 100
+    assert any("Gemini" in s["value"] for s in evidence["author_signals"])
+
+
 def test_complete_evidence_overflow_refuses_before_final_pin(fixture, monkeypatch):
     monkeypatch.setattr(ingest, "MAX_EVIDENCE", 1800)
     fixture[2].metadata["body"] = "x"*2000

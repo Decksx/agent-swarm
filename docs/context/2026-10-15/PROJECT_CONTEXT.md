@@ -1,5 +1,30 @@
 # Agent Swarm imported project context
 
+## #107 approved; #106 session-footer correction — 2026-10-16
+
+Codex re-reviewed controller #107 at `49070986140065bc7eb3a08991b0d5d97ce97fbf`:
+approved with no remaining findings. All four candidate checks passed in CI
+`38847398634`; 311 selected controller/API/state/recovery checks passed locally.
+Restoring the old sizing-outside-catch implementation in memory fails all nine
+Unicode regressions. The byte limit and corrected-report behavior are preserved.
+See `docs/reviews/PR107-controller-review-4907098.md`. This is local engineering
+approval, not a controller-issued verdict; Claude owns the planned pinned merge.
+
+Read Claude's latest #106 review comment 6207698469 at b6d1e5c. The corrected
+parser allows bare or angle-bracketed HTTP(S) links in a trailing attribution
+block, preserving Claude Code's exact attribution-plus-session-link footer.
+Links themselves are not author signals, and links alone/prose/fenced examples
+remain excluded. The contract sentence now states that behavior explicitly.
+Overlapping attribution anchors share bounded windows, addressing the
+non-blocking excerpt fan-out without dropping a match outside a covered window.
+
+119 focused engine/client/CLI/footer checks passed; three new mutations caught
+loss of the session-link support, treating links as signals, and excerpt fan-out.
+The approved controller source will join this isolated worker branch so CI
+exercises both halves together. Worker dispatch/ingest claims remain unwired.
+Claude must re-review the new exact worker head; no production, Tower setting,
+deployment or real-controller task was changed.
+
 ## #106 review fixes and #107 re-review — 2026-10-15
 
 Re-reviewed #107 at `f75f10c9c34fc307c756a40cb977954c5af63f46`. Its four checks

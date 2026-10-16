@@ -75,6 +75,34 @@ def test_trailing_attribution_paragraphs_preserve_every_claim():
     assert ingest.footer_lines("Body discusses tools.\n\n" + first + "\n\n" + second) == [first, second]
 
 
+@pytest.mark.parametrize("link", [
+    "https://claude.ai/code/session_01VSdU7KuoxeWRTYAx57W5P4",
+    "<https://claude.ai/code/session_01VSdU7KuoxeWRTYAx57W5P4>",
+    "   http://claude.ai/code/session_01VSdU7KuoxeWRTYAx57W5P4  ",
+])
+def test_claude_footer_survives_trailing_session_link_without_attributing_link(link):
+    footer = "\U0001f916 Generated with [Claude Code](https://claude.com/claude-code)"
+    assert ingest.footer_lines("PR description.\n\n" + footer + "\n\n" + link) == [footer]
+    assert ingest.footer_lines(link) == []
+
+
+@pytest.mark.parametrize("body", [
+    "Gemini and Claude Code configuration changes.\n\nhttps://claude.ai/code/session_1",
+    "```text\n\nGenerated with Claude Code\n\nhttps://claude.ai/code/session_1",
+    "```text\n\nGenerated with Claude Code\n\nhttps://claude.ai/code/session_1\n```",
+])
+def test_trailing_links_do_not_turn_prose_or_code_into_attribution(body):
+    assert ingest.footer_lines(body) == []
+
+
+def test_overlapping_attribution_anchors_share_bounded_windows():
+    value = "Generated with " + " ".join(f"claude-{i:08d}" for i in range(1500)) + " Gemini"
+    excerpts = list(ingest.signal_excerpts(value))
+    assert len(excerpts) < 100
+    assert all(len(v) <= 512 for v in excerpts)
+    assert any("Gemini" in v for v in excerpts)
+
+
 def test_long_attribution_excerpts_keep_middle_and_end_family_evidence():
     value = "Generated with " + "x" * 2000 + "Claude Code" + "x" * 2000 + "Gemini"
     excerpts = list(ingest.signal_excerpts(value))

@@ -31,6 +31,7 @@ COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 TASK_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
 log = logging.getLogger("claude_ingest")
 FOOTER = re.compile(r"^[ ]{0,3}(?:\U0001f916[ \t]*)?(?:generated (?:with|by)\s+|co-authored-by:\s*)", re.I)
+TRAILING_LINK = re.compile(r"^[ ]{0,3}(?:https?://[^\s<>]+|<https?://[^\s<>]+>)[ \t]*$", re.I)
 
 
 def footer_lines(body: str) -> list[str]:
@@ -40,7 +41,8 @@ def footer_lines(body: str) -> list[str]:
     separators = {"---", "___", "***"}
     while start:
         previous = lines[start - 1]
-        if previous.strip() and not FOOTER.match(previous) and previous.strip() not in separators:
+        if (previous.strip() and not FOOTER.match(previous)
+                and not TRAILING_LINK.fullmatch(previous) and previous.strip() not in separators):
             break
         start -= 1
     block = lines[start:]
@@ -68,11 +70,15 @@ def signal_excerpts(value: str):
         return
     found = False
     seen = set()
+    covered_end = 0
     for anchor in re.finditer(r"claude|anthropic|codex|openai|gemini|google|<[^>\n]+>", value, re.I):
         found = True
+        if anchor.end() <= covered_end:
+            continue
         center = anchor.start()
         start = max(0, min(center - 200, len(value) - 510))
         end = min(len(value), start + 510)
+        covered_end = max(covered_end, end)
         excerpt = ("\u2026" if start else "") + value[start:end] + ("\u2026" if end < len(value) else "")
         if excerpt not in seen:
             seen.add(excerpt)
