@@ -21,7 +21,7 @@ import lead_chat  # noqa: E402
 from test_hub import INGRESS_COMMAND, basic, chat_rows, controller_count, load_hub  # noqa: E402
 
 CREDS = ("admin:admin-secret,claudecode:claude-secret,gemini:gemini-secret,"
-         "claude-lead:claude-lead-secret,codex-lead:codex-lead-secret")
+         "claude-lead:claude-lead-secret,codex-lead:codex-lead-secret,relay:relay-secret")
 ENV = {"CLAUDE_LEAD_HUB_SECRET": "claude-lead-secret", "CODEX_LEAD_HUB_SECRET": "codex-lead-secret"}
 
 
@@ -120,3 +120,23 @@ def test_a_lead_reads_handoffs_addressed_to_it(hub, client):
 
     assert [(m["sender"], m["content"]) for m in addressed] == [
         ("claude-lead", "HANDOFF @codex-lead: review #111 at 1a2b3c4")]
+
+
+# --- The relay's start fence (#113 §3) ------------------------------------------
+
+
+def test_high_water_is_the_highest_committed_message_id(client):
+    headers = basic("relay", "relay-secret")
+    assert client.get("/messages/high-water", headers=headers).json() == {"high_water": 0}
+
+    for content in ("one", "two", "three"):
+        client.post("/send", headers=basic("claude-lead", "claude-lead-secret"),
+                    json={"target": "@room", "content": content})
+
+    assert client.get("/messages/high-water", headers=headers).json() == {"high_water": 3}
+
+
+def test_high_water_requires_a_credential(client):
+    assert client.get("/messages/high-water").status_code == 401
+    assert client.get("/messages/high-water",
+                      headers=basic("relay", "wrong")).status_code == 401

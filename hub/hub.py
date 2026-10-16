@@ -243,6 +243,23 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+@app.get("/messages/high-water")
+def messages_high_water(component: str = Depends(authenticate)):
+    """The highest committed message id, as a start fence (#113).
+
+    An id, not a timestamp. `send_message` stamps `time.time()` before it
+    opens the database, so concurrent sends can commit out of timestamp order,
+    and "the newest message before T0" can sit above a later-stamped handoff
+    that committed first. SQLite assigns the id at insert under the write lock
+    it holds until commit, so ids become visible in commit order: every
+    message committed after this read has a higher id. 0 for an empty room.
+    """
+    with get_db() as conn:
+        row = conn.execute("SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()
+
+    return {"high_water": int(row[0])}
+
+
 @app.get("/messages", response_model=List[Message])
 def get_messages(since_id: int = 0, component: str = Depends(authenticate)):
     # Ordered by time, then by id. The id alone was very nearly right -- it is
