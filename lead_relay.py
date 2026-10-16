@@ -23,7 +23,6 @@ DELIVER, status and recovery lines. It never posts as a lead.
 from __future__ import annotations
 
 import argparse
-import ctypes
 import json
 import logging
 import os
@@ -39,6 +38,10 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import lead_chat
+from lead_relay_backends import (  # noqa: F401 -- re-exported for callers and tests
+    CLOSED, OPEN, UNKNOWN, AlreadyRunning, ClaudeBackend, CodexBackend, ProcessApi, Session,
+    acquire_lock, child_environment, separate_process_group, session_key,
+)
 
 log = logging.getLogger("lead_relay")
 
@@ -79,11 +82,12 @@ CREATE TABLE IF NOT EXISTS attempts (
     proc_start TEXT, session_id TEXT, exit_code INTEGER, ended_at REAL,
     log_path TEXT, ack_message_id INTEGER, usage_recorded INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS reservations (
-    recipient TEXT PRIMARY KEY, attempt_id TEXT NOT NULL, acquired_at REAL NOT NULL);
+    session_key TEXT PRIMARY KEY, recipient TEXT NOT NULL, attempt_id TEXT NOT NULL,
+    acquired_at REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions (
     recipient TEXT PRIMARY KEY, backend TEXT NOT NULL, session_id TEXT NOT NULL,
     workspace TEXT NOT NULL, cli TEXT, enabled INTEGER NOT NULL DEFAULT 0,
-    registered_at REAL NOT NULL);
+    registered_at REAL NOT NULL, UNIQUE (backend, session_id));
 CREATE TABLE IF NOT EXISTS wakes (recipient TEXT NOT NULL, at REAL NOT NULL);
 """
 
@@ -91,144 +95,6 @@ CREATE TABLE IF NOT EXISTS wakes (recipient TEXT NOT NULL, at REAL NOT NULL);
 ACTIVE = ("notified", "launching", "running", "exited")
 TERMINAL = ("delivered", "failed", "uncertain", "cancelled")
 
-
-# --- Process facts (§5, §6) ------------------------------------------------------
-
-
-class ProcessApi:
-    """Is a pid alive, and is it still the process that was recorded?
-
-    A pid alone is not identity: Windows reuses them. The creation time is,
-    and Claude Code records the same value (`procStart`, FILETIME ticks).
-    """
-
-    def creation_time(self, pid: int) -> Optional[str]:
-        if os.name != "nt":
-            try:
-                with open(f"/proc/{pid}/stat", encoding="utf-8") as stat:
-                    return stat.read().rsplit(")", 1)[1].split()[19]
-            except (OSError, IndexError):
-                return None
-
-        kernel32 = ctypes.windll.kernel32
-        handle = kernel32.OpenProcess(0x1000, False, pid)  # QUERY_LIMITED_INFORMATION
-        if not handle:
-            return None
-        try:
-            created, exited, kernel, user = (ctypes.c_ulonglong() for _ in range(4))
-            if not kernel32.GetProcessTimes(handle, ctypes.byref(created), ctypes.byref(exited),
-                                            ctypes.byref(kernel), ctypes.byref(user)):
-                return None
-            code = ctypes.c_ulong()
-            if kernel32.GetExitCodeProcess(handle, ctypes.byref(code)) and code.value != 259:
-                return None  # STILL_ACTIVE is 259; anything else has exited
-            return str(created.value)
-        finally:
-            kernel32.CloseHandle(handle)
-
-    def is_same(self, pid: Optional[int], proc_start: Optional[str]) -> bool:
-        return bool(pid) and bool(proc_start) and self.creation_time(pid) == proc_start
-
-    def kill_tree(self, pid: int) -> None:
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
-                           capture_output=True, check=False)
-        else:
-            try:
-                os.killpg(os.getpgid(pid), 9)
-            except OSError:
-                pass
-
-
-# --- Backends (§7) ---------------------------------------------------------------
-
-OPEN, CLOSED, UNKNOWN = "open", "closed", "unknown"
-
-
-@dataclass
-class Session:
-    recipient: str
-    backend: str
-    session_id: str
-    workspace: str
-    cli: Optional[str]
-    enabled: bool
-
-
-class ClaudeBackend:
-    """`claude -p --resume <id>`; ownership from `~/.claude/sessions/<pid>.json`.
-
-    That file is internal to Claude Code, not a documented API. Anything it
-    does not recognise is UNKNOWN, which holds the delivery (§7: unknown is busy).
-    """
-
-    name = "claude"
-    REQUIRED = ("pid", "sessionId", "procStart", "kind")
-
-    def __init__(self, processes: ProcessApi, sessions_dir: Optional[Path] = None):
-        self.processes = processes
-        self.sessions_dir = sessions_dir or Path.home() / ".claude" / "sessions"
-
-    def ownership(self, session: Session) -> str:
-        try:
-            records = list(self.sessions_dir.glob("*.json"))
-        except OSError:
-            return UNKNOWN
-
-        matched = []
-        for path in records:
-            try:
-                record = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                return UNKNOWN  # an unreadable record could be this session
-            if not isinstance(record, dict) or not all(k in record for k in self.REQUIRED):
-                return UNKNOWN
-            if record["sessionId"] == session.session_id:
-                matched.append(record)
-
-        if not matched:
-            return CLOSED
-
-        for record in matched:
-            try:
-                pid = int(record["pid"])
-            except (TypeError, ValueError):
-                return UNKNOWN
-            if self.processes.is_same(pid, str(record["procStart"])):
-                return OPEN
-        # A record for this session whose process is gone, or whose pid now
-        # names another process: stale, and stale is not proof of idle.
-        return UNKNOWN
-
-    def command(self, session: Session, prompt: str) -> list[str]:
-        return [session.cli or "claude", "-p", "--resume", session.session_id,
-                "--output-format", "json", prompt]
-
-    def transcript_mentions(self, session: Session, token: str) -> Optional[bool]:
-        projects = Path.home() / ".claude" / "projects"
-        try:
-            for path in projects.glob(f"*/{session.session_id}.jsonl"):
-                with open(path, encoding="utf-8", errors="replace") as handle:
-                    return any(token in line for line in handle)
-        except OSError:
-            return None
-        return None
-
-
-class CodexBackend:
-    """`codex exec resume <id>`. Provisional: ownership is not yet established
-    (§7), so it is always UNKNOWN and nothing is ever launched into it."""
-
-    name = "codex"
-
-    def ownership(self, session: Session) -> str:
-        return UNKNOWN
-
-    def command(self, session: Session, prompt: str) -> list[str]:
-        return [session.cli or "codex", "exec", "resume", session.session_id, prompt, "--json"]
-
-    def transcript_mentions(self, session: Session, token: str) -> Optional[bool]:
-        return None
 
 
 # --- Hub -------------------------------------------------------------------------
@@ -314,25 +180,6 @@ def prompt_for(message: dict, recipient: str, token: str) -> str:
     )
 
 
-def separate_process_group(system: str = os.name) -> dict:
-    """Popen options that put a woken run in its own process group, so a
-    timeout's tree kill can never reach the relay or its siblings (review bot,
-    #116 at 2bd1623). Windows: a new group with no console window."""
-    if system == "nt":
-        return {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200) | 0x08000000}
-    return {"start_new_session": True}
-
-
-def child_environment(environ, recipient: str) -> dict:
-    """The woken lead's environment: the user's, minus every hub credential
-    except its own. The supervisor's environment carries `HUB_SECRET` (admin)
-    and the workers' secrets, and none of them belongs to a woken lead."""
-    own = lead_chat.IDENTITIES[recipient]
-    return {k: v for k, v in environ.items()
-            if k.upper() == own
-            or not (k.upper() == "HUB_SECRET" or k.upper().endswith("_HUB_SECRET"))}
-
-
 # --- The relay --------------------------------------------------------------------
 
 
@@ -356,6 +203,43 @@ class Relay:
         self.log_dir = log_dir or Path(db_path).parent / "lead_relay_logs"
         self.popen: dict[str, subprocess.Popen] = {}
         self.hub_down_since: Optional[float] = None
+        self.owner_token = secrets.token_hex(8)
+        self.owned = False
+
+    # --- §6 single owner
+
+    def claim_ownership(self) -> None:
+        """Become the one relay acting on this database, or AlreadyRunning.
+
+        Recovery treats a launch with no recorded pid as a crash. That is only
+        true when nothing else owns the database: a second relay (a `once`
+        beside the daemon) would otherwise mark the daemon's in-flight launch
+        uncertain, release its reservation and start a second run into the
+        same conversation (Codex, #116 at ad772b1). The owner is recorded with
+        its pid and creation time, so a dead owner is taken over and a live one
+        never is. `main` also holds an OS file lock for the whole run.
+        """
+        me = {"token": self.owner_token, "pid": os.getpid(),
+              "start": self.processes.creation_time(os.getpid())}
+        with self.txn():
+            current = self.meta("owner")
+            if current:
+                owner = json.loads(current)
+                if owner.get("token") != self.owner_token and \
+                        self.processes.is_same(owner.get("pid"), owner.get("start")):
+                    raise AlreadyRunning(f"relay pid {owner.get('pid')} owns this database")
+            self.db.execute("INSERT OR REPLACE INTO meta VALUES ('owner', ?)", (json.dumps(me),))
+        self.owned = True
+
+    def check_ownership(self) -> None:
+        """Every tick: stop acting the moment another relay has taken over."""
+        if not self.owned:
+            self.claim_ownership()
+            return
+        current = self.meta("owner")
+        if not current or json.loads(current).get("token") != self.owner_token:
+            self.owned = False
+            raise AlreadyRunning("this relay no longer owns the database")
 
     # --- small helpers
 
@@ -580,8 +464,8 @@ class Relay:
         that exited without an ACK still owes its delivery a `no-ack` verdict
         after the grace period, whether or not the session is already free.
         """
-        if self.db.execute("SELECT 1 FROM reservations WHERE recipient = ? AND attempt_id = ?",
-                           (attempt["recipient"], attempt["attempt_id"])).fetchone():
+        if self.db.execute("SELECT 1 FROM reservations WHERE attempt_id = ?",
+                           (attempt["attempt_id"],)).fetchone():
             session = self.session(attempt["recipient"])
             backend = self.backends.get(session.backend) if session else None
             if backend is None or backend.ownership(session) != CLOSED:
@@ -590,8 +474,8 @@ class Relay:
             attempt = self._attempt(attempt["attempt_id"])
             if attempt["usage_recorded"] == 0 and self.usage and attempt["launched_at"]:
                 return  # usage not yet persisted; try again next tick
-            self.db.execute("DELETE FROM reservations WHERE recipient = ? AND attempt_id = ?",
-                            (attempt["recipient"], attempt["attempt_id"]))
+            self.db.execute("DELETE FROM reservations WHERE attempt_id = ?",
+                            (attempt["attempt_id"],))
 
         delivery = self.db.execute(
             "SELECT state, attempt_id FROM deliveries WHERE message_id = ? AND recipient = ?",
@@ -602,6 +486,7 @@ class Relay:
 
     def recover(self) -> None:
         """§6: run once at start, before anything new is dispatched."""
+        self.claim_ownership()
         for attempt in self.db.execute(
                 "SELECT * FROM attempts WHERE state IN ('launching','running')").fetchall():
             delivery = self.db.execute(
@@ -631,42 +516,63 @@ class Relay:
         for delivery in self.db.execute(
                 "SELECT * FROM deliveries WHERE state IN ('pending','held') "
                 "ORDER BY message_id").fetchall():
-            reason = self._hold_reason(delivery, paused)
+            reason, ownership = self._hold_reason(delivery, paused)
             if reason:
                 self._hold(delivery, reason)
                 continue
-            self._start_attempt(delivery)
+            self._start_attempt(delivery, ownership)
 
-    def _hold_reason(self, delivery, paused: bool) -> Optional[str]:
+    def _hold_reason(self, delivery, paused: bool) -> tuple[Optional[str], Optional[str]]:
+        """Why this delivery can't start now, or (None, ownership) when it can.
+
+        Ownership is read once here and that one reading decides the path, so
+        a change between two reads can never pair an OPEN-path check with a
+        CLOSED-path launch (Codex, #116 at ad772b1). `_start_attempt` re-checks
+        the headless guards immediately before it spawns.
+        """
         recipient = delivery["recipient"]
         if paused:
-            return "pause"
+            return "pause", None
+        session = self.session(recipient)
+        if session is None:
+            return "unregistered", None
+        backend = self.backends.get(session.backend)
+        if backend is None:
+            return "unknown-backend", None
+        if self._shared(session):
+            return "session-shared", None
         if self.db.execute("SELECT 1 FROM deliveries WHERE recipient = ? AND state IN "
                            "('notified','launching','running','exited')",
                            (recipient,)).fetchone():
-            return "queued"
-        if self.db.execute("SELECT 1 FROM reservations WHERE recipient = ?",
-                           (recipient,)).fetchone():
-            return "reserved"
-        session = self.session(recipient)
-        if session is None:
-            return "unregistered"
-        backend = self.backends.get(session.backend)
-        if backend is None:
-            return "unknown-backend"
+            return "queued", None
+        if self.db.execute("SELECT 1 FROM reservations WHERE session_key = ?",
+                           (session_key(session),)).fetchone():
+            return "reserved", None
         if self._caps_hit(delivery):
-            return "cap"
+            return "cap", None
         state = backend.ownership(session)
-        if state == UNKNOWN:
-            return "session-busy-or-unknown"
+        if state == OPEN:
+            return None, OPEN
         if state == CLOSED:
-            if not session.enabled:
-                return "backend-disabled"
-            if session.backend == "claude" and self.usage:
-                reason = self.usage[0]()
-                if reason:
-                    return "rate"
+            reason = self._headless_blocker(session)
+            return (reason, None) if reason else (None, CLOSED)
+        return "session-busy-or-unknown", None
+
+    def _headless_blocker(self, session: Session) -> Optional[str]:
+        """The guards a headless launch needs, beyond ownership being CLOSED."""
+        if not session.enabled:
+            return "backend-disabled"
+        if session.backend == "claude" and self.usage:
+            if self.usage[0]():
+                return "rate"
         return None
+
+    def _shared(self, session: Session) -> bool:
+        """Another lead bound to the same conversation (a legacy row; `register`
+        refuses it now). Two identities must never resume one conversation."""
+        return self.db.execute(
+            "SELECT COUNT(*) FROM sessions WHERE backend = ? AND lower(session_id) = lower(?)",
+            (session.backend, session.session_id)).fetchone()[0] > 1
 
     def _caps_hit(self, delivery) -> bool:
         now, recipient = self.now(), delivery["recipient"]
@@ -689,10 +595,26 @@ class Relay:
             self.db.execute("UPDATE deliveries SET held_posted = ? WHERE message_id = ? AND "
                             "recipient = ?", (reason, delivery["message_id"], delivery["recipient"]))
 
-    def _start_attempt(self, delivery) -> None:
+    def _undo(self, delivery, attempt_id: str, at: float, reason: str) -> None:
+        """Take back an attempt that never started: its reservation, its wake
+        and chain count, and the delivery's pointer to it. Then hold."""
+        with self.txn():
+            self.db.execute("UPDATE attempts SET state = 'superseded' WHERE attempt_id = ?",
+                            (attempt_id,))
+            self.db.execute("DELETE FROM reservations WHERE attempt_id = ?", (attempt_id,))
+            self.db.execute("DELETE FROM wakes WHERE recipient = ? AND at = ?",
+                            (delivery["recipient"], at))
+            if delivery["from_lead"]:
+                self.db.execute("UPDATE meta SET value = CAST(MAX(CAST(value AS INTEGER) - 1, 0) "
+                                "AS TEXT) WHERE key = 'chain'")
+            self.db.execute("UPDATE deliveries SET state = 'held', reason = ?, attempt_id = NULL, "
+                            "updated_at = ? WHERE message_id = ? AND recipient = ?",
+                            (reason, self.now(), delivery["message_id"], delivery["recipient"]))
+
+    def _start_attempt(self, delivery, ownership: str) -> None:
         session = self.session(delivery["recipient"])
         backend = self.backends[session.backend]
-        live = backend.ownership(session) == OPEN
+        live = ownership == OPEN
         now = self.now()
         token = secrets.token_urlsafe(24)
         attempt_id = secrets.token_hex(8)
@@ -707,8 +629,10 @@ class Relay:
                  "live" if live else "headless", "notified" if live else "launching", now,
                  now + LIVE_ACK_SECONDS if live else None, session.session_id))
             if not live:
-                self.db.execute("INSERT INTO reservations VALUES (?, ?, ?)",
-                                (delivery["recipient"], attempt_id, now))
+                # Keyed by the conversation, not the lead: one reservation per
+                # actual session (Codex, #116 at ad772b1).
+                self.db.execute("INSERT INTO reservations VALUES (?, ?, ?, ?)",
+                                (session_key(session), delivery["recipient"], attempt_id, now))
             self.db.execute("UPDATE deliveries SET state = ?, reason = NULL, attempt_id = ?, "
                             "updated_at = ? WHERE message_id = ? AND recipient = ?",
                             ("notified" if live else "launching", attempt_id, now,
@@ -721,30 +645,31 @@ class Relay:
         posted = self.say(f"RELAY DELIVER #{delivery['message_id']} → @{delivery['recipient']} "
                           f"attempt={token} ({'live' if live else 'headless'})")
         if not posted:
-            # No visible token means no possible ACK: never launch blind. Undo
-            # the unstarted attempt and hold; it is retried when the hub is back.
-            # (Review bot, #116 at 2bd1623.)
-            with self.txn():
-                self.db.execute("UPDATE attempts SET state = 'superseded' WHERE attempt_id = ?",
-                                (attempt_id,))
-                self.db.execute("DELETE FROM reservations WHERE attempt_id = ?", (attempt_id,))
-                self.db.execute("DELETE FROM wakes WHERE recipient = ? AND at = ?",
-                                (delivery["recipient"], now))
-                if delivery["from_lead"]:
-                    self.db.execute("UPDATE meta SET value = CAST(MAX(CAST(value AS INTEGER) - 1, 0) "
-                                    "AS TEXT) WHERE key = 'chain'")
-                self.db.execute("UPDATE deliveries SET state = 'held', reason = 'deliver-unposted', "
-                                "attempt_id = NULL, updated_at = ? WHERE message_id = ? AND "
-                                "recipient = ?", (self.now(), delivery["message_id"],
-                                                  delivery["recipient"]))
+            # No visible token means no possible ACK: never launch blind; retried
+            # when the hub is back (review bot, #116 at 2bd1623).
+            self._undo(delivery, attempt_id, now, "deliver-unposted")
             return
         if live:
             return
 
+        # Immediately before spawning, everything a headless launch needs must
+        # still hold: the session may have opened, become unknown, been
+        # disabled or hit the usage guard during the DELIVER exchange.
+        fresh = self.session(delivery["recipient"])
+        if fresh is None or (fresh.backend, fresh.session_id) != (session.backend, session.session_id):
+            self._undo(delivery, attempt_id, now, "session-changed")
+            return
+        state = backend.ownership(fresh)
+        blocker = ("session-busy-or-unknown" if state == UNKNOWN else
+                   "session-opened" if state == OPEN else self._headless_blocker(fresh))
+        if blocker:
+            self._undo(delivery, attempt_id, now, blocker)
+            return
+
         try:
             pid, proc_start, handle, log_path = self.spawn(
-                backend.command(session, prompt_for(message, delivery["recipient"], token)),
-                session, attempt_id)
+                backend.command(fresh, prompt_for(message, delivery["recipient"], token)),
+                fresh, attempt_id)
         except OSError as exc:
             with self.txn():
                 self.db.execute("UPDATE attempts SET state = 'exited', ended_at = ? WHERE "
@@ -811,6 +736,7 @@ class Relay:
     # --- the loop
 
     def tick(self) -> None:
+        self.check_ownership()
         try:
             self.initialize()
         except (OSError, lead_chat.LeadChatError) as exc:
@@ -924,6 +850,19 @@ def main(argv=None) -> int:
             if not Path(args.workspace).is_absolute():
                 print("REFUSED: --workspace must be absolute")
                 return 1
+            key = f"{args.backend}:{args.session.lower()}"
+            other = db.execute("SELECT recipient FROM sessions WHERE backend = ? AND "
+                               "lower(session_id) = lower(?) AND recipient != ?",
+                               (args.backend, args.session, args.lead)).fetchone()
+            if other:
+                # One conversation, one identity: two leads resuming the same
+                # session would each get their own reservation (Codex, #116).
+                print(f"REFUSED: that session is already registered to {other[0]}")
+                return 1
+            if db.execute("SELECT 1 FROM reservations WHERE recipient = ? OR session_key = ?",
+                          (args.lead, key)).fetchone():
+                print(f"REFUSED: {args.lead} has a reserved run; re-register once it is released")
+                return 1
             # Registering (again) always leaves the backend disabled until
             # its bridge proof, so a changed session id can't inherit "enabled".
             db.execute("INSERT OR REPLACE INTO sessions VALUES (?, ?, ?, ?, ?, 0, ?)",
@@ -939,14 +878,24 @@ def main(argv=None) -> int:
         return 0
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    relay = build(db_path, Path(args.control) if args.control else None)
-    relay.recover()
+    # Before recovery, and held for the whole run: a second `run` or `once`
+    # on this database must never recover the first one's live launch.
+    try:
+        lock = acquire_lock(db_path.with_name(db_path.name + ".lock"))  # noqa: F841 -- kept open
+        relay = build(db_path, Path(args.control) if args.control else None)
+        relay.recover()
+    except AlreadyRunning as exc:
+        print(f"REFUSED: {exc}")
+        return 3
     if args.command == "once":
         relay.tick()
         return 0
     while True:
         try:
             relay.tick()
+        except AlreadyRunning as exc:
+            log.error("stopping: %s", exc)
+            return 3
         except Exception:  # noqa: BLE001 -- the daemon logs and keeps watching
             log.exception("relay tick failed")
         time.sleep(args.interval)

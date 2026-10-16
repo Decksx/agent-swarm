@@ -9,7 +9,11 @@ a live procedure, not a unit test.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -64,10 +68,11 @@ class FakeBackend:
 
     def __init__(self, state=CLOSED):
         self.state = state
+        self.script = []          # successive ownership answers, then `state`
         self.transcript = None
 
     def ownership(self, session):
-        return self.state
+        return self.script.pop(0) if self.script else self.state
 
     def command(self, session, prompt):
         return ["claude", "-p", "--resume", session.session_id, prompt]
@@ -112,6 +117,10 @@ class World:
         self.hub = FakeHub(high_water=high_water)
         self.backend = FakeBackend(ownership)
         self.processes = FakeProcesses()
+        # This test process is the relay's owner. A restart is a new process:
+        # same pid number here, but a different creation time.
+        self.generation = 0
+        self.processes.alive[os.getpid()] = "relay-0"
         self.t = [1_000_000.0]
         self.spawned = []
         self.recorded = []
@@ -136,7 +145,10 @@ class World:
         return relay
 
     def restart(self):
-        """A relay crash and restart: same database, no Popen handles."""
+        """A relay crash and restart: same database, no Popen handles, and a
+        new owner process (the old one's creation time no longer matches)."""
+        self.generation += 1
+        self.processes.alive[os.getpid()] = f"relay-{self.generation}"
         self.relay = self.build()
         self.relay.recover()
 
@@ -786,3 +798,184 @@ def test_register_refuses_a_non_uuid_session_and_leaves_backends_disabled(tmp_pa
                             "--workspace", "C:/git"]) == 0
     row = sqlite3.connect(db).execute("SELECT enabled FROM sessions").fetchone()
     assert row == (0,)
+
+
+# --- Codex, #116 at ad772b1: one ownership decision ------------------------------------
+
+
+@pytest.mark.parametrize("script, reason", [
+    ([CLOSED, UNKNOWN], "session-busy-or-unknown"),   # became unknown during DELIVER
+    ([CLOSED, OPEN], "session-opened"),                # an interactive client opened it
+], ids=["closed-then-unknown", "closed-then-open"])
+def test_ownership_changing_before_spawn_undoes_the_launch(tmp_path, script, reason):
+    w = World(tmp_path)
+    w.tick()
+    mid = w.hub.add("codex-lead", "HANDOFF @claude-lead: x")
+    w.backend.script = list(script)
+    w.tick()
+
+    assert w.spawned == []
+    assert w.delivery(mid) == ("held", reason)
+    assert w.relay.db.execute("SELECT COUNT(*) FROM reservations").fetchone()[0] == 0
+    assert w.relay.db.execute("SELECT COUNT(*) FROM wakes").fetchone()[0] == 0
+
+
+def test_an_open_reading_takes_the_live_path_even_if_closed_by_spawn_time(tmp_path):
+    """Codex's second case: OPEN then CLOSED, disabled, with a usage hold. The
+    single OPEN decision means a notice and no launch, whatever comes after."""
+    w = World(tmp_path, enabled=False, usage_reason="rate hold-off")
+    w.tick()
+    mid = w.hub.add("codex-lead", "HANDOFF @claude-lead: x")
+    w.backend.script = [OPEN, CLOSED, CLOSED]
+    w.tick()
+
+    assert w.spawned == [] and w.delivery(mid) == ("notified", None)
+
+
+@pytest.mark.parametrize("change", ["disable", "rate"])
+def test_headless_guards_are_rechecked_immediately_before_spawn(tmp_path, change):
+    w = World(tmp_path)
+    w.tick()
+    mid = w.hub.add("codex-lead", "HANDOFF @claude-lead: x")
+    original_post = w.hub.post
+
+    def post_then_change(content, target=None):
+        result = original_post(content, target)
+        if change == "disable":
+            w.relay.db.execute("UPDATE sessions SET enabled = 0 WHERE recipient = 'claude-lead'")
+        else:
+            w.usage_reason = "rate hold-off until 12:00"
+        return result
+
+    w.hub.post = post_then_change
+    w.tick()
+
+    assert w.spawned == []
+    assert w.delivery(mid) == ("held", "backend-disabled" if change == "disable" else "rate")
+
+
+# --- Codex, #116 at ad772b1: one reservation per actual conversation -------------------
+
+
+def test_register_refuses_a_session_already_bound_to_the_other_lead(tmp_path):
+    db = str(tmp_path / "r.db")
+    uuid = "11111111-2222-3333-4444-555555555555"
+    args = ["--db", db, "register", "--backend", "claude", "--session", uuid,
+            "--workspace", "C:/git"]
+    assert lead_relay.main(args[:2] + ["register", "--lead", "claude-lead"] + args[3:]) == 0
+    assert lead_relay.main(args[:2] + ["register", "--lead", "codex-lead"] + args[3:]) == 1
+    assert lead_relay.main(args[:2] + ["register", "--lead", "codex-lead", "--backend", "claude",
+                                       "--session", uuid.upper(), "--workspace", "C:/git"]) == 1
+    rows = sqlite3.connect(db).execute("SELECT recipient FROM sessions").fetchall()
+    assert rows == [("claude-lead",)]
+
+
+def test_register_refuses_while_the_lead_holds_a_reservation(tmp_path):
+    w = World(tmp_path)
+    started(w)
+    w.relay.db.commit()
+
+    code = lead_relay.main(["--db", str(w.db_path), "register", "--lead", "claude-lead",
+                            "--backend", "claude", "--session",
+                            "22222222-2222-3333-4444-555555555555", "--workspace", "C:/git"])
+
+    assert code == 1
+
+
+def test_two_leads_on_one_conversation_never_both_launch(tmp_path):
+    """A legacy database without the uniqueness constraint, both leads bound to
+    one session: nothing launches, and the reason says why."""
+    w = World(tmp_path, register=False)
+    w.relay.db.executescript(
+        "DROP TABLE sessions; CREATE TABLE sessions (recipient TEXT PRIMARY KEY, backend TEXT, "
+        "session_id TEXT, workspace TEXT, cli TEXT, enabled INTEGER, registered_at REAL);")
+    for lead in ("claude-lead", "codex-lead"):
+        w.relay.db.execute("INSERT INTO sessions VALUES (?, 'claude', "
+                           "'11111111-2222-3333-4444-555555555555', 'C:/git', NULL, 1, 0)", (lead,))
+    w.tick()
+    a = w.hub.add("admin", "@claude-lead one")
+    b = w.hub.add("admin", "@codex-lead two")
+    w.tick()
+
+    assert w.spawned == []
+    assert w.delivery(a) == ("held", "session-shared")
+    assert w.delivery(b, "codex-lead") == ("held", "session-shared")
+
+
+def test_the_reservation_is_keyed_by_the_conversation(tmp_path):
+    w = World(tmp_path)
+    started(w)
+    keys = [r[0] for r in w.relay.db.execute("SELECT session_key FROM reservations")]
+
+    assert keys == ["claude:11111111-2222-3333-4444-555555555555"]
+
+
+# --- Codex, #116 at ad772b1: one relay per database -------------------------------------
+
+
+def test_a_second_relay_cannot_recover_a_live_owners_launch(tmp_path):
+    """Codex's interleaving: a second relay recovers inside the first one's
+    launching-before-pid window. It must refuse, not mark the launch uncertain."""
+    w = World(tmp_path)
+    w.tick()
+    second = {}
+
+    def spawn_with_intruder(command, session, attempt_id):
+        intruder = w.build()
+        with pytest.raises(lead_relay.AlreadyRunning):
+            intruder.recover()
+        second["state"] = w.delivery(mid)
+        return w.spawn(command, session, attempt_id)
+
+    w.relay.spawn = spawn_with_intruder
+    mid = w.hub.add("codex-lead", "HANDOFF @claude-lead: x")
+    w.tick()
+
+    assert second["state"] == ("launching", None)
+    assert w.delivery(mid) == ("running", None) and len(w.spawned) == 1
+    assert w.relay.db.execute("SELECT COUNT(*) FROM reservations").fetchone()[0] == 1
+
+
+def test_a_dead_owner_is_taken_over(tmp_path):
+    w = World(tmp_path)
+    w.tick()
+    w.processes.alive[os.getpid()] = "a-new-process"   # the old owner died
+    successor = w.build()
+    successor.recover()
+
+    assert successor.owned
+    with pytest.raises(lead_relay.AlreadyRunning):
+        w.relay.tick()                                  # the old one stands down
+
+
+def test_a_second_relay_process_is_refused(tmp_path):
+    db = tmp_path / "relay.db"
+    held = lead_relay.acquire_lock(db.with_name(db.name + ".lock"))
+    try:
+        result = subprocess.run(
+            [sys.executable, str(Path(lead_relay.__file__)), "--db", str(db), "once"],
+            capture_output=True, text=True, timeout=60, cwd=str(Path(lead_relay.__file__).parent))
+    finally:
+        os.close(held)
+
+    assert result.returncode == 3, result.stdout + result.stderr
+    assert "REFUSED: another relay holds" in result.stdout
+
+
+def test_a_reservation_holds_the_conversation_across_re_registration(tmp_path):
+    """A run is reserved on conversation S under claude-lead. Even if the
+    registrations are then rearranged (here directly in the database, as a
+    manual edit or legacy row would) so that codex-lead points at S, the
+    reservation still holds S: it belongs to the conversation, not the name."""
+    w = World(tmp_path)
+    started(w)
+    db = w.relay.db
+    db.execute("UPDATE sessions SET session_id = '33333333-2222-3333-4444-555555555555' "
+               "WHERE recipient = 'claude-lead'")
+    db.execute("UPDATE sessions SET session_id = '11111111-2222-3333-4444-555555555555' "
+               "WHERE recipient = 'codex-lead'")
+    mid = w.hub.add("admin", "@codex-lead now you have that session")
+    w.tick()
+
+    assert w.delivery(mid, "codex-lead") == ("held", "reserved")
+    assert len(w.spawned) == 1
