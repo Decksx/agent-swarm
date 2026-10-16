@@ -1,5 +1,43 @@
 # Next steps after the Codex import
 
+## Current #92 checkpoint — 2026-10-16
+
+Controller #107 and worker #106 are merged as 37701ad and babea85. Their
+combined tree passed all four checks at reviewed candidate 12188e5. The new
+`feat/92-ingest-dispatch` follow-up connects the existing adapter and allows
+model-free ingest claims during model holds. It needs Claude's independent
+review and exact-head CI before merging. Production and Tower are unchanged
+by this implementation work; the latest rollout receipt remains PR #102.
+
+After that review and merge:
+
+1. Inspect the current live state and pause/drain using supported controls.
+   Preserve cursors, Claude's existing usage/hold directory, hidden launchers,
+   scheduled ensure, and production-local files. Run the full deploy gate.
+2. Deploy the controller to Tower with automatic ingest issuance still disabled.
+   Prepare `INGRESS_PROJECTS` with `agenthub=C:\git\agent-swarm` and
+   `EXTERNAL_REVIEW_REPOS` with `{"agenthub":"Decksx/agent-swarm"}`. These are
+   the worker's registered checkout and trusted GitHub slug, not a Tower path.
+   No other project becomes enabled implicitly. Leave `PROGRESSION_INGESTER`
+   unset until the controller and updated worker are verified together.
+3. Redeploy OfficePC workers at the reviewed merged commit, check loaded/disk/
+   checkout controller parity for all identities and supervisor uniqueness,
+   then enable `PROGRESSION_INGESTER=claudecode` on Tower with the correct host
+   routing and restart as required for environment changes. Confirm both maps
+   are present; bad external-review settings must not disable other routes.
+4. Issue one explicitly scoped external-ingest task through the admin route.
+   Verify its controller activation, pinned SHA, evidence event and final
+   READY_EXTERNAL_REVIEW state. No model, PR-state change or integration is
+   part of this proof. Retain its pin for the later review.
+5. Implement #93's reviewer selection/packet and #94's verdict/publication/
+   cleanup before claiming a full real external review. Ingestion alone cannot
+   produce a controller-issued review verdict.
+
+Standing operator permission is recorded in AGENTS.md. Exact-commit independent
+review, CI and supported deployment controls remain required. The sections below
+are historical implementation planning, superseded by this checkpoint where
+they describe earlier pending work or release state.
+
 ## Deployment completed
 
 David subsequently authorized this release's commits, merges and deployment.

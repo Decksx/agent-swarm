@@ -1,4 +1,4 @@
-"""Model-free external PR fetch/pin engine. Controller dispatch is wired separately.
+"""Model-free external PR fetch/pin engine, dispatched by claude_worker.
 
 Inputs come from a validated, immutable activation. This module never creates
 tasks, reports controller events, checks out code, runs tests or calls a model.
@@ -500,11 +500,7 @@ def failure_payload(error: IngestError) -> tuple[str, dict]:
 
 
 def execute_ingest(activation: dict, queue, *, registry: Path | None = None) -> None:
-    """Controller adapter, available for review but not dispatched by the worker.
-
-    The production worker's claim filters and dispatch are deliberately unchanged
-    until both halves pass independent review. Tests call this adapter directly.
-    """
+    """Run a controller ingest claim, maintaining its lease and reporting evidence."""
     activation_id = activation.get("activation_id")
     if queue is None:
         log.error("ingest requires the controller queue")

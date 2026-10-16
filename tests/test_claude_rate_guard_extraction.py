@@ -133,7 +133,7 @@ def test_worker_holds_during_usage_mutex_contention_and_recovers(worker, monkeyp
         for _ in range(2):
             reason = worker.rate_limit_reason(now=NOW)
             assert reason is not None and "shared usage unavailable" in reason
-            assert claude_rate_guard.claim_stages(True) == ("integrate",)
+            assert claude_rate_guard.claim_stages(True) == ("ingest", "integrate")
             assert worker._process_usage_window == remembered
     assert sum("until it can be read" in r.message for r in caplog.records) == 1
 

@@ -266,7 +266,7 @@ def test_the_guard_is_consulted_before_any_claim(monkeypatch, control):
 
     invocations, _ = run_loop(monkeypatch, control, queue=queue, polls=3)
 
-    assert queue.claim_stages and set(queue.claim_stages) == {("integrate",)}, (
+    assert queue.claim_stages and set(queue.claim_stages) == {("ingest", "integrate")}, (
         "a guarded worker asked for work a model would have to do"
     )
     assert invocations == [], "a guarded worker called the model"

@@ -1,5 +1,39 @@
 # Agent Swarm imported project context
 
+## #92 merged halves and dispatch follow-up — 2026-10-16
+
+Verified GitHub merge records: controller #107 merged as
+`37701ad3ce61e3e34d857a5223a0ba8ab2af7182`, pinned to approved 4907098;
+worker #106 merged as `babea855d22a5dfa725e019091e5076a6fa3150a`, pinned to
+`12188e53344463c998be7c5a278383d7591a8cc9`. Main's tree equals that reviewed
+worker candidate, which already contained the approved controller unchanged.
+All four checks passed at 12188e5 in run 38925675580: 2,314 core, 375 hub and
+8 bypass tests (2,697 total) in 5m57s. Claude's exact-head approval is PR #106
+comment 6219365823; its local footer audit detected all 50 attributed bodies
+among 72 repo PRs. These are engineering records, not controller verdicts.
+
+Codex's new `feat/92-ingest-dispatch` branch starts at babea85 in its existing
+isolated worktree. It connects the ingest adapter to the worker dispatcher and
+adds ingest to model-free claims during rate holds or unavailable shared usage.
+Global pause and directory-source holds still prevent claims. A rejected claim
+filter reports ingest through its dedicated route, tolerating an unconfirmed
+report without running the activation. Tests exercise all three outcomes,
+authority checks, held/pause behavior, real local Git pinning, and HTTP replay
+and invalid-registration correction through dispatch. Local verification passed
+449 selected core tests and 45 selected HTTP tests (494 total). Nine selected
+dispatch guard mutations were caught. A combined local HTTP/Git probe through
+the real dispatcher passed success, SHA mismatch, lost-response replay with the
+same event ID and 422-to-blocked correction. Compilation and whitespace checks
+passed. Exact-head CI and Claude review remain required.
+
+No production rollout, Tower configuration or real controller task was made.
+The last recorded OfficePC release remains d249366; this work did not inspect
+live process health. After this PR passes review/CI, deploy controller and
+workers with the existing controls and parity checks, configuring both project
+maps and PROGRESSION_INGESTER on Tower. See NEXT_STEPS.md for the rollout boundary.
+The first live proof for #92 is ingestion to READY_EXTERNAL_REVIEW; a complete
+external-review verdict and publication require the later #93/#94 slices.
+
 ## #107 approved; #106 session-footer correction — 2026-10-16
 
 Codex re-reviewed controller #107 at `49070986140065bc7eb3a08991b0d5d97ce97fbf`:

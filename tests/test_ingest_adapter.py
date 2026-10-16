@@ -1,4 +1,4 @@
-"""The ingest wire adapter is callable for review; worker dispatch stays off."""
+"""The ingest wire adapter validates authority and reports through its own route."""
 
 from types import SimpleNamespace
 
