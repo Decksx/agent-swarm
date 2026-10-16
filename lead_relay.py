@@ -563,8 +563,15 @@ class Relay:
         if not session.enabled:
             return "backend-disabled"
         if session.backend == "claude" and self.usage:
-            if self.usage[0]():
-                return "rate"
+            try:
+                if self.usage[0]():
+                    return "rate"
+            except Exception as exc:  # noqa: BLE001 -- fail closed, visibly, and retry
+                # The shared guard's lock can time out (swarm_control.AlreadyRunning)
+                # or its file can fail (OSError). Unreadable is not "no hold":
+                # don't launch, and try again next tick (Codex, #116 at b9b4b20).
+                log.warning("Claude usage guard unreadable: %s: %s", type(exc).__name__, exc)
+                return "guard-unavailable"
         return None
 
     def _shared(self, session: Session) -> bool:
@@ -655,13 +662,21 @@ class Relay:
         # Immediately before spawning, everything a headless launch needs must
         # still hold: the session may have opened, become unknown, been
         # disabled or hit the usage guard during the DELIVER exchange.
-        fresh = self.session(delivery["recipient"])
-        if fresh is None or (fresh.backend, fresh.session_id) != (session.backend, session.session_id):
-            self._undo(delivery, attempt_id, now, "session-changed")
-            return
-        state = backend.ownership(fresh)
-        blocker = ("session-busy-or-unknown" if state == UNKNOWN else
-                   "session-opened" if state == OPEN else self._headless_blocker(fresh))
+        # Nothing here has spawned yet, so any failure in these checks leaves a
+        # known-unstarted attempt: undo it and hold, rather than strand a
+        # `launching` row that only a restart would (wrongly) call uncertain.
+        try:
+            fresh = self.session(delivery["recipient"])
+            if fresh is None or (fresh.backend, fresh.session_id) != (session.backend,
+                                                                      session.session_id):
+                blocker = "session-changed"
+            else:
+                state = backend.ownership(fresh)
+                blocker = ("session-busy-or-unknown" if state == UNKNOWN else
+                           "session-opened" if state == OPEN else self._headless_blocker(fresh))
+        except Exception as exc:  # noqa: BLE001 -- recorded as the hold reason
+            log.error("pre-spawn check failed for #%s: %s", delivery["message_id"], exc)
+            blocker = "pre-spawn-error"
         if blocker:
             self._undo(delivery, attempt_id, now, blocker)
             return

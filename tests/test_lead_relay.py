@@ -979,3 +979,83 @@ def test_a_reservation_holds_the_conversation_across_re_registration(tmp_path):
 
     assert w.delivery(mid, "codex-lead") == ("held", "reserved")
     assert len(w.spawned) == 1
+
+
+# --- Codex, #116 at b9b4b20: an unreadable usage guard ---------------------------------
+
+
+def guard_failing_on(w, calls_to_fail, error):
+    """A usage check that raises on the listed call numbers (1-based)."""
+    count = [0]
+
+    def check():
+        count[0] += 1
+        if count[0] in calls_to_fail:
+            raise error
+        return None
+
+    w.relay.usage = (check, w.relay.usage[1])
+    return count
+
+
+def assert_no_leak(w):
+    db = w.relay.db
+    assert db.execute("SELECT COUNT(*) FROM reservations").fetchone()[0] == 0
+    assert db.execute("SELECT COUNT(*) FROM wakes").fetchone()[0] == 0
+    assert w.relay.meta("chain") in (None, "0")
+    assert db.execute("SELECT COUNT(*) FROM attempts WHERE state IN "
+                      "('launching','running')").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("error", [OSError("usage lock unavailable"),
+                                   __import__("swarm_control").AlreadyRunning("mutex timeout")],
+                         ids=["oserror", "mutex-timeout"])
+def test_a_guard_failing_only_at_the_final_check_holds_and_recovers(tmp_path, error):
+    w = World(tmp_path)
+    w.tick()
+    mid = w.hub.add("codex-lead", "HANDOFF @claude-lead: x")
+    guard_failing_on(w, {2}, error)        # call 1: _hold_reason, call 2: just before spawn
+    w.tick()
+
+    assert w.spawned == []
+    assert w.delivery(mid) == ("held", "guard-unavailable")
+    assert_no_leak(w)
+
+    w.tick(advance=60)                     # the guard is healthy again: no restart needed
+    assert w.delivery(mid) == ("running", None) and len(w.spawned) == 1
+
+
+def test_a_guard_unavailable_for_several_ticks_stays_held_without_leaking(tmp_path):
+    w = World(tmp_path)
+    w.tick()
+    mid = w.hub.add("codex-lead", "HANDOFF @claude-lead: x")
+    count = guard_failing_on(w, set(range(1, 7)), OSError("guard file locked"))
+    for _ in range(3):
+        w.tick(advance=1000)
+        assert w.delivery(mid) == ("held", "guard-unavailable")
+        assert_no_leak(w)
+    assert w.spawned == [] and count[0] >= 3
+
+    w.relay.usage = (lambda: None, w.relay.usage[1])
+    w.tick()
+    assert w.delivery(mid) == ("running", None) and len(w.spawned) == 1
+
+
+def test_any_failure_in_the_pre_spawn_checks_undoes_the_unstarted_attempt(tmp_path):
+    w = World(tmp_path)
+    w.tick()
+    mid = w.hub.add("codex-lead", "HANDOFF @claude-lead: x")
+    w.backend.script = [CLOSED]
+
+    def broken(session):
+        raise RuntimeError("backend probe crashed")
+
+    original = w.backend.ownership
+    w.backend.ownership = lambda s: w.backend.script.pop(0) if w.backend.script else broken(s)
+    w.tick()
+
+    assert w.spawned == [] and w.delivery(mid) == ("held", "pre-spawn-error")
+    assert_no_leak(w)
+    w.backend.ownership = original
+    w.tick()
+    assert w.delivery(mid) == ("running", None)
