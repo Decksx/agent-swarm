@@ -30,6 +30,13 @@ or running one of the existing background workers is insufficient. Preserve
 durable state, deduplication and visible failure/recovery evidence in the relay
 design, while retaining controller activation and engineering review authority.
 
+David subsequently requested a later CI-efficiency follow-up for the comic
+automation suite, using the measured agent-swarm improvement as a reference.
+Recorded at https://github.com/Decksx/cbz-automation-suite/issues/92. Profile its
+own workflow, trial safe parallelism/caching and preserve coverage/check meaning;
+do not assume its bottleneck matches agent-swarm. This backlog item does not
+change the current #109/relay priority. No comic source or CI was changed.
+
 ## #92 deployed; direct coordination is the product goal — 2026-10-16
 
 David clarified the goal: Codex and Claude should collaborate efficiently and

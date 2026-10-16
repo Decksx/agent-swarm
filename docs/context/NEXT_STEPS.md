@@ -22,6 +22,13 @@ cross-review, green CI and supported deployment controls, plus that project's
 explicit operator-only batch/library data rules. This authorization does not
 start comic automation work during the current lead/relay workstream.
 
+Later comic follow-up: David requested a CI-efficiency audit similar to the
+agent-swarm improvement. Backlog: [cbz-automation-suite #92](https://github.com/Decksx/cbz-automation-suite/issues/92).
+Measure its actual workflow first, then evaluate safe parallelism and caching
+without reducing coverage or weakening required checks. This is queued behind
+#109 and the relay unless David changes priority; no comic CI optimization has
+started. This issue is in the comic repo, distinct from agent-swarm's ingest #92.
+
 ## Deployed ingest and coordination handoff — 2026-10-16
 
 PR #108 merged as 15c1278 after Claude's approval of 3f36189 and green
