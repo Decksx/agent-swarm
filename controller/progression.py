@@ -39,14 +39,18 @@ import json
 import sqlite3
 from typing import Optional
 
-from . import activations, engine
+from . import activations, engine, external
 
-# The state each stage follows from. Deliberately only two entries: these are
-# the boundaries that were being crossed by hand, and every other transition in
-# the machine either needs a judgment or is already automatic.
+# The state each stage follows from. Deliberately short: these are the
+# boundaries that were being crossed by hand (plus #92's ingest, which has no
+# hand-issued predecessor), and every other transition in the machine either
+# needs a judgment or is already automatic.
 NEXT_STAGE = {
     "READY_REVIEW": "review",
     "READY_INTEGRATION": "integrate",
+    # Pin the pull request an operator asked to have reviewed (#92). Its
+    # inputs come from the stored request, not from a producing activation.
+    "EXTERNAL_PENDING": "ingest",
 }
 
 # The decline reasons that resolve on their own. Anything else is persistent.
@@ -71,22 +75,29 @@ class Routing:
         repo_location: str = "",
         lease_seconds: float = 900.0,
         hard_deadline_seconds: float = 5400.0,
+        ingester: str = "",
     ):
         self.verifier = (verifier or "").strip()
         self.integrator = (integrator or "").strip()
+        self.ingester = (ingester or "").strip()
         self.host = (host or "").strip()
         self.repo_location = (repo_location or "").strip()
         self.lease_seconds = lease_seconds
         self.hard_deadline_seconds = hard_deadline_seconds
 
     def agent_for(self, stage: str) -> str:
-        return {"review": self.verifier, "integrate": self.integrator}.get(stage, "")
+        return {
+            "review": self.verifier, "integrate": self.integrator,
+            "ingest": self.ingester,
+        }.get(stage, "")
 
     def missing_for(self, stage: str) -> list:
         lacking = []
 
         if not self.agent_for(stage):
-            lacking.append("verifier" if stage == "review" else "integrator")
+            lacking.append(
+                {"review": "verifier", "ingest": "ingester"}.get(stage, "integrator")
+            )
 
         if not self.host:
             lacking.append("host")
@@ -267,6 +278,24 @@ def advance(
 
             branch = review_activation["expected_branch"]
             repo_location = review_activation["repo_location"] or routing.repo_location
+            from_activation = review_activation["activation_id"]
+        elif stage == "ingest":
+            # Everything comes from the stored request: no author produced
+            # anything, and no global default may say where a PR is pinned.
+            request = external.load_request(conn, row["task_id"])
+
+            if request is None:
+                record["reason"] = (
+                    "EXTERNAL_PENDING but no external-review request is stored; "
+                    "nothing says which pull request to pin"
+                )
+                record["reason_code"] = "no_external_request"
+                considered.append(record)
+                continue
+
+            branch = external.pin_ref(row["task_id"])
+            repo_location = request["repo_location"]
+            from_activation = None
         else:
             produced = _producing_activation(conn, row["task_id"])
 
@@ -298,6 +327,8 @@ def advance(
                 considered.append(record)
                 continue
 
+            from_activation = produced["activation_id"]
+
         try:
             issued = activations.issue(
                 conn,
@@ -308,8 +339,11 @@ def advance(
                 lease_seconds=routing.lease_seconds,
                 hard_deadline_seconds=routing.hard_deadline_seconds,
                 expected_branch=branch,
+                # An ingest activation's candidate is the operator's `at_sha`,
+                # which `issue` fills from the stored request itself.
                 expected_candidate=(
-                    (row["approved_candidate_sha"] or "").strip() or None
+                    None if stage == "ingest"
+                    else (row["approved_candidate_sha"] or "").strip() or None
                 ),
                 repo_location=repo_location,
                 now=now,
@@ -344,7 +378,7 @@ def advance(
             "agent": routing.agent_for(stage),
             "expected_branch": branch,
             "repo_location": repo_location,
-            "from_activation": review_activation["activation_id"] if stage == "integrate" else produced["activation_id"],
+            "from_activation": from_activation,
         })
         considered.append(record)
 

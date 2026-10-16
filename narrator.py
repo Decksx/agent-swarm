@@ -159,7 +159,10 @@ NARRATED = {
 
     # Reviewing a change the swarm did not author (#74).
     "external_review_requested": "external review requested",
+    "ingest_activation_issued": "ingest issued",
     "external_candidate_registered": "PR head pinned",
+    # Terminal: the PR is missing, moved, or not what the operator named.
+    "external_ingest_refused": "external review REFUSED (not pinned)",
     "external_review_judged": "EXTERNAL VERDICT",
     "superseded": "superseded",
 }

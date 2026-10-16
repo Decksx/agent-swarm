@@ -89,7 +89,9 @@ STATES: FrozenSet[str] = frozenset({
     # a property of where these states can lead -- none of them reaches
     # READY_INTEGRATION, INTEGRATING or COMPLETE, and a graph walk in the
     # tests holds that. The swarm judges; a person merges.
-    "EXTERNAL_PENDING",           # submitted; the PR head is being pinned
+    "EXTERNAL_PENDING",           # submitted; waiting for an ingest activation
+    "EXTERNAL_INGEST_ASSIGNED",   # ingest activation issued, not yet claimed
+    "EXTERNAL_INGESTING",         # ingest claimed; fetching and pinning (#92)
     "EXTERNAL_INGEST_BLOCKED",    # pinning could not be performed
     "READY_EXTERNAL_REVIEW",      # pinned; waiting for a review activation
     "EXTERNAL_REVIEW_ASSIGNED",
@@ -361,15 +363,46 @@ TRANSITIONS: Dict[Tuple[str, str], Transition] = {
     # reviewer, and nothing here can be read as `candidate_submitted`.
     ("DRAFT", "external_review_requested"): _t("EXTERNAL_PENDING", ADMIN),
 
+    # Ingest (#92, docs/design/92-ingest-contract.md). An assigned and a
+    # running state, like the author and review stages, so a lapsed lease can
+    # say whether anything had started -- and so recovery has somewhere to
+    # put the task back to.
+    ("EXTERNAL_PENDING", "ingest_activation_issued"): _t(
+        "EXTERNAL_INGEST_ASSIGNED", CONTROLLER
+    ),
+    # OPERATOR, the role the model-free integrate stage already uses. The
+    # claim is the only thing it may cause on this chain: everything that
+    # follows is the controller's, applied on a report it has validated.
+    ("EXTERNAL_INGEST_ASSIGNED", "activation_claimed"): _t(
+        "EXTERNAL_INGESTING", OPERATOR
+    ),
+    ("EXTERNAL_INGEST_ASSIGNED", "lease_expired"): _t(
+        "EXTERNAL_PENDING", CONTROLLER
+    ),
+    ("EXTERNAL_INGEST_ASSIGNED", "hard_deadline_reached"): _t(
+        "EXTERNAL_PENDING", CONTROLLER
+    ),
+    ("EXTERNAL_INGESTING", "lease_expired"): _t(
+        "EXTERNAL_PENDING", CONTROLLER
+    ),
+    ("EXTERNAL_INGESTING", "deadline_without_checkpoint"): _t(
+        "EXTERNAL_PENDING", CONTROLLER
+    ),
     # The ingest worker verified the PR head and pinned it. Its own event, so
     # the ledger can always tell "the operator asked for this commit to be
     # reviewed" from "an author the controller activated produced this".
-    ("EXTERNAL_PENDING", "external_candidate_registered"): _t(
+    ("EXTERNAL_INGESTING", "external_candidate_registered"): _t(
         "READY_EXTERNAL_REVIEW", CONTROLLER
+    ),
+    # The PR is missing, moved, or not what the operator named (#78's rule:
+    # a refusal, not an environment problem). Terminal: a corrected request
+    # is a new task, because a task names one immutable SHA.
+    ("EXTERNAL_INGESTING", "external_ingest_refused"): _t(
+        "FAILED", CONTROLLER
     ),
     # One blocked state per stage, because a (state, event) pair has exactly
     # one destination: a single EXTERNAL_BLOCKED could not return to both.
-    ("EXTERNAL_PENDING", "environment_defect"): _t(
+    ("EXTERNAL_INGESTING", "environment_defect"): _t(
         "EXTERNAL_INGEST_BLOCKED", CONTROLLER
     ),
     ("EXTERNAL_INGEST_BLOCKED", "environment_repaired"): _t(
