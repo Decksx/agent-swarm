@@ -31,6 +31,7 @@ import secrets
 import sqlite3
 import subprocess
 import sys
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -39,9 +40,10 @@ from typing import Callable, Optional
 
 import lead_chat
 from lead_relay_backends import (  # noqa: F401 -- re-exported for callers and tests
-    CLOSED, OPEN, UNKNOWN, AlreadyRunning, ClaudeBackend, CodexBackend, ProcessApi, Session,
+    CLOSED, OPEN, UNKNOWN, AlreadyRunning, ClaudeBackend, ProcessApi, Session,
     acquire_lock, child_environment, separate_process_group, session_key,
 )
+from lead_relay_codex import CodexBackend  # noqa: F401 -- re-exported
 
 log = logging.getLogger("lead_relay")
 
@@ -57,6 +59,8 @@ RUN_TIMEOUT = float(os.environ.get("LEAD_RELAY_RUN_TIMEOUT", str(45 * 60)))
 LIVE_ACK_SECONDS = float(os.environ.get("LEAD_RELAY_LIVE_ACK_SECONDS", "600"))
 # After a headless run exits, how long its ACK may still arrive before no-ack.
 EXIT_ACK_GRACE = 120.0
+# Codex design §4: the prompt goes on stdin; a write that takes longer is a failure.
+STDIN_TIMEOUT = 10.0
 MAX_WAKES_PER_HOUR = int(os.environ.get("LEAD_RELAY_MAX_WAKES_PER_HOUR", "4"))
 MAX_WAKES_PER_DAY = int(os.environ.get("LEAD_RELAY_MAX_WAKES_PER_DAY", "20"))
 # Lead-to-lead envelope deliveries without a message from admin in between.
@@ -80,7 +84,8 @@ CREATE TABLE IF NOT EXISTS attempts (
     token TEXT NOT NULL UNIQUE, path TEXT NOT NULL, state TEXT NOT NULL,
     created_at REAL NOT NULL, deadline REAL, launched_at REAL, pid INTEGER,
     proc_start TEXT, session_id TEXT, exit_code INTEGER, ended_at REAL,
-    log_path TEXT, ack_message_id INTEGER, usage_recorded INTEGER NOT NULL DEFAULT 0);
+    log_path TEXT, ack_message_id INTEGER, usage_recorded INTEGER NOT NULL DEFAULT 0,
+    backend TEXT);
 CREATE TABLE IF NOT EXISTS reservations (
     session_key TEXT PRIMARY KEY, recipient TEXT NOT NULL, attempt_id TEXT NOT NULL,
     acquired_at REAL NOT NULL);
@@ -94,6 +99,20 @@ CREATE TABLE IF NOT EXISTS wakes (recipient TEXT NOT NULL, at REAL NOT NULL);
 # Delivery states (§4). Terminal ones never change again.
 ACTIVE = ("notified", "launching", "running", "exited")
 TERMINAL = ("delivered", "failed", "uncertain", "cancelled")
+
+
+def migrate(db) -> None:
+    """Bring an older database up to SCHEMA. Idempotent.
+
+    `attempts.backend` binds each attempt to the backend it ran on, so usage
+    and release never follow a later re-registration (Codex design §5). Rows
+    from before it are Claude's: until this change `CodexBackend.ownership`
+    was always UNKNOWN, so no other backend could ever have launched.
+    """
+    columns = {row[1] for row in db.execute("PRAGMA table_info(attempts)")}
+    if "backend" not in columns:
+        db.execute("ALTER TABLE attempts ADD COLUMN backend TEXT")
+    db.execute("UPDATE attempts SET backend = 'claude' WHERE backend IS NULL")
 
 
 
@@ -199,10 +218,14 @@ class Relay:
         self.db = sqlite3.connect(str(db_path), isolation_level=None)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        migrate(self.db)
         self.hub, self.backends, self.processes = hub, backends, processes
         self.clock = clock or Clock()
         self.spawn = spawn or self._spawn
-        self.usage = usage  # (check() -> reason|None, record(start, elapsed)) or None
+        # backend -> (check() -> reason|None, record(start, elapsed)). A bare
+        # pair is Claude's, as before. A backend with no guard never launches.
+        self.usage = usage if isinstance(usage, dict) else ({"claude": usage} if usage else {})
+        self.probe_cache: dict = {}   # (delivery, binding) -> (at, OPEN|UNKNOWN)
         self.control_dir = control_dir
         self.log_dir = log_dir or Path(db_path).parent / "lead_relay_logs"
         self.popen: dict[str, subprocess.Popen] = {}
@@ -441,7 +464,11 @@ class Relay:
                      f"run killed after {RUN_TIMEOUT / 60:.0f} min")
 
     def _record_usage(self, attempt) -> None:
-        """Charge a launched run's duration to the shared Claude guard, once.
+        """Charge a launched run's duration to its own backend's guard, once.
+
+        The guard is the attempt's stored backend, never the current
+        registration's (Codex design §5). With no guard for it there is
+        nothing to charge, so it stays unrecorded and its reservation held.
 
         Called at exit, and again on every later tick until it succeeds, which
         covers a run that recovery marked exited after a restart: without it,
@@ -450,13 +477,19 @@ class Relay:
         known, so the charge runs to the moment recovery saw it gone, which
         over- rather than under-counts.
         """
-        if not self.usage or attempt["usage_recorded"] or not attempt["launched_at"]:
+        if attempt["usage_recorded"] or not attempt["launched_at"]:
+            return
+        guard = self.usage.get(attempt["backend"])
+        if guard is None:
+            log.error("no usage guard for %s; %s stays reserved", attempt["backend"],
+                      attempt["attempt_id"])
             return
         end = attempt["ended_at"] or self.now()
         try:
-            self.usage[1](attempt["launched_at"], max(0.0, end - attempt["launched_at"]))
+            guard[1](attempt["launched_at"], max(0.0, end - attempt["launched_at"]))
         except Exception as exc:  # noqa: BLE001 -- visible, and retried next tick
-            log.error("could not record Claude usage for %s: %s", attempt["attempt_id"], exc)
+            log.error("could not record %s usage for %s: %s", attempt["backend"],
+                      attempt["attempt_id"], exc)
             return
         self.db.execute("UPDATE attempts SET usage_recorded = 1 WHERE attempt_id = ?",
                         (attempt["attempt_id"],))
@@ -476,7 +509,7 @@ class Relay:
                 return  # unknown or open: keep the reservation
             self._record_usage(attempt)
             attempt = self._attempt(attempt["attempt_id"])
-            if attempt["usage_recorded"] == 0 and self.usage and attempt["launched_at"]:
+            if attempt["usage_recorded"] == 0 and attempt["launched_at"]:
                 return  # usage not yet persisted; try again next tick
             self.db.execute("DELETE FROM reservations WHERE attempt_id = ?",
                             (attempt["attempt_id"],))
@@ -496,9 +529,18 @@ class Relay:
             delivery = self.db.execute(
                 "SELECT * FROM deliveries WHERE message_id = ? AND recipient = ?",
                 (attempt["message_id"], attempt["recipient"])).fetchone()
-            if attempt["state"] == "running" and self.processes.is_same(attempt["pid"],
-                                                                         attempt["proc_start"]):
-                continue  # still ours and still working: supervise() keeps waiting
+            if self.processes.is_same(attempt["pid"], attempt["proc_start"]):
+                # Still ours and alive. A `launching` row with a pid crashed
+                # during its stdin write (Codex design §4): the child exists
+                # and may be working, so it is supervised as running from its
+                # persisted `launched_at`. The prompt is never resent.
+                if attempt["state"] == "launching":
+                    with self.txn():
+                        self._set_attempt(attempt, "running")
+                        if delivery is not None and delivery["attempt_id"] == attempt["attempt_id"] \
+                                and delivery["state"] == "launching":
+                            self._set_delivery(delivery, "running", None)
+                continue  # supervise() keeps waiting
             acked = attempt["ack_message_id"] is not None
             current = delivery is not None and delivery["attempt_id"] == attempt["attempt_id"]
             uncertain = current and not acked and delivery["state"] in ACTIVE
@@ -554,7 +596,7 @@ class Relay:
             return "reserved", None
         if self._caps_hit(delivery):
             return "cap", None
-        state = backend.ownership(session)
+        state = self._ownership(delivery, session, backend)
         if state == OPEN:
             return None, OPEN
         if state == CLOSED:
@@ -562,20 +604,46 @@ class Relay:
             return (reason, None) if reason else (None, CLOSED)
         return "session-busy-or-unknown", None
 
+    def _ownership(self, delivery, session: Session, backend) -> str:
+        """`backend.ownership`, re-asked at most every `probe_interval` seconds.
+
+        Codex design §2: `_hold_reason` runs every tick, and the Codex probe
+        takes the thread's writer lock for an instant. Only OPEN and UNKNOWN
+        are reused. CLOSED never is, and the pre-spawn re-check always asks.
+        """
+        interval = getattr(backend, "probe_interval", 0)
+        # The whole binding is in the key: after a re-registration the new
+        # thread is probed, never judged by the old one's answer (#122 bot).
+        key = (delivery["message_id"], delivery["recipient"], session.backend,
+               session.session_id.lower(), session.workspace, session.cli)
+        now = self.now()
+        cached = self.probe_cache.get(key)
+        if interval and cached and now - cached[0] < interval:
+            return cached[1]
+        state = backend.ownership(session)
+        if interval and state in (OPEN, UNKNOWN):
+            self.probe_cache[key] = (now, state)
+        else:
+            self.probe_cache.pop(key, None)
+        return state
+
     def _headless_blocker(self, session: Session) -> Optional[str]:
         """The guards a headless launch needs, beyond ownership being CLOSED."""
         if not session.enabled:
             return "backend-disabled"
-        if session.backend == "claude" and self.usage:
-            try:
-                if self.usage[0]():
-                    return "rate"
-            except Exception as exc:  # noqa: BLE001 -- fail closed, visibly, and retry
-                # The shared guard's lock can time out (swarm_control.AlreadyRunning)
-                # or its file can fail (OSError). Unreadable is not "no hold":
-                # don't launch, and try again next tick (Codex, #116 at b9b4b20).
-                log.warning("Claude usage guard unreadable: %s: %s", type(exc).__name__, exc)
-                return "guard-unavailable"
+        guard = self.usage.get(session.backend)
+        if guard is None:
+            return "rate-unconfigured"   # Codex design §5: no guard, no launch
+        try:
+            if guard[0]():
+                return "rate"
+        except Exception as exc:  # noqa: BLE001 -- fail closed, visibly, and retry
+            # The shared guard's lock can time out (swarm_control.AlreadyRunning)
+            # or its file can fail (OSError). Unreadable is not "no hold":
+            # don't launch, and try again next tick (Codex, #116 at b9b4b20).
+            log.warning("%s usage guard unreadable: %s: %s", session.backend,
+                        type(exc).__name__, exc)
+            return "guard-unavailable"
         return None
 
     def _shared(self, session: Session) -> bool:
@@ -635,10 +703,10 @@ class Relay:
         with self.txn():
             self.db.execute(
                 "INSERT INTO attempts (attempt_id, message_id, recipient, token, path, state, "
-                "created_at, deadline, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "created_at, deadline, session_id, backend) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (attempt_id, delivery["message_id"], delivery["recipient"], token,
                  "live" if live else "headless", "notified" if live else "launching", now,
-                 now + LIVE_ACK_SECONDS if live else None, session.session_id))
+                 now + LIVE_ACK_SECONDS if live else None, session.session_id, session.backend))
             if not live:
                 # Keyed by the conversation, not the lead: one reservation per
                 # actual session (Codex, #116 at ad772b1).
@@ -678,6 +746,9 @@ class Relay:
                 state = backend.ownership(fresh)
                 blocker = ("session-busy-or-unknown" if state == UNKNOWN else
                            "session-opened" if state == OPEN else self._headless_blocker(fresh))
+            # The command is resolved here, before anything starts: a missing
+            # CLI is a hold, not a failed launch (Codex design §4).
+            command = None if blocker else backend.command(fresh)
         except Exception as exc:  # noqa: BLE001 -- recorded as the hold reason
             log.error("pre-spawn check failed for #%s: %s", delivery["message_id"], exc)
             blocker = "pre-spawn-error"
@@ -686,10 +757,9 @@ class Relay:
             return
 
         try:
-            pid, proc_start, handle, log_path = self.spawn(
-                backend.command(fresh, prompt_for(message, delivery["recipient"], token)),
-                fresh, attempt_id)
+            pid, proc_start, handle, log_path = self.spawn(command, fresh, attempt_id)
         except OSError as exc:
+            # No process was created: today's behaviour, not `_undo`.
             with self.txn():
                 self.db.execute("UPDATE attempts SET state = 'exited', ended_at = ? WHERE "
                                 "attempt_id = ?", (self.now(), attempt_id))
@@ -697,12 +767,30 @@ class Relay:
             self.say(f"RELAY FAILED #{delivery['message_id']} → {delivery['recipient']}: "
                      f"could not start ({type(exc).__name__})")
             return
-        if handle is not None:
-            self.popen[attempt_id] = handle
+        self.popen[attempt_id] = handle
+        # Codex design §4: the pid, its creation time and the launch time are
+        # durable BEFORE the stdin write, so a relay crash during the write
+        # leaves a row that recovery can supervise rather than forget.
         with self.txn():
-            self.db.execute("UPDATE attempts SET state = 'running', pid = ?, proc_start = ?, "
-                            "launched_at = ?, log_path = ? WHERE attempt_id = ?",
+            self.db.execute("UPDATE attempts SET pid = ?, proc_start = ?, launched_at = ?, "
+                            "log_path = ? WHERE attempt_id = ?",
                             (pid, proc_start, self.now(), str(log_path), attempt_id))
+
+        error = self._feed(handle, prompt_for(message, delivery["recipient"], token))
+        if error and self._stopped(pid, proc_start, handle):
+            attempt = self._attempt(attempt_id)
+            with self.txn():
+                self._ended(attempt, handle.poll(), "spawn-io")
+                self._set_delivery(delivery, "failed", f"spawn-io: {error}")
+            self.say(f"RELAY FAILED #{delivery['message_id']} → {delivery['recipient']}: "
+                     f"prompt not delivered ({error}); not retried")
+            return
+        if error:
+            # Not confirmed stopped: never report a kill that didn't happen.
+            # As `running`, supervision applies the timeout and accounting.
+            log.error("stdin %s for %s, and the child is not confirmed stopped", error, attempt_id)
+        with self.txn():
+            self._set_attempt(self._attempt(attempt_id), "running")
             self.db.execute("UPDATE deliveries SET state = 'running', updated_at = ? WHERE "
                             "message_id = ? AND recipient = ?",
                             (self.now(), delivery["message_id"], delivery["recipient"]))
@@ -712,11 +800,40 @@ class Relay:
         log_path = self.log_dir / f"{attempt_id}.log"
         out = open(log_path, "ab")
         env = child_environment(os.environ, session.recipient)
-        handle = subprocess.Popen(command, cwd=session.workspace, stdin=subprocess.DEVNULL,
+        handle = subprocess.Popen(command, cwd=session.workspace, stdin=subprocess.PIPE,
                                   stdout=out, stderr=subprocess.STDOUT, env=env,
                                   **separate_process_group())
         out.close()
         return handle.pid, self.processes.creation_time(handle.pid), handle, log_path
+
+    def _feed(self, handle, prompt: str) -> Optional[str]:
+        """Write the whole prompt to the child's stdin and close it.
+
+        None on success, else what went wrong. A write that blocks past
+        `STDIN_TIMEOUT` (a child that never reads) is a failure too.
+        """
+        failure: list[str] = []
+
+        def write():
+            try:
+                handle.stdin.write(prompt.encode("utf-8"))
+                handle.stdin.close()
+            except (OSError, ValueError) as exc:   # BrokenPipeError is an OSError
+                failure.append(type(exc).__name__)
+
+        writer = threading.Thread(target=write, daemon=True)
+        writer.start()
+        writer.join(STDIN_TIMEOUT)
+        return "timeout" if writer.is_alive() else (failure[0] if failure else None)
+
+    def _stopped(self, pid: int, proc_start: Optional[str], handle) -> bool:
+        """Kill the child's tree and confirm it is gone (pid AND creation time)."""
+        self.processes.kill_tree(pid)
+        try:
+            handle.wait(timeout=5)
+        except Exception:  # noqa: BLE001 -- the identity check below decides
+            pass
+        return handle.poll() is not None and not self.processes.is_same(pid, proc_start)
 
     # --- state helpers
 
@@ -800,124 +917,13 @@ def status(db) -> dict:
         }
 
 
-# --- Wiring and command line ---------------------------------------------------------
-
-
-def claude_usage():
-    """(check, record) against the live Claude worker's shared guard files."""
-    import claude_rate_guard
-    from host_settings import setting
-
-    root = setting("CLAUDE_RATE_GUARD_DIR")
-    directory = Path(root).expanduser() if root else None
-    if directory is None or not directory.is_dir():
-        raise SystemExit("set CLAUDE_RATE_GUARD_DIR to the live Claude worker's directory")
-    usage = directory / "claude_worker.usage"
-    cooldown = float(os.environ.get("RATE_LIMIT_COOLDOWN_SECONDS", str(5 * 3600)))
-    warn = float(os.environ.get("RATE_LIMIT_WARN_SECONDS", str(4.5 * 3600)))
-
-    def check():
-        reason, _ = claude_rate_guard.rate_limit_reason(
-            None, ratelimit_path=directory / "claude_worker.ratelimit",
-            usage_window=claude_rate_guard.read_usage(usage),
-            warn_seconds=warn, cooldown_seconds=cooldown)
-        return reason
-
-    def record(start, elapsed):
-        claude_rate_guard.record_usage(usage, [], start, elapsed, cooldown, strict=True)
-
-    return check, record
-
-
-def build(db_path: Path, control_dir: Optional[Path]) -> Relay:
-    processes = ProcessApi()
-    return Relay(db_path, Hub(), backends={"claude": ClaudeBackend(processes),
-                                           "codex": CodexBackend()},
-                 processes=processes, usage=claude_usage(), control_dir=control_dir)
+# --- Command line -------------------------------------------------------------------
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--db", default=str(HERE / "control" / "lead_relay.db"))
-    parser.add_argument("--control", default=os.environ.get("SWARM_CONTROL_DIR", str(HERE / "control")))
-    sub = parser.add_subparsers(dest="command", required=True)
-    p = sub.add_parser("register")
-    p.add_argument("--lead", required=True, choices=LEADS)
-    p.add_argument("--backend", required=True, choices=("claude", "codex"))
-    p.add_argument("--session", required=True)
-    p.add_argument("--workspace", required=True)
-    p.add_argument("--cli")
-    for name in ("enable", "disable"):
-        sub.add_parser(name).add_argument("--lead", required=True, choices=LEADS)
-    sub.add_parser("status")
-    p = sub.add_parser("run")
-    p.add_argument("--interval", type=float, default=20.0)
-    sub.add_parser("once")
-    args = parser.parse_args(argv)
-
-    db_path = Path(args.db)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    if args.command in ("register", "enable", "disable", "status"):
-        db = sqlite3.connect(str(db_path), isolation_level=None)
-        db.row_factory = sqlite3.Row
-        db.executescript(SCHEMA)
-        if args.command == "register":
-            if not re.fullmatch(r"[0-9a-fA-F-]{36}", args.session):
-                print("REFUSED: --session must be the conversation's UUID (no --last, no fork)")
-                return 1
-            if not Path(args.workspace).is_absolute():
-                print("REFUSED: --workspace must be absolute")
-                return 1
-            key = f"{args.backend}:{args.session.lower()}"
-            other = db.execute("SELECT recipient FROM sessions WHERE backend = ? AND "
-                               "lower(session_id) = lower(?) AND recipient != ?",
-                               (args.backend, args.session, args.lead)).fetchone()
-            if other:
-                # One conversation, one identity: two leads resuming the same
-                # session would each get their own reservation (Codex, #116).
-                print(f"REFUSED: that session is already registered to {other[0]}")
-                return 1
-            if db.execute("SELECT 1 FROM reservations WHERE recipient = ? OR session_key = ?",
-                          (args.lead, key)).fetchone():
-                print(f"REFUSED: {args.lead} has a reserved run; re-register once it is released")
-                return 1
-            # Registering (again) always leaves the backend disabled until
-            # its bridge proof, so a changed session id can't inherit "enabled".
-            db.execute("INSERT OR REPLACE INTO sessions VALUES (?, ?, ?, ?, ?, 0, ?)",
-                       (args.lead, args.backend, args.session, args.workspace, args.cli, time.time()))
-            print(f"registered {args.lead} -> {args.backend} {args.session} (disabled)")
-        elif args.command in ("enable", "disable"):
-            changed = db.execute("UPDATE sessions SET enabled = ? WHERE recipient = ?",
-                                 (int(args.command == "enable"), args.lead)).rowcount
-            print(f"{args.lead}: {args.command}d" if changed else f"{args.lead} is not registered")
-            return 0 if changed else 1
-        else:
-            print(json.dumps(status(db), indent=2))
-        return 0
-
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    # Before recovery, and held for the whole run: a second `run` or `once`
-    # on this database must never recover the first one's live launch.
-    try:
-        lock = acquire_lock(db_path.with_name(db_path.name + ".lock"))  # noqa: F841 -- kept open
-        relay = build(db_path, Path(args.control) if args.control else None)
-        relay.recover()
-    except AlreadyRunning as exc:
-        print(f"REFUSED: {exc}")
-        return 3
-    if args.command == "once":
-        relay.tick()
-        return 0
-    while True:
-        try:
-            relay.tick()
-        except AlreadyRunning as exc:
-            log.error("stopping: %s", exc)
-            return 3
-        except Exception:  # noqa: BLE001 -- the daemon logs and keeps watching
-            log.exception("relay tick failed")
-        time.sleep(args.interval)
+    """`lead_relay_cli.main`: the wiring lives there, within the view budget."""
+    import lead_relay_cli
+    return lead_relay_cli.main(argv)
 
 
 if __name__ == "__main__":
