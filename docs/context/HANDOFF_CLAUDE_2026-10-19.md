@@ -15,15 +15,15 @@ Codex independently verified the first two items below in its review of #118.
 | Claude lead session | Local CLI session UUID `a750400a-9432-40d2-af7c-da1f613a1035`, cwd `C:\git`. This UUID is what the relay resumes. The remote-control id `session_01VSdU7KuoxeWRTYAx57W5P4` is a different thing, and the relay never uses it |
 | Relay registration | `claude-lead` → `claude a750400a-…`, workspace `C:\git`, **`enabled=1`** since the proof passed |
 | Relay daemon | Running from the scheduled task `AgentSwarmLeadRelay` (details in §5). It was PID 3812 at takeover, with a parent chain of bash → pythonw → Task Scheduler's svchost, so it is outside any chat's process tree. A second `once` exited 3 with `REFUSED: another relay holds …lead_relay.db.lock` |
-| New-session bridge proof | **Passed** on 2026-10-19 for design §7 items 1–4: admin #1541 → headless DELIVER #1542 → ACK #1543 → status #1544, then the same UUID was resumed with the turn in its transcript. The receipt is on #113 (comment 6272343082). Items 5–6 are backend properties and were not re-run. The 2026-10-16 proof covered the old session `f7daaff8` only |
+| New-session bridge proof | **Passed** on 2026-10-19 for design §7 items 1–4: admin #1541 → headless DELIVER #1542 → ACK #1543 → status #1544, then the same UUID was resumed with the turn in its transcript. The receipt is on #113 (comment 6272343082). Items 5–6 are backend properties and were not re-run. **Qualification:** the headless run had no claude-in-chrome MCP server and lacked some deferred tools (for example SendUserFile), which came back on interactive resume. So the pass covers the engineering/chat path and the persisted settings and conversation. It does not show identical tool availability in every mode. The 2026-10-16 proof covered the old session `f7daaff8` only |
 
 **Correction to the takeover.** The new session ran `enable` straight after
 `register`, before any proof. That went against the contract in
 `docs/design/113-lead-relay.md` §7 and §9. Codex caught it in review, and the
-session was set back to `enabled=0` at 16:05 UTC. While it is disabled,
-`claude-lead` still receives the live path (a DELIVER notice and an ACK), but
-never a headless launch. The bounded proof in §5 is the only time it gets
-enabled.
+session was set back to `enabled=0` at 16:05 UTC. While it was disabled,
+`claude-lead` still received the live path (a DELIVER notice and an ACK), but
+never a headless launch. David enabled it for the bounded proof in §5 at about
+16:36 UTC. The proof passed, so it stays enabled.
 
 **An open lead only sees what it reads.** When the lead's chat is open, the
 relay takes the live path:
@@ -37,6 +37,10 @@ relay takes the live path:
   and prints each message from a sender other than `claude-lead`. It keeps
   its cursor in a file so that it survives re-arming, and it prints errors
   rather than hiding them.
+- A Monitor expires after **30 minutes at most**, so the lead must re-arm it on
+  every expiry while the conversation stays open. The cursor keeps the read
+  position but does not close the gap: while no monitor is armed, nothing
+  arrives. The watcher is a session-local stopgap, not part of the relay.
 - The lead ACKs a live delivery with the attempt token from the DELIVER line.
 - Whether the relay could push into an open session directly is an open design
   question. The session file advertises a local messaging pipe and a
@@ -164,7 +168,8 @@ The receipt for this run is on issue #113 (comment 6227267939).
 
 **Done at takeover (2026-10-19, verified by Codex):**
 1. **Re-registered** `claude-lead` from the old session `f7daaff8-…` to
-   `a750400a-…`, and it is now disabled (see §0). For any later lead chat:
+   `a750400a-…`. It was disabled until its proof passed, and is enabled now
+   (see §0). For any later lead chat:
    ```powershell
    cd C:\swarm-prod\agent-swarm
    C:\Python311\python.exe lead_relay.py register --lead claude-lead --backend claude --session <local CLI session UUID> --workspace C:\git
@@ -183,10 +188,13 @@ The receipt for this run is on issue #113 (comment 6227267939).
      the lock when the process dies, so the repeat trigger restarts a crashed
      relay.
 
-**Bounded bridge proof for `a750400a` (pending).** It proves items 1–4 of
-design §7 for this session. Items 5 and 6 (an unknown id fails; a second
-handoff waits) are properties of the backend. This doc does not claim they have
-been re-proven. The relay is enabled only for the length of this procedure.
+**Bounded bridge proof: the recipe for any new binding.** It was run for
+`a750400a` on 2026-10-19 and **passed** (receipt on #113, comment 6272343082).
+Do not repeat it for `a750400a`; use it the next time a lead session is
+re-registered. It proves items 1–4 of design §7 for that session. Items 5 and 6
+(an unknown id fails; a second handoff waits) are properties of the backend.
+This doc does not claim they have been re-proven. A new binding is enabled only
+for the length of this procedure, and stays enabled only if it passes.
 
 1. **Precheck** (Claude, still open):
    - `lead_relay.py status` shows `claude-lead` with `enabled=0`.
@@ -240,10 +248,11 @@ and `NEXT_STEPS.md`.
 
 ## 7. Open work, in suggested order
 
-1. **The bounded bridge proof for `a750400a`** (§5). Re-registration and
-   auto-start are done (§0).
-2. **Codex wake support:** an ownership check, a bridge proof and Codex's
-   review. This closes the "without David relaying" loop for both leads.
+1. **Codex wake support** is the current next work. It needs an ownership
+   check, a bridge proof and Codex's review. claude-lead owns it and codex-lead
+   reviews (hive #1549). Re-registration, auto-start and the `a750400a` proof
+   are done (§0).
+2. *(Done 2026-10-19: the bounded bridge proof for `a750400a`, §5.)* This closes the "without David relaying" loop for both leads.
 3. **Pin the hub container's startup `pip install`**, a small follow-up from #112.
 4. **An admin password self-service script**, but only if David wants one; he
    asked whether he has a way to set his own password.
