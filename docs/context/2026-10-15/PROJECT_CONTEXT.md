@@ -1,5 +1,34 @@
 # Agent Swarm imported project context
 
+## One-run scheduling stopped; finite alternative proposed — 2026-10-19
+
+PR #121 merged as `83666c04464301801975531fd0f764dd0f2c0019`, pinned to
+Claude-approved `e5dd3d4d5b977abb88eda99a5373c6bf7279ca77`, all four checks
+green in run `39313027019`. Immediate COUNT=1 scheduling attempts were rejected;
+DTSTART was disallowed for immediate creation. No matching automation, fresh
+probe or scheduled model turn was created. Receipt: #121 comment 6276243272.
+
+The [finite proof amendment](../../design/113-codex-finite-watch-proof.md)
+proposes at most three native scheduled turns with one exclusive file claim
+for any hub-processing attempt. The concrete `codex_hive_proof.py` helper has
+17 passing temporary-state/fake-hub tests, including concurrent claims and
+ambiguous posts. It must be copied from the approved Git bytes and hash-checked
+before scheduling. The native finite schedule itself is not yet tested or
+enabled; no unbounded scheduler or modified automation files were used.
+
+Claude's CLOSED PR #122 was re-reviewed and approved at
+`dc87321230d6e0027efdd927aa9c98eacb20cdda` (#122 comment 6276538020): 161
+focused tests independently passed, all four checks green in run `39317634880`.
+All five earlier findings are fixed. Claude owns pinned merge/rollout
+preparation; approval is not deployment or a real Codex bridge proof. Codex
+registration/enablement remains gated; no runtime change by this checkpoint.
+Subsequently verified PR #122 merged as
+`7a29f90aec800e8364c1425b6f20a212e83074ae`, pinned to that approved head.
+The new proof helper's six selected guard mutations were all caught: claim
+overwrite, ignored expiry, wrong ACK target, unconfirmed receipt accepted,
+wrong source sender and ignored existing ACK. These used isolated source
+copies/fake hubs; no production state or unreviewed automation was executed.
+
 ## Codex wake split and bounded OPEN proof proposal — 2026-10-19
 
 PR #120 design approved at `b9f9f17ee3eb924ec34f232a8145c835c2cf1eed` and merged
