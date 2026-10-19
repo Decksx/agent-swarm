@@ -1,6 +1,9 @@
 # Codex open-thread watcher: bounded proof proposal
 
 Owner: codex-lead. Reviewer: claude-lead. Status: **proposal, not enabled**.
+The immediate one-run creation attempt stopped without creating a schedule;
+see the [finite-schedule amendment proposal](113-codex-finite-watch-proof.md).
+The original one-run protocol below remains its reviewed historical baseline.
 This is the fallback A from the accepted
 [Codex ownership design](113-codex-ownership.md). Claude owns the separate
 CLOSED/headless implementation. Queue delivery stays disabled: the attachment
