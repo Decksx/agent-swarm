@@ -81,31 +81,104 @@ public API.
 
 ## 3. The OPEN path: `codex queue`, proof first
 
-This path is not built until the proof in §6.1 passes.
+This path is not built until the proof in §6.1 passes. **If the queued turn's
+completion cannot be observed reliably (§3.4), the path stays disabled**, and
+OPEN Codex deliveries stay notice-only and visibly blocked. They are never
+released on a timer.
 
-- **What the relay sends.** A minimal pointer, not content:
-  `--message "Hive relay: message #<N> for codex-lead. Read it with lead_chat.py read --as codex-lead --since <N-1>, then ACK it."`
-  - The quoted hive text and the attempt token are **never** in argv.
-  - The woken turn reads the message from the hub, and gets its token from a
-    relay-owned file in the Codex data area that only the user can read (or
-    from the hub DELIVER line, which already carries the attempt id).
-- **What counts as success.** Only the lead's own `ACK #N <token>` in the hub.
-  The queue CLI exiting 0 is **not** an ACK and not completed work.
+### 3.1 What is sent
+
+- **A minimal pointer**, not content:
+  `--message "Hive relay #<N> attempt <attempt_id>: read it with lead_chat.py read --as codex-lead --since <N-1>, then ACK."`
+  - The attempt id is already public in the hub `DELIVER` line. It is what
+    identifies the queued turn (§3.4).
+  - The quoted hive text and the **token** are never in argv. The woken turn
+    reads the token from a relay-owned file that only the user can read, named
+    by attempt id.
+- **The queue CLI's result is not an ACK and not completed work.** Only the
+  lead's own `ACK #N <token>` completes **delivery**.
 - **Attachment must be real.** If `codex queue` cannot reach the running
-  desktop app-server for this thread, the attempt fails. Never start a
-  replacement daemon or a second writer to make it look as if it succeeded.
-- **State machine.** This is a new `queued` attempt state, separate from a
-  headless `running` attempt:
-  - It is `queued` when the CLI exits 0.
-  - It becomes `delivered(ack)` when the ACK arrives, or `failed(no-ack)`
-    after the deadline.
-  - It is never re-queued automatically: after a timeout or restart, the turn
-    may still run.
-  - The reservation is held until ACK, deadline, or recovery finds the deadline
-    passed.
-  - Wake counters are charged when the attempt is queued.
-  - **Usage** is recorded from the ACK time (or deadline) minus the queue time,
-    as an upper bound. The queue CLI's exit is not the turn's exit.
+  desktop app-server for this thread, that counts as a failure. Never start a
+  replacement daemon or a second writer.
+
+### 3.2 Guards: queueing starts model work
+
+Today's OPEN branch in `_hold_reason` returns before `_headless_blocker`. It
+deliberately skips `session.enabled` and usage, because it only posts a
+notice. Queue submission must **not** reuse that branch as it is.
+
+- **Before submitting**, all of these must hold, and they are re-checked
+  inside the transaction immediately before the CLI is invoked:
+  - the backend is enabled (its proof passed);
+  - the configured usage guard for `codex` is readable and not holding;
+  - the global pause is clear;
+  - the session reservation is free;
+  - the caps are not hit;
+  - the registration is unchanged since the delivery was classified (same
+    backend, session id, workspace and CLI).
+- An OPEN session that fails any guard keeps the **notice-only** live path.
+  It never calls `codex queue`.
+- **Tests** (separate from the headless tests): disabled, paused, rate-held,
+  unreadable guard, missing guard, a registration change between
+  classification and submission, and caps. Each must post a notice only and
+  never submit.
+
+### 3.3 Submission is persisted before the CLI runs
+
+Two tracks are kept separate:
+- **Delivery:** `delivered(ack)` or `failed(no-ack)`.
+- **Execution** of the queued turn, on the attempt:
+
+| Attempt state | Meaning |
+|---|---|
+| `queue-submitting` | Committed **before** invoking the CLI. It holds the immutable backend and session binding, the attempt id and token, the reservation, and the wake/chain counters, which are charged now and never refunded on uncertainty |
+| `queued` | The CLI exited 0 and that result was committed |
+| `uncertain` | Acceptance is unknown: nonzero exit, CLI timeout, lost response, or a relay crash while `queue-submitting`. The reservation and counters are **kept**, and it is **never resubmitted automatically**. One `BLOCKED @admin` line is posted |
+| `executing` / `completed` / `exec-unknown` | The queued turn was identified, and its terminal state was observed or could not be (§3.4) |
+
+- **A proven pre-invocation hold.** If a guard failed, or the CLI process was
+  never created, the result is undo and hold, as today. That is the only case
+  in which a fresh attempt may be made later.
+- **Reconciling `uncertain`.** The same attempt is reconciled by evidence: its
+  ACK in the hub, or a turn in the thread carrying its attempt id (§3.4). It
+  then moves to `queued` or `executing`, and the delivery follows the ACK
+  rules. Without evidence it stays `uncertain` until an operator resolves it.
+- **Crash tests:**
+  - a crash before submission (`queue-submitting` not committed, so a
+    proven hold);
+  - a crash after acceptance but before the local commit (`uncertain`, no
+    resubmit, reconciled by the turn or the ACK);
+  - a crash after the commit;
+  - a lost or nonzero CLI response after server acceptance (`uncertain`).
+
+### 3.4 Execution completion, the reservation and usage
+
+As accepted design §5 already says, an ACK is receipt, not completion.
+`Relay._deliver` keeps the reservation after an ACK. The lead ACKs first and
+then works, so:
+
+- **The reservation is held** while execution is `queue-submitting`,
+  `queued`, `uncertain`, `executing` or `exec-unknown`. It is released only
+  after an **observed terminal turn state**. Neither an ACK nor a deadline
+  releases it.
+- **Identifying the turn.** The candidate is the rollout user message whose
+  text contains `attempt <attempt_id>`. From it, the relay gets the turn id,
+  and then the `thread_turns` row's `status` and `completed_at`. This must be
+  shown in §6.1, including after relay and app restarts. Neither the writer-lock
+  probe nor the queue CLI's exit is a completion signal, because the app stays
+  OPEN while the thread is idle.
+- **Usage** is recorded conservatively, from submission to the observed
+  `completed_at`, against the attempt's stored backend. Recording uses the
+  existing retry-until-recorded behaviour (`usage_recorded`).
+- **`exec-unknown`.** If the turn can't be found or its state can't be read,
+  the reservation is kept and the result is reported. Nothing is released on a
+  timer.
+- **Tests:**
+  - an ACK followed by long work, where the reservation is held until the turn
+    completes;
+  - the deadline passing before the turn starts, where nothing is released and
+    there is no re-queue;
+  - a relay restart in both cases.
 
 ## 4. The CLOSED path: headless `exec resume`
 
@@ -117,23 +190,43 @@ This path is not built until the proof in §6.1 passes.
   If none exists, the result is `pre-spawn-error` (hold).
 - **Prompt transport: a new spawn contract, for both backends.** Today
   `Relay._spawn(command, session, attempt_id)` uses `stdin=subprocess.DEVNULL`.
-  It becomes `_spawn(command, session, attempt_id, stdin_bytes)`:
-  - `Popen(..., stdin=PIPE)`, then write the UTF-8 prompt in full, then
-    `close()`. All of this happens before the attempt is marked `running`.
-  - `CodexBackend.command` passes `-` as `PROMPT`. Claude moves to stdin too:
-    `claude -p` reads the prompt from stdin when none is given. This must be
-    verified on 2.1.303.
-  - **Failures once a process exists** (`BrokenPipeError`, a partial write, a
-    write timeout of 10 s, or the child dying during the write): kill the
-    child, then mark the attempt **`failed(spawn-io)`**. It is **not** undone
-    as "never launched", because execution may have begun. It is reported and
-    not retried.
-  - **Failures before `Popen`** keep today's undo and hold.
+  It becomes `_spawn(command, session, attempt_id, stdin_bytes)`, in this
+  order:
+  1. `Popen(..., stdin=PIPE)`.
+  2. **Immediately** commit the pid and creation time to the attempt (still
+     `launching`), **before** any write that could block.
+  3. Write the UTF-8 prompt in full, then `close()` stdin.
+  4. Mark the attempt `running`.
+
+  `CodexBackend.command` passes `-` as `PROMPT`. Claude moves to stdin too:
+  `claude -p` with no prompt argument reads stdin. This must be verified on
+  2.1.303.
+  - **A handled I/O failure after `Popen`** is a `BrokenPipeError`, a partial
+    write, a 10 s write timeout, or the child exiting during the write. The
+    relay kills the child and **confirms it has stopped** (by pid plus
+    creation time). Then the attempt becomes `failed(spawn-io)`. The
+    reservation and accounting follow the exited-attempt rules until it is
+    safe to release. It is not undone, because execution may have begun, and
+    it is not retried.
+  - **A relay crash during the write** cannot run that cleanup. On restart the
+    existing recovery takes over:
+    - The pid was persisted (step 2): the relay supervises the process if it is
+      alive, or treats it as exited (then the no-ack rules) if it is gone. The
+      result is never reported as a confirmed `failed(spawn-io)`.
+    - The crash came before step 2: there is a `launching` attempt with no pid,
+      and the existing fail-closed recovery applies.
+  - **`Popen` itself raising** (`OSError`: no process was created) keeps
+    **today's behaviour**: the attempt is `exited`, the delivery is
+    `failed(spawn: <exc>)`, and a `RELAY FAILED` line is posted. It is **not**
+    `_undo`, which matches the current handler at `lead_relay.py` ~line 692.
   - **Regression tests:**
-    - The child receives the exact prompt and token on stdin.
-    - Neither appears in `argv` (checked through the spawn fake and a real
-      child that echoes its argv).
-    - Broken-pipe, timeout and crash cases end in `failed(spawn-io)`.
+    - The child receives the exact prompt and token on stdin, and neither
+      appears in `argv` (checked through the spawn fake and a real child that
+      echoes its argv).
+    - A broken pipe, a timeout, or a child dying mid-write ends in
+      `failed(spawn-io)` only after the child is confirmed stopped.
+    - A simulated relay crash after pid persistence recovers through
+      supervise/exited, and one before it through the `launching` recovery.
 - **Probe-to-spawn race.** If the app loads the thread between the probe and
   the spawn, Codex's writer guard should refuse. In v1 there is no exception:
   the attempt is `running`, an exit without an ACK is `failed(no-ack)`, and it
@@ -188,7 +281,10 @@ Today `Relay.usage` is one pair. `_headless_blocker` checks it only for
 This uses the real lead thread while idle, done with codex-lead's agreement.
 1. While the app is open and idle: `codex queue --thread 01a14068… --message <pointer>`.
    Check that the turn starts in the **desktop** conversation, with exactly
-   one ACK.
+   one ACK. Check that the relay can **identify that turn** from
+   `attempt <id>` in the rollout, and **observe its terminal state** in
+   `thread_turns`, including after a relay restart and an app restart. If it
+   cannot, the queue path stays disabled (§3, §3.4).
 2. While a turn is running: queue a second pointer. It must run after the
    current turn, with one ACK and no interleaving.
 3. After a deadline timeout, and after a relay restart, there is no duplicate
