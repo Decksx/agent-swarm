@@ -116,12 +116,25 @@ notice. Queue submission must **not** reuse that branch as it is.
   - the caps are not hit;
   - the registration is unchanged since the delivery was classified (same
     backend, session id, workspace and CLI).
-- An OPEN session that fails any guard keeps the **notice-only** live path.
-  It never calls `codex queue`.
-- **Tests** (separate from the headless tests): disabled, paused, rate-held,
-  unreadable guard, missing guard, a registration change between
-  classification and submission, and caps. Each must post a notice only and
-  never submit.
+- **Global holds stay holds.** Pause, reservation, caps, an unstable or changed
+  registration, an unregistered lead, an unknown backend and a shared session
+  all return `held(<reason>)`, exactly as `_hold_reason` does today. They
+  create **no** attempt and **no** DELIVER notice, so a pause or a cap can't
+  be bypassed or burn notice attempts. These are checked before ownership is
+  read, in today's order.
+- **The notice-only fallback is narrow.** It applies only to a **stable OPEN
+  registration that has passed every global guard** but is either:
+  - disabled or unproven, or
+  - blocked from model queueing by its own backend usage guard (rate-held,
+    unreadable or missing).
+
+  That case gets today's live notice and never calls `codex queue`.
+- **Tests** (separate from the headless tests):
+  - **Paused, reserved, caps hit, registration changed between
+    classification and submission:** `held(<reason>)`, with no attempt, no
+    notice and no submission.
+  - **Disabled, rate-held, unreadable guard, missing guard** (with global
+    guards passing): notice only, never submitted.
 
 ### 3.3 Submission is persisted before the CLI runs
 
@@ -193,8 +206,10 @@ then works, so:
   It becomes `_spawn(command, session, attempt_id, stdin_bytes)`, in this
   order:
   1. `Popen(..., stdin=PIPE)`.
-  2. **Immediately** commit the pid and creation time to the attempt (still
-     `launching`), **before** any write that could block.
+  2. **Immediately** commit the pid, creation time **and `launched_at`**
+     together to the attempt. It is still `launching`. This happens **before**
+     any write that could block. Today `launched_at` is set only after `_spawn`
+     returns, but supervision, timeouts and accounting all need it.
   3. Write the UTF-8 prompt in full, then `close()` stdin.
   4. Mark the attempt `running`.
 
@@ -208,13 +223,36 @@ then works, so:
     reservation and accounting follow the exited-attempt rules until it is
     safe to release. It is not undone, because execution may have begun, and
     it is not retried.
-  - **A relay crash during the write** cannot run that cleanup. On restart the
-    existing recovery takes over:
-    - The pid was persisted (step 2): the relay supervises the process if it is
-      alive, or treats it as exited (then the no-ack rules) if it is gone. The
-      result is never reported as a confirmed `failed(spawn-io)`.
-    - The crash came before step 2: there is a `launching` attempt with no pid,
-      and the existing fail-closed recovery applies.
+  - **A relay crash during the write** cannot run that cleanup. **This needs
+    new recovery code.** Today `recover()` keeps a live process only when
+    `state == 'running'`, so a `launching` row falls through and is marked
+    `exited`. And `supervise()` skips `launching` unconditionally. The new
+    rules:
+    - **A `launching` row whose pid and creation time match a live process**
+      is treated as running:
+      - `recover()` keeps it and moves it to `running`, because the child
+        exists and may be working.
+      - `supervise()` applies the timeout and accounting from its persisted
+        `launched_at`.
+      - The reservation is kept.
+      - The prompt is **never** rewritten or resent. Whatever the child
+        received is what it got.
+    - **A `launching` row with a persisted pid that no longer matches** (the
+      process is gone or the pid was reused) becomes `exited` only after
+      `is_same` confirms that our process is not alive. Then the existing
+      no-ack/uncertain rules apply, and usage is recorded from `launched_at` to
+      detection, as an upper bound. It is never reported as a confirmed
+      `failed(spawn-io)`.
+    - **A `launching` row with no pid** means the crash came before step 2.
+      That is today's fail-closed `uncertain ("crash before pid")`, unchanged.
+    - **Tests:**
+      - A persisted `launching` row with a matching live pid (fake and real)
+        survives a restart. It is not marked `exited` because its stdin write
+        was interrupted. It is supervised to its timeout, and usage covers the
+        elapsed time.
+      - The same row with the process gone becomes `exited`, then `uncertain`
+        or no-ack, with usage recorded.
+      - A row with no pid becomes `uncertain`.
   - **`Popen` itself raising** (`OSError`: no process was created) keeps
     **today's behaviour**: the attempt is `exited`, the delivery is
     `failed(spawn: <exc>)`, and a `RELAY FAILED` line is posted. It is **not**
