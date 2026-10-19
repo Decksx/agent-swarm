@@ -176,10 +176,12 @@ def test_both_backends_put_the_prompt_on_stdin():
     session = Session("claude-lead", "claude", THREAD, "C:/git", "claude", True)
     assert lead_relay.ClaudeBackend(lead_relay.ProcessApi()).command(session) == [
         "claude", "-p", "--resume", THREAD, "--output-format", "json"]
-    codex = CodexBackend(app_server=lambda: None)
+    codex = CodexBackend(app_server=lambda: None, environ={})
     exe = Path(__file__)   # any existing file stands in for a registered CLI
     command = codex.command(Session("codex-lead", "codex", THREAD, WORKSPACE, str(exe), True))
-    assert command == [str(exe), "exec", "resume", "--json", THREAD, "-"]
+    # Only the Git-checkout check is skipped; no sandbox or approval bypass.
+    assert command == [str(exe), "exec", "resume", "--json", "--skip-git-repo-check", THREAD, "-"]
+    assert not any("dangerously" in arg or arg in ("--full-auto", "--yolo") for arg in command)
 
 
 # --- §4 recovery of a crash during the write -----------------------------------------
@@ -388,7 +390,8 @@ def codex(home, lock=FREE):
         if isinstance(lock, Exception):
             raise lock
         return lock
-    return CodexBackend(home.root, probe=probe, app_server=lambda: None, bin_dir=home.root / "bin")
+    return CodexBackend(home.root, probe=probe, app_server=lambda: None, bin_dir=home.root / "bin",
+                        environ={"CODEX_HOME": str(home.root)})
 
 
 def lead(workspace=WORKSPACE, thread=THREAD):
@@ -396,6 +399,10 @@ def lead(workspace=WORKSPACE, thread=THREAD):
 
 
 @pytest.mark.parametrize("lock, turns, expected", [
+    (FREE, ("running",), UNKNOWN),                  # a status we have never seen
+    (FREE, ("completed", None), UNKNOWN),
+    (FREE, ("completed", 5), UNKNOWN),
+    (FREE, ("completed", "INPROGRESS"), UNKNOWN),
     (HELD, ("completed",), OPEN),
     (HELD, ("inProgress",), OPEN),
     (FREE, ("completed", "failed", "interrupted"), CLOSED),
@@ -450,7 +457,8 @@ def test_codex_ownership_never_writes_to_the_codex_data_directory(tmp_path):
     before = {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in tmp_path.rglob("*") if p.is_file()}
     for lock in (HELD, FREE):
         codex(home, lock).ownership(lead())
-    CodexBackend(tmp_path, app_server=lambda: None).ownership(lead())   # the real probe too
+    CodexBackend(tmp_path, app_server=lambda: None,
+                 environ={"CODEX_HOME": str(tmp_path)}).ownership(lead())   # the real probe too
     after = {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in tmp_path.rglob("*") if p.is_file()}
     assert after == before
 
@@ -598,3 +606,89 @@ def test_an_unreadable_codex_guard_fails_closed(tmp_path):
     mid = handoff(w, to="codex-lead", sender="claude-lead")
     w.tick()
     assert w.delivery(mid, "codex-lead") == ("held", "guard-unavailable") and w.spawned == []
+
+
+# --- review of 1797d4e: binding, home and data validation --------------------------
+
+
+@pytest.mark.parametrize("cached", [OPEN, UNKNOWN])
+def test_a_re_registered_delivery_is_probed_against_its_new_thread(tmp_path, cached):
+    w = World(tmp_path)
+
+    class ByThread(FakeBackend):
+        probe_interval = 60.0
+
+        def ownership(self, session):
+            return cached if session.session_id.startswith("1111") else CLOSED
+
+    w.relay.backends["claude"] = ByThread()
+    w.tick()
+    mid = handoff(w)
+    if cached == OPEN:
+        w.relay.db.execute("UPDATE sessions SET enabled = 0")   # notices stay notices
+    w.tick()
+    w.relay.db.execute("UPDATE sessions SET session_id = '22222222-2222-3333-4444-555555555555', "
+                       "enabled = 1 WHERE recipient = 'claude-lead'")
+    w.relay.db.execute("UPDATE deliveries SET state = 'held', reason = 'x', attempt_id = NULL "
+                       "WHERE message_id = ?", (mid,))
+    w.relay.db.execute("UPDATE attempts SET state = 'superseded'")
+    w.tick(advance=10)       # well inside the probe interval
+
+    assert w.delivery(mid) == ("running", None) and len(w.spawned) == 1
+
+
+def test_probe_rollout_transcript_and_child_all_use_the_child_s_codex_home(tmp_path):
+    (tmp_path / "custom").mkdir()
+    home = Home(tmp_path / "custom", turns=("completed",))
+    backend = CodexBackend(app_server=lambda: None, environ={"CODEX_HOME": str(home.root)},
+                           probe=lambda path: HELD if path.parent.parent == home.root else FREE)
+    assert backend.home == home.root
+    assert backend.ownership(lead()) == OPEN           # probed under the chosen home
+    assert backend.transcript_mentions(lead(), "nothing-here-0123456789") is False
+    child = lead_relay.child_environment({"CODEX_HOME": str(home.root)}, "codex-lead")
+    assert child["CODEX_HOME"] == str(home.root)       # what the woken run inherits
+
+
+def test_a_pinned_home_that_is_not_the_child_s_holds(tmp_path):
+    (tmp_path / "pinned").mkdir()
+    (tmp_path / "chosen").mkdir()
+    pinned = Home(tmp_path / "pinned", turns=("completed",))
+    Home(tmp_path / "chosen", turns=("inProgress",))
+    backend = CodexBackend(pinned.root, app_server=lambda: None, probe=lambda path: FREE,
+                           environ={"CODEX_HOME": str(tmp_path / "chosen")})
+    exe = tmp_path / "codex.exe"
+    exe.write_bytes(b"")
+
+    assert backend.ownership(lead()) == UNKNOWN        # not CLOSED from the wrong history
+    with pytest.raises(LookupError):
+        backend.command(Session("codex-lead", "codex", THREAD, WORKSPACE, str(exe), True))
+
+
+@pytest.mark.parametrize("content", [
+    "[[0, NaN]]", "[[0, Infinity]]", "[[0, -50]]", "[[-1, 5]]", "[[0, true]]",
+    '[["0", 5]]', "[[0, 5, 1]]", "[[0]]", '[{"start": 0}]', "{}", "[0, 5]",
+])
+def test_a_malformed_codex_guard_fails_closed_and_is_kept(tmp_path, content):
+    path = tmp_path / "codex_usage.json"
+    path.write_text(content, encoding="utf-8")
+    check, record = codex_usage(path, budget_seconds=100)
+    with pytest.raises(ValueError):
+        check()
+    with pytest.raises(ValueError):
+        record(0, 5)
+    assert path.read_text(encoding="utf-8") == content
+
+
+@pytest.mark.parametrize("budget, window", [(float("nan"), 10), (100, float("inf")),
+                                            (0, 10), (-5, 10), (100, 0)])
+def test_the_codex_guard_refuses_a_meaningless_budget(tmp_path, budget, window):
+    with pytest.raises(ValueError):
+        codex_usage(tmp_path / "u.json", budget_seconds=budget, window_seconds=window)
+
+
+@pytest.mark.parametrize("start, elapsed", [(float("nan"), 1), (0, float("inf")), (0, -1), (-1, 1)])
+def test_the_codex_guard_refuses_to_record_a_meaningless_run(tmp_path, start, elapsed):
+    _, record = codex_usage(tmp_path / "u.json", budget_seconds=100)
+    with pytest.raises(ValueError):
+        record(start, elapsed)
+    assert not (tmp_path / "u.json").exists()

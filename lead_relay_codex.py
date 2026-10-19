@@ -16,6 +16,7 @@ to make a thread look idle (§2).
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import sqlite3
@@ -30,6 +31,9 @@ from lead_relay_backends import CLOSED, OPEN, UNKNOWN, Session
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 THREAD_COLUMNS = {"id", "rollout_path", "cwd"}
 TURN_COLUMNS = {"thread_id", "status"}
+# Every turn status observed on 2026-10-19. Anything else is a layout we
+# don't know, and an unknown layout is not proof of idle (§2).
+TURN_STATUSES = {"inProgress", "completed", "failed", "interrupted"}
 HELD, FREE = "held", "free"
 
 
@@ -116,11 +120,28 @@ class CodexBackend:
     def __init__(self, codex_home: Optional[Path] = None, *,
                  probe: Callable[[Path], str] = probe_lock,
                  app_server: Callable[[], Optional[str]] = desktop_app_server,
-                 bin_dir: Optional[Path] = None):
-        self.home = Path(codex_home) if codex_home else Path.home() / ".codex"
+                 bin_dir: Optional[Path] = None, environ=None):
+        self.pinned = Path(codex_home) if codex_home else None
+        self.environ = os.environ if environ is None else environ
         self.probe = probe
         self.app_server = app_server
         self.bin_dir = bin_dir or Path(os.environ.get("LOCALAPPDATA", "")) / "OpenAI" / "Codex" / "bin"
+
+    @property
+    def home(self) -> Path:
+        """The Codex data directory the woken child will use.
+
+        The child inherits the relay's environment (`child_environment` keeps
+        CODEX_HOME), so this reads the same variable, at every call. A pinned
+        directory that differs from it would let the probe judge one thread
+        history while the child resumes another: that raises, so ownership is
+        UNKNOWN and the pre-spawn check holds (Codex, #122 at 1797d4e).
+        """
+        chosen = self.environ.get("CODEX_HOME")
+        child = Path(chosen).expanduser() if chosen else Path.home() / ".codex"
+        if self.pinned is not None and not _same_path(str(self.pinned), str(child)):
+            raise LookupError(f"Codex home {self.pinned} is not the child's {child}")
+        return child
 
     # --- §2 ownership
 
@@ -158,13 +179,17 @@ class CodexBackend:
         return rollout
 
     def _turn_in_progress(self, thread: str) -> bool:
-        """A turn row still `inProgress`. Raises when the table is not as expected."""
+        """A turn row still `inProgress`. Raises when the table is not as
+        expected, including any status outside TURN_STATUSES."""
         with _read_only(self.home / "thread_history_1.sqlite") as conn:
             if not TURN_COLUMNS <= _columns(conn, "thread_turns"):
                 raise LookupError("thread_turns schema changed")
-            count = conn.execute("SELECT COUNT(*) FROM thread_turns WHERE lower(thread_id) = ? "
-                                 "AND status = 'inProgress'", (thread,)).fetchone()[0]
-        return count > 0
+            statuses = [row[0] for row in conn.execute(
+                "SELECT status FROM thread_turns WHERE lower(thread_id) = ?", (thread,))]
+        unknown = [s for s in statuses if not isinstance(s, str) or s not in TURN_STATUSES]
+        if unknown:
+            raise LookupError(f"unknown turn status {unknown[0]!r}")
+        return "inProgress" in statuses
 
     # --- §4 launch
 
@@ -181,8 +206,17 @@ class CodexBackend:
         raise FileNotFoundError("no Codex CLI: none registered, running or installed")
 
     def command(self, session: Session) -> list[str]:
-        """The prompt is not here: it goes on stdin (`-`), out of argv (§4)."""
-        return [self.cli(session), "exec", "resume", "--json", session.session_id, "-"]
+        """The prompt is not here: it goes on stdin (`-`), out of argv (§4).
+
+        `--skip-git-repo-check` skips only `codex exec`'s refusal to start
+        outside a Git checkout. The lead's thread is bound to a non-Git
+        import folder, which `_rollout` has just matched to the registration;
+        sandbox, approval policy and model stay as configured, and no bypass
+        flag is passed (codex-lead's decision, #122 at 1797d4e).
+        """
+        self.home   # raises on a probe/child home mismatch: a hold, not a launch
+        return [self.cli(session), "exec", "resume", "--json", "--skip-git-repo-check",
+                session.session_id, "-"]
 
     def transcript_mentions(self, session: Session, token: str) -> Optional[bool]:
         try:
@@ -198,6 +232,11 @@ class CodexBackend:
 # --- §5 a local duration guard for Codex runs ------------------------------------
 
 
+def _finite(value) -> bool:
+    """A real number: not a bool, NaN or infinity (JSON accepts `NaN`)."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
 def codex_usage(path: Path, *, budget_seconds: float, window_seconds: float = 5 * 3600,
                 now: Callable[[], float] = time.time):
     """(check, record) over a small JSON file of (start, elapsed) runs.
@@ -207,12 +246,19 @@ def codex_usage(path: Path, *, budget_seconds: float, window_seconds: float = 5 
     An unreadable file raises from `check`, which the relay treats as
     `guard-unavailable` (fail closed), and from `record`, which it retries.
     """
+    for value in (budget_seconds, window_seconds):
+        if not _finite(value) or value <= 0:
+            raise ValueError(f"budget and window must be positive, finite numbers: {value!r}")
+
     def load() -> list:
+        """The runs, or ValueError. Corrupt usage is not unused budget."""
         if not path.exists():
             return []
         runs = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(runs, list):
-            raise ValueError(f"{path} is not a list")
+        if not isinstance(runs, list) or not all(
+                isinstance(run, list) and len(run) == 2 and all(_finite(v) and v >= 0 for v in run)
+                for run in runs):
+            raise ValueError(f"{path} holds a malformed run")
         return runs
 
     def check() -> Optional[str]:
@@ -221,7 +267,9 @@ def codex_usage(path: Path, *, budget_seconds: float, window_seconds: float = 5 
         return "codex-budget" if used >= budget_seconds else None
 
     def record(start: float, elapsed: float) -> None:
-        cutoff = now() - window_seconds
+        if not (_finite(start) and _finite(elapsed) and start >= 0 and elapsed >= 0):
+            raise ValueError(f"not a run: {start!r}, {elapsed!r}")
+        cutoff = now() - window_seconds   # load() raises first: the file is kept
         runs = [run for run in load() if float(run[0]) + float(run[1]) > cutoff]
         runs.append([float(start), float(elapsed)])
         tmp = path.with_name(path.name + ".tmp")

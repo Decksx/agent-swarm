@@ -225,7 +225,7 @@ class Relay:
         # backend -> (check() -> reason|None, record(start, elapsed)). A bare
         # pair is Claude's, as before. A backend with no guard never launches.
         self.usage = usage if isinstance(usage, dict) else ({"claude": usage} if usage else {})
-        self.probe_cache: dict = {}   # (message_id, recipient) -> (at, OPEN|UNKNOWN)
+        self.probe_cache: dict = {}   # (delivery, binding) -> (at, OPEN|UNKNOWN)
         self.control_dir = control_dir
         self.log_dir = log_dir or Path(db_path).parent / "lead_relay_logs"
         self.popen: dict[str, subprocess.Popen] = {}
@@ -612,7 +612,11 @@ class Relay:
         are reused. CLOSED never is, and the pre-spawn re-check always asks.
         """
         interval = getattr(backend, "probe_interval", 0)
-        key, now = (delivery["message_id"], delivery["recipient"]), self.now()
+        # The whole binding is in the key: after a re-registration the new
+        # thread is probed, never judged by the old one's answer (#122 bot).
+        key = (delivery["message_id"], delivery["recipient"], session.backend,
+               session.session_id.lower(), session.workspace, session.cli)
+        now = self.now()
         cached = self.probe_cache.get(key)
         if interval and cached and now - cached[0] < interval:
             return cached[1]
