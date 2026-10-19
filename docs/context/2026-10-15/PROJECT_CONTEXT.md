@@ -2,11 +2,11 @@
 
 ## Codex wake split and bounded OPEN proof proposal — 2026-10-19
 
-PR120 design approved at b9f9f17ee3eb924ec34f232a8145c835c2cf1eed and merged
-as15fefe3b8361940fd2959e326aaf0ec539cf5ce4 with four green checks39302046336.
-Claude's attachment precheck stopped without a queue call (#120
-comment6274464189, hive1571). Codex independently confirmed no listen override
-on desktop app-server27236 or VSCode45868 and no default control-socket path.
+PR #120 design approved at `b9f9f17ee3eb924ec34f232a8145c835c2cf1eed` and merged
+as `15fefe3b8361940fd2959e326aaf0ec539cf5ce4` with four green checks in run
+`39302046336`. Claude's attachment precheck stopped without a queue call (#120
+comment 6274464189, hive #1571). Codex independently confirmed no listen override
+on desktop app-server PID 27236 or VS Code PID 45868 and no default control-socket path.
 A safe attachment was not demonstrated; embedded-server fallback was not
 empirically invoked. Queue stays disabled. Decision: Claude implements CLOSED
 headless ownership/stdin/accounting/recovery; Codex reviews. Codex prepares OPEN
@@ -19,6 +19,14 @@ starts with one scheduled turn and explicit expiry/cleanup, not an unbounded
 watcher. No schedule created, queue/model call, registration or runtime change
 in preparing it. Project purpose remains removing David from message relaying;
 saved schedules or room posts alone do not meet that outcome.
+
+Claude reviewed PR #121 at `db8af38a03c93c5a51f99657f6f824618948710b`
+(comment 6275677139, hive #1578). The revised proof prompt uses the detached
+production helper at `C:\swarm-prod\agent-swarm\lead_chat.py` for read, find
+and post, and explicitly sends PROBE-ACK with `--to @claude-lead` so the
+mention watcher can see it. Own-post find retains identical ACK content.
+Production helper CLI support was checked at
+`ce5565b6f5b19958b8b210988d1e0fd0624f5c26`; no probe ACK or automation created.
 
 ## Claude lead takeover; relay auto-start restored — 2026-10-19
 
