@@ -5,178 +5,223 @@ This is a proposal for codex-lead to review. No code yet. It fills in the
 today its `ownership()` is always UNKNOWN, so the relay never launches Codex.
 claude-lead owns the implementation and codex-lead reviews (hive #1549).
 
-## 1. What was observed (read-only, OfficePC, 2026-10-19 ~17:19 UTC)
+**Revision 2** follows codex-lead's review of `c1abcd6` (#120, comment
+6273649296) and the three bot findings. All of their factual claims were
+re-checked against `lead_relay.py` at `ce5565b` and the installed CLI.
+
+**Direction (codex-lead's decision): staged C.**
+1. Prove the supported `codex queue` path into the **open** desktop thread.
+2. Keep headless `exec resume` for the **closed** case.
+3. Fall back to a watcher (A) only if the queue path cannot reach the actual
+   desktop-owned thread. Then the watcher must be specified and demonstrated:
+   a poller whose output never enters the conversation does not count.
+
+## 1. What was observed (read-only, OfficePC, 2026-10-19)
 
 None of this was written by us. No credential files were read.
 
 - **CLI.** The desktop app (`OpenAI.Codex_26.1013.4894.0`, `ChatGPT.exe`)
   runs `…\AppData\Local\OpenAI\Codex\bin\<hash>\codex.exe app-server`.
   - The CLI reports `codex-cli 0.163.0-alpha.10.2`.
-  - Two hash folders exist (`896a0166b774037a`, `ce4759538b7f2f1a`), so the
-    path changes on app updates.
+  - Two hash folders exist, so the path changes on updates.
   - The VS Code extension runs its own `codex.exe app-server` on the same
     `~/.codex`.
   - `codex` is not on PATH.
-- **Resume CLI.** `codex exec resume [OPTIONS] [SESSION_ID] [PROMPT]`:
-  - `SESSION_ID` is a UUID or a thread name.
-  - `PROMPT` may be `-`, meaning stdin.
-  - `--json` exists.
-  - The current `CodexBackend.command` form is valid.
-- **The lead's thread.** In `.codex-global-state.json`,
-  `thread-project-assignments` maps exactly one thread to the Agent Swarm
-  project `466ce426-…`: **`01a14068-d723-76a0-a86d-c7d7b34c1b30`**.
-  - Its rollout is `~/.codex/sessions/2026/10/15/rollout-…-01a14068-….jsonl`.
-  - `state_5.sqlite` `threads.rollout_path` names the same file.
-  - The thread id is the `session_id` that `codex exec resume` takes.
-- **Writer lock.** `~/.codex/thread-writer-locks/<threadId>.lock` exists for
-  this thread only.
-  - A non-blocking shared lock probe failed with `ERROR_LOCK_VIOLATION`, so a
-    process holds it exclusively. No turn was running at the time: the
-    rollout ended in `task_complete`.
-  - The binary contains `thread … already has an active writer` and
-    `failed to acquire thread writer lock`.
-  - Reading of this evidence: the app holds the lock while the thread is
-    loaded, and a second writer is refused.
-- **Turn state.** `thread_history_1.sqlite` `thread_turns.status` has the
-  values `completed`, `failed`, `interrupted` and `inProgress`.
-- **No Claude-style presence file exists.** Process command lines carry no
-  thread id.
+  - The thread's `session_meta` records an older CLI (`0.162.0-alpha.17.2`,
+    source `vscode`). That is history, not the installed version.
+- **Resume.** `codex exec resume [OPTIONS] [SESSION_ID] [PROMPT]`. `PROMPT`
+  may be `-`, meaning stdin, and `--json` exists.
+- **Queue.** `codex queue [OPTIONS] --thread <THREAD> --message <TEXT>`
+  ("Queue a message for an existing session").
+  - It has `--remote <ADDR>` (ws, wss or unix) and
+    `--remote-auth-token-env`.
+  - It is documented at https://learn.chatgpt.com/docs/cli/reference#codex-queue.
+  - Only `--help` has been run.
+- **The lead's thread** is `01a14068-d723-76a0-a86d-c7d7b34c1b30`. It is the
+  only thread that `thread-project-assignments` maps to project `466ce426-…`.
+- **The thread's workspace** is
+  `C:\Users\david\Documents\Codex\2026-10-15\i-m-trying-to-merge-a`, according
+  to `session_meta.cwd` and the `state_5.sqlite` row. It is **not**
+  `C:\git\agent-swarm`. The thread's own instructions direct engineering work
+  into the development checkout.
+- **Writer lock.** `~/.codex/thread-writer-locks/<threadId>.lock` is held
+  exclusively while the thread is loaded, including when no turn is running.
+  The binary contains `thread … already has an active writer`.
+- **Turn state.** `thread_history_1.sqlite` `thread_turns.status` takes
+  `inProgress`, `completed`, `failed` and `interrupted`.
+- **No Claude-style presence file.**
 
-## 2. Proposed `CodexBackend.ownership(session)`
+## 2. Ownership (`CodexBackend.ownership`)
+
+This is a fail-closed reading of Codex's internal storage. It is not a stable
+public API.
 
 | Check, in order | Result |
 |---|---|
-| Any read or probe error, unexpected schema, or no rollout found for the id | UNKNOWN (hold) |
-| A non-blocking probe of `thread-writer-locks/<id>.lock` fails with a lock violation | **OPEN**: a writer, normally the app, has the thread loaded |
-| The probe succeeds (released immediately), or the lock file is absent, **and** `thread_turns` has an `inProgress` row for the id (read with sqlite `mode=ro`) | UNKNOWN: a stale `inProgress` row after a crash, or something odd. Hold |
+| Codex data directory, target UUID, rollout or expected schema not found or not as expected; any read or probe error | UNKNOWN (hold) |
+| A non-blocking probe of `thread-writer-locks/<id>.lock` fails with a lock violation | **OPEN** |
+| The probe succeeds (released before returning) or the lock file is absent, and `thread_turns` has an `inProgress` row for the id (sqlite `mode=ro`) | UNKNOWN (hold) |
 | The probe succeeds or the file is absent, and there is no `inProgress` row | **CLOSED** |
 
-- **Use a lock probe, not a file-existence check.** A crashed writer leaves the
-  file behind, but the OS releases its lock. This matches the "stale is not
-  proof of idle" rule. The other way around, a stale `inProgress` row without a
-  held lock is never treated as idle.
-- **The probe holds the lock briefly.** If Codex tries to load the thread in
-  that instant, it could see `failed to acquire thread writer lock`. The probe
-  releases straight away. It runs only in the pre-spawn checks, not every
-  tick.
-- **The probe-to-spawn race uses the existing state machine.** Codex's own
-  writer guard should refuse a second writer if the app loads the thread
-  between the probe and the spawn. But by then the relay has committed a
-  `launching` attempt and a reservation, and after `Popen` it marks the
-  attempt `running`.
-  - **v1:** no exception. A refused run exits without an ACK, so it becomes
-    `failed(no-ack)` and is reported (a `BLOCKED @admin` line), exactly as
-    today. It is never retried automatically, because the design forbids
-    retrying a started attempt.
-  - The cost of this is a visible failure that needs an operator retry, not a
-    lost or duplicated turn.
-  - **Later, optional.** A retryable `refused-writer` outcome would need three
-    things:
-    1. A **measured, pinned refusal signature**: the exit code plus the exact
-       output line, captured once against a held lock.
-    2. Proof from the rollout that no new turn started.
-    3. A specified transition: the attempt goes to a terminal `refused`, the
-       reservation is released, the wake counters are not charged, and the
-       delivery returns to `held(session-opened)`.
+- **No probe lock is held across a return.** `ownership()` acquires the lock,
+  releases it, and only then returns. It is called from three places in
+  `lead_relay.py`:
+  - `_hold_reason`, line 557, which runs every tick (20 s) for each eligible
+    pending or held delivery;
+  - the pre-spawn re-check, line 678;
+  - reservation release, line 475.
 
-    None of that is assumed here.
+  So the probe's hold lasts microseconds, and it happens at most about three
+  times per tick per Codex delivery. Before Codex is enabled, add rate-limiting
+  to `_hold_reason`: re-probe at most once per 60 s per delivery, caching the
+  last result for UNKNOWN or OPEN only. A cached CLOSED result is never used to
+  spawn.
+- **Never manufacture CLOSED.** Never delete lock files, and never clear
+  `inProgress` rows.
 
-## 3. Launch details
+## 3. The OPEN path: `codex queue`, proof first
 
-- **CLI path.** Resolve it at spawn, never cache it:
+This path is not built until the proof in §6.1 passes.
+
+- **What the relay sends.** A minimal pointer, not content:
+  `--message "Hive relay: message #<N> for codex-lead. Read it with lead_chat.py read --as codex-lead --since <N-1>, then ACK it."`
+  - The quoted hive text and the attempt token are **never** in argv.
+  - The woken turn reads the message from the hub, and gets its token from a
+    relay-owned file in the Codex data area that only the user can read (or
+    from the hub DELIVER line, which already carries the attempt id).
+- **What counts as success.** Only the lead's own `ACK #N <token>` in the hub.
+  The queue CLI exiting 0 is **not** an ACK and not completed work.
+- **Attachment must be real.** If `codex queue` cannot reach the running
+  desktop app-server for this thread, the attempt fails. Never start a
+  replacement daemon or a second writer to make it look as if it succeeded.
+- **State machine.** This is a new `queued` attempt state, separate from a
+  headless `running` attempt:
+  - It is `queued` when the CLI exits 0.
+  - It becomes `delivered(ack)` when the ACK arrives, or `failed(no-ack)`
+    after the deadline.
+  - It is never re-queued automatically: after a timeout or restart, the turn
+    may still run.
+  - The reservation is held until ACK, deadline, or recovery finds the deadline
+    passed.
+  - Wake counters are charged when the attempt is queued.
+  - **Usage** is recorded from the ACK time (or deadline) minus the queue time,
+    as an upper bound. The queue CLI's exit is not the turn's exit.
+
+## 4. The CLOSED path: headless `exec resume`
+
+- **CLI path.** Resolved at spawn, never cached:
   1. The registered `--cli`, if that file exists.
   2. Otherwise the `ExecutablePath` of a running desktop `codex.exe app-server`.
   3. Otherwise the newest `…\OpenAI\Codex\bin\*\codex.exe`.
 
-  If none exists, the result is `pre-spawn-error`, which holds the message.
-- **The prompt stays in argv in v1**, as it does for Claude today.
-  `Relay._spawn` hard-codes `stdin=subprocess.DEVNULL`, and the spawn callback
-  receives only the command, session and attempt id. So `PROMPT=-` would give
-  Codex immediate EOF, with no instructions and no token.
-  - Moving the prompt off the command line is a separate hardening for **both**
-    backends.
-  - It needs a spawn contract that carries the prompt bytes, writes them, and
-    closes stdin before the attempt is marked `running`.
-  - It is not a precondition for Codex. The token in argv is visible only to
-    processes of the same local user, which is the same exposure the Claude
-    backend has today.
-- **Registration:**
-  `lead_relay.py register --lead codex-lead --backend codex --session 01a14068-d723-76a0-a86d-c7d7b34c1b30 --workspace C:\git\agent-swarm`.
-  This leaves it disabled until the bridge proof. The workspace is to be
-  confirmed against the rollout's `session_meta.cwd`.
-- **`transcript_mentions`.** Scan the thread's rollout for the token. Return
-  `None` if the rollout is unreadable or compressed (`.jsonl.zst`).
-- **Spend (design §9): usage is routed by backend.** Today `Relay` has one
-  global `self.usage` pair. `_headless_blocker` checks it only for Claude, and
-  `_record_usage` records **every** launched attempt through it. Adding a Codex
-  guard file alone would therefore charge Codex runs to Claude's guard.
-  - Change `usage` to a mapping from backend to `(check, record)`.
+  If none exists, the result is `pre-spawn-error` (hold).
+- **Prompt transport: a new spawn contract, for both backends.** Today
+  `Relay._spawn(command, session, attempt_id)` uses `stdin=subprocess.DEVNULL`.
+  It becomes `_spawn(command, session, attempt_id, stdin_bytes)`:
+  - `Popen(..., stdin=PIPE)`, then write the UTF-8 prompt in full, then
+    `close()`. All of this happens before the attempt is marked `running`.
+  - `CodexBackend.command` passes `-` as `PROMPT`. Claude moves to stdin too:
+    `claude -p` reads the prompt from stdin when none is given. This must be
+    verified on 2.1.303.
+  - **Failures once a process exists** (`BrokenPipeError`, a partial write, a
+    write timeout of 10 s, or the child dying during the write): kill the
+    child, then mark the attempt **`failed(spawn-io)`**. It is **not** undone
+    as "never launched", because execution may have begun. It is reported and
+    not retried.
+  - **Failures before `Popen`** keep today's undo and hold.
+  - **Regression tests:**
+    - The child receives the exact prompt and token on stdin.
+    - Neither appears in `argv` (checked through the spawn fake and a real
+      child that echoes its argv).
+    - Broken-pipe, timeout and crash cases end in `failed(spawn-io)`.
+- **Probe-to-spawn race.** If the app loads the thread between the probe and
+  the spawn, Codex's writer guard should refuse. In v1 there is no exception:
+  the attempt is `running`, an exit without an ACK is `failed(no-ack)`, and it
+  is reported and never replayed.
+  - An error substring, a nonzero exit or a missing token does not prove that
+    no work was done.
+  - A retryable `refused-writer` outcome would need three things. First, an
+    unambiguous **pre-execution** refusal signature, measured once on a
+    **disposable test thread**, never the lead's conversation. Second, rollout
+    evidence that no turn started. Third, specified transitions: the attempt
+    goes to a terminal `refused`, the reservation is released, the wake and
+    chain counters and usage are not charged, the delivery returns to
+    `held(session-opened)`, and the same holds after crash recovery.
+
+    It is out of scope for v1.
+- **Registration** binds the actual thread and workspace:
+  `register --lead codex-lead --backend codex --session 01a14068-d723-76a0-a86d-c7d7b34c1b30 --workspace "C:\Users\david\Documents\Codex\2026-10-15\i-m-trying-to-merge-a"`.
+  This leaves it disabled. Moving the thread to another workspace is a separate
+  explicit migration, and must not quietly satisfy the "workspace unchanged"
+  item.
+- **`transcript_mentions`.** Scan the rollout for the token. Return `None` if
+  it is unreadable or `.zst`.
+
+## 5. Usage, by backend (design §9)
+
+Today `Relay.usage` is one pair. `_headless_blocker` checks it only for
+`claude` (line 569), and `_record_usage` records every attempt through it
+(line 457).
+
+- **`usage: dict[backend, (check, record)]`.**
   - `_headless_blocker` checks `usage[session.backend]`.
-  - `_record_usage`, and the recovery path, record against the attempt's own
-    backend.
-  - A backend with no guard configured is held as `held(rate-unconfigured)`.
-    It is never launched without a guard.
-  - Codex gets its own duration guard. Caps are per recipient, as they are
-    today.
-  - Tests must show a Claude run never charges Codex and the other way round,
-    including recovery of an exited attempt.
+  - Exit, recovery and the queue completion of §3 record against the
+    **attempt's** backend.
+- **Persist the binding.** Migrate `attempts` to add `backend` (it has
+  `session_id` already), set at attempt creation. Recording and reservation
+  release use the attempt's stored backend and session, never the current
+  registration. So a re-registration can't charge or release the wrong
+  conversation.
+- **Keep the existing Claude guard** and its behaviour of retrying when
+  recording fails (`usage_recorded` stays 0 until recorded).
+- **No guard means a hold.** A backend with no guard configured is
+  `held(rate-unconfigured)`.
+- **Codex gets a local duration guard.** It is a local budget only and does
+  not show that the Codex account has quota.
+- **Tests:** there is no cross-charging in either direction, including
+  recovery of exited and queued attempts after a registration change.
 
-## 4. The open-app problem (the main question for review)
+## 6. Proofs (after review and implementation)
 
-If the app holds the writer lock whenever the thread is loaded, then **Codex
-is OPEN almost all the time the app runs**.
-- An OPEN Codex lead gets only the live path: a `DELIVER … (live)` line, and
-  the message is `notified`.
-- Nothing enters the Codex conversation. That is the same gap claude-lead hit
-  today (handoff §0, #1545), but for Codex it would be the normal case rather
-  than the exception.
-- So headless `exec resume` alone would wake Codex only when the app is closed.
+### 6.1 The queue path (the OPEN path), first
 
-Options, for codex-lead to choose or reject:
+This uses the real lead thread while idle, done with codex-lead's agreement.
+1. While the app is open and idle: `codex queue --thread 01a14068… --message <pointer>`.
+   Check that the turn starts in the **desktop** conversation, with exactly
+   one ACK.
+2. While a turn is running: queue a second pointer. It must run after the
+   current turn, with one ACK and no interleaving.
+3. After a deadline timeout, and after a relay restart, there is no duplicate
+   turn.
+4. Record what happens if the app is closed. Does `queue` fail, start a
+   server, or write offline? Starting a server or a second writer is a failure
+   of this path.
 
-- **A. Accept it.** Headless wake works only while the app is closed. The open
-  app gets a Codex-side watcher, like claude-lead's Monitor stopgap.
-  - This needs Codex's equivalent of Monitor. Does the Codex app have
-    something like `~/.codex/automations`?
-- **B. Deliver into the open thread through the app-server.** The running
-  `codex.exe app-server` presumably accepts new turns from the app UI. If it
-  exposes a supported local interface, the relay could submit the turn there
-  instead of spawning `exec resume`.
-  - This is unverified and may not be a supported surface. It would need its
-    own contract.
-- **C. Do both.** Use B when OPEN and `exec resume` when CLOSED.
+If item 1 fails, the fallback is A, with a watcher that is specified and
+demonstrated. A Codex automation is a candidate, but not assumed to be
+equivalent to Claude's Monitor.
 
-We recommend A now, with B investigated separately. A uses only documented
-CLI behaviour plus a read-only probe.
+### 6.2 Headless `exec resume` (the CLOSED path)
 
-## 5. Other open questions
-
-- **Network from a woken turn.** Does a woken `codex exec` turn get network
-  access under the configured sandbox policy? The ACK needs `lead_chat.py` to
-  reach the hub at `192.168.42.50:8050`. If network is denied, even
-  `BLOCKED @admin` cannot be posted. That has to be shown in the bridge proof,
-  not assumed.
-- **Lock behaviour.** Does the app release the lock when it quits, when the
-  user switches threads, or when it is minimised? Does the VS Code app-server
-  ever take this thread's lock?
-- **Visibility.** Does an `exec resume` turn made while the app was closed
-  appear in the app's thread view when it reopens? (§7 item 3)
-
-## 6. Bridge proof for Codex (after review and implementation)
-
-This is the Claude recipe from handoff §5, with the Codex specifics:
-1. Precheck: codex-lead registered to the thread and disabled.
-2. **Quit the Codex desktop app completely.** The probe must then show CLOSED.
-   Record what the lock does when the app quits.
+All six items of design §7 apply, including an unknown id failing and a queued
+second handoff. The procedure:
+1. Precheck: codex-lead is registered to the thread and its workspace, and is
+   disabled.
+2. Quit the app completely. The probe must show CLOSED, and you record what the
+   lock did.
 3. David enables codex-lead.
-4. David posts an `@codex-lead BRIDGE-PROOF 01a14068 <nonce>` test message.
+4. David posts `@codex-lead BRIDGE-PROOF 01a14068 <nonce>`.
 5. Expect the ACK and a status line. If neither comes within 10 minutes, or
-   anything else goes wrong, disable codex-lead.
-6. Reopen the app on the thread, check the woken turn is visible, then send
-   it a message.
+   anything goes wrong, disable codex-lead.
+6. Reopen the app on the thread, check the woken turn is visible, then send it
+   a message.
 
-Also measure, once, with Codex's agreement: the `exec resume` exit code and
-output against a held lock. v1 does not depend on it, since a refusal is
-`failed(no-ack)`. The optional `refused-writer` outcome in §2 does.
+**The gate: network, tools and settings.** A woken `codex exec` runs under
+Codex's non-interactive sandbox, which is read-only by default
+(https://learn.chatgpt.com/docs/non-interactive-mode). The proof must show the
+ACK reaching the hub **without** bypass flags or wider permissions. If it can't,
+the run must leave an offline local receipt (the attempt log) and stay held or
+fail visibly. Successful CLI parsing does not show tool parity.
 
-All six design §7 items are needed before `enable` stays on.
+No manual test is needed from David until the implementation and its
+exact-head review are ready.
