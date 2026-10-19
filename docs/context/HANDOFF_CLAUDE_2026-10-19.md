@@ -196,26 +196,33 @@ re-registered. It proves items 1–4 of design §7 for that session. Items 5 and
 This doc does not claim they have been re-proven. A new binding is enabled only
 for the length of this procedure, and stays enabled only if it passes.
 
+**`<UUID>` below is the binding under test.** Take it from the `session_id`
+of `claude-lead` in the current `lead_relay.py status` output. That is the
+local CLI session UUID from `register`, not the remote-control `session_…` id.
+Use the same value in every step. Don't copy `a750400a` from elsewhere in
+this doc; it is the binding that was proven on 2026-10-19.
+
 1. **Precheck** (Claude, still open):
-   - `lead_relay.py status` shows `claude-lead` with `enabled=0`.
+   - `lead_relay.py status` shows `claude-lead` → `<UUID>` with `enabled=0`.
    - There are no open deliveries or reservations for `claude-lead`.
    - `AgentSwarmLeadRelay` is Running.
    - Post `READY FOR PROOF` in the hive chat.
 2. **Close** the actual OfficePC Claude Code terminal. Closing only the phone or
    remote-control view is not enough. Confirm that no
-   `~/.claude/sessions/*.json` file names `a750400a`.
+   `~/.claude/sessions/*.json` file names `<UUID>`.
 3. **Open the window** (David, in PowerShell):
    `cd C:\swarm-prod\agent-swarm; C:\Python311\python.exe lead_relay.py enable --lead claude-lead`
 4. **Send the test** (David, as admin, in the hive chat):
-   `@claude-lead BRIDGE-PROOF a750400a <nonce>`
+   `@claude-lead BRIDGE-PROOF <first 8 characters of UUID> <nonce>`
 5. **Expect** `ACK #N <token>` and then a status line from `claude-lead`, within
    a few minutes. `lead_relay.py status` should show that message as
    `delivered`, `ack`.
 6. **Close the window on failure.** If there is no ACK within 10 minutes, or
    anything unexpected happens, run `lead_relay.py disable --lead claude-lead`
    and leave it disabled. The proof has then failed. Record why.
-7. **Resume** with `claude --resume a750400a-9432-40d2-af7c-da1f613a1035`
-   from `C:\git`. Then **send the session any message**, for example "proof
+7. **Resume** the same binding from `C:\git`, with Remote Control kept on so
+   the phone view works:
+   `cd C:\git; claude --resume <UUID> --remote-control` Then **send the session any message**, for example "proof
    done, check it". Resuming does not start a turn, so until you send one the
    session does nothing; it doesn't run the checks or see new hive messages.
    The session then confirms the woken turn appears in the transcript (§7 item
@@ -252,7 +259,9 @@ and `NEXT_STEPS.md`.
    check, a bridge proof and Codex's review. claude-lead owns it and codex-lead
    reviews (hive #1549). Re-registration, auto-start and the `a750400a` proof
    are done (§0).
-2. *(Done 2026-10-19: the bounded bridge proof for `a750400a`, §5.)* This closes the "without David relaying" loop for both leads.
+2. *(Done 2026-10-19: the bounded bridge proof for `a750400a`, §5. This
+   covers Claude only. The two-way "without David relaying" loop closes only
+   once item 1 is implemented and proven.)*
 3. **Pin the hub container's startup `pip install`**, a small follow-up from #112.
 4. **An admin password self-service script**, but only if David wants one; he
    asked whether he has a way to set his own password.
