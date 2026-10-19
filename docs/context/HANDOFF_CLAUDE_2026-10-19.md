@@ -13,9 +13,9 @@ Codex independently verified the first two items below in its review of #118.
 | Thing | State |
 |---|---|
 | Claude lead session | Local CLI session UUID `a750400a-9432-40d2-af7c-da1f613a1035`, cwd `C:\git`. This UUID is what the relay resumes. The remote-control id `session_01VSdU7KuoxeWRTYAx57W5P4` is a different thing, and the relay never uses it |
-| Relay registration | `claude-lead` → `claude a750400a-…`, workspace `C:\git`, **`enabled=0`** |
+| Relay registration | `claude-lead` → `claude a750400a-…`, workspace `C:\git`, **`enabled=1`** since the proof passed |
 | Relay daemon | Running from the scheduled task `AgentSwarmLeadRelay` (details in §5). It was PID 3812 at takeover, with a parent chain of bash → pythonw → Task Scheduler's svchost, so it is outside any chat's process tree. A second `once` exited 3 with `REFUSED: another relay holds …lead_relay.db.lock` |
-| New-session bridge proof | **Pending.** It has not been run for `a750400a`. The 2026-10-16 proof covered the old session `f7daaff8` only |
+| New-session bridge proof | **Passed** on 2026-10-19 for design §7 items 1–4: admin #1541 → headless DELIVER #1542 → ACK #1543 → status #1544, then the same UUID was resumed with the turn in its transcript. The receipt is on #113 (comment 6272343082). Items 5–6 are backend properties and were not re-run. The 2026-10-16 proof covered the old session `f7daaff8` only |
 
 **Correction to the takeover.** The new session ran `enable` straight after
 `register`, before any proof. That went against the contract in
@@ -25,8 +25,24 @@ session was set back to `enabled=0` at 16:05 UTC. While it is disabled,
 never a headless launch. The bounded proof in §5 is the only time it gets
 enabled.
 
-**Next:** run the bounded proof in §5. After that, the open work is §7 item 2,
-Codex wake support.
+**An open lead only sees what it reads.** When the lead's chat is open, the
+relay takes the live path:
+- It posts `RELAY DELIVER #N … (live)` in the hive chat and marks the message
+  `notified`.
+- Nothing is put into the open conversation, and an interactive session takes
+  a turn only when someone sends it a message. On 2026-10-19 codex-lead's
+  HANDOFF #1545 sat unseen for minutes until David prompted the session.
+- So an open Claude lead should run a chat watcher. A Monitor-run script polls
+  `lead_chat.py read --as claude-lead --since <cursor> --mentions` every 30 s
+  and prints each message from a sender other than `claude-lead`. It keeps
+  its cursor in a file so that it survives re-arming, and it prints errors
+  rather than hiding them.
+- The lead ACKs a live delivery with the attempt token from the DELIVER line.
+- Whether the relay could push into an open session directly is an open design
+  question. The session file advertises a local messaging pipe and a
+  `notify_idle` feature, but this is unverified.
+
+**Next:** §7 item 2, Codex wake support.
 
 **Start the new chat in `C:\git`** (not `C:\git\agent-swarm`). Claude's
 persistent memory for this work is keyed to that folder. The relay
@@ -191,8 +207,12 @@ been re-proven. The relay is enabled only for the length of this procedure.
    anything unexpected happens, run `lead_relay.py disable --lead claude-lead`
    and leave it disabled. The proof has then failed. Record why.
 7. **Resume** with `claude --resume a750400a-9432-40d2-af7c-da1f613a1035`
-   from `C:\git`. Confirm the woken turn appears in the transcript (§7 item 3),
-   and that the workspace, settings and tools are unchanged (§7 item 4).
+   from `C:\git`. Then **send the session any message**, for example "proof
+   done, check it". Resuming does not start a turn, so until you send one the
+   session does nothing; it doesn't run the checks or see new hive messages.
+   The session then confirms the woken turn appears in the transcript (§7 item
+   3) and that the workspace, settings and tools are unchanged (§7 item 4). It
+   also restarts its chat watcher (see §0).
 8. **Only then** is the proof **passed**, and `enabled=1` stays. Claude
    records the message ids and ACK token on #118 or #113 and in the hive chat.
    A registration, or an ACK on its own, is not a pass.

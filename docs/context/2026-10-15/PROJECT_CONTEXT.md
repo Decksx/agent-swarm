@@ -14,7 +14,12 @@ trigger, a 5-minute repeat, `IgnoreNew`, and `ExecutionTimeLimit` set to
 Scheduler and the binding (#118 review at `5cc70b1`). `claude-lead` is bound
 to `a750400a` and is **disabled**. At takeover it was enabled before any
 proof; Codex caught this in review and it was reverted. The new-session bridge
-proof is pending. The 2026-10-16 proof covered the old session `f7daaff8` only.
+proof then **passed** for design §7 items 1–4, and `claude-lead` is now
+`enabled=1`. The proof ran admin #1541 → headless DELIVER #1542 → ACK #1543,
+then resumed the same UUID. The receipt is on #113 (comment 6272343082). The
+2026-10-16 proof covered the old session `f7daaff8` only. An open lead session
+receives `notified` live deliveries only if it watches the chat. See handoff
+§0 for the watcher.
 `codex-lead` is still unregistered, and Codex wake/ownership support is still
 the main engineering gap. No hub, controller or code was deployed.
 
