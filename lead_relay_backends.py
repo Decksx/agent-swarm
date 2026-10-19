@@ -125,9 +125,12 @@ class ClaudeBackend:
         # names another process: stale, and stale is not proof of idle.
         return UNKNOWN
 
-    def command(self, session: Session, prompt: str) -> list[str]:
+    def command(self, session: Session) -> list[str]:
+        """The prompt is not here: `claude -p` reads it from stdin when no
+        prompt argument is given, which keeps the message and its token out
+        of argv (Codex design §4; checked on 2.1.303 with and without --resume)."""
         return [session.cli or "claude", "-p", "--resume", session.session_id,
-                "--output-format", "json", prompt]
+                "--output-format", "json"]
 
     def transcript_mentions(self, session: Session, token: str) -> Optional[bool]:
         projects = Path.home() / ".claude" / "projects"
@@ -140,20 +143,7 @@ class ClaudeBackend:
         return None
 
 
-class CodexBackend:
-    """`codex exec resume <id>`. Provisional: ownership is not yet established
-    (§7), so it is always UNKNOWN and nothing is ever launched into it."""
-
-    name = "codex"
-
-    def ownership(self, session: Session) -> str:
-        return UNKNOWN
-
-    def command(self, session: Session, prompt: str) -> list[str]:
-        return [session.cli or "codex", "exec", "resume", session.session_id, prompt, "--json"]
-
-    def transcript_mentions(self, session: Session, token: str) -> Optional[bool]:
-        return None
+# `CodexBackend` is in `lead_relay_codex.py`.
 
 
 # --- Locks, keys and the child process (§5, §6, §8) ----------------------------

@@ -74,8 +74,8 @@ class FakeBackend:
     def ownership(self, session):
         return self.script.pop(0) if self.script else self.state
 
-    def command(self, session, prompt):
-        return ["claude", "-p", "--resume", session.session_id, prompt]
+    def command(self, session):
+        return ["claude", "-p", "--resume", session.session_id]
 
     def transcript_mentions(self, session, token):
         return self.transcript
@@ -97,9 +97,28 @@ class FakeProcesses:
         self.alive.pop(pid, None)
 
 
+class FakeStdin:
+    """The child's stdin: what the relay wrote, and whether it closed it."""
+
+    def __init__(self):
+        self.data, self.closed, self.error = b"", False, None
+
+    def write(self, data):
+        if self.error:
+            raise self.error
+        self.data += data
+
+    def close(self):
+        self.closed = True
+
+
 class FakePopen:
     def __init__(self, processes, pid):
         self.processes, self.pid, self.returncode = processes, pid, None
+        self.stdin = FakeStdin()
+
+    def wait(self, timeout=None):
+        return self.poll()
 
     def poll(self):
         if self.pid in self.processes.alive:
@@ -471,7 +490,7 @@ def test_a_failed_usage_write_keeps_the_reservation_and_is_retried(tmp_path):
             raise OSError("guard file locked")
         w.recorded.append((start, elapsed))
 
-    w.relay.usage = (lambda: None, flaky)
+    w.relay.usage["claude"] = (lambda: None, flaky)
     w.exit()
     w.tick()
     w.tick()
@@ -1004,7 +1023,7 @@ def guard_failing_on(w, calls_to_fail, error):
             raise error
         return None
 
-    w.relay.usage = (check, w.relay.usage[1])
+    w.relay.usage["claude"] = (check, w.relay.usage["claude"][1])
     return count
 
 
@@ -1046,7 +1065,7 @@ def test_a_guard_unavailable_for_several_ticks_stays_held_without_leaking(tmp_pa
         assert_no_leak(w)
     assert w.spawned == [] and count[0] >= 3
 
-    w.relay.usage = (lambda: None, w.relay.usage[1])
+    w.relay.usage["claude"] = (lambda: None, w.relay.usage["claude"][1])
     w.tick()
     assert w.delivery(mid) == ("running", None) and len(w.spawned) == 1
 
