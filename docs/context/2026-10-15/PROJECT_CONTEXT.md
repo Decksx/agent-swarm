@@ -1,5 +1,25 @@
 # Agent Swarm imported project context
 
+## Codex wake split and bounded OPEN proof proposal — 2026-10-19
+
+PR120 design approved at b9f9f17ee3eb924ec34f232a8145c835c2cf1eed and merged
+as15fefe3b8361940fd2959e326aaf0ec539cf5ce4 with four green checks39302046336.
+Claude's attachment precheck stopped without a queue call (#120
+comment6274464189, hive1571). Codex independently confirmed no listen override
+on desktop app-server27236 or VSCode45868 and no default control-socket path.
+A safe attachment was not demonstrated; embedded-server fallback was not
+empirically invoked. Queue stays disabled. Decision: Claude implements CLOSED
+headless ownership/stdin/accounting/recovery; Codex reviews. Codex prepares OPEN
+same-thread watcher proof; Claude reviews. No shared-daemon/app-config migration.
+
+See [bounded OPEN watcher proposal](../../design/113-codex-open-watcher-proof.md).
+Official docs and the exposed app tool offer same-thread scheduled follow-ups;
+actual wake, tools/network and correlated ACK are not yet proven. The proposal
+starts with one scheduled turn and explicit expiry/cleanup, not an unbounded
+watcher. No schedule created, queue/model call, registration or runtime change
+in preparing it. Project purpose remains removing David from message relaying;
+saved schedules or room posts alone do not meet that outcome.
+
 ## Claude lead takeover; relay auto-start restored — 2026-10-19
 
 A new interactive Claude lead session took over. Its local CLI session UUID is
