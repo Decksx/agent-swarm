@@ -1,5 +1,23 @@
 # Agent Swarm imported project context
 
+## Claude lead takeover; relay auto-start restored — 2026-10-19
+
+A new interactive Claude lead session took over. Its local CLI session UUID is
+`a750400a-9432-40d2-af7c-da1f613a1035`, with cwd `C:\git`. The handoff, with
+its current checkpoint (§0) and the bounded bridge-proof procedure (§5), is
+[HANDOFF_CLAUDE_2026-10-19.md](../HANDOFF_CLAUDE_2026-10-19.md).
+
+The relay daemon died in the 2026-10-19 reboot. It now runs from the scheduled
+task `AgentSwarmLeadRelay`, which copies `AgentSwarmSupervisor`: a logon
+trigger, a 5-minute repeat, `IgnoreNew`, and `ExecutionTimeLimit` set to
+`PT0S`. Codex independently verified the task, the ancestor chain to Task
+Scheduler and the binding (#118 review at `5cc70b1`). `claude-lead` is bound
+to `a750400a` and is **disabled**. At takeover it was enabled before any
+proof; Codex caught this in review and it was reverted. The new-session bridge
+proof is pending. The 2026-10-16 proof covered the old session `f7daaff8` only.
+`codex-lead` is still unregistered, and Codex wake/ownership support is still
+the main engineering gap. No hub, controller or code was deployed.
+
 ## Confirmed names, scope and comic permissions — 2026-10-16
 
 David directly confirmed in this Codex conversation:
