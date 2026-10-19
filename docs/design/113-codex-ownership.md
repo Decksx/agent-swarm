@@ -59,10 +59,27 @@ None of this was written by us. No credential files were read.
   that instant, it could see `failed to acquire thread writer lock`. The probe
   releases straight away. It runs only in the pre-spawn checks, not every
   tick.
-- **Backstop.** Between the probe and the spawn, Codex's own writer guard
-  refuses a second writer. The relay must classify that refusal (exit code and
-  output still to be measured) as `held(session-opened)` and retry. It must
-  not count it as a failed attempt.
+- **The probe-to-spawn race uses the existing state machine.** Codex's own
+  writer guard should refuse a second writer if the app loads the thread
+  between the probe and the spawn. But by then the relay has committed a
+  `launching` attempt and a reservation, and after `Popen` it marks the
+  attempt `running`.
+  - **v1:** no exception. A refused run exits without an ACK, so it becomes
+    `failed(no-ack)` and is reported (a `BLOCKED @admin` line), exactly as
+    today. It is never retried automatically, because the design forbids
+    retrying a started attempt.
+  - The cost of this is a visible failure that needs an operator retry, not a
+    lost or duplicated turn.
+  - **Later, optional.** A retryable `refused-writer` outcome would need three
+    things:
+    1. A **measured, pinned refusal signature**: the exit code plus the exact
+       output line, captured once against a held lock.
+    2. Proof from the rollout that no new turn started.
+    3. A specified transition: the attempt goes to a terminal `refused`, the
+       reservation is released, the wake counters are not charged, and the
+       delivery returns to `held(session-opened)`.
+
+    None of that is assumed here.
 
 ## 3. Launch details
 
@@ -72,17 +89,37 @@ None of this was written by us. No credential files were read.
   3. Otherwise the newest `…\OpenAI\Codex\bin\*\codex.exe`.
 
   If none exists, the result is `pre-spawn-error`, which holds the message.
-- **Prompt on stdin (`-`)**, not in argv. The quoted message and the token
-  stay out of command lines.
+- **The prompt stays in argv in v1**, as it does for Claude today.
+  `Relay._spawn` hard-codes `stdin=subprocess.DEVNULL`, and the spawn callback
+  receives only the command, session and attempt id. So `PROMPT=-` would give
+  Codex immediate EOF, with no instructions and no token.
+  - Moving the prompt off the command line is a separate hardening for **both**
+    backends.
+  - It needs a spawn contract that carries the prompt bytes, writes them, and
+    closes stdin before the attempt is marked `running`.
+  - It is not a precondition for Codex. The token in argv is visible only to
+    processes of the same local user, which is the same exposure the Claude
+    backend has today.
 - **Registration:**
   `lead_relay.py register --lead codex-lead --backend codex --session 01a14068-d723-76a0-a86d-c7d7b34c1b30 --workspace C:\git\agent-swarm`.
   This leaves it disabled until the bridge proof. The workspace is to be
   confirmed against the rollout's `session_meta.cwd`.
 - **`transcript_mentions`.** Scan the thread's rollout for the token. Return
   `None` if the rollout is unreadable or compressed (`.jsonl.zst`).
-- **Spend (design §9).** Codex usage recording must be pinned before
-  `enable`. Proposal: record the duration of each run, as for Claude, in a
-  `codex` guard file. Caps apply as they do today.
+- **Spend (design §9): usage is routed by backend.** Today `Relay` has one
+  global `self.usage` pair. `_headless_blocker` checks it only for Claude, and
+  `_record_usage` records **every** launched attempt through it. Adding a Codex
+  guard file alone would therefore charge Codex runs to Claude's guard.
+  - Change `usage` to a mapping from backend to `(check, record)`.
+  - `_headless_blocker` checks `usage[session.backend]`.
+  - `_record_usage`, and the recovery path, record against the attempt's own
+    backend.
+  - A backend with no guard configured is held as `held(rate-unconfigured)`.
+    It is never launched without a guard.
+  - Codex gets its own duration guard. Caps are per recipient, as they are
+    today.
+  - Tests must show a Claude run never charges Codex and the other way round,
+    including recovery of an exited attempt.
 
 ## 4. The open-app problem (the main question for review)
 
@@ -139,6 +176,7 @@ This is the Claude recipe from handoff §5, with the Codex specifics:
    it a message.
 
 Also measure, once, with Codex's agreement: the `exec resume` exit code and
-output against a held lock, which the backstop in §2 depends on.
+output against a held lock. v1 does not depend on it, since a refusal is
+`failed(no-ack)`. The optional `refused-writer` outcome in §2 does.
 
 All six design §7 items are needed before `enable` stays on.
