@@ -4,7 +4,7 @@ This repository contains both the project source and the imported ChatGPT
 project documents. Start with [the maintained context](2026-10-15/PROJECT_CONTEXT.md).
 The root `AGENTS.md` points future Codex sessions here.
 
-**Current lead handoff:** [Claude lead handoff, 2026-10-19](HANDOFF_CLAUDE_2026-10-19.md).
+**Current lead handoff:** [Claude lead handoff, 2026-10-20](HANDOFF_CLAUDE_2026-10-20.md) (reference sections remain in [2026-10-19](HANDOFF_CLAUDE_2026-10-19.md)).
 Start with its §0 checkpoint. It covers the relay registration (`a750400a`,
 enabled), the `AgentSwarmLeadRelay` auto-start, the bridge proof that passed on
 2026-10-19 (qualified; receipt on #113), and the chat watcher an open lead
