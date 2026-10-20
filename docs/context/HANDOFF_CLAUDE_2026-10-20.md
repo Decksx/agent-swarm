@@ -27,7 +27,10 @@ Start the new chat in **`C:\git`**, because Claude's memory is keyed to that fol
      6. He resumes with `claude --resume <UUID> --remote-control`.
      7. He **sends a message**.
 
-     Until the proof passes, leave it disabled.
+     Keep the binding disabled at all times except during the agreed bounded
+     proof window (step 3 to step 7), and enable it only for that window. It
+     stays enabled only if the proof passes. Re-register the new session before
+     any test.
    - This proof also covers the **post-deploy stdin smoke check**, which is
      still outstanding. Since #122, prompts reach Claude on stdin; the 10-19
      bridge proof ran with argv.
@@ -46,8 +49,8 @@ Start the new chat in **`C:\git`**, because Claude's memory is keyed to that fol
 |---|---|
 | Production `C:\swarm-prod\agent-swarm` | Detached at `7a29f90` (the #122 deploy, relay only); `origin/main` `0e24561` is docs-only beyond it |
 | Supervisor, workers | Running; parity passed in Codex's morning audit (#124) |
-| Relay | `AgentSwarmLeadRelay` scheduled task, PID 45684. `claude-lead` → `a750400a…` `enabled=1` (re-bind it: §0). `codex-lead` **unregistered**. Chain 1 of 6 |
-| **Held Codex queue** | **21** deliveries for `codex-lead` are `held(unregistered)`, from #1519 onward. They are stale handoffs. **Clear them before Codex is ever registered**, or it will be woken for all of them in a burst. Cancelling them needs a reviewed tool or procedure: don't edit `lead_relay.db` by hand |
+| Relay | `AgentSwarmLeadRelay` scheduled task, PID 45684. At 21:03 UTC `claude-lead` → `a750400a…` is **`enabled=0`**: it was disabled after #1692 woke that old session headlessly at 20:59 (re-bind it: §0). `codex-lead` **unregistered**. Chain 1 of 6 |
+| **Held Codex queue** | At 21:03 UTC, **22** deliveries for `codex-lead` were `held(unregistered)`: `1519, 1535, 1538, 1550, 1552, 1554, 1557, 1558, 1560, 1562, 1564, 1571, 1583, 1588, 1649, 1663, 1666, 1669, 1673, 1676, 1679, 1687`. Codex has already read all of them. Most are handoffs, but they also include David's authorization #1649 and his praise #1687. **Clear them before Codex is ever registered.** Otherwise Codex would be woken for stale history: per-session reservations and the caps would pace those wakes, but they would still replay. Any cancellation must be a reviewed tool or procedure that names exactly these ids and leaves newer deliveries alone. Don't edit `lead_relay.db` by hand |
 | Codex OPEN delivery | The native same-thread scheduled turn is proven **idle** (#1597→#1598), **busy** (#1601→#1603) and **after a desktop app restart** (#1628→#1635; turn `01a15a09…` ran about 78 s after the reopen, before the next slot, and was attributed to the new desktop app-server). Schedules are **paused**. **No always-on watcher yet** |
 | Codex CLOSED delivery | Implemented and deployed (#122). Not registered and not proven. Its proof needs the Codex desktop app fully quit |
 
@@ -56,7 +59,7 @@ Start the new chat in **`C:\git`**, because Claude's memory is keyed to that fol
 1. **Always-on Codex watcher.** Codex owns the design; Claude reviews. It's
    the biggest remaining gap. On 10-20 a Claude approval sat unseen until
    David nudged Codex.
-2. **Clear the 21 stale held Codex deliveries** with a reviewed mechanism,
+2. **Clear the 22 stale held Codex deliveries** (§1) with a reviewed mechanism,
    *before* item 3.
 3. **Codex CLOSED path:**
    - register Codex's actual thread and workspace (see #120 / the
@@ -82,7 +85,11 @@ Start the new chat in **`C:\git`**, because Claude's memory is keyed to that fol
 
 **Open:**
 - **#60:** SeriesIndex collisions, non-series dirs, empty keys. **Codex leads**
-  (hive #1682, #1686); **Claude reviews exact heads**.
+  (hive #1682, #1686); **Claude reviews exact heads**. Codex's implementation
+  is draft **PR #96** at `8ef5ab5d643fd2592cd6121fa5efe39f581867c4`, handed off
+  for review in hive #1692: 33 new tests, local 2406 passed and 8 skipped. Codex
+  asked for review to challenge gate completeness and path identity as well as
+  the three original defects. Pick up that review; don't restart #60.
 - **#32 and #35:** classify→move→index as one transaction per series, and
   staging operator commands. This is the main correctness project next.
 
@@ -99,7 +106,9 @@ pull/commit/merge/push/deploy for the comic project. The rules that still apply:
 - `core.autocrlf=true`: the working tree is CRLF and the index is LF. Preserve
   the original line endings, or the diff shows whole-file churn.
 - Tests: `pytest -n 4 --dist loadfile`. The local full suite is 2373 passed
-  and 8 skipped. The skips are Windows symlink privilege.
+  and 8 skipped at `00ee8c8`. Per JUnit, the skips are 5 Windows
+  symlink-privilege tests, 2 deliberately unreadable `corrupt_zip` corpus cases
+  and 1 test needing the absent, untracked `routing.json`.
 
 ## 4. Lessons from 2026-10-20 (in addition to the 10-19 §8 list)
 
