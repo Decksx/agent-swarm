@@ -61,10 +61,15 @@ LIVE_ACK_SECONDS = float(os.environ.get("LEAD_RELAY_LIVE_ACK_SECONDS", "600"))
 EXIT_ACK_GRACE = 120.0
 # Codex design §4: the prompt goes on stdin; a write that takes longer is a failure.
 STDIN_TIMEOUT = 10.0
-MAX_WAKES_PER_HOUR = int(os.environ.get("LEAD_RELAY_MAX_WAKES_PER_HOUR", "4"))
-MAX_WAKES_PER_DAY = int(os.environ.get("LEAD_RELAY_MAX_WAKES_PER_DAY", "20"))
-# Lead-to-lead envelope deliveries without a message from admin in between.
-MAX_CHAIN = int(os.environ.get("LEAD_RELAY_MAX_CHAIN", "6"))
+# Design §9: headless model launches per recipient, per hour and per day. A
+# live notice to an open session launches nothing and is not counted. These
+# are configurable policy defaults (David, 2026-10-20: 100/day), not measured
+# safe limits.
+MAX_WAKES_PER_HOUR = int(os.environ.get("LEAD_RELAY_MAX_WAKES_PER_HOUR", "12"))
+MAX_WAKES_PER_DAY = int(os.environ.get("LEAD_RELAY_MAX_WAKES_PER_DAY", "100"))
+# Anti-loop policy, separate from the launch quota: lead-to-lead envelope
+# deliveries on either path without a message from admin in between.
+MAX_CHAIN = int(os.environ.get("LEAD_RELAY_MAX_CHAIN", "12"))
 
 # §2: a lead wakes another lead only through a typed envelope at the start.
 ENVELOPE = re.compile(r"^\s*(HANDOFF|QUESTION)\s+@([A-Za-z][\w-]*)\s*:", re.IGNORECASE)
@@ -594,12 +599,15 @@ class Relay:
         if self.db.execute("SELECT 1 FROM reservations WHERE session_key = ?",
                            (session_key(session),)).fetchone():
             return "reserved", None
-        if self._caps_hit(delivery):
-            return "cap", None
+        if self._chain_hit(delivery):
+            return "chain", None
         state = self._ownership(delivery, session, backend)
         if state == OPEN:
             return None, OPEN
         if state == CLOSED:
+            # The launch quota is checked only on the path that launches.
+            if self._launch_quota_hit(recipient):
+                return "cap", None
             reason = self._headless_blocker(session)
             return (reason, None) if reason else (None, CLOSED)
         return "session-busy-or-unknown", None
@@ -653,36 +661,48 @@ class Relay:
             "SELECT COUNT(*) FROM sessions WHERE backend = ? AND lower(session_id) = lower(?)",
             (session.backend, session.session_id)).fetchone()[0] > 1
 
-    def _caps_hit(self, delivery) -> bool:
-        now, recipient = self.now(), delivery["recipient"]
+    def _launch_quota_hit(self, recipient: str) -> bool:
+        """Headless launches in the last hour or day (`wakes` holds only those)."""
+        now = self.now()
         hour = self.db.execute("SELECT COUNT(*) FROM wakes WHERE recipient = ? AND at > ?",
                                (recipient, now - 3600)).fetchone()[0]
         day = self.db.execute("SELECT COUNT(*) FROM wakes WHERE recipient = ? AND at > ?",
                               (recipient, now - 86400)).fetchone()[0]
-        chain = int(self.meta("chain") or 0)
-        return (hour >= MAX_WAKES_PER_HOUR or day >= MAX_WAKES_PER_DAY
-                or (delivery["from_lead"] and chain >= MAX_CHAIN))
+        return hour >= MAX_WAKES_PER_HOUR or day >= MAX_WAKES_PER_DAY
+
+    def _chain_hit(self, delivery) -> bool:
+        return bool(delivery["from_lead"]) and int(self.meta("chain") or 0) >= MAX_CHAIN
 
     def _hold(self, delivery, reason: str) -> None:
         if delivery["state"] == "held" and delivery["reason"] == reason:
             return
         self._set_delivery(delivery, "held", reason)
-        if reason == "cap" and delivery["held_posted"] != reason:
-            self.say(f"BLOCKED @admin: relay wake cap reached for {delivery['recipient']} "
-                     f"(message #{delivery['message_id']}). A message from admin resets the "
-                     "lead-to-lead chain; hourly and daily caps clear with time.")
+        notice = {
+            "cap": (f"BLOCKED @admin: relay launch cap reached for {delivery['recipient']} "
+                    f"(message #{delivery['message_id']}): {MAX_WAKES_PER_HOUR}/hour, "
+                    f"{MAX_WAKES_PER_DAY}/day headless launches. It clears with time; live "
+                    "notices to an open session are not capped."),
+            "chain": (f"BLOCKED @admin: lead-to-lead chain limit ({MAX_CHAIN}) reached for "
+                      f"{delivery['recipient']} (message #{delivery['message_id']}). A message "
+                      "from admin resets it."),
+        }.get(reason)
+        if notice and delivery["held_posted"] != reason:
+            self.say(notice)
             self.db.execute("UPDATE deliveries SET held_posted = ? WHERE message_id = ? AND "
                             "recipient = ?", (reason, delivery["message_id"], delivery["recipient"]))
 
-    def _undo(self, delivery, attempt_id: str, at: float, reason: str) -> None:
-        """Take back an attempt that never started: its reservation, its wake
+    def _undo(self, delivery, attempt_id: str, at: float, reason: str,
+              launch_counted: bool) -> None:
+        """Take back an attempt that never started: its reservation, its launch
         and chain count, and the delivery's pointer to it. Then hold."""
         with self.txn():
             self.db.execute("UPDATE attempts SET state = 'superseded' WHERE attempt_id = ?",
                             (attempt_id,))
             self.db.execute("DELETE FROM reservations WHERE attempt_id = ?", (attempt_id,))
-            self.db.execute("DELETE FROM wakes WHERE recipient = ? AND at = ?",
-                            (delivery["recipient"], at))
+            if launch_counted:
+                self.db.execute("DELETE FROM wakes WHERE rowid = (SELECT rowid FROM wakes "
+                                "WHERE recipient = ? AND at = ? LIMIT 1)",
+                                (delivery["recipient"], at))
             if delivery["from_lead"]:
                 self.db.execute("UPDATE meta SET value = CAST(MAX(CAST(value AS INTEGER) - 1, 0) "
                                 "AS TEXT) WHERE key = 'chain'")
@@ -716,7 +736,9 @@ class Relay:
                             "updated_at = ? WHERE message_id = ? AND recipient = ?",
                             ("notified" if live else "launching", attempt_id, now,
                              delivery["message_id"], delivery["recipient"]))
-            self.db.execute("INSERT INTO wakes VALUES (?, ?)", (delivery["recipient"], now))
+            if not live:
+                # Counted from here: a failed spawn still used a launch slot.
+                self.db.execute("INSERT INTO wakes VALUES (?, ?)", (delivery["recipient"], now))
             if delivery["from_lead"]:
                 self.db.execute("INSERT OR REPLACE INTO meta VALUES ('chain', ?)",
                                 (str(int(self.meta("chain") or 0) + 1),))
@@ -726,7 +748,7 @@ class Relay:
         if not posted:
             # No visible token means no possible ACK: never launch blind; retried
             # when the hub is back (review bot, #116 at 2bd1623).
-            self._undo(delivery, attempt_id, now, "deliver-unposted")
+            self._undo(delivery, attempt_id, now, "deliver-unposted", launch_counted=not live)
             return
         if live:
             return
@@ -753,7 +775,7 @@ class Relay:
             log.error("pre-spawn check failed for #%s: %s", delivery["message_id"], exc)
             blocker = "pre-spawn-error"
         if blocker:
-            self._undo(delivery, attempt_id, now, blocker)
+            self._undo(delivery, attempt_id, now, blocker, launch_counted=True)
             return
 
         try:
