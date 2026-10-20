@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import lead_chat
+import lead_relay_status
 from lead_relay_backends import (  # noqa: F401 -- re-exported for callers and tests
     CLOSED, OPEN, UNKNOWN, AlreadyRunning, ClaudeBackend, ProcessApi, Session,
     acquire_lock, child_environment, separate_process_group, session_key,
@@ -169,6 +170,11 @@ class Hub:
         body = reply.body if isinstance(reply.body, dict) else {}
         return body.get("id") if reply.status == 200 and type(body.get("id")) is int else None
 
+    def publish_status(self, snapshot: dict) -> bool:
+        """The counters for the chat page (#1737). Display only: never a gate."""
+        return self.transport("POST", self.url + "/relay/status", self.headers,
+                              snapshot).status == 200
+
 
 # --- Classification (§2) ----------------------------------------------------------
 
@@ -235,6 +241,7 @@ class Relay:
         self.log_dir = log_dir or Path(db_path).parent / "lead_relay_logs"
         self.popen: dict[str, subprocess.Popen] = {}
         self.hub_down_since: Optional[float] = None
+        self.published_at = float("-inf")   # the page snapshot (#1737)
         self.owner_token = secrets.token_hex(8)
         self.owned = False
 
@@ -918,6 +925,8 @@ class Relay:
                      "no wake was started while it was down.")
         self.supervise()
         self.dispatch(paused)
+        lead_relay_status.publish(self, paused, LEADS,   # the chat page (#1737)
+                                  (MAX_WAKES_PER_HOUR, MAX_WAKES_PER_DAY, MAX_CHAIN))
 
     def status(self) -> dict:
         return status(self.db)

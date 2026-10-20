@@ -19,6 +19,7 @@ import pytest
 
 import lead_chat
 import lead_relay
+import lead_relay_status
 from lead_relay import CLOSED, OPEN, UNKNOWN
 
 
@@ -61,6 +62,15 @@ class FakeHub:
             return None          # the hub's reply was lost: unconfirmed
         self.posts.append(content)
         return self.add("relay", content)
+
+    publish_error = None
+    snapshots = ()
+
+    def publish_status(self, snapshot):
+        if self.publish_error:
+            raise self.publish_error
+        self.snapshots = (*self.snapshots, snapshot)
+        return True
 
 
 class FakeBackend:
@@ -714,6 +724,63 @@ def test_the_lead_chain_also_limits_live_deliveries(tmp_path, monkeypatch):
     w.hub.add("admin", "carry on")
     w.tick()
     assert w.delivery(second) == ("notified", None)
+
+
+def test_the_page_snapshot_counts_launches_not_live_notices(tmp_path, monkeypatch):
+    """#1737: the chat page shows the same numbers the quota enforces."""
+    monkeypatch.setattr(lead_relay_status, "PUBLISH_SECONDS", 0.0)
+    w = World(tmp_path, ownership=OPEN)
+    live = started(w, "@claude-lead live", sender="admin")
+    ack_live(w, live)
+    w.backend.state = CLOSED
+    closed = started(w, "@claude-lead closed", sender="admin")
+
+    snap = w.hub.snapshots[-1]
+    lead = snap["leads"]["claude-lead"]
+    assert (lead["launches_hour"], lead["launches_day"]) == (1, 1)
+    assert lead["active"] == [{"message_id": closed, "state": "running"}]
+    assert lead["session"] == "11111111" and lead["enabled"] is True
+    assert snap["caps"] == {"launches_per_hour": lead_relay.MAX_WAKES_PER_HOUR,
+                            "launches_per_day": lead_relay.MAX_WAKES_PER_DAY,
+                            "chain": lead_relay.MAX_CHAIN}
+    assert snap["leads"]["codex-lead"]["launches_day"] == 0
+
+
+def test_the_snapshot_windows_age_out_and_show_live_notices(tmp_path, monkeypatch):
+    monkeypatch.setattr(lead_relay_status, "PUBLISH_SECONDS", 0.0)
+    w = World(tmp_path)
+    first = started(w, "@claude-lead one", sender="admin")
+    run_to_completion(w, first)
+    lead = lambda: w.hub.snapshots[-1]["leads"]["claude-lead"]  # noqa: E731
+
+    w.tick(advance=2 * 3600)
+    assert (lead()["launches_hour"], lead()["launches_day"]) == (0, 1)
+    w.tick(advance=23 * 3600)
+    assert (lead()["launches_hour"], lead()["launches_day"]) == (0, 0)
+
+    w.backend.state = OPEN
+    live = started(w, "@claude-lead are you there", sender="admin")
+    assert lead()["active"] == [{"message_id": live, "state": "notified"}]
+
+
+def test_the_snapshot_is_throttled(tmp_path):
+    w = World(tmp_path)
+    for _ in range(5):
+        w.tick(advance=1)
+    assert len(w.hub.snapshots) == 1
+    w.tick(advance=lead_relay_status.PUBLISH_SECONDS)
+    assert len(w.hub.snapshots) == 2
+
+
+def test_a_failing_snapshot_never_affects_delivery(tmp_path, monkeypatch):
+    monkeypatch.setattr(lead_relay_status, "PUBLISH_SECONDS", 0.0)
+    w = World(tmp_path)
+    w.hub.publish_error = OSError("hub rejected the snapshot")
+    mid = started(w, "@claude-lead one", sender="admin")
+    assert w.delivery(mid) == ("running", None)
+    w.ack(mid, w.token(mid))
+    w.tick()
+    assert w.delivery(mid) == ("delivered", "ack")
 
 
 def test_the_default_caps_are_the_agreed_policy_values():

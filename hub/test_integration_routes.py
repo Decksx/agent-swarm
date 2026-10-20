@@ -38,6 +38,7 @@ def app(tmp_path, monkeypatch):
         "HUB_CREDENTIALS", f"admin:{SECRET},claudecode:{SECRET},gemini:{SECRET}"
     )
     monkeypatch.setenv("CONTROLLER_DB", str(tmp_path / "controller.db"))
+    monkeypatch.setenv("BOARD_DB", str(tmp_path / "board.db"))
 
     spec = importlib.util.spec_from_file_location("hub_integration", HUB_PATH)
     module = importlib.util.module_from_spec(spec)

@@ -349,3 +349,51 @@ def test_a_truncated_reply_after_storing_is_unconfirmed_and_sent_once(monkeypatc
     assert code == lead_chat.EXIT_UNCONFIRMED, out.getvalue()
     assert out.getvalue().startswith("UNCONFIRMED: no response from the hub")
     assert len(hub.stored) == 1
+
+
+# --- Board (#1737) ------------------------------------------------------------
+
+
+class FakeBoard:
+    def __init__(self, reply=None):
+        self.calls = []
+        self.reply = reply or Response(200, {"status": "ok", "id": 7})
+
+    def __call__(self, method, url, headers, body):
+        self.calls.append((method, url, headers, body))
+        return self.reply
+
+
+def run_board(monkeypatch, argv, board=None):
+    monkeypatch.setenv("CLAUDE_LEAD_HUB_SECRET", "s")
+    board = board or FakeBoard()
+    out = io.StringIO()
+    code = lead_chat.main(["--url", "http://hub", "board", "--as", "claude-lead", *argv],
+                          transport=board, out=out)
+    return code, out.getvalue(), board.calls
+
+
+@pytest.mark.parametrize("argv, method, path, body", [
+    (["show"], "GET", "/board", None),
+    (["project", "swarm", "Agent swarm", "--repo", "Decksx/agent-swarm"], "POST", "/board/projects",
+     {"key": "swarm", "title": "Agent swarm", "repo": "Decksx/agent-swarm"}),
+    (["add", "swarm", "Cap fix", "--owner", "claude-lead", "--status", "done", "--link", "L"],
+     "POST", "/board/tasks",
+     {"project": "swarm", "title": "Cap fix", "owner": "claude-lead", "status": "done", "link": "L"}),
+    (["add", "swarm", "Sub", "--parent", "3"], "POST", "/board/tasks",
+     {"project": "swarm", "title": "Sub", "parent_id": 3}),
+    (["set", "7", "--status", "review"], "POST", "/board/tasks/7", {"status": "review"}),
+])
+def test_board_actions_map_to_one_authenticated_call(monkeypatch, argv, method, path, body):
+    code, out, calls = run_board(monkeypatch, argv)
+    assert code == lead_chat.EXIT_OK
+    assert [(c[0], c[1], c[3]) for c in calls] == [(method, "http://hub" + path, body)]
+    assert base64.b64decode(calls[0][2]["Authorization"].split()[1]).decode() == "claude-lead:s"
+
+
+def test_a_board_refusal_is_reported_with_the_servers_reason(monkeypatch):
+    refusal = FakeBoard(Response(422, {"detail": "a task is done only with evidence"}))
+    code, out, calls = run_board(monkeypatch, ["set", "7", "--status", "done"], refusal)
+    assert code == lead_chat.EXIT_REFUSED
+    assert out.startswith("REFUSED: the board refused this (422): a task is done only with evidence")
+    assert len(calls) == 1

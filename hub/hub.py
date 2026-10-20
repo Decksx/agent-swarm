@@ -522,15 +522,67 @@ HTML_TEMPLATE = """
       border-radius: 4px;
     }
     button:hover { background: #89ddff; }
+    /* The dashboard (#1737): the chat keeps the left, the panel the right,
+       and on a narrow screen the panel goes under the chat instead. */
+    #layout { flex: 1; display: flex; min-height: 0; }
+    #chat-log { min-width: 0; }
+    #panel {
+      width: 400px; flex-shrink: 0; border-left: 1px solid var(--border);
+      background: #131620; display: flex; flex-direction: column; min-height: 0;
+    }
+    #panel.hidden { display: none; }
+    #tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.5rem; border-bottom: 1px solid var(--border); }
+    #tabs button { background: var(--card); color: var(--text); padding: 0.35rem 0.6rem; font-weight: normal; }
+    #tabs button.active { background: #7aa2f7; color: #0f1117; font-weight: bold; }
+    #tab-body { overflow-y: auto; padding: 0.75rem; font-size: 0.85rem; line-height: 1.45; }
+    #tab-body h3 { margin: 0.75rem 0 0.35rem; font-size: 0.9rem; color: #7aa2f7; }
+    #tab-body h3:first-child { margin-top: 0; }
+    .row { display: flex; justify-content: space-between; gap: 0.5rem; }
+    .muted { color: #565f89; }
+    .warn { color: #e0af68; }
+    .bad { color: #f7768e; }
+    .ok { color: #9ece6a; }
+    .bar { height: 6px; background: var(--border); border-radius: 3px; margin: 0.15rem 0 0.5rem; }
+    .bar > div { height: 100%; border-radius: 3px; background: #7aa2f7; }
+    .bar > div.full { background: #f7768e; }
+    .task { border-left: 2px solid var(--border); padding: 0.2rem 0 0.2rem 0.5rem; margin: 0.3rem 0; }
+    .task.sub { margin-left: 1rem; }
+    .badge { font-size: 0.75rem; padding: 0 0.35rem; border-radius: 3px; border: 1px solid var(--border); }
+    .s-in_progress { color: #7aa2f7; } .s-review { color: #bb9af7; } .s-blocked { color: #f7768e; }
+    .s-todo { color: #565f89; } .s-done { color: #9ece6a; } .s-dropped { color: #565f89; text-decoration: line-through; }
+    #tab-body a { color: #7dcfff; }
+    #toggle-panel { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
+    @media (max-width: 900px) {
+      #layout { flex-direction: column; }
+      #panel { width: auto; max-height: 45vh; border-left: none; border-top: 1px solid var(--border); }
+      header { flex-wrap: wrap; gap: 0.5rem; padding: 0.75rem 1rem; }
+      header > div { min-width: 0; overflow-wrap: anywhere; }
+      #chat-log { padding: 0.75rem 1rem; }
+    }
   </style>
 </head>
 <body>
   <header>
     <div><strong>Autonomous Swarm Hub</strong> <span id="build-id" style="color: #565f89; font-size: 0.85rem;">build __BUILD_ID__</span> | Live Feed</div>
-    <div id="status" style="color: #9ece6a; font-size: 0.85rem;">● Connected</div>
+    <div style="display: flex; gap: 1rem; align-items: center;">
+      <div id="status" style="color: #9ece6a; font-size: 0.85rem;">● Connected</div>
+      <button id="toggle-panel" onclick="togglePanel()">Dashboard</button>
+    </div>
   </header>
-  
-  <div id="chat-log"></div>
+
+  <main id="layout">
+    <div id="chat-log"></div>
+    <aside id="panel">
+      <nav id="tabs">
+        <button data-tab="relay" onclick="showTab('relay')">Relay</button>
+        <button data-tab="projects" onclick="showTab('projects')">Projects</button>
+        <button data-tab="tasks" onclick="showTab('tasks')">Tasks</button>
+        <button data-tab="completed" onclick="showTab('completed')">Completed</button>
+        <button data-tab="stats" onclick="showTab('stats')">Stats</button>
+      </nav>
+      <div id="tab-body" class="muted">Loading…</div>
+    </aside>
+  </main>
 
   <footer>
     <!-- A textarea, not an input: a command puts each field on its own line,
@@ -699,10 +751,244 @@ HTML_TEMPLATE = """
       }
     }
 
+    // --- Dashboard (#1737) -----------------------------------------------
+    // Read-only: the relay pushes its snapshot, the leads keep the board.
+    // Every stored string is escaped, and a link becomes an anchor only when
+    // it is plainly http(s), so a stored value can never become script.
+    let currentTab = 'relay';
+    let boardData = null;
+    let relayData = null;
+    // When each answer arrived here, and why the latest refresh failed. A
+    // cached answer keeps ageing on this clock, so a hub this browser can no
+    // longer reach never shows old health as current (Codex, #128 at a236d22).
+    let boardFetchedAt = null, relayFetchedAt = null;
+    let boardError = null, relayError = null;
+
+    function sinceFetch(at) { return at === null ? 0 : Math.max(0, (Date.now() - at) / 1000); }
+
+    // The relay report's real age: its age at the hub plus how long ago we heard.
+    function relayAge() { return relayData.age_seconds + sinceFetch(relayFetchedAt); }
+
+    // Stale is about the relay's report: its age alone. A failed refresh is
+    // about this browser's view of the hub, and is reported as that.
+    function relayStale() {
+      const limit = relayData.stale_after_seconds || 120;
+      return relayData.stale || relayAge() > limit;
+    }
+
+    function refreshLine(error, fetchedAt) {
+      return error === null ? ''
+        : `<div class="bad">Refresh failed (${esc(error)}); showing data fetched ${esc(ago(sinceFetch(fetchedAt)))}.</div>`;
+    }
+    try { currentTab = localStorage.getItem('hub-tab') || 'relay'; } catch (err) { /* private mode */ }
+    try {
+      if (localStorage.getItem('hub-panel') === 'hidden') {
+        document.getElementById('panel').classList.add('hidden');
+      }
+    } catch (err) { /* private mode */ }
+
+    function togglePanel() {
+      const panel = document.getElementById('panel');
+      panel.classList.toggle('hidden');
+      try { localStorage.setItem('hub-panel', panel.classList.contains('hidden') ? 'hidden' : 'shown'); } catch (err) { /* ignore */ }
+    }
+
+    function showTab(name) {
+      currentTab = name;
+      try { localStorage.setItem('hub-tab', name); } catch (err) { /* ignore */ }
+      renderPanel();
+    }
+
+    function esc(value) { return escapeHtml(String(value === null || value === undefined ? '' : value)); }
+
+    function linkHtml(link) {
+      if (!link) return '';
+      const text = esc(link.length > 60 ? link.slice(0, 57) + '...' : link);
+      return /^https?:[/][/]/i.test(link)
+        ? ` <a href="${esc(link)}" target="_blank" rel="noopener noreferrer">${text}</a>`
+        : ` <span class="muted">${text}</span>`;
+    }
+
+    // Red only for a limit that has been reached, never for a full chart bar.
+    function bar(used, cap, isLimit = true) {
+      const pct = cap ? Math.min(100, Math.round(100 * used / cap)) : 0;
+      return `<div class="bar"><div class="${isLimit && used >= cap ? 'full' : ''}" style="width:${pct}%"></div></div>`;
+    }
+
+    function ago(seconds) {
+      if (seconds < 90) return Math.round(seconds) + ' s ago';
+      if (seconds < 5400) return Math.round(seconds / 60) + ' min ago';
+      return (seconds / 3600).toFixed(1) + ' h ago';
+    }
+
+    function when(epoch) {
+      return epoch ? localTime({ timestamp_utc: new Date(epoch * 1000).toISOString() }) : '';
+    }
+
+    function renderRelay() {
+      if (!relayData) {
+        return relayError === null ? '<span class="muted">Loading…</span>'
+          : `<span class="bad">Relay status unavailable (${esc(relayError)}).</span>`;
+      }
+      if (!relayData.available) return refreshLine(relayError, relayFetchedAt) + `<span class="warn">${esc(relayData.reason)}</span>`;
+      const s = relayData.snapshot;
+      const caps = s.caps || {};
+      const stale = relayStale();
+      let out = refreshLine(relayError, relayFetchedAt);
+      out += `<div class="row"><span>Last report</span><span class="${stale ? 'bad' : 'ok'}">`
+        + `${esc(ago(relayAge()))}${stale ? ' — STALE, relay may be down' : ''}</span></div>`;
+      // "running" is a claim about now: a stale report or a failed refresh never makes it.
+      const state = s.paused ? '<span class="bad">paused</span>'
+        : stale || relayError !== null ? '<span class="warn">unknown</span>' : '<span class="ok">running</span>';
+      out += `<div class="row"><span>Relay</span><span>${state}`
+        + ` <span class="muted">pid ${esc(s.owner_pid)}</span></span></div>`;
+      out += `<div class="row"><span>Lead↔lead chain</span><span>${esc(s.chain)} / ${esc(caps.chain)}</span></div>`
+        + bar(s.chain, caps.chain)
+        + '<div class="muted">An admin message resets the chain.</div>';
+      for (const [lead, l] of Object.entries(s.leads || {})) {
+        out += `<h3>${esc(lead)}</h3>`;
+        out += `<div class="row"><span>Binding</span><span>${l.session ? esc(l.session) + '…' : '<span class="muted">unregistered</span>'}`
+          + ` ${l.session ? (l.enabled ? '<span class="ok">enabled</span>' : '<span class="warn">disabled</span>') : ''}</span></div>`;
+        out += `<div class="row"><span>Launches this hour</span><span>${esc(l.launches_hour)} / ${esc(caps.launches_per_hour)}</span></div>`
+          + bar(l.launches_hour, caps.launches_per_hour);
+        out += `<div class="row"><span>Launches today (24 h)</span><span>${esc(l.launches_day)} / ${esc(caps.launches_per_day)}</span></div>`
+          + bar(l.launches_day, caps.launches_per_day);
+        const held = Object.entries(l.held || {});
+        out += `<div class="row"><span>Held</span><span>${held.length ? held.map(([r, n]) => esc(n) + ' ' + esc(r)).join(', ') : '0'}</span></div>`;
+        out += `<div class="row"><span>Active</span><span>${(l.active || []).length ? l.active.map(a => '#' + esc(a.message_id) + ' ' + esc(a.state)).join(', ') : 'none'}</span></div>`;
+      }
+      return out + '<p class="muted">Launches count headless starts only; notices to an open chat are free.</p>';
+    }
+
+    function taskLine(t, byId) {
+      const parent = t.parent_id && byId[t.parent_id];
+      return `<div class="task ${parent ? 'sub' : ''}"><div class="row"><span>#${esc(t.id)} ${esc(t.title)}</span>`
+        + `<span class="badge s-${esc(t.status).replace(/[^a-z_]/g, '')}">${esc(t.status)}</span></div>`
+        + `<div class="muted">${t.owner ? esc(t.owner) : 'unassigned'}${linkHtml(t.link)}</div>`
+        + (t.note ? `<div class="muted">${esc(t.note)}</div>` : '') + '</div>';
+    }
+
+    function renderProjects() {
+      if (!boardData) return '<span class="muted">Loading…</span>';
+      if (!boardData.projects.length) return '<span class="muted">No projects on the board yet.</span>';
+      const stats = boardData.stats.projects;
+      let out = '';
+      for (const p of boardData.projects) {
+        const st = stats[p.key] || { open: 0, counts: {}, percent_done: null };
+        const working = boardData.tasks.filter(t => t.project === p.key && ['in_progress', 'review', 'blocked'].includes(t.status));
+        out += `<h3>${esc(p.title)} <span class="muted">${esc(p.repo || '')}</span></h3>`;
+        out += `<div class="row"><span>${st.percent_done === null ? 'no tasks yet' : esc(st.percent_done) + '% done'}</span>`
+          + `<span>${esc(st.open)} open · ${esc(st.counts.done || 0)} done</span></div>`
+          + bar(st.percent_done || 0, 100, false);
+        out += working.length
+          ? working.map(t => `<div>${esc(t.owner || 'unassigned')}: ${esc(t.title)} <span class="s-${esc(t.status)}">${esc(t.status)}</span></div>`).join('')
+          : '<div class="muted">Nobody is actively on this project.</div>';
+      }
+      return out;
+    }
+
+    function renderTasks() {
+      if (!boardData) return '<span class="muted">Loading…</span>';
+      const byId = Object.fromEntries(boardData.tasks.map(t => [t.id, t]));
+      const open = boardData.tasks.filter(t => !['done', 'dropped'].includes(t.status));
+      if (!open.length) return '<span class="muted">No open tasks.</span>';
+      let out = '';
+      for (const p of boardData.projects) {
+        const mine = open.filter(t => t.project === p.key);
+        if (mine.length) out += `<h3>${esc(p.title)}</h3>` + mine.map(t => taskLine(t, byId)).join('');
+      }
+      return out;
+    }
+
+    function renderCompleted() {
+      if (!boardData) return '<span class="muted">Loading…</span>';
+      const done = boardData.tasks.filter(t => t.status === 'done').sort((a, b) => b.completed_at - a.completed_at);
+      if (!done.length) return '<span class="muted">Nothing completed on the board yet.</span>';
+      return done.map(t => `<div class="task"><div class="row"><span>${esc(t.title)}</span><span class="muted">${esc(t.project)}</span></div>`
+        + `<div class="muted">${esc(when(t.completed_at))} · ${esc(t.owner || 'unassigned')}${linkHtml(t.link)}</div></div>`).join('');
+    }
+
+    function renderStats() {
+      if (!boardData) return '<span class="muted">Loading…</span>';
+      const s = boardData.stats;
+      let out = `<div class="row"><span>Open tasks</span><span>${esc(s.open_tasks)}</span></div>`;
+      out += `<div class="row"><span>Completed per day (last ${esc(s.rate_window_days)} days)</span><span>${esc(s.completion_rate_per_day)}</span></div>`;
+      out += `<div class="row"><span>Projected days to clear (estimate)</span><span>${s.estimate_days_remaining === null ? '<span class="muted">no recent rate</span>' : esc(s.estimate_days_remaining)}</span></div>`;
+      out += '<h3>Completions by day (UTC)</h3>';
+      const days = Object.entries(s.completed_per_day_utc);
+      const peak = Math.max(1, ...days.map(([, n]) => n));
+      out += days.length ? days.map(([d, n]) => `<div class="row"><span>${esc(d)}</span><span>${esc(n)}</span></div>` + bar(n, peak, false)).join('')
+        : '<div class="muted">None in the window.</div>';
+      out += '<h3>Per project</h3>';
+      for (const [key, p] of Object.entries(s.projects)) {
+        out += `<div class="row"><span>${esc(key)}</span><span>${esc(p.open)} open · `
+          + `${p.estimate_days_remaining === null ? 'no estimate' : '~' + esc(p.estimate_days_remaining) + ' days'}</span></div>`;
+      }
+      return out + `<p class="muted">${esc(s.estimate_note)}</p>`;
+    }
+
+    function renderPanel() {
+      for (const b of document.querySelectorAll('#tabs button')) {
+        b.classList.toggle('active', b.dataset.tab === currentTab);
+      }
+      const render = { relay: renderRelay, projects: renderProjects, tasks: renderTasks,
+                       completed: renderCompleted, stats: renderStats }[currentTab] || renderRelay;
+      const body = document.getElementById('tab-body');
+      body.className = '';
+      // Board tabs say how old the board is, and why it is old if a refresh failed.
+      const boardStatus = currentTab === 'relay' ? ''
+        : boardError !== null ? refreshLine(boardError, boardFetchedAt)
+        : boardFetchedAt !== null ? `<div class="muted">Board updated ${esc(ago(sinceFetch(boardFetchedAt)))}.</div>` : '';
+      body.innerHTML = boardStatus + render();
+    }
+
+    // One source at a time: a failure keeps the last answer, records why,
+    // and is rendered, never swallowed. A request that never answers is
+    // aborted, so it becomes a visible failure too (Codex, #128 at 4dbe0b4).
+    const FETCH_TIMEOUT_MS = 8000;
+
+    async function refresh(url, apply) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) return `HTTP ${res.status}`;
+        apply(await res.json());
+        return null;
+      } catch (err) {
+        return controller.signal.aborted ? 'timed out' : 'hub unreachable';
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    let dashboardBusy = false;
+
+    async function fetchDashboard() {
+      if (dashboardBusy) return;   // never stack refreshes behind a slow one
+      dashboardBusy = true;
+      try {
+        const [b, r] = await Promise.all([
+          refresh('/board', data => { boardData = data; boardFetchedAt = Date.now(); }),
+          refresh('/relay/status', data => { relayData = data; relayFetchedAt = Date.now(); }),
+        ]);
+        boardError = b;
+        relayError = r;
+      } finally {
+        dashboardBusy = false;
+      }
+      renderPanel();
+    }
+
     setInterval(fetchMessages, 2000);
     setInterval(showIdentity, 10000);
+    setInterval(fetchDashboard, 10000);
+    // Ages are computed at render time, so render on a clock of our own:
+    // a refresh that is still pending must not freeze what the panel says.
+    setInterval(renderPanel, 5000);
     fetchMessages();
     showIdentity();
+    fetchDashboard();
   </script>
 </body>
 </html>
@@ -726,6 +1012,7 @@ HTML_TEMPLATE = """
 # This import is why the container bind-mounts the application *directory*
 # rather than hub.py alone.
 from controller import api as controller_api  # noqa: E402
+from controller import board as controller_board  # noqa: E402
 from controller import build as controller_build  # noqa: E402
 from controller import db as controller_db  # noqa: E402
 from controller import ingress as controller_ingress  # noqa: E402
@@ -745,6 +1032,12 @@ app.include_router(
         db_path=CONTROLLER_DB,
     )
 )
+
+# The leads' work board and the relay snapshot (#1737), in their own database:
+# they are records for the page, not controller state.
+BOARD_DB = os.environ.get("BOARD_DB", "/data/board.db")
+controller_board.ensure_database(BOARD_DB)
+app.include_router(controller_board.build_router(authenticate=authenticate, db_path=BOARD_DB))
 
 
 @app.get("/", response_class=HTMLResponse)

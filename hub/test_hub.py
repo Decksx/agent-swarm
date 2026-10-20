@@ -51,6 +51,7 @@ def load_hub(monkeypatch, tmp_path, credentials=CREDS):
     # path before the module is loaded rather than after. Without this it would
     # reach for /data/controller.db, which does not exist off the container.
     monkeypatch.setenv("CONTROLLER_DB", str(tmp_path / "controller.db"))
+    monkeypatch.setenv("BOARD_DB", str(tmp_path / "board.db"))
 
     db = tmp_path / "chat.db"
     conn = sqlite3.connect(db)
