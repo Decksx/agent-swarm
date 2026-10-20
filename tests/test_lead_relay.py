@@ -20,6 +20,7 @@ import pytest
 import lead_chat
 import lead_relay
 import lead_relay_status
+import lead_relay_cli
 from lead_relay import CLOSED, OPEN, UNKNOWN
 
 
@@ -1279,3 +1280,111 @@ def test_any_failure_in_the_pre_spawn_checks_undoes_the_unstarted_attempt(tmp_pa
     w.backend.ownership = original
     w.tick()
     assert w.delivery(mid) == ("running", None)
+
+
+# --- Cancelling stale held deliveries (#125 §1) -------------------------------
+
+
+def held_for_codex(w, n):
+    """n admin messages to both leads while codex-lead is unregistered."""
+    w.relay.db.execute("DELETE FROM sessions WHERE recipient = 'codex-lead'")
+    w.backend.state = OPEN
+    ids = []
+    for i in range(n):
+        mid = started(w, f"@claude-lead @codex-lead note {i}", sender="admin")
+        ack_live(w, mid)
+        ids.append(mid)
+    assert all(w.delivery(i, "codex-lead") == ("held", "unregistered") for i in ids)
+    return ids
+
+
+def cancel(w, ids, *, confirm=True, lead="codex-lead", reason="stale history"):
+    return lead_relay_cli.cancel_held(w.relay.db, lead, ids, reason, confirm=confirm,
+                                      now=lambda: w.t[0])
+
+
+def test_cancel_retires_exactly_the_named_held_rows(tmp_path):
+    w = World(tmp_path)
+    old = held_for_codex(w, 3)[:2]
+    newer = started(w, "@codex-lead newer", sender="admin")
+
+    code, text = cancel(w, old, confirm=False)
+    assert code == 0 and text.startswith("DRY RUN")
+    assert all(w.delivery(i, "codex-lead") == ("held", "unregistered") for i in old)
+
+    code, text = cancel(w, old)
+    assert code == 0, text
+    assert all(w.delivery(i, "codex-lead") == ("cancelled", "cancelled: stale history") for i in old)
+    assert w.delivery(newer, "codex-lead") == ("held", "unregistered"), "a newer delivery is untouched"
+    assert all(w.delivery(i) == ("delivered", "ack") for i in old), "claude-lead's rows are untouched"
+    open_ids = {o["message_id"] for o in w.relay.status()["open"] if o["recipient"] == "codex-lead"}
+    assert not open_ids & set(old)
+
+
+def rows(w):
+    return [tuple(r) for r in w.relay.db.execute(
+        "SELECT message_id, recipient, state, reason FROM deliveries ORDER BY 1, 2")]
+
+
+@pytest.mark.parametrize("bad", ["not-held", "missing", "duplicate"])
+def test_cancel_is_all_or_nothing(tmp_path, bad):
+    w = World(tmp_path)
+    ids = held_for_codex(w, 2)
+    if bad == "not-held":
+        w.relay.db.execute("UPDATE deliveries SET state = 'pending', reason = NULL "
+                           "WHERE message_id = ? AND recipient = 'codex-lead'", (ids[0],))
+        target = ids
+    else:
+        target = ids + [99999 if bad == "missing" else ids[1]]
+    before = rows(w)
+    code, text = cancel(w, target)
+    assert code == 1 and text.startswith("REFUSED"), text
+    if bad == "duplicate":
+        assert "exactly once" in text, "refused for the real reason, not a later accident"
+    assert rows(w) == before
+
+
+def test_cancel_refuses_an_enabled_lead_and_needs_a_reason(tmp_path):
+    w = World(tmp_path)
+    ids = held_for_codex(w, 1)
+    w.relay.db.execute("INSERT INTO sessions VALUES ('codex-lead','claude',"
+                       "'99999999-2222-3333-4444-555555555555','C:/git',NULL,1,0)")
+    code, text = cancel(w, ids)
+    assert code == 1 and "enabled" in text
+    w.relay.db.execute("UPDATE sessions SET enabled = 0 WHERE recipient = 'codex-lead'")
+    assert cancel(w, ids, reason="  ")[0] == 1
+    assert w.delivery(ids[0], "codex-lead")[0] == "held"
+    assert cancel(w, ids)[0] == 0
+
+
+def test_a_cancelled_delivery_never_wakes_the_lead_later(tmp_path):
+    """The point of cancelling: registering and enabling the lead afterwards
+    must not replay that history."""
+    w = World(tmp_path)
+    ids = held_for_codex(w, 2)
+    assert cancel(w, ids)[0] == 0
+    w.relay.db.execute("INSERT INTO sessions VALUES ('codex-lead','claude',"
+                       "'99999999-2222-3333-4444-555555555555','C:/git',NULL,1,0)")
+    w.backend.state = CLOSED
+    before = len(w.spawned)
+    for _ in range(3):
+        w.tick(advance=60)
+    assert len(w.spawned) == before
+    assert w.relay.db.execute(
+        f"SELECT COUNT(*) FROM attempts WHERE recipient = 'codex-lead' AND message_id IN "
+        f"({','.join(map(str, ids))})").fetchone()[0] == 0
+    assert not any("@codex-lead" in p and f"#{i} " in p for p in w.hub.posts for i in ids)
+    assert all(w.delivery(i, "codex-lead")[0] == "cancelled" for i in ids)
+
+
+def test_the_cancel_command_line(tmp_path, capsys):
+    w = World(tmp_path)
+    ids = held_for_codex(w, 2)
+    w.relay.db.close()
+    argv = ["--db", str(w.db_path), "cancel", "--lead", "codex-lead",
+            "--ids", ",".join(map(str, ids)), "--reason", "stale history"]
+    assert lead_relay_cli.main(argv) == 0
+    assert capsys.readouterr().out.startswith("DRY RUN")
+    assert lead_relay_cli.main(argv + ["--confirm"]) == 0
+    assert capsys.readouterr().out.startswith(f"cancelled 2 for codex-lead")
+    assert lead_relay_cli.main(argv[:-4] + ["--ids", "x", "--reason", "r"]) == 1
