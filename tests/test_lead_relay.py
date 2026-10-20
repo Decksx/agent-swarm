@@ -1388,3 +1388,56 @@ def test_the_cancel_command_line(tmp_path, capsys):
     assert lead_relay_cli.main(argv + ["--confirm"]) == 0
     assert capsys.readouterr().out.startswith(f"cancelled 2 for codex-lead")
     assert lead_relay_cli.main(argv[:-4] + ["--ids", "x", "--reason", "r"]) == 1
+
+
+@pytest.mark.parametrize("scenario", ["changed-hold-reason", "disabled-open"])
+def test_confirm_cannot_interleave_with_a_tick_that_has_its_snapshot(tmp_path, monkeypatch, scenario):
+    """Codex, #129 at 7f3d63f: a tick reads its held rows, then writes each
+    one back without re-reading it. A cancellation landing in between was
+    overwritten: held(unregistered) became held(pause), or a disabled OPEN
+    lead got a live DELIVER. `run` holds the relay's lock for its whole life,
+    so --confirm must take that lock, and is refused while a tick can be in
+    flight. The dry run still works."""
+    w = World(tmp_path)
+    ids = held_for_codex(w, 2)
+    if scenario == "changed-hold-reason":
+        w.hub.is_paused = True                  # the next tick re-holds as `pause`
+    else:
+        w.relay.db.execute("INSERT INTO sessions VALUES ('codex-lead','claude',"
+                           "'99999999-2222-3333-4444-555555555555','C:/git',NULL,0,0)")
+        w.backend.state = OPEN                  # live notices ignore `enabled`
+    lock = lead_relay.acquire_lock(w.db_path.with_name(w.db_path.name + ".lock"))  # the daemon
+
+    argv = ["--db", str(w.db_path), "cancel", "--lead", "codex-lead",
+            "--ids", ",".join(map(str, ids)), "--reason", "stale history"]
+    codes = []
+    real = lead_relay.Relay._hold_reason
+
+    def cancel_after_snapshot(self, delivery, paused):
+        # dispatch has already read its rows: this is the window of the race.
+        if not codes:
+            codes.append(lead_relay_cli.main(argv))                  # dry run
+            codes.append(lead_relay_cli.main(argv + ["--confirm"]))
+        return real(self, delivery, paused)
+
+    monkeypatch.setattr(lead_relay.Relay, "_hold_reason", cancel_after_snapshot)
+    w.relay.tick()
+    monkeypatch.setattr(lead_relay.Relay, "_hold_reason", real)
+    assert codes == [0, 3], "the dry run works; confirming is refused while the daemon runs"
+    states = {w.delivery(i, "codex-lead")[0] for i in ids}
+    assert "cancelled" not in states, "nothing was cancelled while the daemon ran"
+
+    os.close(lock)                              # the daemon is stopped
+    if scenario == "changed-hold-reason":
+        # The tick re-held them as `pause`; nothing was lost, and now that the
+        # daemon is stopped the same command applies and stays applied.
+        assert {w.delivery(i, "codex-lead") for i in ids} == {("held", "pause")}
+        assert lead_relay_cli.main(argv + ["--confirm"]) == 0
+        w.hub.is_paused = False
+        for _ in range(2):
+            w.tick(advance=60)
+        assert all(w.delivery(i, "codex-lead")[0] == "cancelled" for i in ids)
+    else:
+        # The daemon delivered live, consistently: no row is both cancelled
+        # and notified, which is the state the race used to produce.
+        assert "notified" in states

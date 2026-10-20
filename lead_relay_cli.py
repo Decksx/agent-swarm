@@ -71,9 +71,14 @@ def cancel_held(db, lead: str, ids: list[int], reason: str, *, confirm: bool,
     For stale history that must not replay when a lead is (re)registered
     (#125 §1: the held Codex queue). Fenced so it cannot reach anything else:
     only the named ids, only rows still `held` for this lead, all or none,
-    and never while this lead's binding is enabled, because then dispatch
-    could be about to start one of them. Rows for other recipients of the
-    same message are untouched. Without `confirm` it only reports.
+    and never while this lead's binding is enabled. Rows for other recipients
+    of the same message are untouched. Without `confirm` it only reports.
+
+    With `confirm`, the caller must hold the relay's ownership lock (`main`
+    does): a running daemon may already have read these rows for its current
+    tick, and its later writes do not re-check them, so a cancellation it
+    did not see could be put back to `held` or delivered live (Codex, #129
+    at 7f3d63f). This transaction alone cannot fence that.
     """
     if not ids or len(set(ids)) != len(ids):
         return 1, "REFUSED: give each message id exactly once"
@@ -182,7 +187,20 @@ def main(argv=None) -> int:
             except ValueError:
                 print("REFUSED: --ids must be comma-separated message ids")
                 return 1
-            code, text = cancel_held(db, args.lead, ids, args.reason, confirm=args.confirm)
+            lock = None
+            if args.confirm:
+                # The daemon's own lock: applying requires the relay stopped.
+                try:
+                    lock = acquire_lock(db_path.with_name(db_path.name + ".lock"))
+                except AlreadyRunning:
+                    print("REFUSED: the relay daemon is running; stop it before --confirm "
+                          "(a dry run needs no stop). Nothing changed.")
+                    return 3
+            try:
+                code, text = cancel_held(db, args.lead, ids, args.reason, confirm=args.confirm)
+            finally:
+                if lock is not None:
+                    os.close(lock)
             print(text)
             return code
         else:
