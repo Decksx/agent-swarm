@@ -1,5 +1,59 @@
 # Agent Swarm imported project context
 
+## Morning recovery and current delivery checkpoint — 2026-10-20
+
+This checkpoint supersedes the earlier pending-proof statements below. The
+project still aims to let the interactive leads collaborate without David
+relaying their messages; background worker health alone does not prove that.
+
+- Production is clean at `7a29f90aec800e8364c1425b6f20a212e83074ae` (merged
+  #122). On 2026-10-20 around 15:32–15:37 UTC, authenticated controller status
+  reported schema 6 and matching checkout/loaded/on-disk build
+  `ab69ad056404c0b7c6c8827e355be770b7073a99d7968c6774d69bcff72f7314`.
+  There were no live activations: 121 DONE, 6 EXPIRED; the external proof task
+  remains READY_EXTERNAL_REVIEW, without a controller review verdict.
+- Supervisor PID 25056 and workers 32468/32544/32628 are running, unpaused,
+  with a fresh supervisor heartbeat. Their creation times are from October 19,
+  before the reported overnight Internet outage. Relay daemon PID 45684 is
+  running under its scheduled hidden launcher; its launcher is a separate
+  process, not a second relay daemon. GitHub API and authenticated hive access
+  both work. No restart or deployment was needed for this audit.
+- The supervisor still logs intermittent Windows heartbeat-replace WinError 5
+  (latest observed at 09:00 MDT); the current heartbeat is fresh. Relay #1610
+  reports a 0.3-minute detected hub outage, not the length of David's reported
+  five-hour Internet outage. Do not conflate LAN hub reachability with Internet
+  availability or infer that no outbound requests failed overnight.
+- During the audit, David's hive admin message #1611 reset the earlier chain
+  cap. Held handoffs #1589/#1593 and #1611 were delivered and ACKed as
+  #1613/#1615/#1617. Relay status then showed chain=2 and no reservations.
+  No agent edited the cap or its records. Claude's registered interactive
+  session `a750400a-9432-40d2-af7c-da1f613a1035` has a matching live process.
+  Claude independently replied in #1619 that its watcher received Codex #1618;
+  this confirms current direct coordination, beyond process health.
+
+The finite native proof helper was approved in #123 at
+`234473cf8e769d4bf461c6487ada998caa19ee66`, merged as
+`d144408eb85e54cf1c4078b2920244250efdd27f`. Subsequent runtime receipts on
+[#123](https://github.com/Decksx/agent-swarm/pull/123) establish:
+
+- Idle scheduled turn `01a155f2-7a61-70c3-b2af-f246cf9211ef` completed on
+  October 19, 20:55:16–20:56:43 UTC; source #1597 produced targeted ACK #1598.
+- Busy scheduled turn `01a1561e-6df5-7851-af9e-ad4f246014fe` completed
+  21:43:17–21:44:12 UTC, after parent `01a15618-8bd8-73b3-a909-63951cdc01e9`
+  completed at 21:42:51 UTC; source #1601 produced targeted ACK #1603.
+  This establishes no overlap, not how an earlier due occurrence was handled.
+  Claude reviewed the exact busy prompt after execution, not beforehand.
+- Both finite test automations remain PAUSED, confirmed again this morning.
+  Codex is still unregistered in the production relay. These results do not
+  establish app-restart delivery or an always-on Codex watcher.
+
+Next: the bounded app-restart plan revision 2 is approved by Claude in
+[#123 comment 6278759156](https://github.com/Decksx/agent-swarm/pull/123#issuecomment-6278759156).
+It still needs David's availability, a filled prompt/timing window and Claude's
+independent observer. No restart schedule, PROBE or observer is armed. Keep
+Claude's separate post-deploy stdin wake smoke check distinct. #93–95 and the
+comic CI-efficiency follow-up remain queued behind interactive delivery.
+
 ## One-run scheduling stopped; finite alternative proposed — 2026-10-19
 
 PR #121 merged as `83666c04464301801975531fd0f764dd0f2c0019`, pinned to
