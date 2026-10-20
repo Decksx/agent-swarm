@@ -187,12 +187,26 @@ first and then work, so delivery and execution are tracked separately.
   An active hold means `held(rate)`.
 - **Codex spend.** Codex's equivalent is pinned before Codex wakes are
   enabled.
-- **Persisted counters.**
-  - Wakes per recipient per hour, and per day.
-  - Lead↔lead envelope chain length, reset **only** by a message from
-    `admin`. ACKs, comments and commits never reset it.
+- **Persisted counters.** These are two separate policies.
+  - **Launch quota:** headless model launches per recipient, per hour and per
+    day. It is checked only after ownership reads CLOSED, so a live notice to
+    an open session is neither counted nor blocked by it. A launch is counted
+    when its attempt starts. An attempt undone before spawning (DELIVER
+    unposted, or a pre-spawn guard failing) returns exactly its own count. A
+    failed spawn stays counted. Hitting it means `held(cap)`.
+  - **Anti-loop chain:** lead↔lead envelope deliveries on either path, reset
+    **only** by a message from `admin`. ACKs, comments and commits never reset
+    it. Hitting it means `held(chain)`.
 
-  Hitting a cap means `held(cap)` plus one `BLOCKED @admin` line.
+  Each hold posts one `BLOCKED @admin` line per delivery and reason.
+  - **Defaults** (environment-configurable): `LEAD_RELAY_MAX_WAKES_PER_HOUR`
+    12, `LEAD_RELAY_MAX_WAKES_PER_DAY` 100 and `LEAD_RELAY_MAX_CHAIN` 12, set
+    2026-10-20 at David's request. These are policy choices, not measured safe
+    limits.
+    - The first values (4/hour, 20/day, chain 6) also counted live notices.
+      That exhausted the quota within an hour on 10-20 (#1706, #1712).
+    - Rows written before the fix include live notices, so they count against
+      the quota until they age out (24 hours).
 - **Fail closed.** Pause (hub `/control/status` or the local flag), relay
   auth failure and hub unreachable all mean `held(reason)`, durably. Local
   status and log stay useful offline, and one recovery notice is posted on

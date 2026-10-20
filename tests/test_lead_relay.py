@@ -575,7 +575,7 @@ def test_the_lead_chain_is_capped_and_only_admin_resets_it(tmp_path, monkeypatch
         w.hub.add("codex-lead", f"ACK and comment, commit abc{i}")   # none of these reset it
 
     capped = started(w, "HANDOFF @claude-lead: step 3")
-    assert w.delivery(capped) == ("held", "cap")
+    assert w.delivery(capped) == ("held", "chain")
     assert sum("BLOCKED @admin" in p for p in w.hub.posts) == 1
 
     w.tick()
@@ -596,6 +596,130 @@ def test_hourly_wakes_are_capped_per_recipient(tmp_path, monkeypatch):
 
     w.tick(advance=3601)
     assert w.delivery(second) == ("running", None)
+
+
+def launches(w):
+    return w.relay.db.execute("SELECT COUNT(*) FROM wakes").fetchone()[0]
+
+
+def ack_live(w, mid):
+    w.ack(mid, w.token(mid))
+    w.tick()
+    assert w.delivery(mid) == ("delivered", "ack")
+
+
+def test_live_notices_do_not_use_the_launch_quota(tmp_path, monkeypatch):
+    """#1717: an open session's notice launches no model, so it must not use
+    up the hourly quota that guards headless launches."""
+    monkeypatch.setattr(lead_relay, "MAX_WAKES_PER_HOUR", 1)
+    w = World(tmp_path, ownership=OPEN)
+    for i in range(3):
+        mid = started(w, f"@claude-lead live {i}", sender="admin")
+        assert w.delivery(mid) == ("notified", None)
+        ack_live(w, mid)
+    assert launches(w) == 0
+
+    w.backend.state = CLOSED
+    closed = started(w, "@claude-lead now closed", sender="admin")
+    assert w.delivery(closed) == ("running", None)
+    assert launches(w) == 1
+
+
+def test_an_exhausted_launch_quota_still_delivers_live(tmp_path, monkeypatch):
+    """The quota is checked only on the CLOSED path, after ownership."""
+    monkeypatch.setattr(lead_relay, "MAX_WAKES_PER_HOUR", 1)
+    w = World(tmp_path)
+    first = started(w, "@claude-lead one", sender="admin")
+    run_to_completion(w, first)
+    blocked = started(w, "@claude-lead two", sender="admin")
+    assert w.delivery(blocked) == ("held", "cap")
+    assert any("launch cap" in p and "not capped" in p for p in w.hub.posts)
+
+    w.backend.state = OPEN
+    w.tick()
+    assert w.delivery(blocked) == ("notified", None)
+    ack_live(w, blocked)
+    assert launches(w) == 1
+
+
+def test_the_daily_launch_quota_holds_after_the_hour_clears(tmp_path, monkeypatch):
+    monkeypatch.setattr(lead_relay, "MAX_WAKES_PER_HOUR", 100)
+    monkeypatch.setattr(lead_relay, "MAX_WAKES_PER_DAY", 2)
+    w = World(tmp_path)
+    for i in range(2):
+        mid = started(w, f"@claude-lead {i}", sender="admin")
+        run_to_completion(w, mid)
+        w.tick(advance=3601)
+    third = started(w, "@claude-lead 3", sender="admin")
+    assert w.delivery(third) == ("held", "cap")
+
+    w.tick(advance=86400)
+    assert w.delivery(third) == ("running", None)
+
+
+def test_launch_accounting_survives_a_relay_restart(tmp_path, monkeypatch):
+    monkeypatch.setattr(lead_relay, "MAX_WAKES_PER_HOUR", 1)
+    w = World(tmp_path)
+    first = started(w, "@claude-lead one", sender="admin")
+    run_to_completion(w, first)
+    w.restart()
+    second = started(w, "@claude-lead two", sender="admin")
+    assert w.delivery(second) == ("held", "cap")
+    assert launches(w) == 1
+
+
+def test_a_failed_spawn_still_uses_a_launch_slot(tmp_path, monkeypatch):
+    """No process started, but a launch was attempted: it stays counted, so a
+    failing CLI can't be retried past the quota."""
+    monkeypatch.setattr(lead_relay, "MAX_WAKES_PER_HOUR", 1)
+    w = World(tmp_path)
+
+    def broken(command, session, attempt_id):
+        raise OSError("no such file")
+    w.relay.spawn = broken
+    failed = started(w, "@claude-lead one", sender="admin")
+    assert w.delivery(failed)[0] == "failed"
+    assert launches(w) == 1
+
+    w.relay.spawn = w.spawn
+    second = started(w, "@claude-lead two", sender="admin")
+    assert w.delivery(second) == ("held", "cap")
+
+
+def test_an_undone_headless_attempt_returns_only_its_own_launch(tmp_path, monkeypatch):
+    """Rollback deletes one row: an earlier launch at the same instant stays."""
+    w = World(tmp_path)
+    first = started(w, "@claude-lead one", sender="admin")
+    run_to_completion(w, first)
+    at = w.relay.db.execute("SELECT at FROM wakes").fetchone()[0]
+    w.t[0] = at  # a second attempt at exactly the same clock reading
+    w.hub.post_fails = True
+    held = started(w, "@claude-lead two", sender="admin")
+    assert w.delivery(held) == ("held", "deliver-unposted")
+    assert launches(w) == 1
+
+
+def test_the_lead_chain_also_limits_live_deliveries(tmp_path, monkeypatch):
+    """The anti-loop chain is separate from the launch quota and applies on
+    both paths: two open leads could still ping-pong without it."""
+    monkeypatch.setattr(lead_relay, "MAX_CHAIN", 1)
+    w = World(tmp_path, ownership=OPEN)
+    first = started(w, "HANDOFF @claude-lead: one")
+    ack_live(w, first)
+    second = started(w, "HANDOFF @claude-lead: two")
+    assert w.delivery(second) == ("held", "chain")
+    assert any("chain limit" in p for p in w.hub.posts)
+    assert launches(w) == 0
+
+    w.hub.add("admin", "carry on")
+    w.tick()
+    assert w.delivery(second) == ("notified", None)
+
+
+def test_the_default_caps_are_the_agreed_policy_values():
+    """Configurable policy (David, 2026-10-20), not measured limits."""
+    assert (lead_relay.MAX_WAKES_PER_HOUR, lead_relay.MAX_WAKES_PER_DAY,
+            lead_relay.MAX_CHAIN) == (12, 100, 12)
 
 
 # --- 7. Holds (§9) ---------------------------------------------------------------------
