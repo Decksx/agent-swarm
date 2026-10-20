@@ -50,6 +50,7 @@ DAY = 86400.0
 def hub(tmp_path, monkeypatch):
     monkeypatch.setenv("HUB_CREDENTIALS", f"admin:{SECRET}")
     monkeypatch.setenv("CONTROLLER_DB", str(tmp_path / "controller.db"))
+    monkeypatch.setenv("BOARD_DB", str(tmp_path / "board.db"))
 
     db = tmp_path / "chat.db"
     conn = sqlite3.connect(db)

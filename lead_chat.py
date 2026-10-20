@@ -294,6 +294,34 @@ def read(identity: str, *, since_id: int = 0, only_mentions: bool = False,
     return [m for m in rows if mentions(m, identity)] if only_mentions else rows
 
 
+def board(identity: str, method: str, path: str, body: Optional[dict] = None, *,
+          url: str = HUB_URL, transport: Transport = urllib_transport,
+          environ=None, user_environment=_user_environment):
+    """One call to the work board behind the chat page (#1737)."""
+    headers = _auth(identity, secret_for(identity, environ=environ,
+                                         user_environment=user_environment))
+    reply = transport(method, f"{url}{path}", headers, body)
+    if reply.status != 200:
+        detail = reply.body.get("detail") if isinstance(reply.body, dict) else None
+        raise LeadChatError(f"the board refused this ({reply.status}): {detail or 'no detail'}")
+    return reply.body
+
+
+def _board_call(args) -> tuple:
+    """(method, path, body) for one `board` action."""
+    fields = lambda *names: {n: getattr(args, n) for n in names  # noqa: E731
+                             if getattr(args, n) is not None}
+    if args.action == "show":
+        return "GET", "/board", None
+    if args.action == "project":
+        return "POST", "/board/projects", {"key": args.key, "title": args.title,
+                                           **fields("repo", "status")}
+    if args.action == "add":
+        return "POST", "/board/tasks", {"project": args.project, "title": args.title,
+                                        **fields("owner", "status", "parent_id", "link", "note")}
+    return "POST", f"/board/tasks/{args.task_id}", fields("title", "owner", "status", "link", "note")
+
+
 def main(argv=None, *, transport: Transport = urllib_transport, out=None) -> int:
     out = out or sys.stdout
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -315,9 +343,39 @@ def main(argv=None, *, transport: Transport = urllib_transport, out=None) -> int
     p.add_argument("--since", type=int, default=0)
     p.add_argument("--mentions", action="store_true", help="only messages addressed to this lead")
 
+    p = sub.add_parser("board", help="read or update the work board shown on the chat page")
+    p.add_argument("--as", dest="identity", required=True, choices=sorted(IDENTITIES))
+    actions = p.add_subparsers(dest="action", required=True)
+    actions.add_parser("show", help="the whole board, as JSON")
+    a = actions.add_parser("project", help="create or update a project")
+    a.add_argument("key")
+    a.add_argument("title")
+    a.add_argument("--repo")
+    a.add_argument("--status")
+    a = actions.add_parser("add", help="add a task (or a subtask with --parent)")
+    a.add_argument("project")
+    a.add_argument("title")
+    a.add_argument("--owner")
+    a.add_argument("--status", help="todo, in_progress, review, blocked, done (needs --link), dropped")
+    a.add_argument("--parent", dest="parent_id", type=int)
+    a.add_argument("--link", help="evidence: a PR, issue or commit URL")
+    a.add_argument("--note")
+    a = actions.add_parser("set", help="change a task")
+    a.add_argument("task_id", type=int)
+    a.add_argument("--title")
+    a.add_argument("--owner")
+    a.add_argument("--status")
+    a.add_argument("--link")
+    a.add_argument("--note")
+
     args = parser.parse_args(argv)
 
     try:
+        if args.command == "board":
+            print(json.dumps(board(args.identity, *_board_call(args), url=args.url,
+                                   transport=transport), ensure_ascii=False), file=out)
+            return EXIT_OK
+
         if args.command == "post":
             receipt = post(args.identity, args.content, target=args.target,
                            url=args.url, transport=transport)
