@@ -758,6 +758,28 @@ HTML_TEMPLATE = """
     let currentTab = 'relay';
     let boardData = null;
     let relayData = null;
+    // When each answer arrived here, and why the latest refresh failed. A
+    // cached answer keeps ageing on this clock, so a hub this browser can no
+    // longer reach never shows old health as current (Codex, #128 at a236d22).
+    let boardFetchedAt = null, relayFetchedAt = null;
+    let boardError = null, relayError = null;
+
+    function sinceFetch(at) { return at === null ? 0 : Math.max(0, (Date.now() - at) / 1000); }
+
+    // The relay report's real age: its age at the hub plus how long ago we heard.
+    function relayAge() { return relayData.age_seconds + sinceFetch(relayFetchedAt); }
+
+    // Stale is about the relay's report: its age alone. A failed refresh is
+    // about this browser's view of the hub, and is reported as that.
+    function relayStale() {
+      const limit = relayData.stale_after_seconds || 120;
+      return relayData.stale || relayAge() > limit;
+    }
+
+    function refreshLine(error, fetchedAt) {
+      return error === null ? ''
+        : `<div class="bad">Refresh failed (${esc(error)}); showing data fetched ${esc(ago(sinceFetch(fetchedAt)))}.</div>`;
+    }
     try { currentTab = localStorage.getItem('hub-tab') || 'relay'; } catch (err) { /* private mode */ }
     try {
       if (localStorage.getItem('hub-panel') === 'hidden') {
@@ -804,13 +826,21 @@ HTML_TEMPLATE = """
     }
 
     function renderRelay() {
-      if (!relayData) return '<span class="muted">Loading…</span>';
-      if (!relayData.available) return `<span class="warn">${esc(relayData.reason)}</span>`;
+      if (!relayData) {
+        return relayError === null ? '<span class="muted">Loading…</span>'
+          : `<span class="bad">Relay status unavailable (${esc(relayError)}).</span>`;
+      }
+      if (!relayData.available) return refreshLine(relayError, relayFetchedAt) + `<span class="warn">${esc(relayData.reason)}</span>`;
       const s = relayData.snapshot;
       const caps = s.caps || {};
-      let out = `<div class="row"><span>Last report</span><span class="${relayData.stale ? 'bad' : 'ok'}">`
-        + `${esc(ago(relayData.age_seconds))}${relayData.stale ? ' — STALE, relay may be down' : ''}</span></div>`;
-      out += `<div class="row"><span>Relay</span><span>${s.paused ? '<span class="bad">paused</span>' : '<span class="ok">running</span>'}`
+      const stale = relayStale();
+      let out = refreshLine(relayError, relayFetchedAt);
+      out += `<div class="row"><span>Last report</span><span class="${stale ? 'bad' : 'ok'}">`
+        + `${esc(ago(relayAge()))}${stale ? ' — STALE, relay may be down' : ''}</span></div>`;
+      // "running" is a claim about now: a stale report or a failed refresh never makes it.
+      const state = s.paused ? '<span class="bad">paused</span>'
+        : stale || relayError !== null ? '<span class="warn">unknown</span>' : '<span class="ok">running</span>';
+      out += `<div class="row"><span>Relay</span><span>${state}`
         + ` <span class="muted">pid ${esc(s.owner_pid)}</span></span></div>`;
       out += `<div class="row"><span>Lead↔lead chain</span><span>${esc(s.chain)} / ${esc(caps.chain)}</span></div>`
         + bar(s.chain, caps.chain)
@@ -905,18 +935,34 @@ HTML_TEMPLATE = """
                        completed: renderCompleted, stats: renderStats }[currentTab] || renderRelay;
       const body = document.getElementById('tab-body');
       body.className = '';
-      body.innerHTML = render();
+      // Board tabs say how old the board is, and why it is old if a refresh failed.
+      const boardStatus = currentTab === 'relay' ? ''
+        : boardError !== null ? refreshLine(boardError, boardFetchedAt)
+        : boardFetchedAt !== null ? `<div class="muted">Board updated ${esc(ago(sinceFetch(boardFetchedAt)))}.</div>` : '';
+      body.innerHTML = boardStatus + render();
+    }
+
+    // One source at a time: a failure keeps the last answer, records why,
+    // and is rendered, never swallowed.
+    async function refresh(url, apply) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return `HTTP ${res.status}`;
+        apply(await res.json());
+        return null;
+      } catch (err) {
+        return 'hub unreachable';
+      }
     }
 
     async function fetchDashboard() {
-      try {
-        const [b, r] = await Promise.all([fetch('/board'), fetch('/relay/status')]);
-        if (b.ok) boardData = await b.json();
-        if (r.ok) relayData = await r.json();
-        renderPanel();
-      } catch (err) {
-        console.error(err);
-      }
+      const [b, r] = await Promise.all([
+        refresh('/board', data => { boardData = data; boardFetchedAt = Date.now(); }),
+        refresh('/relay/status', data => { relayData = data; relayFetchedAt = Date.now(); }),
+      ]);
+      boardError = b;
+      relayError = r;
+      renderPanel();
     }
 
     setInterval(fetchMessages, 2000);

@@ -205,6 +205,7 @@ def build_router(*, authenticate: Callable, db_path: str,
     @router.post("/board/tasks")
     def add_task(req: TaskIn, by: str = Depends(writer), conn=Depends(get_conn)):
         _check_status(req.status)
+        conn.execute("BEGIN IMMEDIATE")   # project/parent checks hold until the insert
         _require_evidence(req.status, req.link)
         if not req.title.strip():
             raise HTTPException(status_code=422, detail="title is required")
@@ -225,6 +226,11 @@ def build_router(*, authenticate: Callable, db_path: str,
     @router.post("/board/tasks/{task_id}")
     def update_task(task_id: int, req: TaskUpdate, by: str = Depends(writer), conn=Depends(get_conn)):
         _check_status(req.status)
+        # The write lock before the read (Codex, #128 at a236d22): otherwise
+        # two writers validate against the same old row, and one can blank
+        # the evidence of a task the other has just completed. A refusal
+        # below leaves the transaction to be rolled back when it is closed.
+        conn.execute("BEGIN IMMEDIATE")
         row = _task(conn, task_id)
         changes = {k: v for k, v in req.model_dump().items()
                    if v is not None and v != row[k]}
@@ -266,6 +272,7 @@ def build_router(*, authenticate: Callable, db_path: str,
             return {"available": False, "reason": "the relay has not reported yet"}
         age = clock() - row["received_at"]
         return {"available": True, "received_at": row["received_at"], "age_seconds": round(age, 1),
-                "stale": age > RELAY_STALE_SECONDS, "snapshot": json.loads(row["snapshot"])}
+                "stale": age > RELAY_STALE_SECONDS, "stale_after_seconds": RELAY_STALE_SECONDS,
+                "snapshot": json.loads(row["snapshot"])}
 
     return router
