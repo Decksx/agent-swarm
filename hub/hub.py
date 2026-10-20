@@ -943,31 +943,49 @@ HTML_TEMPLATE = """
     }
 
     // One source at a time: a failure keeps the last answer, records why,
-    // and is rendered, never swallowed.
+    // and is rendered, never swallowed. A request that never answers is
+    // aborted, so it becomes a visible failure too (Codex, #128 at 4dbe0b4).
+    const FETCH_TIMEOUT_MS = 8000;
+
     async function refresh(url, apply) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       try {
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) return `HTTP ${res.status}`;
         apply(await res.json());
         return null;
       } catch (err) {
-        return 'hub unreachable';
+        return controller.signal.aborted ? 'timed out' : 'hub unreachable';
+      } finally {
+        clearTimeout(timer);
       }
     }
 
+    let dashboardBusy = false;
+
     async function fetchDashboard() {
-      const [b, r] = await Promise.all([
-        refresh('/board', data => { boardData = data; boardFetchedAt = Date.now(); }),
-        refresh('/relay/status', data => { relayData = data; relayFetchedAt = Date.now(); }),
-      ]);
-      boardError = b;
-      relayError = r;
+      if (dashboardBusy) return;   // never stack refreshes behind a slow one
+      dashboardBusy = true;
+      try {
+        const [b, r] = await Promise.all([
+          refresh('/board', data => { boardData = data; boardFetchedAt = Date.now(); }),
+          refresh('/relay/status', data => { relayData = data; relayFetchedAt = Date.now(); }),
+        ]);
+        boardError = b;
+        relayError = r;
+      } finally {
+        dashboardBusy = false;
+      }
       renderPanel();
     }
 
     setInterval(fetchMessages, 2000);
     setInterval(showIdentity, 10000);
     setInterval(fetchDashboard, 10000);
+    // Ages are computed at render time, so render on a clock of our own:
+    // a refresh that is still pending must not freeze what the panel says.
+    setInterval(renderPanel, 5000);
     fetchMessages();
     showIdentity();
     fetchDashboard();

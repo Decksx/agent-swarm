@@ -243,14 +243,26 @@ const el = id => els[id] || (els[id] = { id, innerHTML: '', textContent: '', cla
                contains(c) { return this.s.has(c); } } });
 globalThis.document = { getElementById: el, querySelectorAll: () => [], createElement: () => el('x' + Math.random()) };
 globalThis.localStorage = { getItem: () => null, setItem() {} };
-globalThis.setInterval = () => 0;
+const intervals = [];
+globalThis.setInterval = (fn, ms) => { intervals.push([fn, ms]); return intervals.length; };
+// Short timers run (the scenario's own awaits); long ones, like the page's
+// request timeout, are captured so the test decides when they fire.
+const realSetTimeout = setTimeout, timers = [];
+globalThis.setTimeout = (fn, ms) => ms >= 1000 ? (timers.push(fn), timers.length) : realSetTimeout(fn, ms);
+globalThis.clearTimeout = () => {};
+const fireTimers = () => { for (const fn of timers.splice(0)) fn(); };
+const renderTick = () => intervals.find(([, ms]) => ms === 5000)[0]();
 let clock = 1_800_000_000_000;
 Date.now = () => clock;
 let script = [];   // responses, in call order: an object, or 'throw'
-globalThis.fetch = async url => {
+globalThis.fetch = async (url, options = {}) => {
   if (url.startsWith('/messages') || url.startsWith('/control')) return { ok: true, status: 200, json: async () => (url.startsWith('/messages') ? [] : {}) };
   const next = script.shift();
   if (next === 'throw') throw new TypeError('Failed to fetch');
+  if (next === 'pending') {          // never answers; only an abort ends it
+    return new Promise((_, reject) => options.signal && options.signal.addEventListener(
+      'abort', () => reject(new DOMException('aborted', 'AbortError'))));
+  }
   return { ok: next.status === 200, status: next.status, json: async () => next.body };
 };
 """
@@ -272,6 +284,23 @@ const out = {};
   script = [{ status: 503, body: {} }, { status: 503, body: {} }];
   await fetchDashboard(); out.http = el('tab-body').innerHTML;
   showTab('tasks'); out.board = el('tab-body').innerHTML;
+
+  // Codex, #128 at 4dbe0b4: requests that never answer. Fresh data first.
+  showTab('relay');
+  script = [{ status: 200, body: board }, { status: 200, body: relay }];
+  await fetchDashboard();
+  script = ['pending', 'pending'];
+  const hung = fetchDashboard();
+  await new Promise(r => realSetTimeout(r, 0));
+  clock += 300_000;
+  renderTick();                                   // the panel's own clock
+  out.hanging = el('tab-body').innerHTML;
+  script = [{ status: 200, body: board }, { status: 200, body: relay }];
+  await fetchDashboard();                         // must not stack on the hung one
+  out.stacked = script.length;
+  fireTimers();                                   // the request timeout
+  await hung;
+  out.timed_out = el('tab-body').innerHTML;
   console.log(JSON.stringify(out));
 })();
 """
@@ -305,3 +334,11 @@ def test_the_panel_ages_cached_data_and_shows_failed_refreshes(monkeypatch, tmp_
     just = out["just_failed"]
     assert "Refresh failed (hub unreachable)" in just and "STALE" not in just, just
     assert ">running<" not in just and ">unknown<" in just, just
+
+    # A request that never answers: the panel's own clock still ages the
+    # report, a second refresh is not stacked behind it, and the timeout
+    # turns it into a visible failure.
+    hanging = out["hanging"]
+    assert "5 min ago" in hanging and "STALE" in hanging and ">running<" not in hanging, hanging
+    assert out["stacked"] == 2, "a refresh was started while one was still pending"
+    assert "Refresh failed (timed out)" in out["timed_out"], out["timed_out"]
