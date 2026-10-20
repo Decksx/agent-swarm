@@ -23,7 +23,6 @@ import uuid
 
 REPOS = {"swarm": "Decksx/agent-swarm", "comic": "Decksx/cbz-automation-suite"}
 CHAT_PATH = Path(r"C:\swarm-prod\agent-swarm\lead_chat.py")
-CHAT_SHA256 = "2f06a40af74ad7bd4a1ef23b11f235cbce44773334d2a43f5e84902fd21ba035"
 HISTORY = Path(r"C:\Users\david\.codex\thread_history_1.sqlite")
 SHA = re.compile(r"(?<![0-9a-fA-F])[0-9a-fA-F]{40}(?![0-9a-fA-F])")
 ENVELOPE = re.compile(r"^\s*(HANDOFF|REVIEW|QUESTION)\s+@codex-lead\s*:", re.I)
@@ -46,12 +45,13 @@ class WatchError(Exception):
 
 
 def initialize(root: Path, *, thread: str, baseline: int, expires: float,
-               control: Path, max_turns: int = 12, now=time.time) -> None:
+               control: Path, chat_sha256: str, max_turns: int = 12, now=time.time) -> None:
     """Create one fresh pilot, refusing reuse, an unbounded window or budget."""
     if (not root.is_absolute() or not control.is_absolute()
             or str(uuid.UUID(thread)) != thread
             or type(baseline) is not int or baseline < 0
             or type(max_turns) is not int or not 1 <= max_turns <= 12
+            or not isinstance(chat_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", chat_sha256)
             or not 0 < expires - now() <= 3600):
         raise WatchError("absolute paths, exact thread, baseline and <=12 turns/1 hour required")
     resolved = root.resolve()
@@ -60,7 +60,7 @@ def initialize(root: Path, *, thread: str, baseline: int, expires: float,
             or any((p / ".git").exists() for p in (resolved, *resolved.parents))):
         raise WatchError("runtime state must be outside Git and Codex data")
     root.mkdir(exist_ok=False)
-    config = dict(schema_version=1, thread=thread, baseline=baseline,
+    config = dict(schema_version=2, thread=thread, baseline=baseline, chat_sha256=chat_sha256,
                   created=now(), expires=expires, control=str(control), max_turns=max_turns)
     with sqlite3.connect(root / "watch.sqlite") as db:
         db.executescript(SCHEMA)
@@ -111,7 +111,7 @@ def reference(content: str) -> tuple[str, int] | None:
                                  + r"/pull/([1-9][0-9]*)(?=$|[\s/#?)>,])", content, re.I):
             found.add((repo, int(match[1])))
     for label, repo in REPOS.items():
-        for match in re.finditer(r"\b" + label + r"\s+#([1-9][0-9]*)\b", content, re.I):
+        for match in re.finditer(r"\b" + label + r"\s+(?:PR\s+)?#([1-9][0-9]*)\b", content, re.I):
             found.add((repo, int(match[1])))
     return next(iter(found)) if len(found) == 1 else None
 
@@ -125,12 +125,14 @@ class Watcher:
                                   uri=True, isolation_level=None, timeout=0)
         self.db.row_factory = sqlite3.Row
         self.config = json.loads(self.meta("config"))
-        if self.config.get("schema_version") != 1 or actual[0] != self.config["thread"]:
+        if self.config.get("schema_version") != 2 or actual[0] != self.config["thread"]:
             self.close()
             raise WatchError("pilot schema or actual thread mismatch")
         if (type(self.config.get("max_turns")) is not int
                 or not 1 <= self.config["max_turns"] <= 12
                 or not 0 < self.config["expires"] - self.config["created"] <= 3600
+                or not isinstance(self.config.get("chat_sha256"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", self.config["chat_sha256"])
                 or not Path(self.config["control"]).is_absolute()):
             self.close()
             raise WatchError("invalid pilot bounds or control path")
@@ -173,17 +175,17 @@ class Watcher:
                                 (source, token, mid))
                 disposition = "relay-notice"
             else:
-                disposition = "attention:unknown-relay-source"
+                disposition = "surface:unknown-relay-source"
         elif sender == "claude-lead" and ENVELOPE.match(text):
             ref = reference(text)
             observed = {s.lower() for s in SHA.findall(text)}
             if ref is None or len(observed) != 1:
-                disposition = "attention:explicit-project-and-one-full-head-required"
+                disposition = "surface:explicit-project-and-one-full-head-required"
             else:
                 repo, number = ref
                 head = self.resolve(repo, number)
                 if head not in observed:
-                    disposition = "attention:head-moved"
+                    disposition = "surface:head-moved"
                 else:
                     kind = ENVELOPE.match(text)[1].lower()
                     key = hashlib.sha256(f"{repo}/{number}/{head}/{kind}".encode()).hexdigest()
@@ -192,7 +194,7 @@ class Watcher:
                                     (key, repo, number, head, kind, mid, text))
                     disposition = "work"
         elif sender == "admin" and self.api.mentions(row):
-            disposition = "attention:operator-message"
+            disposition = "surface:operator-message"
         sent_at = row.get("timestamp_utc")
         self.db.execute("INSERT INTO messages VALUES (?, ?, ?, ?)",
                         (mid, disposition, key, sent_at if isinstance(sent_at, str) else None))
@@ -207,15 +209,15 @@ class Watcher:
             found = self.api.find(content, self.config["baseline"])
             if not isinstance(found, list) or any(type(i) is not int or i <= 0 for i in found):
                 raise WatchError("invalid ACK find response")
-            self.db.execute("UPDATE acks SET state='posting' WHERE source=? AND token=?",
-                            (row["source"], row["token"]))
             if found:
                 receipt = found[0]
             else:
                 if self.now() >= self.config["expires"] or self.paused():
-                    self.db.execute("UPDATE acks SET state='pending' WHERE source=? AND token=?",
-                                    (row["source"], row["token"]))
                     return
+                # All fallible pre-send checks precede this durable marker.
+                # From here a crash is ambiguous, so no automatic resend.
+                self.db.execute("UPDATE acks SET state='posting' WHERE source=? AND token=?",
+                                (row["source"], row["token"]))
                 reply = self.api.post(content)
                 receipt = (reply.message_id if reply.state == "confirmed"
                            and type(reply.message_id) is int and reply.message_id > 0 else None)
@@ -283,15 +285,15 @@ class Watcher:
         rows = sorted(rows, key=lambda r: r["id"])
         if len({r["id"] for r in rows}) != len(rows):
             raise WatchError("duplicate message id")
-        attentions = []
+        surfaces = []
         self.db.execute("BEGIN IMMEDIATE")
         try:
             for row in rows[:50]:
                 if self.now() >= self.config["expires"]:
                     break
                 outcome = self.classify(row)
-                if outcome.startswith("attention:"):
-                    attentions.append({"source_id": row["id"], "reason": outcome,
+                if outcome.startswith("surface:"):
+                    surfaces.append({"source_id": row["id"], "reason": outcome,
                                        "content": row["content"]})
                 self.set_meta("cursor", row["id"])
             self.db.commit()
@@ -305,22 +307,24 @@ class Watcher:
             return {"state": "paused"}
         if self.db.execute("SELECT 1 FROM acks WHERE state!='confirmed'").fetchone():
             return {"state": "attention", "reason": "relay-ack-incomplete"}
-        if attentions:
-            return {"state": "attention", "messages": attentions}
         task = self.db.execute("SELECT * FROM work WHERE state='pending' ORDER BY source LIMIT 1").fetchone()
         if task is None:
-            return {"state": "idle"}
+            return {"state": "surface", "messages": surfaces} if surfaces else {"state": "idle"}
         if self.resolve(task["repo"], task["pr"]) != task["head"]:
             self.db.execute("UPDATE work SET state='stale' WHERE key=?", (task["key"],))
-            return {"state": "attention", "reason": "head-moved", "source_id": task["source"]}
+            return {"state": "surface", "messages": surfaces + [
+                {"source_id": task["source"], "reason": "surface:head-moved", "content": task["content"]}]}
         if self.now() >= self.config["expires"] or self.paused():
             return {"state": "paused-or-expired"}
         self.db.execute("UPDATE work SET state='active', owner_turn=? WHERE key=?", (turn, task["key"]))
         sent = self.db.execute("SELECT sent_at FROM messages WHERE id=?", (task["source"],)).fetchone()
-        return {"state": "work", "claim": task["key"], "source_id": task["source"],
+        packet = {"state": "work", "claim": task["key"], "source_id": task["source"],
                 "repo": task["repo"], "pr": task["pr"], "head": task["head"],
                 "kind": task["kind"], "content": task["content"], "turn": turn,
                 "source_timestamp_utc": sent[0], "claimed_at": self.now()}
+        if surfaces:
+            packet["notices"] = surfaces
+        return packet
 
     def finish(self, claim: str, report: str, *, blocked=False):
         """Record this turn's actual GitHub report; never manufacture a verdict."""
@@ -379,10 +383,10 @@ class Watcher:
         return output
 
 
-def production_api():
+def production_api(expected_sha256):
     """Use the existing non-admin lead helper; never read/print a credential."""
     raw = CHAT_PATH.read_bytes()
-    if hashlib.sha256(raw).hexdigest() != CHAT_SHA256:
+    if hashlib.sha256(raw).hexdigest() != expected_sha256:
         raise WatchError("production chat helper bytes changed; review before using")
     spec = importlib.util.spec_from_file_location("_watch_lead_chat", CHAT_PATH)
     mod = importlib.util.module_from_spec(spec)
@@ -423,6 +427,7 @@ def main(argv=None):
     init.add_argument("--baseline", type=int, required=True)
     init.add_argument("--expires", required=True)
     init.add_argument("--control", required=True, type=Path)
+    init.add_argument("--chat-sha256", required=True)
     sub.add_parser("poll")
     sub.add_parser("metrics")
     guard = sub.add_parser("guard")
@@ -440,11 +445,12 @@ def main(argv=None):
                 raise WatchError("actual thread and UTC-Z expiry required")
             expires = datetime.fromisoformat(args.expires.replace("Z", "+00:00")).timestamp()
             initialize(args.root, thread=args.thread, baseline=args.baseline,
-                       expires=expires, control=args.control)
+                       expires=expires, control=args.control, chat_sha256=args.chat_sha256)
             result = {"state": "initialized"}
         else:
-            watch = Watcher(args.root, api=production_api() if args.command in ("poll", "guard") else None,
-                            actual=actual)
+            watch = Watcher(args.root, api=None, actual=actual)
+            if args.command in ("poll", "guard"):
+                watch.api = production_api(watch.config["chat_sha256"])
             if args.command == "poll":
                 result = watch.poll()
             elif args.command == "metrics":
@@ -454,7 +460,8 @@ def main(argv=None):
             else:
                 result = watch.finish(args.claim, args.report, blocked=args.blocked)
     except Exception as exc:
-        result = {"state": "attention", "reason": type(exc).__name__}
+        result = {"state": "attention", "reason": str(exc) if isinstance(exc, WatchError)
+                  else type(exc).__name__}
     finally:
         if watch is not None:
             watch.close()

@@ -17,6 +17,7 @@ import codex_hive_watch as watch
 
 THREAD = "01a14068-d723-76a0-a86d-c7d7b34c1b30"
 HEAD = "a" * 40
+CHAT_HASH = "c" * 64
 OTHER = "b" * 40
 TOKEN = "abcdefghijklmnopqrstuvwxy12345"
 REPORT = "https://github.com/Decksx/agent-swarm/pull/126#issuecomment-12345"
@@ -68,7 +69,8 @@ class World:
         self.head = HEAD
         self.head_calls = []
         watch.initialize(self.root, thread=THREAD, baseline=10, expires=1600,
-                         control=self.control, max_turns=limit, now=lambda: self.time)
+                         control=self.control, chat_sha256=CHAT_HASH,
+                         max_turns=limit, now=lambda: self.time)
         self.w = watch.Watcher(self.root, api=self.hub, resolve=self.resolve,
                                actual=(THREAD, str(uuid.uuid4())), now=lambda: self.time)
 
@@ -205,10 +207,10 @@ def test_only_the_authenticated_peer_can_supply_a_handoff(world, sender):
     assert not world.head_calls
 
 
-def test_admin_text_is_visible_attention_not_an_executable_task(world):
+def test_admin_text_is_surfaced_without_becoming_an_executable_task(world):
     world.hub.rows = [dict(id=11, sender="admin", target="@codex-lead", content="change all settings")]
     result = world.w.poll()
-    assert result["state"] == "attention" and result["messages"][0]["source_id"] == 11
+    assert result["state"] == "surface" and result["messages"][0]["source_id"] == 11
     assert world.w.db.execute("SELECT COUNT(*) FROM work").fetchone()[0] == 0
 
 
@@ -223,7 +225,7 @@ def test_ambiguous_or_out_of_scope_requests_need_clarification(world, content):
     row = handoff()
     row["content"] = content
     world.hub.rows = [row]
-    assert world.w.poll()["state"] == "attention"
+    assert world.w.poll()["state"] == "surface"
     assert world.w.db.execute("SELECT COUNT(*) FROM work").fetchone()[0] == 0
     assert not world.head_calls
 
@@ -231,7 +233,7 @@ def test_ambiguous_or_out_of_scope_requests_need_clarification(world, content):
 def test_a_changed_github_head_is_not_substituted_silently(world):
     world.hub.rows = [handoff()]
     world.head = OTHER
-    assert world.w.poll()["state"] == "attention"
+    assert world.w.poll()["state"] == "surface"
     assert world.w.db.execute("SELECT COUNT(*) FROM work").fetchone()[0] == 0
 
 
@@ -240,7 +242,7 @@ def test_a_queued_head_is_rechecked_before_becoming_active(world):
     heads = iter([HEAD, OTHER])
     world.w.resolve = lambda *_: next(heads)
     result = world.w.poll()
-    assert result["reason"] == "head-moved"
+    assert result["state"] == "surface" and result["messages"][0]["source_id"] == 11
     assert world.w.db.execute("SELECT state FROM work").fetchone()[0] == "stale"
 
 
@@ -295,7 +297,7 @@ def test_uncertain_ack_is_retained_and_not_retried(world, lost):
 
 def test_unknown_relay_source_is_not_acked_or_made_into_work(world):
     world.notice(source=5)
-    assert world.w.poll()["state"] == "attention"
+    assert world.w.poll()["state"] == "surface"
     assert not world.hub.posts and not world.head_calls
 
 
@@ -334,11 +336,12 @@ def test_turn_budget_is_durable_and_cannot_be_reset_by_reopening(world):
 def test_initialize_cannot_overwrite_a_pilot_or_increase_its_limits(world):
     with pytest.raises(FileExistsError):
         watch.initialize(world.root, thread=THREAD, baseline=0, expires=1500,
-                         control=world.control, now=lambda: 1000)
+                         control=world.control, chat_sha256=CHAT_HASH, now=lambda: 1000)
     for limit, expires in [(13, 1500), (12, 5000), (0, 1500)]:
         with pytest.raises(watch.WatchError):
             watch.initialize(world.root / "bad", thread=THREAD, baseline=10,
-                             expires=expires, max_turns=limit, control=world.control, now=lambda: 1000)
+                             expires=expires, max_turns=limit, control=world.control,
+                             chat_sha256=CHAT_HASH, now=lambda: 1000)
     assert world.w.meta("cursor") == "10"
 
 
@@ -415,7 +418,7 @@ def test_runtime_api_refuses_changed_production_helper(tmp_path, monkeypatch):
     path.write_text("raise AssertionError('changed code must not execute')", encoding="utf-8")
     monkeypatch.setattr(watch, "CHAT_PATH", path)
     with pytest.raises(watch.WatchError, match="bytes changed"):
-        watch.production_api()
+        watch.production_api(CHAT_HASH)
 
 
 @pytest.mark.parametrize("ending", ["evil", "0bad", ".example", "_suffix"])
@@ -480,7 +483,7 @@ def test_initialize_refuses_git_or_codex_state(tmp_path, monkeypatch, parent):
     root = base / "pilot"
     with pytest.raises(watch.WatchError, match="outside Git"):
         watch.initialize(root, thread=THREAD, baseline=10, expires=1600,
-                         control=tmp_path, now=lambda: 1000)
+                         control=tmp_path, chat_sha256=CHAT_HASH, now=lambda: 1000)
     assert not root.exists()
 
 
@@ -546,3 +549,135 @@ def test_guard_rechecks_pause_after_its_head_lookup(world):
         return HEAD
     world.w.resolve = pause
     assert world.w.guard(packet["claim"])["state"] == "paused-or-expired"
+
+
+@pytest.mark.parametrize("notice", [
+    dict(id=12, sender="admin", target="@codex-lead", content="@claude-lead @codex-lead good work you two"),
+    dict(id=12, sender="claude-lead", content="HANDOFF @codex-lead: swarm #126 at shortsha"),
+    dict(id=12, sender="relay", content=f"RELAY DELIVER #5 → @codex-lead attempt={TOKEN} (live)"),
+])
+def test_surface_message_cannot_hide_pending_work_or_repeat_next_turn(world, notice):
+    world.hub.rows = [handoff(), notice]
+    packet = world.w.poll()
+    assert packet["state"] == "work" and packet["source_id"] == 11
+    assert packet["notices"][0]["source_id"] == 12
+    assert packet["notices"][0]["reason"].startswith("surface:")
+    world.w.finish(packet["claim"], REPORT)
+    world.next_turn()
+    assert world.w.poll() == {"state": "idle"}
+
+
+def test_surface_only_message_is_durable_and_does_not_stop_next_poll(world):
+    world.hub.rows = [dict(id=11, sender="admin", target="@codex-lead", content="thanks")]
+    assert world.w.poll()["state"] == "surface"
+    assert world.w.meta("cursor") == "11"
+    world.next_turn()
+    world.hub.rows.append(handoff(12))
+    assert world.w.poll()["source_id"] == 12
+
+
+def test_failed_pre_send_pause_check_does_not_create_uncertain_ack(world):
+    world.hub.rows = [handoff()]
+    world.notice()
+    original = world.hub.paused
+    def fail_after_find():
+        if "find" in world.hub.calls:
+            raise watch.WatchError("hub pause unavailable")
+        return original()
+    world.hub.paused = fail_after_find
+    result = world.w.poll()
+    assert result == {"state": "attention", "reason": "hub pause unavailable"}
+    assert world.w.db.execute("SELECT state FROM acks").fetchone()[0] == "pending"
+    assert not world.hub.posts
+    world.hub.paused = original
+    world.next_turn()
+    assert world.w.poll()["state"] == "work"
+    assert world.hub.posts == [f"ACK #11 {TOKEN}"]
+
+
+def test_posting_marker_is_durable_immediately_before_the_actual_send(world):
+    world.hub.rows = [handoff()]
+    world.notice()
+    original = world.hub.post
+    def inspect_marker(content):
+        with sqlite3.connect(world.root / "watch.sqlite") as db:
+            assert db.execute("SELECT state FROM acks").fetchone()[0] == "posting"
+        return original(content)
+    world.hub.post = inspect_marker
+    assert world.w.poll()["state"] == "work"
+
+
+@pytest.mark.parametrize("label,repo", [("swarm", "Decksx/agent-swarm"), ("comic", "Decksx/cbz-automation-suite")])
+def test_natural_project_pr_reference(label, repo):
+    assert watch.reference(f"HANDOFF @codex-lead: {label} PR #128 at {HEAD}") == (repo, 128)
+
+
+def test_init_pin_is_recorded_and_required_without_automatic_repinning(world, monkeypatch, capsys):
+    assert world.w.config["chat_sha256"] == CHAT_HASH
+    monkeypatch.setattr(watch, "identity", lambda: world.w.actual)
+    pins = []
+    def api(pin):
+        pins.append(pin)
+        return world.hub
+    monkeypatch.setattr(watch, "production_api", api)
+    assert watch.main(["--root", str(world.root), "poll"]) == 0
+    # main uses real UTC; this fixture's 1970 pilot has expired. The adapter
+    # still must receive its stored pin, never compute a new trusted hash.
+    assert json.loads(capsys.readouterr().out)["state"] == "expired"
+    assert pins == [CHAT_HASH]
+    assert world.w.config["chat_sha256"] == CHAT_HASH
+
+
+def test_api_executes_only_the_explicitly_pinned_helper_bytes(tmp_path, monkeypatch):
+    import hashlib
+    path = tmp_path / "chat.py"
+    raw = b"marker = 42\n"
+    path.write_bytes(raw)
+    monkeypatch.setattr(watch, "CHAT_PATH", path)
+    assert watch.production_api(hashlib.sha256(raw).hexdigest()) is not None
+    path.write_bytes(b"raise AssertionError('changed bytes must not execute')\n")
+    with pytest.raises(watch.WatchError, match="bytes changed"):
+        watch.production_api(hashlib.sha256(raw).hexdigest())
+
+
+def test_main_preserves_safe_watcherror_but_not_arbitrary_exception_text(world, monkeypatch, capsys):
+    def refusal():
+        raise watch.WatchError("unique actual in-progress turn unavailable")
+    monkeypatch.setattr(watch, "identity", refusal)
+    assert watch.main(["--root", str(world.root), "poll"]) == 1
+    assert json.loads(capsys.readouterr().out)["reason"] == "unique actual in-progress turn unavailable"
+    def error():
+        raise OSError("arbitrary sensitive diagnostic")
+    monkeypatch.setattr(watch, "identity", error)
+    assert watch.main(["--root", str(world.root), "poll"]) == 1
+    assert json.loads(capsys.readouterr().out)["reason"] == "OSError"
+
+
+def test_cli_init_records_explicit_reviewed_pin_without_loading_the_hub(world, monkeypatch, capsys):
+    from datetime import datetime, timezone
+    import time
+    root = world.root.parent / "new-init"
+    expires = datetime.fromtimestamp(time.time() + 600, timezone.utc).isoformat().replace("+00:00", "Z")
+    monkeypatch.setattr(watch, "identity", lambda: world.w.actual)
+    def forbidden(*_args):
+        raise AssertionError("init must not load hub adapter")
+    monkeypatch.setattr(watch, "production_api", forbidden)
+    assert watch.main(["--root", str(root), "init", "--thread", THREAD, "--baseline", "11",
+                       "--expires", expires, "--control", str(world.control),
+                       "--chat-sha256", CHAT_HASH]) == 0
+    assert json.loads(capsys.readouterr().out)["state"] == "initialized"
+    with sqlite3.connect(root / "watch.sqlite") as db:
+        config = json.loads(db.execute("SELECT value FROM meta WHERE key='config'").fetchone()[0])
+    assert config["chat_sha256"] == CHAT_HASH and config["schema_version"] == 2
+
+
+@pytest.mark.parametrize("bad", [None, True, "", "A" * 64, "c" * 64 + "\n"])
+def test_corrupt_or_missing_init_pin_refuses_before_adapter_load(world, monkeypatch, capsys, bad):
+    config = dict(world.w.config, chat_sha256=bad)
+    world.w.set_meta("config", json.dumps(config))
+    monkeypatch.setattr(watch, "identity", lambda: world.w.actual)
+    def forbidden(*_args):
+        raise AssertionError("invalid config must not load code")
+    monkeypatch.setattr(watch, "production_api", forbidden)
+    assert watch.main(["--root", str(world.root), "poll"]) == 1
+    assert json.loads(capsys.readouterr().out)["reason"] == "invalid pilot bounds or control path"

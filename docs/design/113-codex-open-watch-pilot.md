@@ -17,23 +17,28 @@ the bounded restart proof does not establish processing while the app is quit.
 
 `codex_hive_watch.py` is a script-first inbox, not an engineering executor. It
 reads the hive through the existing non-admin `codex-lead` helper. Its bytes at
-`C:\swarm-prod\agent-swarm\lead_chat.py` must match SHA-256
-`2f06a40af74ad7bd4a1ef23b11f235cbce44773334d2a43f5e84902fd21ba035`;
-the adapter executes those verified bytes without a second file read. Secrets
+`C:\swarm-prod\agent-swarm\lead_chat.py` must match the explicit SHA-256
+recorded in the reviewed activation receipt and fresh pilot configuration;
+the adapter executes those verified bytes without a second file read. The pin
+is a required `init --chat-sha256` value, never computed as a new trusted value
+by `poll` or `guard`. The helper validates configuration before loading the
+adapter. A later production change stops the pilot for fresh review, never an
+automatic re-pin. This permits the dashboard's reviewed helper to deploy before
+initialization without a watcher source change. Secrets
 are used by the existing helper and never included in a packet or diagnostic.
 
 Pilot work envelopes must come from authenticated `claude-lead`, begin with
 `HANDOFF @codex-lead:`, `REVIEW @codex-lead:` or `QUESTION @codex-lead:`, and name
 exactly one allowed PR plus exactly one full 40-character head SHA. Use an
-explicit GitHub PR URL, `swarm #N` or `comic #N`. Allowed repositories are
+explicit GitHub PR URL, `swarm #N`, `comic #N`, `swarm PR #N` or `comic PR #N`. Allowed repositories are
 `Decksx/agent-swarm` and `Decksx/cbz-automation-suite`. Bare `#N`, short SHAs,
-multiple heads, ambiguous projects and a moved GitHub head produce attention,
+multiple heads, ambiguous projects and a moved unclaimed GitHub head produce a surface notice,
 not inferred work. In the pilot a `QUESTION` is a head-bound PR discussion;
 general questions need direct lead attention. Admin messages addressed to Codex
-are surfaced as attention without being executed by this narrow parser. Other
+are surfaced without being executed by this narrow parser. Other
 prose, worker messages and our own echoes do not create tasks.
 
-A fresh SQLite database outside Git and `~/.codex` stores configuration, cursor,
+A fresh schema-2 SQLite database outside Git and `~/.codex` stores configuration, cursor,
 admitted poll turns, classifications, work and relay ACK intents. Classification,
 source message id, head-bound work and cursor advancement commit together. The
 work key includes repository, PR, full head and envelope kind; repeated messages
@@ -65,8 +70,20 @@ Future `relay` live notices with `RELAY DELIVER #N → @codex-lead attempt=TOKEN
 One durable ACK intent is stored per source/token. An existing own exact ACK is
 found before posting; otherwise the posting state commits before the one POST.
 Only a confirmed receipt completes it. A lost response/uncertain receipt remains
-visible and is never retried automatically. Unknown sources require attention.
+visible and is never retried automatically. All fallible pre-send checks run
+before the durable `posting` marker, which immediately precedes the one POST.
+A failure known to precede that marker leaves `pending`; a crash or exception
+after it is uncertain. Unknown sources are surfaced, without an ACK.
 This support does not register Codex in the relay or prove that CLOSED works.
+
+`surface` notices are not stop conditions: admin remarks, unsupported envelopes,
+unknown relay sources and unclaimed stale heads commit once with the cursor.
+They can coexist with a `work` packet in its `notices` list, so operator praise
+cannot hide pending work. Surface-only results return `messages`; the next
+poll continues normally. By contrast `attention` means stop/reconcile: identity,
+hash/schema, malformed batches, uncertain ACK/claim, unverifiable pause state
+or a moved head on the owning active claim. A queued stale item is recorded as
+stale and surfaced; other pending work can be claimed in a later poll.
 
 ## Bounds and stop controls
 
@@ -95,16 +112,21 @@ permissions, migrate the app, or convert this into unlimited recurrence.
 
 ## Activation preparation (after independent approval)
 
-1. Record the reviewed Git head, copied helper raw-byte SHA-256, actual thread,
+1. Record the reviewed Git head, copied helper raw-byte SHA-256, production
+   `lead_chat.py` raw-byte SHA-256, actual thread,
    fresh baseline, UTC creation/expiry and supported automation receipt. Use a
    fresh runtime folder under the original workspace's `control`, outside Git
    and Codex state; never reuse a previous proof folder. Copy only approved bytes.
 2. In the actual target chat, initialize once using `C:\Python311\python.exe
    -X utf8 <COPIED_HELPER> --root <PILOT_ROOT> init --thread <ACTUAL_THREAD>
-   --baseline <BASELINE> --expires <UTC_Z_EXPIRY> --control
-   C:\swarm-prod\agent-swarm\control`. This verifies current turn identity but
+   --baseline <BASELINE> --expires <UTC_Z_EXPIRY> --chat-sha256 <REVIEWED_CHAT_HASH>
+   --control C:\swarm-prod\agent-swarm\control`. This verifies current turn identity but
    performs no hub access and creates no schedule. Retain any partial failure.
-3. Have Claude confirm the filled prompt/constants and nominate a real future
+3. Run one read-only `gh pr view <REAL_PR> --repo <ALLOWED_REPO> --json headRefOid`
+   in the target chat and record the head plus successful auth/network result.
+   A missing GitHub capability blocks activation, not the first real handoff.
+   Have Claude confirm the filled prompt/constants (including both byte hashes)
+   and nominate a real future
    PR handoff within the hour. #126 has already merged/deployed; use the next
    genuine handoff, not a stale cap-fix replay or another synthetic probe.
    Agree to the full-SHA/project envelope above. David needs no app-close ritual.
@@ -119,7 +141,8 @@ permissions, migrate the app, or convert this into unlimited recurrence.
 > This is the reviewed finite Agent Swarm OPEN-chat operational pilot, source
 > commit `<APPROVED_HEAD>`. Actual target thread `<THREAD>`, runtime root
 > `<ROOT>`, copied helper `<HELPER>`, raw-byte SHA-256 `<HASH>`, baseline
-> `<BASELINE>`, absolute UTC expiry `<EXPIRY>`. At most twelve native turns at
+> `<BASELINE>`, production chat-helper pin `<CHAT_HASH>`, absolute UTC expiry
+> `<EXPIRY>`. At most twelve native turns at
 > five-minute cadence; this pilot never grants extra permissions or schedules.
 >
 > Verify this is a native scheduled heartbeat in this exact chat. Verify actual
@@ -135,6 +158,13 @@ permissions, migrate the app, or convert this into unlimited recurrence.
 > For `idle` or `already-polled`, do no engineering and post nothing in the
 > hive. End with the required quiet DONT_NOTIFY heartbeat block. If
 > `stop_after_turn=true`, first pause this automation and record the receipt.
+>
+> For `surface`, read its once-only `messages`, do not execute them as tasks,
+> and do not pause the automation. Surface meaningful requests/ambiguities once
+> here (NOTIFY only if action/clarification is needed); ordinary praise may end
+> quietly. No idle hive post. A `work` packet may also contain `notices`: read
+> those under the same rule without hiding, duplicating or abandoning its claim.
+> Only the normal expiry/budget/stop gates can end this pilot for these messages.
 >
 > For `paused`, `expired`, `budget-exhausted`, `paused-or-expired`, `attention`,
 > malformed output or a command failure, do no engineering. Preserve evidence,
@@ -176,7 +206,7 @@ helper claim time, actual thread/turn, confirmed PR/hive result and app terminal
 metadata. Pass requires every eligible handoff picked up within one cadence plus
 run duration, no duplicate engineering action, no idle hive spam, and confirmed
 supported pause/delete at the end. Record misses by source ID and reasons;
-unsupported envelopes count as visible attention, not successful delivery.
+unsupported envelopes count as surfaced notices, not successful delivery.
 The test is inconclusive if there is no genuine future handoff. A manual check
 does not prove unattended pickup. The helper does not attest native scheduling.
 
@@ -186,8 +216,9 @@ idle and actionable whole-turn durations separately from helper/network time.
 The reviewed metadata schema exposes **no token counts**. Metrics therefore
 report token usage as unavailable; duration is not tokens or cost. No credential,
 message-body or arbitrary-history scraping is a substitute. The implementation
-review must accept this finite visibility limit or require a supported usage
-source before activation. This pilot alone cannot establish an affordable
+review accepted this finite visibility limit in
+[#127 comment 6303250712](https://github.com/Decksx/agent-swarm/pull/127#issuecomment-6303250712).
+That acceptance does not cover an ongoing budget. This pilot alone cannot establish an affordable
 unlimited cadence. Any ongoing cadence/budget is a separate explicit decision.
 
 The dashboard requested in hive #1737 and the separate CLOSED queue cleanup/

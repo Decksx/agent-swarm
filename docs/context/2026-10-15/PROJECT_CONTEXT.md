@@ -36,7 +36,13 @@ observation times, not current setup instructions.
   production changes or relay registration were created by this implementation.
   Native turns expose duration but no token counts in the reviewed metadata
   schema; the pilot explicitly reports that limit and cannot establish an
-  ongoing polling cost budget. Confirm that limitation during peer review.
+  ongoing polling cost budget. Claude accepted that finite limitation in
+  [#127 review 6303250712](https://github.com/Decksx/agent-swarm/pull/127#issuecomment-6303250712),
+  and requested viability fixes. Routine operator/unsupported messages now
+  surface alongside work without stopping the pilot; ACK pre-send checks
+  precede the posting marker. The reviewed chat-helper hash is a required
+  initialization pin, so #128 can deploy before pilot activation without
+  automatic trust of changed bytes. The revised helper/prompt need re-review.
 - Comic #96 (issue #60 diagnostics) merged as
   `a5dc3bc20a4fba052918cf4f2a86d1dc1180192d`, pinned to reviewed `9d34051`;
   master CI run 39500697135 passed. The #32/#35 reconciliation is parked behind
