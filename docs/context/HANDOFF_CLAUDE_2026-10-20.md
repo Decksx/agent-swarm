@@ -10,14 +10,25 @@ Start the new chat in **`C:\git`**, because Claude's memory is keyed to that fol
 
 ## 0. Do these first, in order
 
-1. **Re-bind the relay to the new session.**
-   - `claude-lead` is still registered to the *old* session
-     `a750400a-9432-40d2-af7c-da1f613a1035`, with `enabled=1`. Until it's
-     re-registered, a handoff from Codex or an `@claude-lead` message from
-     David would wake the old conversation headlessly.
-   - Find the new local CLI session UUID (`sessionId` in
+> **Completed 2026-10-20 (~21:20 UTC).** `claude-lead` is bound to
+> `b2b425b8-954c-4f9e-bbf0-6f7f6e8acde8`, enabled. Its bounded proof passed:
+> #1701 → ACK #1703, interactive confirmation #1708, and the
+> [receipt on #113](https://github.com/Decksx/agent-swarm/issues/113#issuecomment-6301684024).
+> **Do not repeat the proof for this verified binding.** Any session with a
+> different id still needs its own registration and proof. This proof does
+> not establish Codex CLOSED delivery or an always-on Codex watcher.
+
+1. **Re-bind the relay if the session is new.**
+   - Check the supported status first:
+     `C:\Python311\python.exe -X utf8 C:\swarm-prod\agent-swarm\lead_relay.py status`.
+   - Find this session's local CLI UUID (`sessionId` in
      `~/.claude/sessions/<pid>.json`; not the remote-control `session_…` id).
-   - Run `register` (it resets `enabled=0`), then follow the **bounded bridge
+   - If `claude-lead`'s `session_id` already equals that UUID, the binding is
+     done; skip to item 2. Otherwise, while it points at another session that
+     is `enabled=1`, a handoff from Codex or an `@claude-lead` message from
+     David wakes that other conversation headlessly (this happened with #1692).
+   - Run `register` (it resets `enabled=0`; it is refused while a run is
+     reserved), then follow the **bounded bridge
      proof** recipe in the 10-19 handoff §5:
      1. Precheck.
      2. David closes the real terminal.
@@ -31,9 +42,9 @@ Start the new chat in **`C:\git`**, because Claude's memory is keyed to that fol
      proof window (step 3 to step 7), and enable it only for that window. It
      stays enabled only if the proof passes. Re-register the new session before
      any test.
-   - This proof also covers the **post-deploy stdin smoke check**, which is
-     still outstanding. Since #122, prompts reach Claude on stdin; the 10-19
-     bridge proof ran with argv.
+   - The 2026-10-20 proof also covered the **post-deploy stdin smoke check**.
+     Since #122, prompts reach Claude on stdin; the 10-19 bridge proof ran
+     with argv.
 2. **Arm the hive watcher.** An open lead only sees messages it reads; the
    relay's live path never injects into an open chat.
    - Run `C:/Python311/python.exe -I C:/git/.claude-tools/hive_watch.py 1686`
@@ -44,6 +55,10 @@ Start the new chat in **`C:\git`**, because Claude's memory is keyed to that fol
    `C:\Python311\python.exe -X utf8 C:\swarm-prod\agent-swarm\lead_chat.py read --as claude-lead --since 1686`.
 
 ## 1. State at handoff (checked 2026-10-20, ~21:00 UTC)
+
+This is a dated, historical snapshot. For current state, read the supported
+`lead_relay.py status`; don't update the fenced id list below as new messages
+arrive.
 
 | Thing | State |
 |---|---|
@@ -89,7 +104,9 @@ Start the new chat in **`C:\git`**, because Claude's memory is keyed to that fol
   is draft **PR #96** at `8ef5ab5d643fd2592cd6121fa5efe39f581867c4`, handed off
   for review in hive #1692: 33 new tests, local 2406 passed and 8 skipped. Codex
   asked for review to challenge gate completeness and path identity as well as
-  the three original defects. Pick up that review; don't restart #60.
+  the three original defects. That review is **done** (old session, hive
+  #1699: one P2 test gap, no correctness defect). Codex is adding the tests
+  (#1709). Re-review Codex's next exact head; don't restart #60 or that review.
 - **#32 and #35:** classify→move→index as one transaction per series, and
   staging operator commands. This is the main correctness project next.
 
