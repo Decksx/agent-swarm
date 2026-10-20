@@ -1,5 +1,21 @@
 # Next steps after the Codex import
 
+## Current checkpoint — 2026-10-20
+
+Read the [morning recovery and delivery checkpoint](2026-10-15/PROJECT_CONTEXT.md)
+before the historical plans below. Production services and controller parity
+pass; Claude has directly confirmed its live watcher receives Codex messages.
+David's hive message cleared the prior relay chain cap through the normal path.
+
+The Codex idle and busy scheduled-delivery proofs passed; their finite
+automations remain paused. The next milestone is the reviewed bounded desktop
+app-restart proof, when David is available to quit and reopen the app. Codex
+prepares the filled prompt and finite window; Claude supplies an independent
+process observer and fresh PROBE. Nothing is armed yet. Keep Codex production
+relay registration disabled and do not claim an always-on watcher. Claude's
+post-deploy stdin wake smoke check is a separate outstanding test. #93–95 and
+comic CI efficiency remain parked behind interactive lead delivery.
+
 ## Lead identities live; relay next — 2026-10-16
 
 #109 is deployed (PR #112, merged `2517f9e`, build `d61b1472f803`): `claude-lead`,
