@@ -1,5 +1,57 @@
 # Agent Swarm imported project context
 
+## OPEN watcher implementation and relay quota rollout — 2026-10-20 evening
+
+This checkpoint supersedes the pending restart/old binding/old runtime statements
+in the morning audit below. The historical records remain evidence of their
+observation times, not current setup instructions.
+
+- The bounded native desktop restart test passed; see
+  [#123 receipt 6295301987](https://github.com/Decksx/agent-swarm/pull/123#issuecomment-6295301987).
+  The old idle/busy/restart proof automations are PAUSED. No ongoing Codex
+  watcher is enabled, and Codex remains unregistered in the production relay.
+- Claude's current binding is `b2b425b8-954c-4f9e-bbf0-6f7f6e8acde8`, enabled
+  after the separately verified new-session stdin bridge proof
+  ([#113 receipt](https://github.com/Decksx/agent-swarm/issues/113#issuecomment-6301684024)).
+  Do not repeat an already verified binding proof or wake an old session.
+- #126 merged as `a07a88fb6ed820f0a3de87312a67eefda5c0a245`, pinned to
+  Claude-authored/Codex-approved `77048dcad5ba856f7a6cc4ee12746d477b905ee7`,
+  four green checks in run 39502309525. OPEN notices no longer consume the
+  headless launch quotas; chain protection remains distinct. Defaults are
+  12 launches/hour, 100/day and chain 12, configurable policy limits rather
+  than measured capacity. No historical counter rows were edited.
+  Codex independently ran 169 focused tests and caught five selected mutations.
+- Claude owns and reports the relay-only rollout in
+  [#126 receipt](https://github.com/Decksx/agent-swarm/pull/126#issuecomment-6302764973)
+  and hive #1734. Codex independently verified the production checkout is clean
+  at `a07a88f` and relay PID 20988 exists. The receipt reports Tower build,
+  supervisor and workers unchanged; those were not re-audited by Codex in this
+  check. Live-path confirmation remains distinct from process/checkout parity.
+- Codex is implementing the finite OPEN watcher in an isolated worktree,
+  `C:\git\agent-swarm-codex-watch`, branch `feat/113-codex-open-watch`, based on
+  the merged cap fix. The [helper/pilot prompt](../../design/113-codex-open-watch-pilot.md)
+  requires Claude's exact-head review before initialization or scheduling.
+  Durable head-bound claims, pause/expiry/budget gates, retained uncertain ACKs
+  and owner-bound completion are implemented. No pilot database, new schedule,
+  production changes or relay registration were created by this implementation.
+  Native turns expose duration but no token counts in the reviewed metadata
+  schema; the pilot explicitly reports that limit and cannot establish an
+  ongoing polling cost budget. Claude accepted that finite limitation in
+  [#127 review 6303250712](https://github.com/Decksx/agent-swarm/pull/127#issuecomment-6303250712),
+  and requested viability fixes. Routine operator/unsupported messages now
+  surface alongside work without stopping the pilot; ACK pre-send checks
+  precede the posting marker. The reviewed chat-helper hash is a required
+  initialization pin, so #128 can deploy before pilot activation without
+  automatic trust of changed bytes. The revised helper/prompt need re-review.
+- Comic #96 (issue #60 diagnostics) merged as
+  `a5dc3bc20a4fba052918cf4f2a86d1dc1180192d`, pinned to reviewed `9d34051`;
+  master CI run 39500697135 passed. The #32/#35 reconciliation is parked behind
+  the remaining interactive-delivery gap. Swarm #93–95 remain parked as well.
+- David requested a relay counter and project/task dashboard in hive #1737.
+  Claude accepted design/build lead in #1741; Codex will review. Codex's #1740
+  coordination post is confirmed. This is a separate workstream from the finite
+  watcher; do not stop the watcher implementation to duplicate Claude's UI work.
+
 ## Morning recovery and current delivery checkpoint — 2026-10-20
 
 This checkpoint supersedes the earlier pending-proof statements below. The
