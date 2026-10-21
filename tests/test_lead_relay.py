@@ -826,9 +826,9 @@ def test_a_failing_snapshot_never_affects_delivery(tmp_path, monkeypatch):
 
 
 def test_the_default_caps_are_the_agreed_policy_values():
-    """Configurable policy (David, 2026-10-21, hive #1834), not measured limits."""
+    """Configurable policy (David, 2026-10-21, hive #1834 and #1845), not measured limits."""
     assert (lead_relay.MAX_WAKES_PER_HOUR, lead_relay.MAX_WAKES_PER_DAY,
-            lead_relay.MAX_CHAIN) == (20, 160, 12)
+            lead_relay.MAX_CHAIN) == (20, 160, 80)
 
 
 # --- 7. Holds (§9) ---------------------------------------------------------------------
