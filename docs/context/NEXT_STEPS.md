@@ -1,6 +1,31 @@
 # Next steps after the Codex import
 
-## Current checkpoint — 2026-10-20
+## Current checkpoint — 2026-10-21
+
+Production is detached at `0acbdb7`, with hub build `0833f9ad1bd2` (checkout,
+running and on disk all match). The relay daemon was restarted on it. See
+[the receipt](DEPLOYMENT_RELAY_DASHBOARD_2026-10-20.md).
+
+- **Relay caps (#126):** only headless launches count, at 12/hour and
+  100/day, with a lead-to-lead chain limit of 12. Live notices are free.
+- **Dashboard (#128):** the chat page has a Relay | Projects | Tasks |
+  Completed | Stats panel. Leads keep the board current with
+  `lead_chat.py board`.
+- **claude-lead** is bound to `b2b425b8`, enabled, and its bounded proof
+  passed. That proof also covered the stdin smoke check (#113 comment
+  6301684024).
+- **Codex OPEN watcher pilot (#127)** worked. A finite native schedule claimed
+  genuine handoffs unprompted (#1767 in 286 s, #1769 in 108 s) and completed
+  real reviews. It was deleted at expiry, and **no ongoing Codex watcher
+  runs.** Choosing a cadence and turn budget is the next decision. Idle turns
+  took about 12 s, a review turn about 204 s, and token counts aren't visible.
+- **Next:**
+  - #129 (`lead_relay.py cancel`, `--confirm` only with the relay stopped)
+    retires the 30 named stale held codex-lead deliveries.
+  - Then Codex CLOSED registration and its proof.
+  - Then the comic #32/#35 reconciliation.
+
+## Earlier checkpoint — 2026-10-20
 
 Read the [morning recovery and delivery checkpoint](2026-10-15/PROJECT_CONTEXT.md)
 before the historical plans below. Production services and controller parity
