@@ -15,6 +15,49 @@ with [`113-lead-relay.md` §7](113-lead-relay.md).
 Revised after Codex's review of `27e8ad6`
 ([comment 6322250083](https://github.com/Decksx/agent-swarm/pull/133#issuecomment-6322250083)).
 
+## Successor migration (2026-10-21 evening; supersedes the thread facts below)
+
+Proof `53e110d6` was cancelled before enable. Its target thread `01a14068`
+had an orphaned `inProgress` turn, so ownership read UNKNOWN. With David's
+approval, the Codex lead then moved to a fresh thread. This follows Codex's
+[migration proposal](https://github.com/Decksx/agent-swarm/pull/133#issuecomment-6328204971).
+
+- **Target.** The driver targets thread `01a1609d-cd64-7bd1-9880-2b5b488509d4`
+  with workspace `C:\git\agent-swarm`. Its state file is
+  `codex_closed_proof.01a1609d.json`. The retired thread and binding are
+  refused by the preflight. The ownership rule is unchanged: nothing
+  reinterprets the orphaned turn or edits Codex state.
+- **The old proof is reconciled once, append-only.**
+  `python codex_closed_proof.py reconcile-old` runs under the old driver's own
+  lock. It refuses if any of these holds:
+  - the old driver (pid 47792, creation `134370937802738350`) is alive;
+  - any of the three retained files differs from its recorded sha256;
+  - the old state is not `53e110d6` with status `claimed`;
+  - a result file exists;
+  - any codex-lead attempt launched after the old run began;
+  - codex-lead is not registered disabled;
+  - a reservation exists.
+
+  Otherwise it creates `codex_closed_proof.53e110d6.reconciled.json`
+  exclusively (it never overwrites), with the verdict `cancelled before
+  enable`. The old state, cancellation text and log are left byte for byte.
+- **`prepare` refuses** if any of these holds:
+  - the reconciliation receipt is missing or doesn't match the retained
+    fingerprints;
+  - any old file has changed since;
+  - the old driver is alive.
+- **Rollout order:**
+  1. Deploy the merged driver.
+  2. Run `reconcile-old`.
+  3. Use the supported `register` to bind codex-lead to the successor thread
+     and workspace, disabled.
+  4. Reconcile the then-current codex-lead notices explicitly; ACKing their
+     current attempts is receipt only.
+  5. Only when David is available: `prepare`, then `run`.
+- **Before telling David to quit,** Claude verifies independently that the
+  exact target turn has **completed** and that no `inProgress` turn remains
+  on the successor thread. A waiting driver is not that evidence.
+
 ## 0. Facts, read-only, about 17:30Z (refreshed by `prepare`)
 
 - **Relay and binding.** Production is at `1afa9cc`, relay pid 34648, cursor

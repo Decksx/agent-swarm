@@ -24,8 +24,22 @@ from typing import Optional
 
 HERE = Path(__file__).resolve().parent
 LEAD = "codex-lead"
-THREAD = "01a14068-d723-76a0-a86d-c7d7b34c1b30"
-WORKSPACE = r"C:\Users\david\Documents\Codex"
+# The successor interactive Codex lead (hive #1851, #1856). The retired thread
+# 01a14068 is kept as evidence and is never a target again.
+THREAD = "01a1609d-cd64-7bd1-9880-2b5b488509d4"
+WORKSPACE = r"C:\git\agent-swarm"
+STATE_NAME = "codex_closed_proof.01a1609d.json"
+# Proof 53e110d6 on the retired thread was cancelled before enable and its
+# claim kept (#133). It is reconciled once, append-only, and its files must
+# stay byte-for-byte as they were; nothing about it is reset or reused.
+OLD_PROOF = "53e110d6"
+OLD_OWNER = (47792, "134370937802738350")      # pid, creation (FILETIME ticks)
+OLD_FILES = {
+    "codex_closed_proof.json": "98f4102198abc8bad6a23534ed8787783ca66ec4851008733485fccdc193ab93",
+    "codex_closed_proof.53e110d6.cancelled.txt": "92650ee384da5405c5052bb203d8cbf32aa223b3df6ebc83949d7d07d7f2030a",
+    "codex_closed_proof.53e110d6.log": "df48b98f75f9dce3c021895129a6ae9b3fca1279f364e897bffc68e8e71a25a5",
+}
+RECONCILED = "codex_closed_proof.53e110d6.reconciled.json"
 ENABLE_WINDOW = 30 * 60   # prepare -> the app must be closed and enabled by then
 PROOF_WINDOW = 30 * 60    # enable -> everything finished
 ACK_WITHIN = 10 * 60      # a probe's delivery -> its ACK
@@ -178,12 +192,80 @@ def result_path(state_path: Path, proof_id: str) -> Path:
     return state_path.with_name(f"codex_closed_proof.{proof_id}.result.json")
 
 
+def old_proof_problems(env, control: Path) -> list:
+    """Why the retired proof is not safely closed: files changed, owner alive."""
+    problems = []
+    for name, digest in OLD_FILES.items():
+        path = control / name
+        if not path.is_file() or sha256(path) != digest:
+            problems.append(f"{name} is missing or changed")
+    if env.processes.is_same(*OLD_OWNER):
+        problems.append(f"the old driver pid {OLD_OWNER[0]} is still running")
+    return problems
+
+
+def reconcile(env, control: Path) -> int:
+    """Record, once and append-only, that proof 53e110d6 ended cancelled before
+    enable with no launch and no result. Its own files are left untouched."""
+    old_state = control / "codex_closed_proof.json"
+    lock = claim(old_state)          # the old driver's own lock: no live owner
+    if lock is None:
+        env.say("REFUSED: a driver holds the old proof's lock")
+        return 1
+    try:
+        receipt = control / RECONCILED
+        if receipt.exists():
+            env.say(f"REFUSED: {RECONCILED} already exists")
+            return 1
+        problems = old_proof_problems(env, control)
+        old = json.loads(old_state.read_text(encoding="utf-8")) if old_state.is_file() else {}
+        if (old.get("proof_id"), old.get("status")) != (OLD_PROOF, "claimed"):
+            problems.append(f"old state is {old.get('proof_id')} {old.get('status')}")
+        if result_path(old_state, OLD_PROOF).exists():
+            problems.append("the old proof has a result file")
+        launched = env.rows("SELECT attempt_id FROM attempts WHERE recipient = ? AND launched_at "
+                            "IS NOT NULL AND created_at >= ?", LEAD, old.get("run_started", 0))
+        if launched:
+            problems.append(f"{LEAD} attempts launched since the old run started: {launched}")
+        stored = env.rows("SELECT enabled FROM sessions WHERE recipient = ?", LEAD)
+        if not stored or stored[0]["enabled"] != 0:
+            problems.append(f"{LEAD} is not registered disabled")
+        if env.rows("SELECT 1 FROM reservations WHERE recipient = ?", LEAD):
+            problems.append(f"{LEAD} has a reservation")
+        if problems:
+            env.say("REFUSED: " + "; ".join(problems))
+            return 1
+        body = dict(proof_id=OLD_PROOF, verdict="cancelled before enable", launches=0, result=None,
+                    reconciled_at=env.now(), owner=list(OLD_OWNER), files=OLD_FILES)
+        try:
+            fd = os.open(receipt, os.O_CREAT | os.O_EXCL | os.O_WRONLY)   # never overwrites
+        except FileExistsError:
+            env.say(f"REFUSED: {RECONCILED} appeared while reconciling")
+            return 1
+        with os.fdopen(fd, "w", encoding="utf-8") as out:
+            json.dump(body, out, indent=1, sort_keys=True)
+        env.say(f"reconciled {OLD_PROOF}: {body['verdict']}; old files unchanged")
+        return 0
+    finally:
+        os.close(lock)
+
+
 def prepare(env, state_path: Path, cli: str, cli_sha256: str, config_sha256: str) -> int:
     lock = claim(state_path)
     if lock is None:
         env.say("REFUSED: another proof driver is running")
         return 1
     try:
+        control = state_path.parent
+        receipt = control / RECONCILED
+        problems = old_proof_problems(env, control)
+        if not receipt.is_file():
+            problems.append(f"proof {OLD_PROOF} is not reconciled ({RECONCILED} missing)")
+        elif json.loads(receipt.read_text(encoding="utf-8")).get("files") != OLD_FILES:
+            problems.append(f"{RECONCILED} does not match the retained files")
+        if problems:
+            env.say("REFUSED: " + "; ".join(problems))
+            return 1
         if state_path.exists():
             old = json.loads(state_path.read_text(encoding="utf-8"))
             if old.get("status") == "claimed":
@@ -489,10 +571,13 @@ def main(argv=None) -> int:
     p.add_argument("--cli-sha256", required=True)
     p.add_argument("--config-sha256", required=True)
     sub.add_parser("run")
+    sub.add_parser("reconcile-old", help=f"record proof {OLD_PROOF} as cancelled before enable, once")
     args = parser.parse_args(argv)
     db = Path(args.db)
-    state_path = db.with_name("codex_closed_proof.json")
+    state_path = db.with_name(STATE_NAME)
     env = Env(db)
+    if args.command == "reconcile-old":
+        return reconcile(env, db.parent)
     if args.command == "prepare":
         return prepare(env, state_path, args.cli, args.cli_sha256.lower(), args.config_sha256.lower())
     return run(env, state_path)
