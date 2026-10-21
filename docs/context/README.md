@@ -5,13 +5,14 @@ project documents. Start with [the maintained context](2026-10-15/PROJECT_CONTEX
 The root `AGENTS.md` points future Codex sessions here.
 
 **Current lead handoff:** [Claude lead handoff, 2026-10-20](HANDOFF_CLAUDE_2026-10-20.md) (reference sections remain in [2026-10-19](HANDOFF_CLAUDE_2026-10-19.md)).
-Start with its §0 checkpoint. It covers the relay registration (`a750400a`,
-enabled), the `AgentSwarmLeadRelay` auto-start, the bridge proof that passed on
+Start with its §0 checkpoint (claude-lead is now bound to `b2b425b8`, enabled and
+proven; see the dated note there). It also covers the `AgentSwarmLeadRelay` auto-start, the bridge proof that passed on
 2026-10-19 (qualified; receipt on #113), and the chat watcher an open lead
 needs. The current next work is Codex wake/ownership support.
 
-Latest release: [lead identities deployment](DEPLOYMENT_LEAD109_2026-10-16.md);
-previous: [external ingest deployment and live proof](DEPLOYMENT_INGEST92_2026-10-16.md).
+Latest release: [relay caps (#126) and dashboard (#128) deployments](DEPLOYMENT_RELAY_DASHBOARD_2026-10-20.md);
+previous: [lead identities deployment](DEPLOYMENT_LEAD109_2026-10-16.md);
+earlier: [external ingest deployment and live proof](DEPLOYMENT_INGEST92_2026-10-16.md).
 Earlier release: [PR #102 deployment receipt](DEPLOYMENT_PR102_2026-10-15.md).
 Earlier release: [deployment receipt](DEPLOYMENT_2026-10-15.md), including actual
 merge commits, full checks, backups and the running-state verification.

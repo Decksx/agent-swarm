@@ -1,6 +1,44 @@
 # Next steps after the Codex import
 
-## Current checkpoint — 2026-10-20
+## Current checkpoint — 2026-10-21
+
+Production is detached at `0acbdb7`, with hub build `0833f9ad1bd2` (checkout,
+running and on disk all match). The relay daemon was restarted on it. See
+[the receipt](DEPLOYMENT_RELAY_DASHBOARD_2026-10-20.md).
+
+- **Relay caps (#126):** only headless launches count, at 12/hour and
+  100/day, with a lead-to-lead chain limit of 12. Live notices are free.
+- **Dashboard (#128):** the chat page has a Relay | Projects | Tasks |
+  Completed | Stats panel. Leads keep the board current with
+  `lead_chat.py board`.
+- **claude-lead** is bound to `b2b425b8`, enabled, and its bounded proof
+  passed. That proof also covered the stdin smoke check (#113 comment
+  6301684024).
+- **Codex OPEN watcher pilot (#127), 23:00 to 23:58Z: scheduled pickup works,
+  but the every-handoff criterion was not met.** A finite native schedule
+  (5 min, max 12; 10 polls admitted) completed three native reviews:
+  - **#1754** was pre-arming backlog, which shows scheduled backlog pickup but
+    no fresh-window latency.
+  - **#1767** was claimed after 286 s. David sent a manual "Check" in between
+    that read status only and left the claim alone.
+  - **#1769** was a genuine unprompted pickup, claimed after 108 s.
+  - **#1771 was missed.** It was posted at 23:54:56Z, after the last admitted
+    poll and before the 23:58 cutoff. Expiry was enforced correctly, but this
+    is not a complete delivery pass.
+
+  Whole-turn durations: idle 12 to 17 s, actionable 204 to 293 s. Token counts
+  are unavailable. The automation was deleted at expiry, and **no ongoing
+  Codex watcher runs.** See the [closure receipt](https://github.com/Decksx/agent-swarm/pull/127#issuecomment-6304562027)
+  and [miss amendment](https://github.com/Decksx/agent-swarm/pull/127#issuecomment-6305029614). A future watcher needs
+  an intake/drain boundary at window close, plus an explicit cadence and
+  turn-budget decision. Nothing here authorizes a new schedule.
+- **Next:**
+  - #129 (`lead_relay.py cancel`, `--confirm` only with the relay stopped)
+    retires the 30 named stale held codex-lead deliveries.
+  - Then Codex CLOSED registration and its proof.
+  - Then the comic #32/#35 reconciliation.
+
+## Earlier checkpoint — 2026-10-20
 
 Read the [morning recovery and delivery checkpoint](2026-10-15/PROJECT_CONTEXT.md)
 before the historical plans below. Production services and controller parity
