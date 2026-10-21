@@ -249,6 +249,47 @@ def test_non_wake_messages_create_no_delivery(tmp_path):
     assert w.spawned == []
 
 
+@pytest.mark.parametrize("content,target", [
+    ("@Leads please check", "@room"),
+    ("please check", "@LEADS"),
+    ("@Leads @claude-lead @codex-lead @leads", "@Leads"),
+])
+def test_admin_group_ping_has_independent_deduplicated_deliveries(tmp_path, content, target):
+    w = World(tmp_path, ownership=OPEN)
+    mid = w.hub.add("admin", content, target)
+    w.tick()
+    assert w.delivery(mid, "claude-lead") == ("notified", None)
+    assert w.delivery(mid, "codex-lead") == ("notified", None)
+    assert w.relay.db.execute("SELECT count(*) FROM attempts").fetchone()[0] == 2
+    assert len([post for post in w.hub.posts if "RELAY DELIVER" in post]) == 2
+    assert w.spawned == []
+    w.ack(mid, w.token(mid), sender="claude-lead")
+    w.tick()
+    assert w.delivery(mid)[0] == "delivered"
+    assert w.delivery(mid, "codex-lead")[0] == "notified"
+    w.ack(mid, w.token(mid, "codex-lead"), sender="codex-lead")
+    w.tick()
+    assert w.delivery(mid, "codex-lead")[0] == "delivered"
+    assert w.relay.db.execute("SELECT count(*) FROM attempts").fetchone()[0] == 2
+    assert w.relay.db.execute("SELECT count(*) FROM wakes").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("sender", ["claude-lead", "codex-lead", "relay", "claudecode", "gemini", "chatgpt"])
+def test_group_ping_does_not_broaden_peer_or_worker_wake_rules(sender):
+    for content in ("@Leads please check", "HANDOFF @Leads: please check"):
+        assert lead_relay.recipients({"sender": sender, "target": "@Leads", "content": content}) == []
+
+
+def test_group_ping_retains_unregistered_hold(tmp_path):
+    w = World(tmp_path, ownership=OPEN)
+    w.relay.db.execute("DELETE FROM sessions WHERE recipient='codex-lead'")
+    mid = w.hub.add("admin", "@Leads please check")
+    w.tick()
+    assert w.delivery(mid)[0] == "notified"
+    assert w.delivery(mid, "codex-lead") == ("held", "unregistered")
+    assert w.spawned == []
+
+
 # --- 2. Correlation (§4) -------------------------------------------------------------
 
 

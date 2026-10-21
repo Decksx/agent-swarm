@@ -14,6 +14,7 @@ import uuid
 import pytest
 
 import codex_hive_watch as watch
+import lead_chat
 
 THREAD = "01a14068-d723-76a0-a86d-c7d7b34c1b30"
 HEAD = "a" * 40
@@ -212,6 +213,20 @@ def test_admin_text_is_surfaced_without_becoming_an_executable_task(world):
     result = world.w.poll()
     assert result["state"] == "surface" and result["messages"][0]["source_id"] == 11
     assert world.w.db.execute("SELECT COUNT(*) FROM work").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("content,target", [
+    ("@Leads please check", "@room"),
+    ("please check", "@Leads"),
+])
+def test_admin_group_ping_reaches_open_inbox_as_a_notice_only(world, content, target):
+    world.hub.mentions = lambda row: lead_chat.mentions(row, "codex-lead")
+    world.hub.rows = [dict(id=11, sender="admin", target=target, content=content)]
+    result = world.w.poll()
+    assert result["state"] == "surface"
+    assert result["messages"][0]["source_id"] == 11
+    assert world.w.db.execute("SELECT count(*) FROM work").fetchone()[0] == 0
+    assert world.hub.posts == [] and world.head_calls == []
 
 
 @pytest.mark.parametrize("content", [

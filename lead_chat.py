@@ -269,14 +269,17 @@ def find(identity: str, content: str, *, since_id: int = 0, url: str = HUB_URL,
 
 
 def mentions(message: dict, identity: str) -> bool:
-    """Addressed to this identity, by target or by an @mention in the text."""
-    handle = "@" + identity.lower()
+    """Addressed individually, or to both interactive leads through @Leads."""
+    handles = ["@" + identity.lower()]
+    if identity.lower() in IDENTITIES:
+        handles.append("@leads")
     target = str(message.get("target", "")).strip().lower()
     # Whole handle only: `@claude-lead:` and `(@claude-lead)` are mentions,
     # `@claude-leader` and `x@claude-lead.example` are not.
-    pattern = HANDLE_BEFORE + re.escape(handle) + HANDLE_AFTER
-
-    return target == handle or re.search(pattern, str(message.get("content", "")).lower()) is not None
+    content = str(message.get("content", "")).lower()
+    return any(target == handle or re.search(
+        HANDLE_BEFORE + re.escape(handle) + HANDLE_AFTER, content) is not None
+        for handle in handles)
 
 
 def read(identity: str, *, since_id: int = 0, only_mentions: bool = False,

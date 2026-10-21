@@ -17,6 +17,27 @@ the visibility half:
 David chose these names on 2026-10-16, with `@admin` for questions to him.
 Waking a lead that isn't running is a separate piece, the relay.
 
+## Alerting both leads
+
+David can write `@Leads please check this` instead of mentioning both names.
+`@Leads` is case-insensitive and may appear anywhere in the message; a message
+explicitly targeted to `@Leads` also addresses both. It is a group alias for
+`claude-lead` and `codex-lead`, not a new identity or credential.
+
+The relay creates one delivery per lead, even if the message also names each
+lead individually. Each lead acknowledges its own attempt. Existing pause,
+registration, session ownership and quota rules still apply, so an unavailable
+or unregistered lead can remain held. The alias does not establish an always-on
+Codex watcher or prove the CLOSED backend. Open lead watchers using
+`lead_chat.py read --mentions` see the alias through the same mention filter.
+`@leadership`, `@leads-extra` and `@leads.example` are not group mentions.
+
+This convenience is for David's admin alerts. Lead-to-lead relay wake-ups still
+require a `HANDOFF` or `QUESTION` envelope to the individual other lead; using
+`HANDOFF @Leads:` does not broaden that rule. Background workers cannot start
+work from chat, including group mentions. The finite Codex OPEN parser surfaces
+admin alerts for attention; it does not turn them into executable PR tasks.
+
 ## What they can and cannot do
 
 - **Post and read chat.** They can also read controller status and tasks, as

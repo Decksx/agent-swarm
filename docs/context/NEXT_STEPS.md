@@ -2,8 +2,8 @@
 
 ## Current checkpoint — 2026-10-21
 
-Production is detached at `0acbdb7`, with hub build `0833f9ad1bd2` (checkout,
-running and on disk all match). The relay daemon was restarted on it. See
+Production is detached at `2d1574d` after #129, with hub build `0833f9ad1bd2`
+(checkout, running and on disk all match; verified 2026-10-21 15:23Z). See
 [the receipt](DEPLOYMENT_RELAY_DASHBOARD_2026-10-20.md).
 
 - **Relay caps (#126):** only headless launches count, at 12/hour and
@@ -33,9 +33,13 @@ running and on disk all match). The relay daemon was restarted on it. See
   an intake/drain boundary at window close, plus an explicit cadence and
   turn-budget decision. Nothing here authorizes a new schedule.
 - **Next:**
-  - #129 (`lead_relay.py cancel`, `--confirm` only with the relay stopped)
-    retires the 30 named stale held codex-lead deliveries.
-  - Then Codex CLOSED registration and its proof.
+  - #129 retired the 30 named stale held Codex deliveries; independent
+    [morning audit](https://github.com/Decksx/agent-swarm/pull/129#issuecomment-6319668272)
+    confirms zero attempts and the disclosed failed scheduled-task disable.
+  - Resolve the four newer held messages #1769/#1771/#1775/#1779 before Codex
+    CLOSED registration and its bounded proof.
+  - David approved the [#60 lead/controller boundary](../design/engineering-leadership.md).
+    Codex implements his `@Leads` group-alert request; Claude reviews it.
   - Then the comic #32/#35 reconciliation.
 
 ## Earlier checkpoint — 2026-10-20

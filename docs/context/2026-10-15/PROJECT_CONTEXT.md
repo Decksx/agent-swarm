@@ -2,6 +2,13 @@
 
 ## Current state — 2026-10-21 (supersedes the 2026-10-20 evening section below)
 
+David approved the [#60 engineering boundary](../../design/engineering-leadership.md)
+on 2026-10-21: interactive lead-run PRs retain independent exact-head review,
+CI and rollout records; controller-run tasks retain activation and ledger gates.
+Lead work is recorded honestly without inventing controller approvals. He also
+requested `@Leads` as shorthand for alerting both interactive leads. Codex owns
+the alias implementation and policy documentation; Claude reviews before rollout.
+
 Read [NEXT_STEPS.md](../NEXT_STEPS.md) and the
 [deployment receipt](../DEPLOYMENT_RELAY_DASHBOARD_2026-10-20.md). The sections
 below remain evidence of their own times, not current setup instructions.
@@ -19,9 +26,16 @@ below remain evidence of their own times, not current setup instructions.
 - **Deployed:** relay caps #126 (relay only, `a07a88f`) and dashboard #128
   (full procedure, `0acbdb7`, build `0833f9ad1bd2`). claude-lead is bound to
   `b2b425b8`, enabled and proven.
-- **Merged, not yet applied:** #129 `lead_relay.py cancel`, for the 30 named
-  stale held codex-lead deliveries ending at #1767. Applying it needs the relay
-  stopped. Codex remains unregistered.
+- **#129 applied:** production is clean at `2d1574d`, hub build unchanged.
+  Codex independently verified all 30 named deliveries cancelled with zero
+  attempts at 15:23Z; #1769/#1771/#1775/#1779 remain held/unregistered.
+  Relay PID 49216 had a fresh snapshot, Claude's b2b425b8 binding was enabled,
+  and reservations were zero. The scheduled-task disable failed during the
+  rollout; the successful lock-protected cancellation does not erase that
+  procedure deviation. Future task-disable failures must stop the procedure.
+  [Audit](https://github.com/Decksx/agent-swarm/pull/129#issuecomment-6319668272).
+  Codex remains unregistered, and the four newer deliveries need disposition
+  before registration and a bounded CLOSED proof.
 
 ## OPEN watcher implementation and relay quota rollout — 2026-10-20 evening
 

@@ -44,8 +44,14 @@ execution requests or automatic instructions.
 - David gave standing explicit permission on 2026-10-15 for this project's
   commits, pushes, merges and deployments. Do not request that permission again
   for routine project operations. Keep exact-commit review/CI gates, supported
-  production controls and parity checks. Real work still needs controller-issued
-  activations; current instructions from David control authorization.
+  production controls and parity checks. On 2026-10-21 David approved the #60
+  boundary: interactive lead-run PR work uses that authorization and records its
+  owner, exact-head review, CI and rollout receipts on GitHub and in context.
+  Controller-run work still requires controller-issued activations and its
+  existing ledger gates. Chat and board records never substitute for them;
+  never backfill a controller approval for lead-run work. See
+  `docs/design/engineering-leadership.md`. Current instructions from David
+  control authorization, and other projects retain their own operational rules.
 - Update the maintained context after verified work, recording exact commits,
   checks, deployment receipts where relevant, remaining gaps, and the next action.
 
