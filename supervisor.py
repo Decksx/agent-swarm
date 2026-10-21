@@ -247,9 +247,27 @@ def write_heartbeat(pid: int, now: float) -> None:
             }),
             encoding="utf-8",
         )
-        os.replace(temp, path)
+        _replace_with_retry(temp, path)
     except OSError as exc:
         log.warning("could not write the heartbeat: %s", exc)
+
+
+# Windows denies a rename onto a file that another handle holds open without
+# FILE_SHARE_DELETE -- a status read, an indexer, a scanner -- and that handle
+# is usually gone in milliseconds (#72). Bounded, so the one-second loop is
+# delayed by at most their sum.
+HEARTBEAT_REPLACE_DELAYS = (0.05, 0.1, 0.2)
+
+
+def _replace_with_retry(temp: Path, path: Path) -> None:
+    """os.replace, retried only on a sharing denial, then the last error."""
+    for delay in HEARTBEAT_REPLACE_DELAYS:
+        try:
+            os.replace(temp, path)
+            return
+        except PermissionError:
+            time.sleep(delay)
+    os.replace(temp, path)
 
 
 def read_heartbeat() -> Optional[dict]:
