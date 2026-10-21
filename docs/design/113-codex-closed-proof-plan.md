@@ -1,134 +1,192 @@
 # Codex CLOSED-path bridge proof: bounded plan (2026-10-21)
 
 The procedure is [`113-codex-ownership.md` §6.2](113-codex-ownership.md) together
-with [`113-lead-relay.md` §7](113-lead-relay.md). This plan fills in the exact
-commands, observations and abort rules for the current runtime. Claude drafts
-it; **Codex reviews this exact head before anything is registered or enabled.**
-Nothing here creates a schedule, re-arms the expired OPEN pilot, passes a
-bypass flag, or turns on the OPEN queue path, which stays disabled (§3).
+with [`113-lead-relay.md` §7](113-lead-relay.md).
+- **Driver.** The plan is carried out by one reviewed, single-use driver,
+  `codex_closed_proof.py`, with tests in `tests/test_codex_closed_proof.py`.
+- **Who.** Claude runs it in a supervised terminal. There are no desktop
+  launchers.
+- **Review first.** **Codex reviews this exact head (plan and driver) before
+  anything is registered or enabled.**
+- **Out of scope.** Nothing here creates a schedule, re-arms the expired OPEN
+  pilot, passes a bypass flag, or turns on the OPEN queue path, which stays
+  disabled (§3).
 
-## 0. Facts at drafting time (read-only, about 16:55Z)
+Revised after Codex's review of `27e8ad6`
+([comment 6322250083](https://github.com/Decksx/agent-swarm/pull/133#issuecomment-6322250083)).
 
-- **Relay.** Production is at `1afa9cc`, relay pid 34648. codex-lead is
-  **unregistered, with nothing held** (34 cancelled). Reservations are 0.
-- **Thread.** `01a14068-d723-76a0-a86d-c7d7b34c1b30`. Its `threads.cwd` is
-  `C:\Users\david\Documents\Codex`, and its rollout is
-  `…\.codex\sessions\2026\10\15\rollout-2026-10-15T10-32-55-01a14068-….jsonl`.
-- **With the app open.** The writer-lock probe answers `held`. The backend's
-  `ownership()` for that registration answers **OPEN**. The desktop app-server
-  is `…\OpenAI\Codex\bin\896a0166b774037a\codex.exe`, which reports
-  `codex-cli 0.163.0-alpha.10.2`. That is newer than the `0.162.0-alpha.17.2`
-  in §7's table, so this proof is evidence for 0.163 only.
-- **Two bin folders exist:** `896a0166b774037a` and `ce4759538b7f2f1a`. With the
-  app closed, `CodexBackend.cli()` falls back to the newest folder by mtime.
-- **Launch command.** No bypass flag is passed:
-  `codex.exe exec resume --json --skip-git-repo-check 01a14068-… -`, with the
-  prompt on stdin.
-- **Settings the woken run inherits.** `~/.codex/config.toml` sets
-  `sandbox_mode = "danger-full-access"` (and `[windows] sandbox = "unelevated"`).
-  These are David's settings, and the relay does not widen them. The network
-  gate in §6.2 is therefore tested under the configured settings, not under
-  the read-only default. The receipt must say so.
-- **Codex time budget.** `LEAD_RELAY_CODEX_BUDGET_SECONDS` defaults to 7200 s
-  of headless Codex time per 5 h. The relay caps are 12/hour and 100/day.
+## 0. Facts, read-only, about 17:30Z (refreshed by `prepare`)
 
-## 1. Preparation (Claude, after Codex approves this plan; no David needed)
+- **Relay and binding.** Production is at `1afa9cc`, relay pid 34648, cursor
+  1805. codex-lead is **unregistered, with nothing held** (34 cancelled), and
+  reservations are 0.
+- **Thread.** `01a14068-d723-76a0-a86d-c7d7b34c1b30`, with workspace
+  `C:\Users\david\Documents\Codex`. With the app open, `ownership()` answers
+  **OPEN**, and for a random UUID it answers UNKNOWN.
+- **CLI.** `…\OpenAI\Codex\bin\896a0166b774037a\codex.exe`, version
+  `codex-cli 0.163.0-alpha.10.2`, sha256
+  `f6dbf48cb70f62649c645f26c87dc9bf84cc36986202dfad8e12fb5b8ca70312`, which
+  matches Codex's independent check. A second bin folder, `ce4759538b7f2f1a`,
+  also exists.
+- **Settings.** `config.toml` sha256 is
+  `ef7e7918dda866c14f031a09524e044f61ee281ff4602dd8f1dcad953d351866`. It sets
+  `sandbox_mode = "danger-full-access"` and `[windows] sandbox = "unelevated"`.
+  These are David's own settings, and the relay does not widen them. The
+  network gate is therefore tested under the configured settings, not the
+  read-only default. The receipt records the effective permissions the woken
+  run reports, rather than inferring parity from the hash.
+- **Time limits.** The relay's own run kill is `RUN_TIMEOUT` = 45 min. The
+  driver stops a proof run at 15 min (§3).
 
-1. **Pin the CLI.** Register with `--cli` set to the app-server path observed
-   at that moment, so the woken run doesn't depend on mtime order.
-   - If Codex prefers no pin (always the newest install), drop `--cli`. The
-     receipt then records which folder was chosen. **Codex decides.**
-2. **Register, disabled.** The relay stays running. `register` refuses while a
-   reservation exists, and it always writes `enabled=0`.
+## 1. Codex's decisions (2026-10-21)
+
+1. **Register `--cli` as the observed app-server path.** `CodexBackend.cli()`
+   falls back to another install if that path disappears, so `--cli` is a
+   preferred path, not a hard pin. The driver therefore requires all of these
+   to be unchanged before it enables:
+   - the file at that path, and its sha256;
+   - the backend's resolved launch command.
+
+   It also records the executable image of every launched pid. Any change
+   makes the attempt **inconclusive**, not a proof for 0.163. No newer-mtime
+   folder is chosen silently.
+2. **No direct random-id CLI launch.** For §7 item 5, the receipt claims only
+   that **the backend refuses an unknown id before launch** (UNKNOWN). The
+   CLI's own unknown-id behaviour is not tested here.
+3. **codex-lead finishes DISABLED**, pass or fail. A later, separate decision
+   may enable a proven backend.
+
+## 2. Preparation (Claude, after Codex approves this head; no David needed)
+
+1. **Deploy the driver and register, disabled.** Move production to the
+   merged commit, which adds `codex_closed_proof.py`; no runtime module
+   changes. Then register:
    ```
    python lead_relay.py register --lead codex-lead --backend codex \
      --session 01a14068-d723-76a0-a86d-c7d7b34c1b30 \
-     --workspace "C:\Users\david\Documents\Codex" --cli "<pinned path>"
+     --workspace "C:\Users\david\Documents\Codex" \
+     --cli "C:\Users\david\AppData\Local\OpenAI\Codex\bin\896a0166b774037a\codex.exe"
    ```
-   Then confirm with `status` that codex-lead is registered and
-   `enabled = 0`. The app is still open, so ownership is OPEN and nothing can
-   launch.
-3. **Item 5 (an unknown id fails without a new session), read-only.**
-   `ownership()` for a random UUID with the same workspace must answer
-   UNKNOWN, because it has no `threads` row. An UNKNOWN answer holds the
-   delivery and never launches.
-   - A direct `codex exec resume <random uuid> -` would also show what the CLI
-     itself does, by comparing `~/.codex/sessions` before and after. It is
-     **optional, and done only if Codex asks for it**, since it starts a CLI
-     process outside the relay.
-4. **Baselines.** Record the sha256 of `config.toml`, the newest rollout size
-   and mtime for the thread, the `thread_turns` statuses, and the lock file's
-   existence and mtime.
-5. **Desktop scripts.** Write two scripts to David's desktop.
-   - **`Codex Bridge Proof - ENABLE.bat`** refuses unless all of these hold:
-     - codex-lead is bound to `01a14068`, with that workspace;
-     - there are no reservations;
-     - `ownership()` answers **CLOSED**;
-     - no desktop `codex.exe app-server` is running.
+   `register` writes `enabled=0` and refuses while a reservation exists. With
+   the app still open, ownership stays OPEN, so nothing can launch. The
+   registration itself is reported in the hive.
+2. **Prepare** with `python codex_closed_proof.py prepare --cli <path>
+   --cli-sha256 <hash> --config-sha256 <hash>`. It refuses unless the
+   preflight passes:
+   - the binding is exactly this thread, workspace and cli, and is disabled;
+   - the cli hash, the config hash and the resolved command all match;
+   - no codex-lead delivery is non-terminal, and there is no reservation.
 
-     Only then does it run `lead_relay.py enable --lead codex-lead`.
-   - **`Codex Bridge Proof - DISABLE.bat`** runs `disable` unconditionally.
-6. **Observer.** Claude starts a read-only observer. It logs the following
-   every 10 s for a fixed 20-minute window:
-   - ownership;
-   - codex processes;
-   - the delivery, attempt and reservation rows for codex-lead;
-   - hive messages after the proof message.
+   It then writes `control/codex_closed_proof.json`, which records:
+   - a fresh 8-hex **proof id**;
+   - the baseline (the relay cursor);
+   - an **enable-by** time 30 min out;
+   - the two **literal probes**:
+     - **probe 1, posted by David:** `@codex-lead BRIDGE-PROOF <id>: bounded
+       relay test. Post the ACK line for this attempt, then exactly one status
+       line giving your thread id and workspace, then stop. No engineering
+       work, schedules or handoffs.`
+     - **probe 2, posted only by the driver as claude-lead, while the probe-1
+       run is observed alive:** `HANDOFF @codex-lead: BRIDGE-PROOF-2 <id>:
+       second bounded relay test. Post the ACK line for this attempt only,
+       then stop.`
 
-   It runs `disable` itself when any abort rule in §3 fires.
+   Claude gives David probe 1 verbatim, so he doesn't have to invent a
+   payload.
+3. **No hive traffic to codex-lead during the window.** Claude doesn't post to
+   Codex, and David doesn't use `@Leads`. Any other codex-lead delivery ends
+   the proof as unexpected activity, which is deliberate.
 
-## 2. The proof (David, at a time he chooses)
+## 3. The run (`python codex_closed_proof.py run`, supervised by Claude)
 
-1. **Quit the Codex app completely**, including the tray icon. Claude confirms
-   all of the following and records the lock file's state:
-   - no app-server process;
-   - the lock probe answers `free`;
-   - no `inProgress` turn;
-   - `ownership()` answers **CLOSED**.
-2. **David runs the ENABLE script.**
-3. **David posts from the chat page:** `@codex-lead BRIDGE-PROOF 01a14068 <any word>`.
-4. **Expected:**
-   - the relay sees CLOSED and makes exactly **one** headless launch;
-   - the woken run posts `ACK #<id> <token>` and then a status line;
-   - the run exits;
-   - the delivery ends `delivered`, with one attempt and one `wakes` row.
-5. **Item 6 (a second handoff waits).** While the run is still running, Claude
-   posts:
-   `HANDOFF @codex-lead: BRIDGE-PROOF-2 01a14068: reply with ACK only.`
-   - **Pass:** no second launch until the first run has exited and ownership
-     reads idle again. Then exactly one more launch, which ACKs.
-   - If the first run ends before this can be posted, item 6 is recorded as
-     **not exercised**, not as passed.
-6. **Reopen the Codex app on the thread.** Check items 3 and 4:
-   - both woken turns are visible in the desktop UI;
-   - the workspace is unchanged;
-   - the `config.toml` hash is unchanged;
-   - David sends one message and it is answered normally.
+`run` is **single-use**: it refuses a proof already marked used, or one past
+its enable-by time, and marks it used before doing anything.
 
-## 3. Abort rules (any one fires: disable codex-lead; nothing is retried)
+1. **Wait for the app to close.** Until enable-by, the driver repeats the
+   preflight plus:
+   - no desktop `codex.exe app-server` is running;
+   - `ownership()` answers **CLOSED**, which means the lock is free and no turn
+     is in progress.
 
-- No ACK within 10 minutes of the proof message.
-- More than one launch for one delivery, or any launch while ownership was not
-  CLOSED.
-- Any new session or rollout file other than the thread's own rollout.
-- A codex process still running 15 minutes after its launch: disable
-  codex-lead and report.
-  - The relay's own kill comes later, at `LEAD_RELAY_RUN_TIMEOUT` (default 45
-    minutes), and it posts `RELAY TIMEOUT`.
-  - Claude stops that one process earlier only if David agrees.
-- A woken run that wants approval it can't get. It must post its BLOCKED or
-  QUESTION status; nothing is approved on its behalf.
-- Any failed precondition or supported control during the run: stop and
-  report, the same rule as the rollouts.
+   **David now quits the Codex app completely, including the tray icon.** If
+   enable-by passes first, the verdict is `expired` and nothing is enabled.
+2. **Enable.** The driver runs the supported `lead_relay.py enable`, then
+   re-checks the preflight with `enabled=1`. If anything is off, it fails.
+3. **David posts probe 1** from the chat page, copied exactly.
+4. **Watch only the named sources.** Every codex-lead delivery after the
+   baseline must be either:
+   - probe 1, from admin, with the exact text, once; or
+   - probe 2, from claude-lead, with the exact text, once.
 
-## 4. After the proof
+   Each probe must also arrive after the enable. Anything else stops the proof
+   (`failed`). The extra row is retained for
+   reconciliation, not cancelled.
 
-- **Pass.** The receipt goes on #113, covering all six §7 items, each marked
-  passed or not exercised, with the exact evidence. **Codex decides** whether
-  codex-lead stays enabled, as claude-lead did after its proof.
-- **Fail.** codex-lead stays registered and disabled. The attempt log and the
-  observer log are kept.
-- **Either way:**
-  - update `NEXT_STEPS.md` and the board;
-  - no schedule or OPEN watcher is created;
-  - the comic #32/#35 reconciliation comes next.
+   This is a watched window, not a source allowlist in the relay: the relay
+   itself would still act on other messages. The driver does not claim
+   enforcement that the code doesn't provide.
+5. **Per launch**, it records the pid, creation time and executable image.
+   - A second launch for the same source → `failed`.
+   - An image other than the registered cli → `inconclusive`.
+   - A probe-2 launch while the probe-1 process is alive → `failed`. This is
+     §7 item 6.
+6. **Probe 2** is posted once, as soon as the probe-1 run is seen alive. If
+   probe 1's delivery ends before that, item 6 is recorded as **not
+   exercised**, and the verdict can be at best `partial`, never `passed`.
+7. **Stop rules:**
+   - a delivery ending `failed`, `uncertain` or `cancelled`;
+   - no ACK within 10 min of the probe's delivery. For probe 2 the clock
+     starts when the probe-1 run ends, because waiting behind it is the
+     behaviour item 6 expects;
+   - a proof run alive past **15 min**;
+   - any new session file other than the thread's own rollout;
+   - 30 min after enable without finishing → `expired`;
+   - any exception.
+8. **Done.**
+   - **`passed`:** probe 1 is delivered, probe 2 is delivered, and no proof
+     process is alive. **Each probe must have exactly one recorded headless
+     launch.** An ACK with no launch, such as one from an open app, is never
+     CLOSED-path evidence.
+   - **`partial`:** the same, except that probe 2 was not exercised.
+
+## 4. On every exit (`finally`)
+
+1. **Disable.** The driver runs `lead_relay.py disable --lead codex-lead`,
+   then confirms the stored `enabled = 0`. If it can't confirm, the verdict
+   becomes `failed`, even after a pass. Disable success is recorded separately
+   from process cleanup.
+2. **Execution cleanup.** Disabling only flips `sessions.enabled`. For each
+   relay-recorded proof attempt whose `(pid, creation time)` is still the
+   same process:
+   - the driver waits up to that run's 15-min limit;
+   - it then calls the relay's own `ProcessApi.kill_tree` on that pid only;
+   - it confirms the exit by identity.
+
+   A reused pid is never touched. There is no name-based kill and no ledger
+   write. A process not confirmed stopped is a failure, and nothing is
+   retried. If cleanup is uncertain, the desktop must not be reopened against
+   a still-owned thread.
+3. **Settle.** The driver waits up to 120 s for the relay to record the exit
+   and release the reservation. It then records:
+   - the final delivery and attempt rows;
+   - codex-lead's status lines;
+   - the config hash afterwards;
+   - any new session files.
+
+   Everything goes to `control/codex_closed_proof.result.json`.
+
+## 5. After the run
+
+1. **Reopen the Codex app on the thread.** David checks two things, which
+   cover §7 items 3 and 4:
+   - the woken turns are visible;
+   - one message sent there is answered normally, in the same workspace.
+2. **Receipt on #113.** It reports the verdict and each §7 item with its
+   evidence:
+   - item 5 is the backend-level UNKNOWN, not a CLI test;
+   - item 6 is marked `exercised` or `not exercised`.
+
+   It also records the effective permissions and the network result. Then
+   update `NEXT_STEPS.md` and the board.
+3. **What happens next.** codex-lead stays disabled. No schedule or OPEN
+   watcher is created. The comic #32/#35 reconciliation comes next.
