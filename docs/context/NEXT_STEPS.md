@@ -14,11 +14,24 @@ running and on disk all match). The relay daemon was restarted on it. See
 - **claude-lead** is bound to `b2b425b8`, enabled, and its bounded proof
   passed. That proof also covered the stdin smoke check (#113 comment
   6301684024).
-- **Codex OPEN watcher pilot (#127)** worked. A finite native schedule claimed
-  genuine handoffs unprompted (#1767 in 286 s, #1769 in 108 s) and completed
-  real reviews. It was deleted at expiry, and **no ongoing Codex watcher
-  runs.** Choosing a cadence and turn budget is the next decision. Idle turns
-  took about 12 s, a review turn about 204 s, and token counts aren't visible.
+- **Codex OPEN watcher pilot (#127), 23:00 to 23:58Z: scheduled pickup works,
+  but the every-handoff criterion was not met.** A finite native schedule
+  (5 min, max 12; 10 polls admitted) completed three native reviews:
+  - **#1754** was pre-arming backlog, which shows scheduled backlog pickup but
+    no fresh-window latency.
+  - **#1767** was claimed after 286 s. David sent a manual "Check" in between
+    that read status only and left the claim alone.
+  - **#1769** was a genuine unprompted pickup, claimed after 108 s.
+  - **#1771 was missed.** It was posted at 23:54:56Z, after the last admitted
+    poll and before the 23:58 cutoff. Expiry was enforced correctly, but this
+    is not a complete delivery pass.
+
+  Whole-turn durations: idle 12 to 17 s, actionable 204 to 293 s. Token counts
+  are unavailable. The automation was deleted at expiry, and **no ongoing
+  Codex watcher runs.** See the [closure receipt](https://github.com/Decksx/agent-swarm/pull/127#issuecomment-6304562027)
+  and [miss amendment](https://github.com/Decksx/agent-swarm/pull/127#issuecomment-6305029614). A future watcher needs
+  an intake/drain boundary at window close, plus an explicit cadence and
+  turn-budget decision. Nothing here authorizes a new schedule.
 - **Next:**
   - #129 (`lead_relay.py cancel`, `--confirm` only with the relay stopped)
     retires the 30 named stale held codex-lead deliveries.

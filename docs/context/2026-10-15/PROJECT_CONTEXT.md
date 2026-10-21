@@ -1,5 +1,28 @@
 # Agent Swarm imported project context
 
+## Current state — 2026-10-21 (supersedes the 2026-10-20 evening section below)
+
+Read [NEXT_STEPS.md](../NEXT_STEPS.md) and the
+[deployment receipt](../DEPLOYMENT_RELAY_DASHBOARD_2026-10-20.md). The sections
+below remain evidence of their own times, not current setup instructions.
+
+- **The OPEN watcher is no longer pending re-review or uninitialized.** #127
+  merged (`118e97d`), its filled prompt was reviewed, and its finite pilot ran
+  from 23:00 to 23:58Z and was deleted at expiry.
+  - It completed three native reviews (#1754 backlog, #1767 with an
+    intervening manual status-only Check, #1769 unprompted in 108 s).
+  - It **missed #1771**, posted after the last poll and before the cutoff.
+    That is not a complete pass
+    ([closure](https://github.com/Decksx/agent-swarm/pull/127#issuecomment-6304562027),
+    [miss](https://github.com/Decksx/agent-swarm/pull/127#issuecomment-6305029614)).
+  - No ongoing Codex watcher runs.
+- **Deployed:** relay caps #126 (relay only, `a07a88f`) and dashboard #128
+  (full procedure, `0acbdb7`, build `0833f9ad1bd2`). claude-lead is bound to
+  `b2b425b8`, enabled and proven.
+- **Merged, not yet applied:** #129 `lead_relay.py cancel`, for the 30 named
+  stale held codex-lead deliveries ending at #1767. Applying it needs the relay
+  stopped. Codex remains unregistered.
+
 ## OPEN watcher implementation and relay quota rollout — 2026-10-20 evening
 
 This checkpoint supersedes the pending restart/old binding/old runtime statements
