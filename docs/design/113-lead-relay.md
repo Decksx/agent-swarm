@@ -200,9 +200,10 @@ first and then work, so delivery and execution are tracked separately.
 
   Each hold posts one `BLOCKED @admin` line per delivery and reason.
   - **Defaults** (environment-configurable): `LEAD_RELAY_MAX_WAKES_PER_HOUR`
-    12, `LEAD_RELAY_MAX_WAKES_PER_DAY` 100 and `LEAD_RELAY_MAX_CHAIN` 12, set
-    2026-10-20 at David's request. These are policy choices, not measured safe
-    limits.
+    20, `LEAD_RELAY_MAX_WAKES_PER_DAY` 160 and `LEAD_RELAY_MAX_CHAIN` 12. David
+    set 100/day on 2026-10-20, then raised them to 20/hour and 160/day on
+    2026-10-21 (hive #1834); the chain limit is unchanged. These are policy
+    choices, not measured safe limits.
     - The first values (4/hour, 20/day, chain 6) also counted live notices.
       That exhausted the quota within an hour on 10-20 (#1706, #1712).
     - Rows written before the fix include live notices, so they count against

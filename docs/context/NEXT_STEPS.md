@@ -14,8 +14,8 @@ Relay 34648 and supervisor 39260 are running. See
 `@Leads` is deployed and was classified read-only. A real admin `@Leads`
 delivery has not been observed end to end yet.
 
-- **Relay caps (#126):** only headless launches count, at 12/hour and
-  100/day, with a lead-to-lead chain limit of 12. Live notices are free.
+- **Relay caps (#126; raised 2026-10-21, hive #1834):** only headless
+  launches count, at 20/hour and 160/day, with a lead-to-lead chain limit of 12. Live notices are free.
 - **Dashboard (#128):** the chat page has a Relay | Projects | Tasks |
   Completed | Stats panel. Leads keep the board current with
   `lead_chat.py board`.
