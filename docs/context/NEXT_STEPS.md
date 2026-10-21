@@ -1,10 +1,18 @@
 # Next steps after the Codex import
 
-## Current checkpoint — 2026-10-21
+## Current checkpoint — 2026-10-21 (afternoon)
 
-Production is detached at `2d1574d` after #129, with hub build `0833f9ad1bd2`
-(checkout, running and on disk all match; verified 2026-10-21 15:23Z). See
-[the receipt](DEPLOYMENT_RELAY_DASHBOARD_2026-10-20.md).
+Production is detached at `1afa9cc`, with hub build `0833f9ad1bd2` unchanged.
+Relay 34648 and supervisor 39260 are running. See
+[today's receipt](DEPLOYMENT_LEADS_HEARTBEAT_2026-10-21.md) for:
+
+- `@Leads` and the #60 boundary (#131), relay only;
+- the heartbeat retry (#132, fixes #72), supervisor only;
+- the cancellation of the last four held codex-lead deliveries. codex-lead is
+  unregistered and has **0 held**.
+
+`@Leads` is deployed and was classified read-only. A real admin `@Leads`
+delivery has not been observed end to end yet.
 
 - **Relay caps (#126):** only headless launches count, at 12/hour and
   100/day, with a lead-to-lead chain limit of 12. Live notices are free.
@@ -33,14 +41,14 @@ Production is detached at `2d1574d` after #129, with hub build `0833f9ad1bd2`
   an intake/drain boundary at window close, plus an explicit cadence and
   turn-budget decision. Nothing here authorizes a new schedule.
 - **Next:**
-  - #129 retired the 30 named stale held Codex deliveries; independent
-    [morning audit](https://github.com/Decksx/agent-swarm/pull/129#issuecomment-6319668272)
-    confirms zero attempts and the disclosed failed scheduled-task disable.
-  - Resolve the four newer held messages #1769/#1771/#1775/#1779 before Codex
-    CLOSED registration and its bounded proof.
-  - David approved the [#60 lead/controller boundary](../design/engineering-leadership.md).
-    Codex implements his `@Leads` group-alert request; Claude reviews it.
+  - Codex reviews the [CLOSED-proof plan](../design/113-codex-closed-proof-plan.md).
+    Then Claude registers codex-lead, disabled, and the proof runs when David
+    can fully quit the Codex app.
   - Then the comic #32/#35 reconciliation.
+  - Backlog from the 2026-10-21 triage:
+    - #89 waits until after both of those;
+    - #67 has a cheap fix (show the full template on the first refusal);
+    - #62 and #69 stay parked.
 
 ## Earlier checkpoint — 2026-10-20
 

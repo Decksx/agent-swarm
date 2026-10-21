@@ -9,6 +9,17 @@ Lead work is recorded honestly without inventing controller approvals. He also
 requested `@Leads` as shorthand for alerting both interactive leads. Codex owns
 the alias implementation and policy documentation; Claude reviews before rollout.
 
+**Afternoon, 2026-10-21:**
+
+- #131 and #132 are merged and rolled out, and #72 is fixed.
+- The last four held codex-lead deliveries were cancelled at Codex's
+  direction, leaving 0 held.
+- Production is at `1afa9cc`, with build `0833f9ad1bd2`, relay 34648 and
+  supervisor 39260.
+- See the [receipt](../DEPLOYMENT_LEADS_HEARTBEAT_2026-10-21.md). The next step
+  is the [Codex CLOSED-proof plan](../../design/113-codex-closed-proof-plan.md),
+  pending Codex's review.
+
 Read [NEXT_STEPS.md](../NEXT_STEPS.md) and the
 [deployment receipt](../DEPLOYMENT_RELAY_DASHBOARD_2026-10-20.md). The sections
 below remain evidence of their own times, not current setup instructions.
