@@ -9,6 +9,19 @@ Lead work is recorded honestly without inventing controller approvals. He also
 requested `@Leads` as shorthand for alerting both interactive leads. Codex owns
 the alias implementation and policy documentation; Claude reviews before rollout.
 
+**Evening, 2026-10-21:** see
+[NEXT_STEPS](../NEXT_STEPS.md#current-checkpoint--2026-10-21-evening). It
+covers:
+
+- #133 deployed;
+- codex-lead registered disabled to the old thread;
+- proof `53e110d6` cancelled before enable, with its claim retained;
+- the Codex lead migrated to thread `01a1609d`, with the driver migration
+  pending review;
+- `@Leads` observed end to end;
+- relay limits of 20/hour, 160/day and chain 80, requested and implemented,
+  pending review and rollout.
+
 **Afternoon, 2026-10-21:**
 
 - #131 and #132 are merged and rolled out, and #72 is fixed.

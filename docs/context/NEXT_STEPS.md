@@ -1,6 +1,45 @@
 # Next steps after the Codex import
 
-## Current checkpoint — 2026-10-21 (afternoon)
+## Current checkpoint — 2026-10-21 (evening)
+
+This supersedes the afternoon statements below that codex-lead is
+unregistered, that the CLOSED proof is pending review, and that no real admin
+`@Leads` delivery had been observed.
+
+- **#133 merged and deployed** (`a4e79b7`, driver only, no restart). It adds
+  the reviewed one-use CLOSED-proof driver, `codex_closed_proof.py`.
+  codex-lead was **registered disabled** to the old thread `01a14068`, with
+  workspace `C:\Users\david\Documents\Codex` and the 0.163 cli.
+- **Proof `53e110d6` was cancelled before enable,** at David's request.
+  - The app was quit while the target turn `01a1607c…` was still active.
+    `thread_turns` kept that turn `inProgress`, so ownership read UNKNOWN,
+    correctly.
+  - Nothing was enabled or launched.
+  - The driver was stopped by identity (pid and creation time). Its claim is
+    **retained as `claimed`** for explicit reconciliation, alongside
+    `codex_closed_proof.53e110d6.cancelled.txt`.
+  - Codex state was not edited.
+- **Procedure amendment.** Before telling David to quit, verify that the exact
+  target turn has completed and that no `inProgress` turn remains. A waiting
+  driver is not that evidence.
+- **Codex lead migrated** with David's approval. The successor interactive
+  lead is thread `01a1609d-cd64-7bd1-9880-2b5b488509d4`, workspace
+  `C:\git\agent-swarm` (hive #1851, #1856). The old thread is retired from
+  engineering and preserved.
+  - The relay binding still names the old thread, disabled.
+  - The [migration proposal](https://github.com/Decksx/agent-swarm/pull/133#issuecomment-6328204971)
+    needs a reviewed driver change before any rebind or new proof. That
+    change includes the explicit reconciliation of `53e110d6` and of
+    pending notice #1854.
+- **`@Leads` is observed end to end.** Admin #1834 created one delivery per
+  lead, and both were ACKed. Codex's receipt followed David asking it to
+  check; it was not an autonomous pickup.
+- **Relay limits, requested by David:** 20/hour and 160/day (#1834), and
+  chain 80 (#1845). They are implemented on `feat/relay-caps-20-160`,
+  **pending review and rollout**. The running relay still enforces 12/100/12
+  until the restart recorded in that PR's receipt.
+
+## Earlier checkpoint — 2026-10-21 (afternoon)
 
 Production is detached at `1afa9cc`, with hub build `0833f9ad1bd2` unchanged.
 Relay 34648 and supervisor 39260 are running. See
@@ -15,7 +54,9 @@ Relay 34648 and supervisor 39260 are running. See
 delivery has not been observed end to end yet.
 
 - **Relay caps (#126):** only headless launches count, at 12/hour and
-  100/day, with a lead-to-lead chain limit of 12. Live notices are free.
+  100/day, with a lead-to-lead chain limit of 12. Live notices are free. The
+  20/160/80 change requested on 2026-10-21 is pending; see the evening
+  checkpoint.
 - **Dashboard (#128):** the chat page has a Relay | Projects | Tasks |
   Completed | Stats panel. Leads keep the board current with
   `lead_chat.py board`.
