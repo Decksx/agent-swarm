@@ -617,3 +617,33 @@ def test_a_probe2_delivered_without_its_own_launch_is_not_a_pass(w):
     assert proof.run(w, w.state_path) == 1
     r = w.result()
     assert r["verdict"] == "expired" and "102" not in r["launches"]
+
+
+def test_an_overlap_between_samples_is_caught_from_the_relay_rows(w):
+    """Codex, #133 at 317a547: probe2 launches at 1199, probe1 ends at 1200,
+    and no 2 s sample sees both alive. The recorded times still decide."""
+    w.prepare()
+    w.at(1030, lambda: w.deliver(101, "admin", p1(w)))
+    w.at(1040, lambda: w.launch(101, 501))
+    w.at(1100, lambda: w.set_delivery(101, "delivered"))
+    w.at(1050, lambda: w.deliver(102, "claude-lead", p2(w), "held"))
+
+    def overlap():
+        w.t = 1199
+        w.launch(102, 502)
+        w.t = 1200
+        w.exit(101, 501)
+    w.at(1199, overlap)
+    w.at(1250, lambda: w.set_delivery(102, "delivered"))
+    w.at(1300, lambda: w.exit(102, 502))
+    assert proof.run(w, w.state_path) == 1
+    r = w.result()
+    assert r["verdict"] == "failed" and "before the probe1 run ended" in " ".join(r["why"])
+
+
+def test_unrecorded_end_timing_is_never_a_pass(w):
+    w.prepare()
+    happy(w)
+    w.at(1300, lambda: w.sql("UPDATE attempts SET ended_at = NULL WHERE pid = 501"))
+    assert proof.run(w, w.state_path) == 1
+    assert w.result()["verdict"] == "expired"

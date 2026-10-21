@@ -140,7 +140,9 @@ or another, is refused.
    - A second launch for the same source → `failed`.
    - An image other than the registered cli → `inconclusive`.
    - A probe-2 launch while the probe-1 process is alive → `failed`. This is
-     §7 item 6.
+     §7 item 6. Before a pass, the relay's own rows must also show probe 2's
+     `launched_at` at or after probe 1's `ended_at`. That catches an overlap
+     that falls between two samples. Missing timing is unproven, never a pass.
 6. **Probe 2** is posted once, as soon as the probe-1 run is seen alive. If
    probe 1's delivery ends without the run ever being seen alive, the
    verdict is `inconclusive`: there is no executable identity, and item 6 is

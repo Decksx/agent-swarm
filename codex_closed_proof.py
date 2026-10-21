@@ -310,7 +310,17 @@ class Proof:
         second = by_kind.get("probe2")
         done = (first is not None and state.get(first) == "delivered" and launched(first) and not live
                 and state.get(second) == "delivered" and launched(second))
-        return "passed" if done else None
+        if not done:
+            return None
+        # The liveness check above only sees an overlap that spans a sample;
+        # the relay's own rows decide item 6 (Codex, #133 at 317a547).
+        runs = {a["message_id"]: a for a in self.attempts() if a["launched_at"]}
+        ended, began = runs[first]["ended_at"], runs[second]["launched_at"]
+        if ended is None or began is None:
+            return None     # unproven yet; the proof window bounds the wait
+        if began < ended:
+            return self.stop("failed", f"probe2 launched at {began} before the probe1 run ended at {ended}")
+        return "passed"
 
     def cleanup(self) -> None:
         """Stop only the proof's own runs, by pid and creation time, then settle."""
