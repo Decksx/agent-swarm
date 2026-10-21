@@ -64,13 +64,14 @@ EXIT_ACK_GRACE = 120.0
 STDIN_TIMEOUT = 10.0
 # Design §9: headless model launches per recipient, per hour and per day. A
 # live notice to an open session launches nothing and is not counted. These
-# are configurable policy defaults (David, 2026-10-20: 100/day), not measured
-# safe limits.
-MAX_WAKES_PER_HOUR = int(os.environ.get("LEAD_RELAY_MAX_WAKES_PER_HOUR", "12"))
-MAX_WAKES_PER_DAY = int(os.environ.get("LEAD_RELAY_MAX_WAKES_PER_DAY", "100"))
+# are configurable policy defaults (David: 100/day on 2026-10-20, then 20/hour
+# and 160/day on 2026-10-21, hive #1834), not measured safe limits.
+MAX_WAKES_PER_HOUR = int(os.environ.get("LEAD_RELAY_MAX_WAKES_PER_HOUR", "20"))
+MAX_WAKES_PER_DAY = int(os.environ.get("LEAD_RELAY_MAX_WAKES_PER_DAY", "160"))
 # Anti-loop policy, separate from the launch quota: lead-to-lead envelope
-# deliveries on either path without a message from admin in between.
-MAX_CHAIN = int(os.environ.get("LEAD_RELAY_MAX_CHAIN", "12"))
+# deliveries on either path without a message from admin in between (David,
+# 2026-10-21, hive #1845: 80).
+MAX_CHAIN = int(os.environ.get("LEAD_RELAY_MAX_CHAIN", "80"))
 
 # §2: a lead wakes another lead only through a typed envelope at the start.
 ENVELOPE = re.compile(r"^\s*(HANDOFF|QUESTION)\s+@([A-Za-z][\w-]*)\s*:", re.IGNORECASE)
