@@ -218,12 +218,50 @@ def test_a_mention_is_the_whole_handle(content, target, addressed):
     assert lead_chat.mentions(message, "claude-lead") is addressed
 
 
+@pytest.mark.parametrize("content,target,addressed", [
+    ("@Leads please check", "@room", True),
+    ("Question for (@LEADS): ready?", "@room", True),
+    ("please check", " @LeAdS ", True),
+    ("@leads @claude-lead @codex-lead", "@Leads", True),
+    ("@leadership", "@room", False),
+    ("@leads-extra", "@room", False),
+    ("@leads_2", "@room", False),
+    ("@leads-", "@room", False),
+    ("mail x@leads.example", "@room", False),
+    ("See @leads.example", "@room", False),
+    ("@@leads", "@room", False),
+    ("no mention", "@leads-extra", False),
+])
+def test_group_mention_addresses_both_leads_only(content, target, addressed):
+    message = {"sender": "admin", "target": target, "content": content}
+    for identity in ("claude-lead", "codex-lead", "Claude-Lead"):
+        assert lead_chat.mentions(message, identity) is addressed
+    for identity in ("claudecode", "chatgpt", "gemini", "operator", "admin", "relay"):
+        assert not lead_chat.mentions(message, identity)
+
+
+def test_both_leads_read_group_target_and_text_without_self_echoes():
+    hub = FakeHub()
+    hub.messages.extend([
+        {"id": 1, "sender": "admin", "target": "@room", "content": "check @Leads"},
+        {"id": 2, "sender": "admin", "target": "@Leads", "content": "check"},
+        {"id": 3, "sender": "admin", "target": "@room", "content": "@leads.example"},
+        {"id": 4, "sender": "claude-lead", "target": "@room", "content": "@Leads status"},
+        {"id": 5, "sender": "codex-lead", "target": "@room", "content": "@Leads status"},
+    ])
+    for identity, expected in (("claude-lead", [1, 2, 5]), ("codex-lead", [1, 2, 4])):
+        rows = lead_chat.read(identity, only_mentions=True, url="http://hub", transport=hub,
+                              environ=ENV, user_environment=NO_USER_ENV)
+        assert [m["id"] for m in rows] == expected
+
+
 @pytest.mark.parametrize("content", [
     "HANDOFF @claude-lead: review #111", "thanks (@claude-lead).", "@claude-leader please",
     "See @claude-lead.example", "mail x@claude-lead.example", "about claude-lead",
     "QUESTION @admin: and @claude-lead too",
     # Codex, #112 at 1d9fa43: trimming hyphens turned another handle into this lead.
     "See @claude-lead-", "See @claude-lead---",
+    "Check @Leads", "Question (@LEADS): ready?", "See @leads.example", "See @leads-",
 ])
 def test_the_posted_target_never_addresses_a_lead_the_text_does_not_mention(content):
     """Codex, #112 at 9f36273: `See @claude-lead.example` was posted to

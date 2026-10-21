@@ -1,5 +1,30 @@
 # Selectable engineering leadership
 
+## Accepted engineering boundary (#60) — 2026-10-21
+
+David approved the declared boundary between interactive lead-run engineering
+and controller-run tasks. This section supersedes older statements below that
+could be read as requiring an activation for every interactive lead change.
+
+- **Lead-run work:** Codex or Claude owns a workstream, builds a PR under the
+  project's standing authorization, and the other lead independently reviews
+  its exact head. Record the owner, review, green CI, pinned merge and any
+  deployment receipt on GitHub and in maintained context. Mirror meaningful
+  progress in the hive and work board. This is explicitly lead-run engineering.
+- **Controller-run work:** a controller-issued activation, lease, candidate,
+  review and integration remain governed by their existing rules. Use supported
+  routes and preserve the controller ledger. Chat, a board row, a GitHub review
+  or a lead-run merge cannot stand in for those events. Do not manufacture or
+  backfill a controller approval for work it did not govern.
+- **Both paths:** retain independent exact-head review, CI, supported rollout
+  controls and one accountable deployment owner. The ledger describes work it
+  governed, not every repository change. The work board provides visibility;
+  it is not an approval system. Other projects retain their own operator-only
+  launch and live-data restrictions.
+
+The decision is recorded on [#60](https://github.com/Decksx/agent-swarm/issues/60#issuecomment-6319938606).
+It adds no new ledger-writing route and changes no historical event or approval.
+
 ## Confirmed next work and permissions — 2026-10-16
 
 David approved `codex-lead` and `claude-lead` as the distinct non-admin lead
