@@ -64,6 +64,61 @@ def build(db_path: Path, control_dir: Optional[Path]) -> Relay:
                  processes=processes, usage=usage, control_dir=control_dir)
 
 
+def cancel_held(db, lead: str, ids: list[int], reason: str, *, confirm: bool,
+                now=time.time) -> tuple[int, str]:
+    """Retire exactly these held deliveries for one lead, or change nothing.
+
+    For stale history that must not replay when a lead is (re)registered
+    (#125 §1: the held Codex queue). Fenced so it cannot reach anything else:
+    only the named ids, only rows still `held` for this lead, all or none,
+    and never while this lead's binding is enabled. Rows for other recipients
+    of the same message are untouched. Without `confirm` it only reports.
+
+    With `confirm`, the caller must hold the relay's ownership lock (`main`
+    does): a running daemon may already have read these rows for its current
+    tick, and its later writes do not re-check them, so a cancellation it
+    did not see could be put back to `held` or delivered live (Codex, #129
+    at 7f3d63f). This transaction alone cannot fence that.
+    """
+    if not ids or len(set(ids)) != len(ids):
+        return 1, "REFUSED: give each message id exactly once"
+    if not reason.strip():
+        return 1, "REFUSED: a reason is required; it is recorded on every row"
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        binding = db.execute("SELECT enabled FROM sessions WHERE recipient = ?", (lead,)).fetchone()
+        if binding is not None and binding["enabled"]:
+            db.execute("ROLLBACK")
+            return 1, f"REFUSED: {lead} is enabled; disable it before cancelling its deliveries"
+        marks = ",".join("?" * len(ids))
+        rows = {r["message_id"]: r for r in db.execute(
+            f"SELECT message_id, state, reason FROM deliveries WHERE recipient = ? "
+            f"AND message_id IN ({marks})", (lead, *ids))}
+        wrong = [f"#{i} {rows[i]['state'] if i in rows else 'missing'}" for i in ids
+                 if i not in rows or rows[i]["state"] != "held"]
+        if wrong:
+            db.execute("ROLLBACK")
+            return 1, f"REFUSED: not all held for {lead} ({', '.join(wrong)}); nothing changed"
+        plan = ", ".join(f"#{i} held({rows[i]['reason']})" for i in sorted(ids))
+        if not confirm:
+            db.execute("ROLLBACK")
+            return 0, f"DRY RUN: would cancel {len(ids)} for {lead}: {plan}. Add --confirm to apply."
+        changed = db.execute(
+            f"UPDATE deliveries SET state = 'cancelled', reason = ?, updated_at = ? "
+            f"WHERE recipient = ? AND state = 'held' AND message_id IN ({marks})",
+            (f"cancelled: {reason.strip()}", now(), lead, *ids)).rowcount
+        if changed != len(ids):
+            db.execute("ROLLBACK")
+            return 1, f"REFUSED: {changed} of {len(ids)} rows changed underneath; nothing changed"
+        db.execute("COMMIT")
+    except BaseException:
+        if db.in_transaction:
+            db.execute("ROLLBACK")
+        raise
+    log.info("cancelled %d held deliveries for %s: %s (%s)", len(ids), lead, plan, reason)
+    return 0, f"cancelled {len(ids)} for {lead}: {plan}"
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--db", default=str(HERE / "control" / "lead_relay.db"))
@@ -78,6 +133,11 @@ def main(argv=None) -> int:
     for name in ("enable", "disable"):
         sub.add_parser(name).add_argument("--lead", required=True, choices=LEADS)
     sub.add_parser("status")
+    p = sub.add_parser("cancel", help="retire exactly these held deliveries (dry run without --confirm)")
+    p.add_argument("--lead", required=True, choices=LEADS)
+    p.add_argument("--ids", required=True, help="comma-separated message ids, each still held")
+    p.add_argument("--reason", required=True)
+    p.add_argument("--confirm", action="store_true")
     p = sub.add_parser("run")
     p.add_argument("--interval", type=float, default=20.0)
     sub.add_parser("once")
@@ -86,7 +146,7 @@ def main(argv=None) -> int:
     db_path = Path(args.db)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if args.command in ("register", "enable", "disable", "status"):
+    if args.command in ("register", "enable", "disable", "status", "cancel"):
         db = sqlite3.connect(str(db_path), isolation_level=None)
         db.row_factory = sqlite3.Row
         db.executescript(SCHEMA)
@@ -121,6 +181,28 @@ def main(argv=None) -> int:
                                  (int(args.command == "enable"), args.lead)).rowcount
             print(f"{args.lead}: {args.command}d" if changed else f"{args.lead} is not registered")
             return 0 if changed else 1
+        elif args.command == "cancel":
+            try:
+                ids = [int(i) for i in args.ids.split(",") if i.strip()]
+            except ValueError:
+                print("REFUSED: --ids must be comma-separated message ids")
+                return 1
+            lock = None
+            if args.confirm:
+                # The daemon's own lock: applying requires the relay stopped.
+                try:
+                    lock = acquire_lock(db_path.with_name(db_path.name + ".lock"))
+                except AlreadyRunning:
+                    print("REFUSED: the relay daemon is running; stop it before --confirm "
+                          "(a dry run needs no stop). Nothing changed.")
+                    return 3
+            try:
+                code, text = cancel_held(db, args.lead, ids, args.reason, confirm=args.confirm)
+            finally:
+                if lock is not None:
+                    os.close(lock)
+            print(text)
+            return code
         else:
             print(json.dumps(status(db), indent=2))
         return 0
