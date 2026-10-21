@@ -792,3 +792,24 @@ def test_a_receipt_that_appears_mid_reconcile_is_never_overwritten(raw, tmp_path
     monkeypatch.setattr(proof.Path, "exists", lambda self: False if self == receipt else real(self))
     assert proof.reconcile(raw, tmp_path) == 1
     assert receipt.read_text() == '{"verdict": "earlier"}' and "appeared" in raw.lines[-1]
+
+
+@pytest.mark.parametrize("created, launched, ended", [
+    (499.0, 501.0, 502.0),     # Codex's case: row created before the old run, launched in it
+    (400.0, 450.0, 600.0),     # launched before the old run and still running into it
+    (400.0, 450.0, None),      # launched before and never recorded as ended
+])
+def test_reconcile_sees_any_launch_that_overlapped_the_old_run(raw, tmp_path, created, launched, ended):
+    raw.sql("INSERT INTO attempts (attempt_id, message_id, recipient, token, path, state, created_at, "
+            "launched_at, ended_at, pid, proc_start, backend) VALUES "
+            "('x', 99, 'codex-lead', 'tok-x', 'headless', 'exited', ?, ?, ?, 1, 's1', 'codex')",
+            created, launched, ended)
+    assert proof.reconcile(raw, tmp_path) == 1
+    assert "attempts launched since" in raw.lines[-1] and not (tmp_path / proof.RECONCILED).exists()
+
+
+def test_reconcile_ignores_launches_that_ended_before_the_old_run(raw, tmp_path):
+    raw.sql("INSERT INTO attempts (attempt_id, message_id, recipient, token, path, state, created_at, "
+            "launched_at, ended_at, pid, proc_start, backend) VALUES "
+            "('x', 99, 'codex-lead', 'tok-x', 'headless', 'done', 100, 110, 200, 1, 's1', 'codex')")
+    assert proof.reconcile(raw, tmp_path) == 0

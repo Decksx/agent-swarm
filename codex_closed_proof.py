@@ -223,8 +223,11 @@ def reconcile(env, control: Path) -> int:
             problems.append(f"old state is {old.get('proof_id')} {old.get('status')}")
         if result_path(old_state, OLD_PROOF).exists():
             problems.append("the old proof has a result file")
+        # Any launch that overlapped the old run, however early its row was
+        # created or its process started (Codex, #135 at 9af2ed2).
         launched = env.rows("SELECT attempt_id FROM attempts WHERE recipient = ? AND launched_at "
-                            "IS NOT NULL AND created_at >= ?", LEAD, old.get("run_started", 0))
+                            "IS NOT NULL AND (ended_at IS NULL OR ended_at >= ?)",
+                            LEAD, old.get("run_started", 0))
         if launched:
             problems.append(f"{LEAD} attempts launched since the old run started: {launched}")
         stored = env.rows("SELECT enabled FROM sessions WHERE recipient = ?", LEAD)
