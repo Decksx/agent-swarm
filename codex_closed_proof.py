@@ -163,25 +163,52 @@ def preflight(env, state: dict, *, enabled: int, closed: bool) -> list:
     return problems
 
 
+def claim(state_path: Path) -> Optional[int]:
+    """This driver's own OS lock (not the relay's), held for a whole prepare or
+    run, so a second driver can never read the same state as unclaimed. None
+    if another live driver holds it; the kernel drops it if this one dies."""
+    from lead_relay_backends import AlreadyRunning, acquire_lock
+    try:
+        return acquire_lock(state_path.with_name(state_path.name + ".lock"))
+    except AlreadyRunning:
+        return None
+
+
+def result_path(state_path: Path, proof_id: str) -> Path:
+    return state_path.with_name(f"codex_closed_proof.{proof_id}.result.json")
+
+
 def prepare(env, state_path: Path, cli: str, cli_sha256: str, config_sha256: str) -> int:
-    if state_path.exists():
-        old = json.loads(state_path.read_text(encoding="utf-8"))
-        if not old.get("used") and env.now() < old["enable_by"]:
-            env.say(f"REFUSED: proof {old['proof_id']} is prepared and unused until its window ends")
-            return 1
-    proof_id = secrets.token_hex(4)
-    cursor = int(env.rows("SELECT value FROM meta WHERE key = 'cursor'")[0]["value"])
-    state = dict(proof_id=proof_id, prepared_at=env.now(), enable_by=env.now() + ENABLE_WINDOW,
-                 cli=cli, cli_sha256=cli_sha256, config_sha256=config_sha256, baseline=cursor,
-                 probe1=probes(proof_id)[0], probe2=probes(proof_id)[1], used=False)
-    problems = preflight(env, state, enabled=0, closed=False)
-    if problems:
-        env.say("REFUSED: " + "; ".join(problems))
+    lock = claim(state_path)
+    if lock is None:
+        env.say("REFUSED: another proof driver is running")
         return 1
-    save(state_path, state)
-    env.say(f"prepared proof {proof_id}; enable window ends in {ENABLE_WINDOW // 60} min")
-    env.say(f"David posts, after ENABLED: {state['probe1']}")
-    return 0
+    try:
+        if state_path.exists():
+            old = json.loads(state_path.read_text(encoding="utf-8"))
+            if old.get("status") == "claimed":
+                # Its driver is gone (we hold the lock) but never finished:
+                # that needs reconciling by hand, not a fresh proof on top.
+                env.say(f"REFUSED: proof {old['proof_id']} was claimed and never finished; reconcile it first")
+                return 1
+            if old.get("status") == "prepared" and env.now() < old["enable_by"]:
+                env.say(f"REFUSED: proof {old['proof_id']} is prepared and unused until its window ends")
+                return 1
+        proof_id = secrets.token_hex(4)
+        cursor = int(env.rows("SELECT value FROM meta WHERE key = 'cursor'")[0]["value"])
+        state = dict(proof_id=proof_id, prepared_at=env.now(), enable_by=env.now() + ENABLE_WINDOW,
+                     cli=cli, cli_sha256=cli_sha256, config_sha256=config_sha256, baseline=cursor,
+                     probe1=probes(proof_id)[0], probe2=probes(proof_id)[1], status="prepared")
+        problems = preflight(env, state, enabled=0, closed=False)
+        if problems:
+            env.say("REFUSED: " + "; ".join(problems))
+            return 1
+        save(state_path, state)
+        env.say(f"prepared proof {proof_id}; enable window ends in {ENABLE_WINDOW // 60} min")
+        env.say(f"David posts, after ENABLED: {state['probe1']}")
+        return 0
+    finally:
+        os.close(lock)
 
 
 class Proof:
@@ -192,7 +219,7 @@ class Proof:
 
     def stop(self, verdict: str, why: str) -> str:
         # A later failure (say, disable not confirmed) outranks an earlier pass.
-        if self.r["verdict"] in (None, "passed", "partial"):
+        if self.r["verdict"] in (None, "passed"):
             self.r["verdict"] = verdict
         self.r["why"].append(why)
         self.env.say(f"STOP {verdict}: {why}")
@@ -271,18 +298,19 @@ class Proof:
                 self.r["probe2_posted_at"] = now
                 env.say(f"probe2 posted while the probe1 run is alive: {self.r['probe2']}")
             elif state.get(first) in TERMINAL:
+                # probe2 goes out the moment the probe1 run is seen alive, so
+                # this means it never was: no executable identity, and §7
+                # item 6 not exercised. Never a pass.
                 self.r["probe2"] = "not exercised"
-                env.say("probe2 not exercised: the probe1 run ended before it could be posted")
+                return self.stop("inconclusive", "the probe1 run was never observed alive; "
+                                                 "no executable identity, item 6 not exercised")
         # A delivery is only evidence of the CLOSED path if exactly one
         # headless launch carried it; an ACK from an open app has none.
         launched = lambda mid: len(self.r["launches"].get(str(mid), {})) == 1  # noqa: E731
         second = by_kind.get("probe2")
         done = (first is not None and state.get(first) == "delivered" and launched(first) and not live
-                and (self.r["probe2"] == "not exercised"
-                     or (state.get(second) == "delivered" and launched(second))))
-        if done:
-            return "passed" if self.r["probe2"] != "not exercised" else "partial"
-        return None
+                and state.get(second) == "delivered" and launched(second))
+        return "passed" if done else None
 
     def cleanup(self) -> None:
         """Stop only the proof's own runs, by pid and creation time, then settle."""
@@ -304,23 +332,64 @@ class Proof:
             rec["confirmed_exited"] = not env.processes.is_same(a["pid"], a["proc_start"])
             if not rec["confirmed_exited"]:
                 self.stop("failed", f"pid {a['pid']} not confirmed stopped")
+        def settled() -> bool:
+            unrecorded = [a for a in self.attempts() if a["launched_at"] and not a["usage_recorded"]]
+            return not unrecorded and not env.rows("SELECT 1 FROM reservations WHERE recipient = ?", LEAD)
         deadline = env.now() + SETTLE
-        while env.now() < deadline and env.rows("SELECT 1 FROM reservations WHERE recipient = ?", LEAD):
+        while env.now() < deadline and not settled():
             env.sleep(5)
-        self.r["reservation_released"] = not env.rows("SELECT 1 FROM reservations WHERE recipient = ?", LEAD)
+        self.r["relay_settled"] = settled()
         self.r["final_deliveries"] = [(d["message_id"], d["state"], d["reason"]) for d in self.deliveries()]
-        self.r["attempt_states"] = [(a["message_id"], a["state"], a["exit_code"]) for a in self.attempts()]
+        self.r["attempt_states"] = [(a["message_id"], a["state"], a["exit_code"], a["usage_recorded"])
+                                    for a in self.attempts()]
+        if not self.r["relay_settled"]:
+            self.stop("failed", "the relay has not released the reservation or recorded usage")
+
+    def evidence(self) -> None:
+        """Final facts a pass depends on, checked however fast the run finished."""
+        env, s = self.env, self.s
+        self.r["config_sha256_after"] = sha256(env.config)
+        if self.r["config_sha256_after"] != s["config_sha256"]:
+            self.stop("failed", "config.toml changed during the proof")
+        cli_ok = Path(s["cli"]).is_file() and sha256(Path(s["cli"])) == s["cli_sha256"]
+        if not cli_ok:
+            self.stop("inconclusive", "the registered cli changed during the proof")
+        rows = env.rows("SELECT * FROM sessions WHERE recipient = ?", LEAD)
+        if (len(rows) != 1 or rows[0]["session_id"].lower() != THREAD
+                or not _same(rows[0]["workspace"], WORKSPACE) or not _same(rows[0]["cli"], s["cli"])):
+            self.stop("failed", "the codex-lead binding changed during the proof")
+        self.r["new_session_files"] = env.new_session_files(s["run_started"])
+        if self.r["new_session_files"]:
+            self.stop("failed", f"new session files {self.r['new_session_files']}")
+        unknown = [aid for runs in self.r["launches"].values() for aid, rec in runs.items()
+                   if not rec.get("image")]
+        if unknown:
+            self.stop("inconclusive", f"no executable identity recorded for {unknown}")
 
 
-def run(env, state_path: Path, poll: float = 5.0) -> int:
+def run(env, state_path: Path, poll: float = 2.0) -> int:
+    lock = claim(state_path)
+    if lock is None:
+        env.say("REFUSED: another proof driver is running")
+        return 1
+    try:
+        return _run(env, state_path, poll)
+    finally:
+        os.close(lock)
+
+
+def _run(env, state_path: Path, poll: float) -> int:
     state = json.loads(state_path.read_text(encoding="utf-8"))
-    if state.get("used"):
-        env.say(f"REFUSED: proof {state['proof_id']} was already used; prepare a new one")
+    if state.get("status") != "prepared":
+        env.say(f"REFUSED: proof {state['proof_id']} is {state.get('status')}; prepare a new one")
         return 1
     if env.now() >= state["enable_by"]:
         env.say(f"REFUSED: proof {state['proof_id']}'s enable window has ended")
         return 1
-    state["used"], state["run_started"] = True, env.now()
+    if result_path(state_path, state["proof_id"]).exists():
+        env.say(f"REFUSED: proof {state['proof_id']} already has a result")
+        return 1
+    state.update(status="claimed", run_started=env.now(), owner_pid=os.getpid())
     save(state_path, state)
     proof = Proof(env, state)
     try:
@@ -333,8 +402,9 @@ def run(env, state_path: Path, poll: float = 5.0) -> int:
                 return 1
             env.sleep(poll)
         enabled_at = env.now()
+        proof.r["enable"] = dict(at=enabled_at)
         rc, out = env.relay_cli("enable", "--lead", LEAD)
-        proof.r["enable"] = dict(at=enabled_at, rc=rc, out=out)
+        proof.r["enable"].update(rc=rc, out=out)
         if rc != 0 or preflight(env, state, enabled=1, closed=True):
             proof.stop("failed", f"enable did not take cleanly: rc {rc} {out}")
             return 1
@@ -358,22 +428,46 @@ def run(env, state_path: Path, poll: float = 5.0) -> int:
     except Exception as exc:  # noqa: BLE001 -- still disables and cleans up below
         proof.stop("failed", f"{type(exc).__name__}: {exc}")
     finally:
+        finish(env, proof, state, state_path)
+    return 0 if proof.r["verdict"] == "passed" else 1
+
+
+def finish(env, proof: "Proof", state: dict, state_path: Path) -> None:
+    """Every recovery stage runs, whatever an earlier one raised."""
+    r = proof.r
+    r["disable"] = {}
+    try:
         rc, out = env.relay_cli("disable", "--lead", LEAD)
+        r["disable"].update(rc=rc, out=out)
+    except Exception as exc:  # noqa: BLE001
+        r["disable"]["error"] = f"{type(exc).__name__}: {exc}"
+    try:
         stored = env.rows("SELECT enabled FROM sessions WHERE recipient = ?", LEAD)
-        proof.r["disable"] = dict(rc=rc, out=out, stored_enabled=stored[0]["enabled"] if stored else None)
-        if not stored or stored[0]["enabled"] != 0:
-            proof.stop("failed", "codex-lead is not confirmed disabled")
-        env.say(f"disabled: rc {rc}, stored enabled={proof.r['disable']['stored_enabled']}")
+        r["disable"]["stored_enabled"] = stored[0]["enabled"] if stored else None
+    except Exception as exc:  # noqa: BLE001
+        r["disable"]["stored_enabled"] = None
+        r["disable"]["verify_error"] = f"{type(exc).__name__}: {exc}"
+    r["disable"]["confirmed"] = r["disable"]["stored_enabled"] == 0
+    if not r["disable"]["confirmed"]:
+        proof.stop("failed", "codex-lead is NOT confirmed disabled: run "
+                             "`lead_relay.py disable --lead codex-lead` and check it")
+    env.say(f"disable: {r['disable']}")
+    for name, stage in (("cleanup", proof.cleanup), ("evidence", proof.evidence)):
         try:
-            proof.cleanup()
-            proof.r["statuses"] = [(m["id"], m["content"][:300]) for m in env.statuses(state["baseline"])]
-            proof.r["config_sha256_after"] = sha256(env.config)
-            proof.r["new_session_files"] = env.new_session_files(state["run_started"])
+            stage()
         except Exception as exc:  # noqa: BLE001
-            proof.stop("failed", f"cleanup: {type(exc).__name__}: {exc}")
-        save(state_path.with_name(state_path.stem + ".result.json"), proof.r)
-        env.say(f"RESULT {proof.r['verdict']}: {'; '.join(proof.r['why']) or 'no stop reasons'}")
-    return 0 if proof.r["verdict"] in ("passed", "partial") else 1
+            proof.stop("failed", f"{name}: {type(exc).__name__}: {exc}")
+    try:
+        r["statuses"] = [(m["id"], m["content"][:300]) for m in env.statuses(state["baseline"])]
+    except Exception as exc:  # noqa: BLE001 -- informational; the hive is the record
+        r["statuses"] = f"unread: {type(exc).__name__}: {exc}"
+    try:
+        save(result_path(state_path, state["proof_id"]), r)
+        state.update(status="finished", verdict=r["verdict"])
+        save(state_path, state)
+    except Exception as exc:  # noqa: BLE001 -- the terminal still gets the whole result
+        env.say(f"RESULT NOT SAVED ({type(exc).__name__}: {exc}): {json.dumps(r, sort_keys=True)}")
+    env.say(f"RESULT {r['verdict']}: {'; '.join(r['why']) or 'no stop reasons'}")
 
 
 def main(argv=None) -> int:

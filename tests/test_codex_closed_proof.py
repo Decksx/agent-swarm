@@ -118,7 +118,7 @@ class World:
         state = dict(proof_id="abcd1234", prepared_at=self.t, enable_by=self.t + proof.ENABLE_WINDOW,
                      cli=self.cli, cli_sha256=self.cli_sha, config_sha256=proof.sha256(self.config),
                      baseline=100, probe1=proof.probes("abcd1234")[0],
-                     probe2=proof.probes("abcd1234")[1], used=False)
+                     probe2=proof.probes("abcd1234")[1], status="prepared")
         self.state_path.write_text(json.dumps(state))
         return state
 
@@ -140,7 +140,8 @@ class World:
 
     def exit(self, mid, pid):
         self.processes.alive.pop(pid, None)
-        self.sql("UPDATE attempts SET state = 'exited', ended_at = ? WHERE message_id = ? AND pid = ?",
+        self.sql("UPDATE attempts SET state = 'exited', ended_at = ?, usage_recorded = 1 "
+                 "WHERE message_id = ? AND pid = ?",
                  self.t, mid, pid)
         self.sql("DELETE FROM reservations")
 
@@ -148,7 +149,7 @@ class World:
         return self.rows("SELECT enabled FROM sessions")[0]["enabled"]
 
     def result(self):
-        return json.loads(self.state_path.with_name("codex_closed_proof.result.json").read_text())
+        return json.loads(proof.result_path(self.state_path, "abcd1234").read_text())
 
 
 @pytest.fixture
@@ -192,20 +193,20 @@ def test_the_full_proof_passes_and_ends_disabled(w):
     assert set(r["launches"]) == {"101", "102"}
     assert r["launches"]["101"]["a101-501"]["confirmed_exited"] is True
     assert w.processes.killed == []
-    assert r["reservation_released"] is True
-    assert json.loads(w.state_path.read_text())["used"] is True
+    assert json.loads(w.state_path.read_text())["status"] == "finished"
+    assert r["relay_settled"] is True and r["disable"]["confirmed"] is True
 
 
 def test_a_used_or_expired_proof_refuses_without_touching_anything(w):
     state = w.prepare()
-    state["used"] = True
+    state["status"] = "finished"
     w.state_path.write_text(json.dumps(state))
     assert proof.run(w, w.state_path) == 1
-    state["used"], state["enable_by"] = False, w.t
+    state["status"], state["enable_by"] = "prepared", w.t
     w.state_path.write_text(json.dumps(state))
     assert proof.run(w, w.state_path) == 1
     assert w.enabled() == 0
-    assert not w.state_path.with_name("codex_closed_proof.result.json").exists()
+    assert not proof.result_path(w.state_path, "abcd1234").exists()
 
 
 def test_the_app_never_closing_expires_without_enabling(w):
@@ -284,13 +285,16 @@ def test_a_different_launched_executable_is_inconclusive(w):
     assert w.result()["verdict"] == "inconclusive" and w.enabled() == 0
 
 
-def test_a_probe1_run_that_ends_before_probe2_is_partial_not_passed(w):
+def test_a_probe1_run_never_seen_alive_is_inconclusive_not_passed(w):
+    """probe2 is posted as soon as the probe1 run is seen; if it never is, there
+    is no executable identity and item 6 was not exercised."""
     w.prepare()
     w.at(1030, lambda: (w.deliver(101, "admin", p1(w)), w.launch(101, 501),
                         w.set_delivery(101, "delivered"), w.exit(101, 501)))
-    assert proof.run(w, w.state_path) == 0
+    assert proof.run(w, w.state_path) == 1
     r = w.result()
-    assert r["verdict"] == "partial" and r["probe2"] == "not exercised" and w.posts == []
+    assert r["verdict"] == "inconclusive" and r["probe2"] == "not exercised" and w.posts == []
+    assert w.enabled() == 0
 
 
 def test_a_run_past_its_limit_is_stopped_by_identity(w):
@@ -360,7 +364,7 @@ def test_an_unconfirmed_disable_overrides_a_pass(w):
     w.disable_works = False
     assert proof.run(w, w.state_path) == 1
     r = w.result()
-    assert r["verdict"] == "failed" and "not confirmed disabled" in " ".join(r["why"])
+    assert r["verdict"] == "failed" and "NOT confirmed disabled" in " ".join(r["why"])
 
 
 def test_a_new_session_file_stops_the_proof(w):
@@ -368,7 +372,8 @@ def test_a_new_session_file_stops_the_proof(w):
     w.stray = [r"C:\Users\x\.codex\sessions\new.jsonl"]
     w.at(1030, lambda: w.deliver(101, "admin", p1(w)))
     assert proof.run(w, w.state_path) == 1
-    assert "new session files" in " ".join(w.result()["why"])
+    why = w.result()["why"]
+    assert "new session files" in why[0], why      # stopped mid-run, not only at the end
 
 
 def test_the_window_expires_if_nobody_posts(w):
@@ -387,7 +392,7 @@ def test_prepare_records_fresh_probes_and_the_relay_cursor(w):
     rc = proof.prepare(w, w.state_path, w.cli, proof.sha256(w.cli_file), proof.sha256(w.config))
     assert rc == 0
     s = json.loads(w.state_path.read_text())
-    assert s["baseline"] == 100 and s["used"] is False
+    assert s["baseline"] == 100 and s["status"] == "prepared"
     assert s["probe1"].startswith("@codex-lead BRIDGE-PROOF " + s["proof_id"])
     assert s["probe2"].startswith("HANDOFF @codex-lead: BRIDGE-PROOF-2 " + s["proof_id"])
     assert lead_relay.recipients({"sender": "admin", "target": "@codex-lead",
@@ -417,4 +422,198 @@ def test_a_delivery_without_a_launch_is_never_a_pass(w):
     w.at(1030, lambda: (w.deliver(101, "admin", p1(w)), w.set_delivery(101, "delivered")))
     assert proof.run(w, w.state_path) == 1
     r = w.result()
-    assert r["verdict"] == "expired" and r["launches"] == {}
+    assert r["verdict"] == "inconclusive" and r["launches"] == {}
+
+
+# --- Codex, #133 at c7573c8: every recovery stage runs; evidence gates a pass;
+# --- one live driver per proof.
+
+import subprocess
+import sys
+import textwrap
+
+
+def test_a_thrown_disable_still_cleans_up_and_saves_a_failure(w):
+    w.prepare()
+    w.at(1030, lambda: w.deliver(101, "admin", p1(w)))
+    w.at(1040, lambda: w.launch(101, 501))     # still alive when the run ends
+    real = w.relay_cli
+
+    def cli(command, flag, lead):
+        if command == "disable":
+            raise subprocess.TimeoutExpired("lead_relay.py disable", 60)
+        return real(command, flag, lead)
+    w.relay_cli = cli
+    assert proof.run(w, w.state_path) == 1
+    r = w.result()
+    assert r["verdict"] == "failed" and r["disable"]["confirmed"] is False
+    assert "TimeoutExpired" in r["disable"]["error"]
+    assert "NOT confirmed disabled" in " ".join(r["why"])
+    assert w.processes.killed == [501]                       # cleanup still ran
+    assert r["launches"]["101"]["a101-501"]["confirmed_exited"] is True
+    assert json.loads(w.state_path.read_text())["status"] == "finished"
+
+
+def test_a_thrown_disable_verification_is_unconfirmed_not_disabled(w, monkeypatch):
+    w.prepare()
+    happy(w)
+    real = w.rows
+
+    def rows(sql, *params):
+        if sql == "SELECT enabled FROM sessions WHERE recipient = ?":
+            raise sqlite3.OperationalError("database is locked")
+        return real(sql, *params)
+    w.rows = rows
+    assert proof.run(w, w.state_path) == 1
+    r = w.result()
+    assert r["disable"]["stored_enabled"] is None and r["disable"]["confirmed"] is False
+    assert "database is locked" in r["disable"]["verify_error"] and r["verdict"] == "failed"
+
+
+def test_a_thrown_cleanup_still_checks_evidence_and_saves(w, monkeypatch):
+    w.prepare()
+    happy(w)
+
+    def boom(self):
+        raise OSError("taskkill missing")
+    monkeypatch.setattr(proof.Proof, "cleanup", boom)
+    assert proof.run(w, w.state_path) == 1
+    r = w.result()
+    assert r["verdict"] == "failed" and "cleanup: OSError" in " ".join(r["why"])
+    assert "config_sha256_after" in r and r["disable"]["confirmed"] is True
+
+
+def test_an_unsaveable_result_is_printed_in_full(w, monkeypatch):
+    w.prepare()
+    happy(w)
+    real = proof.save
+
+    def save(path, data):
+        if path.name.endswith(".result.json"):
+            raise OSError("disk full")
+        real(path, data)
+    monkeypatch.setattr(proof, "save", save)
+    proof.run(w, w.state_path)
+    printed = [l for l in w.lines if l.startswith("RESULT NOT SAVED")]
+    assert printed and '"verdict": "passed"' in printed[0]
+
+
+@pytest.mark.parametrize("spoil, verdict, why", [
+    ("config", "failed", "config.toml changed"),
+    ("stray", "failed", "new session files"),
+    ("image", "inconclusive", "no executable identity"),
+    ("reservation", "failed", "not released the reservation"),
+    ("usage", "failed", "recorded usage"),
+    ("binding", "failed", "binding changed"),
+    ("cli", "inconclusive", "registered cli changed"),
+])
+def test_a_pass_needs_its_final_evidence(w, spoil, verdict, why):
+    """Each of these used to leave a `passed` verdict standing."""
+    w.prepare()
+    happy(w)
+    if spoil == "config":
+        w.at(1150, lambda: w.config.write_text("changed\n"))
+    elif spoil == "stray":
+        w.at(1290, lambda: setattr(w, "stray", ["unexpected-session.jsonl"]))  # final sample only
+    elif spoil == "image":
+        w.images.update({501: None, 502: None})
+    elif spoil == "reservation":
+        w.at(1300, lambda: w.sql("INSERT INTO reservations VALUES ('codex:x', 'codex-lead', 'a102-502', 0)"))
+    elif spoil == "usage":
+        w.at(1300, lambda: w.sql("UPDATE attempts SET usage_recorded = 0 WHERE pid = 502"))
+    elif spoil == "binding":
+        w.at(1300, lambda: w.sql("UPDATE sessions SET workspace = 'C:\\elsewhere'"))
+    else:
+        w.at(1300, lambda: w.cli_file.write_bytes(b"updated"))
+    assert proof.run(w, w.state_path) == 1
+    r = w.result()
+    assert r["verdict"] == verdict and why in " ".join(r["why"])
+
+
+def test_a_second_driver_in_this_process_cannot_claim_the_same_proof(w, monkeypatch):
+    """Codex's interleaving: pause the first caller before it saves its claim."""
+    w.prepare()
+    happy(w)
+    enables = []
+    real_cli, real_save = w.relay_cli, proof.save
+    inner = []
+
+    def cli(command, flag, lead):
+        if command == "enable":
+            enables.append(w.t)
+        return real_cli(command, flag, lead)
+
+    def save(path, data):
+        if not inner and data.get("status") == "claimed":
+            inner.append(proof.run(w, w.state_path))         # the second caller, mid-claim
+        real_save(path, data)
+    w.relay_cli = cli
+    monkeypatch.setattr(proof, "save", save)
+    assert proof.run(w, w.state_path) == 0
+    assert inner == [1] and len(enables) == 1
+    assert "another proof driver is running" in " ".join(w.lines)
+    assert w.result()["verdict"] == "passed"
+
+
+HOLDER = textwrap.dedent("""
+    import sys, time
+    sys.path.insert(0, {repo!r})
+    from lead_relay_backends import acquire_lock
+    fd = acquire_lock(__import__("pathlib").Path({lock!r}))
+    print("held", flush=True)
+    sys.stdin.read()
+""")
+
+
+@pytest.fixture
+def other_driver(w):
+    """A real second process holding the proof driver's lock."""
+    lock = str(w.state_path.with_name(w.state_path.name + ".lock"))
+    child = subprocess.Popen([sys.executable, "-c", HOLDER.format(repo=str(proof.HERE), lock=lock)],
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    assert child.stdout.readline().strip() == "held"
+    yield child
+    child.stdin.close()
+    child.wait(10)
+
+
+def test_a_live_driver_in_another_process_blocks_run(w, other_driver):
+    w.prepare()
+    assert proof.run(w, w.state_path) == 1
+    assert w.enabled() == 0 and "another proof driver is running" in w.lines[-1]
+    assert json.loads(w.state_path.read_text())["status"] == "prepared"
+
+
+def test_a_live_driver_in_another_process_blocks_prepare(w, other_driver):
+    assert proof.prepare(w, w.state_path, w.cli, proof.sha256(w.cli_file), proof.sha256(w.config)) == 1
+    assert not w.state_path.exists()
+
+
+def test_an_interrupted_claim_is_kept_for_reconciliation(w):
+    state = w.prepare()
+    state["status"] = "claimed"
+    w.state_path.write_text(json.dumps(state))
+    assert proof.prepare(w, w.state_path, w.cli, proof.sha256(w.cli_file), proof.sha256(w.config)) == 1
+    assert proof.run(w, w.state_path) == 1
+    assert json.loads(w.state_path.read_text())["proof_id"] == "abcd1234"
+    assert "reconcile" in " ".join(w.lines)
+
+
+def test_an_existing_result_is_never_overwritten(w):
+    w.prepare()
+    proof.result_path(w.state_path, "abcd1234").write_text('{"verdict": "earlier"}')
+    assert proof.run(w, w.state_path) == 1
+    assert json.loads(proof.result_path(w.state_path, "abcd1234").read_text()) == {"verdict": "earlier"}
+
+
+def test_a_probe2_delivered_without_its_own_launch_is_not_a_pass(w):
+    """e.g. an ACK from a reopened app: no headless launch carried probe2."""
+    w.prepare()
+    w.at(1030, lambda: w.deliver(101, "admin", p1(w)))
+    w.at(1040, lambda: w.launch(101, 501))
+    w.at(1100, lambda: w.set_delivery(101, "delivered"))
+    w.at(1050, lambda: w.deliver(102, "claude-lead", p2(w), "held"))
+    w.at(1200, lambda: (w.exit(101, 501), w.set_delivery(102, "delivered")))
+    assert proof.run(w, w.state_path) == 1
+    r = w.result()
+    assert r["verdict"] == "expired" and "102" not in r["launches"]

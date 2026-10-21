@@ -99,8 +99,19 @@ Revised after Codex's review of `27e8ad6`
 
 ## 3. The run (`python codex_closed_proof.py run`, supervised by Claude)
 
-`run` is **single-use**: it refuses a proof already marked used, or one past
-its enable-by time, and marks it used before doing anything.
+**One live driver, one use.** `prepare` and `run` each hold the driver's own
+OS lock (`codex_closed_proof.json.lock`) for their whole duration. This is not
+the relay's lock, so the relay keeps running. A second driver, in this process
+or another, is refused.
+
+- **`run`** needs the state to be `prepared`, not past enable-by, and with no
+  result yet. It marks the state `claimed` before doing anything, and
+  `finished` when it ends.
+- **An interrupted claim**, `claimed` with no live owner, blocks both `prepare`
+  and `run` until it is reconciled by hand. It is never silently made eligible
+  again.
+- **Results never overwrite each other.** Each is written to
+  `codex_closed_proof.<id>.result.json`, and an existing one is never replaced.
 
 1. **Wait for the app to close.** Until enable-by, the driver repeats the
    preflight plus:
@@ -131,8 +142,11 @@ its enable-by time, and marks it used before doing anything.
    - A probe-2 launch while the probe-1 process is alive → `failed`. This is
      §7 item 6.
 6. **Probe 2** is posted once, as soon as the probe-1 run is seen alive. If
-   probe 1's delivery ends before that, item 6 is recorded as **not
-   exercised**, and the verdict can be at best `partial`, never `passed`.
+   probe 1's delivery ends without the run ever being seen alive, the
+   verdict is `inconclusive`: there is no executable identity, and item 6 is
+   **not exercised**. Because probe 2 goes out the moment the run is seen, an
+   observed run without probe 2 can't occur, so there is no separate
+   `partial` verdict.
 7. **Stop rules:**
    - a delivery ending `failed`, `uncertain` or `cancelled`;
    - no ACK within 10 min of the probe's delivery. For probe 2 the clock
@@ -147,14 +161,20 @@ its enable-by time, and marks it used before doing anything.
      process is alive. **Each probe must have exactly one recorded headless
      launch.** An ACK with no launch, such as one from an open app, is never
      CLOSED-path evidence.
-   - **`partial`:** the same, except that probe 2 was not exercised.
+   - The final evidence in §4 must then hold as well, or the pass is
+     withdrawn.
 
 ## 4. On every exit (`finally`)
 
+Each stage runs even if an earlier one raised. An exception is recorded
+against its own stage.
+
 1. **Disable.** The driver runs `lead_relay.py disable --lead codex-lead`,
-   then confirms the stored `enabled = 0`. If it can't confirm, the verdict
-   becomes `failed`, even after a pass. Disable success is recorded separately
-   from process cleanup.
+   then confirms the stored `enabled = 0`. A thrown command or a thrown
+   verification read counts as **not confirmed**. If it can't confirm, the
+   verdict becomes `failed`, even after a pass, and the result tells the
+   operator to disable by hand. Disable success is recorded separately from
+   process cleanup, and cleanup still runs.
 2. **Execution cleanup.** Disabling only flips `sessions.enabled`. For each
    relay-recorded proof attempt whose `(pid, creation time)` is still the
    same process:
@@ -166,14 +186,22 @@ its enable-by time, and marks it used before doing anything.
    write. A process not confirmed stopped is a failure, and nothing is
    retried. If cleanup is uncertain, the desktop must not be reopened against
    a still-owned thread.
-3. **Settle.** The driver waits up to 120 s for the relay to record the exit
-   and release the reservation. It then records:
-   - the final delivery and attempt rows;
-   - codex-lead's status lines;
-   - the config hash afterwards;
-   - any new session files.
+3. **Settle.** The driver waits up to 120 s for the relay to do two things:
+   - record usage for every launched attempt;
+   - release the reservation.
 
-   Everything goes to `control/codex_closed_proof.result.json`.
+   If either is still outstanding, the verdict is `failed`.
+4. **Final evidence**, checked however quickly the run finished:
+   - **`failed`** if any of these is no longer as prepared:
+     - the config hash;
+     - the codex-lead binding (thread, workspace, cli);
+     - no new session files.
+   - **`inconclusive`** if either of these holds:
+     - the cli file or its hash changed;
+     - a launch has no recorded executable image.
+5. **Save.** The result goes to `control/codex_closed_proof.<id>.result.json`,
+   together with codex-lead's status lines. If saving fails, the whole result
+   is printed to the terminal instead.
 
 ## 5. After the run
 
