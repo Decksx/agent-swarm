@@ -58,6 +58,64 @@ approval, the Codex lead then moved to a fresh thread. This follows Codex's
   exact target turn has **completed** and that no `inProgress` turn remains
   on the successor thread. A waiting driver is not that evidence.
 
+## App lifecycle: Claude closes and reopens the app (2026-10-22)
+
+David agreed in hive #1893 and #1906 that Claude closes the desktop app,
+instead of asking him to quit it. That is `codex_app_lifecycle.py`. The design
+was agreed in #1898 and #1902, with gates from #1901 and #1905.
+
+- **The app.** The MSIX package `OpenAI.Codex_2p2nqsd0c76g0` (Electron). Its
+  main process is the packaged `ChatGPT.exe` with no Chromium `--type=`
+  argument; two such processes are refused as ambiguous. The VS Code
+  extension's own app-server is never treated as the app. A failed process
+  query refuses; it is never read as "not running".
+- **`close`:**
+  1. It needs codex-lead bound to the successor pair.
+  2. It waits up to 10 minutes until no turn is `inProgress`. Unknown
+     statuses or unreadable history refuse. The only exclusion is the exact
+     retired pair (`01a14068`, `01a1607c`), from the historical inventory;
+     no successor turn is ever excluded.
+  3. It rechecks the image, pid and creation time immediately before acting.
+  4. It opens one Restart Manager session, registering **only** that
+     `RM_UNIQUE_PROCESS`, with no files or services.
+  5. `RmGetList` must show exactly that process, as a windowed (non-service)
+     app, with **no reboot reason**. Only then does it call
+     `RmShutdown(flags=0)`. It never uses `RmForceShutdown` or `RmRestart`,
+     has no kill fallback, and always ends the session.
+  6. It succeeds only when the main process and the desktop app-server have
+     exited and the successor reads CLOSED with no live turn, within 2
+     minutes. Otherwise it reports, and the app is left as it is.
+  - `status` runs the same path as a dry run, stopping before `RmShutdown`.
+    On 2026-10-22 it listed exactly pid 48052 ("Codex", type MainWindow) with
+    no reboot reasons.
+- **`reopen`:**
+  1. It launches only the **registered** cli and workspace, as
+     `codex app <workspace>`, after checking the cli's sha256 (it takes no
+     caller-chosen path).
+  2. It needs all of these:
+     - codex-lead stored disabled;
+     - no reservation;
+     - no proof run alive (by pid and creation time);
+     - usage recorded for every launched attempt;
+     - no proof `claimed` and unfinished;
+     - the successor reading CLOSED with no live turn.
+
+     Otherwise the app stays closed and the reason is reported.
+- **The driver** posts `STATUS @admin … Paste exactly this, once: <probe 1>`
+  only after the enable is confirmed. It is not an envelope, so it wakes no
+  one.
+- **Order:**
+  1. Review, merge and deploy (scripts only).
+  2. Wait until Codex's current turn is terminal.
+  3. A **trial** of `close` then `reopen`, with codex-lead disabled. It must
+     verify both, with receipts.
+  4. Only after a verified trial: `prepare`, `close`, then `run`. The driver
+     enables and tells David.
+  5. Finish with `reopen`.
+
+  How the app behaves under Restart Manager is an empirical question that only
+  the trial settles.
+
 ## 0. Facts, read-only, about 17:30Z (refreshed by `prepare`)
 
 - **Relay and binding.** Production is at `1afa9cc`, relay pid 34648, cursor

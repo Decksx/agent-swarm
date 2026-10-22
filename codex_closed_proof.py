@@ -94,9 +94,11 @@ class Env:
                               *args], capture_output=True, text=True, timeout=60)
         return out.returncode, (out.stdout + out.stderr).strip()
 
-    def post(self, text: str) -> str:
+    def post(self, text: str) -> dict:
+        """Post once (lead_chat never resends) and say whether the hub confirmed it."""
         import lead_chat
-        return str(lead_chat.post("claude-lead", text))
+        r = lead_chat.post("claude-lead", text)
+        return dict(state=r.state, message_id=r.message_id, detail=r.detail)
 
     def statuses(self, since_id: int) -> list:
         import lead_chat
@@ -382,6 +384,9 @@ class Proof:
                 self.r["probe2"] = env.post(self.s["probe2"])
                 self.r["probe2_posted_at"] = now
                 env.say(f"probe2 posted while the probe1 run is alive: {self.r['probe2']}")
+                if self.r["probe2"].get("state") != "confirmed":
+                    # Maybe sent, maybe not: kept as is for reconciliation, never resent.
+                    return self.stop("failed", f"probe2 post not confirmed: {self.r['probe2']}")
             elif state.get(first) in TERMINAL:
                 # probe2 goes out the moment the probe1 run is seen alive, so
                 # this means it never was: no executable identity, and §7
@@ -504,6 +509,16 @@ def _run(env, state_path: Path, poll: float) -> int:
             proof.stop("failed", f"enable did not take cleanly: rc {rc} {out}")
             return 1
         env.say(f"ENABLED. David posts exactly: {state['probe1']}")
+        # Only now, with the enable confirmed, is David told to send probe 1
+        # (hive #1893). Not an envelope, so it wakes no one.
+        proof.r["ready_posted"] = env.post(
+            f"STATUS @admin: proof {state['proof_id']} ENABLED and watching. Paste exactly this, "
+            f"once: {state['probe1']}")
+        if proof.r["ready_posted"].get("state") != "confirmed":
+            # David may or may not have been told: never resend blindly; the
+            # receipt is kept for reconciliation and the backend is disabled.
+            proof.stop("failed", f"the readiness notice was not confirmed: {proof.r['ready_posted']}")
+            return 1
         last_files = enabled_at
         while True:
             verdict = proof.step()
