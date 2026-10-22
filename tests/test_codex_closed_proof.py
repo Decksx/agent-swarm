@@ -180,6 +180,14 @@ def w(raw, tmp_path):
     return raw
 
 
+def probe2_posts(w):
+    return [text for _, text in w.posts if text.startswith("HANDOFF")]
+
+
+def ready_posts(w):
+    return [(t, text) for t, text in w.posts if text.startswith("STATUS @admin")]
+
+
 def p1(w):
     return proof.probes("abcd1234")[0]
 
@@ -209,7 +217,7 @@ def test_the_full_proof_passes_and_ends_disabled(w):
     assert proof.run(w, w.state_path) == 0
     r = w.result()
     assert r["verdict"] == "passed"
-    assert len(w.posts) == 1 and w.posts[0][1] == p2(w) and 1040 <= w.posts[0][0] < 1200
+    assert probe2_posts(w) == [p2(w)] and 1040 <= [t for t, x in w.posts if x == p2(w)][0] < 1200
     assert w.enabled() == 0 and r["disable"]["stored_enabled"] == 0
     assert set(r["launches"]) == {"101", "102"}
     assert r["launches"]["101"]["a101-501"]["confirmed_exited"] is True
@@ -272,7 +280,7 @@ def test_an_unexpected_delivery_stops_and_disables(w):
     assert proof.run(w, w.state_path) == 1
     r = w.result()
     assert r["verdict"] == "failed" and "unexpected" in r["why"][0]
-    assert w.enabled() == 0 and w.posts == []
+    assert w.enabled() == 0 and probe2_posts(w) == []
 
 
 def test_a_second_launch_for_one_source_fails(w):
@@ -314,7 +322,7 @@ def test_a_probe1_run_never_seen_alive_is_inconclusive_not_passed(w):
                         w.set_delivery(101, "delivered"), w.exit(101, 501)))
     assert proof.run(w, w.state_path) == 1
     r = w.result()
-    assert r["verdict"] == "inconclusive" and r["probe2"] == "not exercised" and w.posts == []
+    assert r["verdict"] == "inconclusive" and r["probe2"] == "not exercised" and probe2_posts(w) == []
     assert w.enabled() == 0
 
 
@@ -813,3 +821,36 @@ def test_reconcile_ignores_launches_that_ended_before_the_old_run(raw, tmp_path)
             "launched_at, ended_at, pid, proc_start, backend) VALUES "
             "('x', 99, 'codex-lead', 'tok-x', 'headless', 'done', 100, 110, 200, 1, 's1', 'codex')")
     assert proof.reconcile(raw, tmp_path) == 0
+
+
+def test_david_is_told_to_post_probe1_only_after_the_enable_is_confirmed(w):
+    w.prepare()
+    enabled_at = []
+    real = w.relay_cli
+
+    def cli(command, flag, lead):
+        out = real(command, flag, lead)
+        if command == "enable":
+            enabled_at.append(w.t)
+        return out
+    w.relay_cli = cli
+    happy(w)
+    proof.run(w, w.state_path)
+    ready = ready_posts(w)
+    assert len(ready) == 1 and ready[0][0] >= enabled_at[0]
+    assert p1(w) in ready[0][1] and "53e110d6" not in ready[0][1]
+    assert not lead_relay.recipients({"sender": "claude-lead", "target": "@admin", "content": ready[0][1]})
+
+
+def test_no_ready_post_when_the_app_never_closes(w):
+    w.prepare()
+    w.backend.own = "open"
+    proof.run(w, w.state_path)
+    assert ready_posts(w) == []
+
+
+def test_no_ready_post_when_the_enable_does_not_take(w):
+    w.prepare()
+    w.relay_cli = lambda command, flag, lead: (1, "refused") if command == "enable" else (0, "ok")
+    proof.run(w, w.state_path)
+    assert ready_posts(w) == []

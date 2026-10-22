@@ -504,6 +504,11 @@ def _run(env, state_path: Path, poll: float) -> int:
             proof.stop("failed", f"enable did not take cleanly: rc {rc} {out}")
             return 1
         env.say(f"ENABLED. David posts exactly: {state['probe1']}")
+        # Only now, with the enable confirmed, is David told to send probe 1
+        # (hive #1893). Not an envelope, so it wakes no one.
+        proof.r["ready_posted"] = env.post(
+            f"STATUS @admin: proof {state['proof_id']} ENABLED and watching. Paste exactly this, "
+            f"once: {state['probe1']}")
         last_files = enabled_at
         while True:
             verdict = proof.step()
