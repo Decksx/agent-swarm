@@ -1,6 +1,56 @@
 # Next steps after the Codex import
 
-## Current checkpoint — 2026-10-21 (evening)
+## Current checkpoint — 2026-10-22 (early)
+
+This supersedes the evening statements below that the binding still names the
+old thread, that the migration awaits review, and that production is at
+`dc565ef`.
+
+- **#135 merged and rolled out** (successor driver migration).
+  - It was approved at `847e51b` and merged pinned as `bab1e3a`. Main CI run
+    39711151698 passed.
+  - Driver-only deploy: production moved from `dc565ef` to `bab1e3a` with no
+    restart. Relay 30464 and supervisor 39260 were untouched.
+  - **`reconcile-old`** ran at 02:37:20Z, rc 0. The receipt is
+    `codex_closed_proof.53e110d6.reconciled.json` (sha256 `a12c420b…`), with
+    the verdict `cancelled before enable`, 0 launches and no result. The old
+    claim and its three files are byte-identical; the claim is still
+    `claimed`.
+  - **codex-lead is registered disabled to the successor**:
+    - thread `01a1609d-cd64-7bd1-9880-2b5b488509d4`;
+    - workspace `C:\git\agent-swarm`;
+    - cli `…\OpenAI\Codex\bin\896a0166b774037a\codex.exe`, sha256 `f6dbf48c…0312`.
+
+    The binding equals the driver's constants. Ownership reads OPEN while
+    the app is open. There were 0 pending deliveries and 0 reservations.
+  - [Receipt](https://github.com/Decksx/agent-swarm/pull/135#issuecomment-6331335254);
+    Codex's [independent audit](https://github.com/Decksx/agent-swarm/pull/135#issuecomment-6331912062)
+    passed (hive #1885).
+- **Settings baseline for the next `prepare`** (read 2026-10-22 by key only, not
+  the whole file):
+  - `~/.codex/config.toml` sha256 is
+    `b6a99abbeafd4c66fa1e551af836ea2e1ecc3071cdc5e8468239ad87b0988166`,
+    modified 2026-10-21 22:44:23Z. It was `ef7e7918…1866` on 2026-10-21.
+    **The cause of that change is unknown**; it has not been attributed.
+  - The current observed proof-relevant values:
+    - `sandbox_mode = "danger-full-access"`;
+    - `[windows] sandbox = "unelevated"`;
+    - model `gpt-6.1-sol` at reasoning effort `high`;
+    - no `approval_policy` or `network_access` key.
+
+    Only the two sandbox values have an earlier recorded reading to compare
+    against (2026-10-21), and they match it.
+    `projects."c:\git\agent-swarm".trust_level = "trusted"` is present, which
+    fits the successor's workspace.
+  - **Before the next `prepare`,** Claude rechecks these keys and supplies the
+    file's then-current sha256 as `--config-sha256`. `prepare` and the
+    preflight do not read the keys: they hash the file and compare that hash
+    with the supplied value.
+- **Next:** a bounded successor proof, when David is available (Codex asked him,
+  hive #1887). Before telling him to quit, the target turn must be terminal
+  with no `inProgress` turn. Then the comic #32/#35 reconciliation.
+
+## Earlier checkpoint — 2026-10-21 (evening)
 
 This supersedes the afternoon statements below that codex-lead is
 unregistered, that the CLOSED proof is pending review, and that no real admin
