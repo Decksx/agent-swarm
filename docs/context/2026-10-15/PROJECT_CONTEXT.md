@@ -1,6 +1,63 @@
 # Agent Swarm imported project context
 
-## Current state — 2026-10-22
+## Current state — 2026-10-22 (evening)
+
+This supersedes the day section below on the comic review queue, the trial
+deadline and codex-lead's state. Times are **UTC-6**.
+
+- **Comic merges, all pinned to approved exact heads with matching CI:**
+  #100 roadmap (12:27, `76da5212`), #99 decision-manifest design (12:43,
+  `cd2b774e`), #104 slice-4 ledger guard (13:31, `f77e518d`), #103 staging
+  integration/rollback design (13:39, `fee1dc25`), #106 next-applicable-015
+  predicate (16:48, `90e9ca65`, Codex lead, Claude review with 8/8 independent
+  mutants) and #107 inert staging shadow-plan A3.1 (16:54, `f957bded`, Claude
+  lead, Codex review with 8/8 independent mutants). Before the #107 merge, the
+  combined #106+#107 master ran **2491 passed / 8 skipped** (`-n 4`), and the
+  merged tree is identical to that tested merge. #107 only observes: the
+  watcher's moves are unchanged, and the review root is
+  `CBZ_CLASSIFICATION_REVIEW_ROOT`, with no default. The A3.2 configuration
+  gate and policy question D.1 stay open.
+- **Ambiguity measurement (#101 tool, hive #2079):** a read-only run over the
+  configured X: index scope found 18,366 directories and 26 collision keys, all
+  cross-library (0 same-root). Output is under
+  `G:\ComicAutomation\cache\ambiguity_2026-10-22\`, report SHA256
+  `1af6a916db55b7b4cd9187480bf8baf958b67fa56b6c9e33119600374a97de2f`.
+- **Trial expiry and re-enable:** David extended the trial to 15:00 (hive
+  #2018). `AgentSwarmCodexEnableExpiry` ran at 15:00 with result 0. Claude read
+  `enabled=0` with zero reservations and zero headless attempts at 15:01, then
+  deleted the one-shot task. At 16:22 David asked in the terminal for
+  codex-lead to be re-enabled, **with no end time**. The caps of 20/hour,
+  160/day and chain 80 still apply.
+- **Relay envelope lesson:** only a lead message starting
+  `HANDOFF @name:` or `QUESTION @name:` (colon immediately after the name)
+  wakes the other lead. Claude's STATUS posts #2088 and #2090–#2093, and #2089
+  (`HANDOFF @codex-lead per #2085:`), were skipped silently. There was no
+  delivery row, and the cursor advanced past them. Re-sent as #2094 (16:47);
+  Codex woke and ACKed as #2097. A malformed envelope is indistinguishable
+  from an idle lead unless the deliveries table is checked.
+- **Operator goal for the comic work (terminal, hive #2091–#2105):** collapse
+  the three copies of the collection (F: backup, Tower `Z:` = `\\TOWER\media`,
+  X:) into **one primary on X:** (faster, so decensoring runs quicker there)
+  plus one backup.
+  - Tower receives new books (phone → MEGA → `C:\Temp` → watcher →
+    `Z:\comics\Manga|Comix`).
+  - Tower holds the decensored files. Censored originals go to
+    `F:\ai-decensor-originals`, a separately preserved set that is never a
+    duplicate of its decensored file.
+  - Tower was copied from X: and then **consolidated**: series split or
+    duplicated across scanlation groups were merged. X: still holds those
+    duplicates.
+  - David backs up to F: (beside the existing sets) before any move.
+  - The contract is comic **issue #108**: a read-only cross-copy inventory
+    that classifies X-only items as moved, probable superseded duplicate,
+    truly X-only or unresolved. Codex implements it on fixtures; Claude
+    reviews the exact head.
+
+Next action: Codex's fixture-only #108 implementation and Claude's exact-head
+review. A live inventory run needs separate authorization. No copy, move,
+overwrite or activation is authorized by this record.
+
+## Earlier state — 2026-10-22 (day)
 
 This supersedes the disabled-only and comic-next-work statements in the earlier
 finite-proof checkpoint below. New operator-facing timestamps use **UTC-6**, as
