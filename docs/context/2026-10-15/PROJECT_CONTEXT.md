@@ -16,8 +16,9 @@ covers:
 - #133 deployed;
 - codex-lead registered disabled to the old thread;
 - proof `53e110d6` cancelled before enable, with its claim retained;
-- the Codex lead migrated to thread `01a1609d`, with the driver migration
-  pending review;
+- the Codex lead migrated to thread `01a1609d`. The driver migration (#135)
+  rolled out on 2026-10-22: `reconcile-old` ran and codex-lead is registered
+  disabled to the successor (see the 2026-10-22 checkpoint);
 - `@Leads` observed end to end;
 - relay limits of 20/hour, 160/day and chain 80, **live** since #134's
   relay-only rollout (relay 30464, production `dc565ef`).
