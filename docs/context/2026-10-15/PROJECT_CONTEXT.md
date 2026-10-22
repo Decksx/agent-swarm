@@ -1,6 +1,22 @@
 # Agent Swarm imported project context
 
-## Current state — 2026-10-21 (supersedes the 2026-10-20 evening section below)
+## Current state — 2026-10-22
+
+The bounded CLOSED proof `f120c372` **passed** on deployed #137 merge
+`61286041cbcc5d475f1e470aaba40faa39dc3408`, with green exact-merge main CI
+`39798706770`. Claude closed and reopened the app through the reviewed helper;
+David sent the one admin probe. Both probes had one headless launch, ACK and
+exit 0; the second launch waited for the first process to exit. Codex independently
+verified the retained result, relay rows, process identities and completed
+successor turns. See [the checkpoint](../NEXT_STEPS.md#current-checkpoint--2026-10-22-closed-proof-passed)
+and [audit](https://github.com/Decksx/agent-swarm/pull/137#issuecomment-6344548737).
+
+Codex remains **disabled**, with no pending deliveries or reservations. The old
+cancelled proof/claim is unchanged. This finite proof does not enable an ongoing
+watcher or establish visual UI rendering from metadata alone. Any ongoing
+enablement is a separate decision; comic automation #32/#35 is next product work.
+
+## Earlier state — 2026-10-21 (supersedes the 2026-10-20 evening section below)
 
 David approved the [#60 engineering boundary](../../design/engineering-leadership.md)
 on 2026-10-21: interactive lead-run PRs retain independent exact-head review,

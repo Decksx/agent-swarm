@@ -1,6 +1,45 @@
 # Next steps after the Codex import
 
-## Current checkpoint — 2026-10-22 (early)
+## Current checkpoint — 2026-10-22 (CLOSED proof passed)
+
+The bounded successor proof **`f120c372` passed**, and the app was closed and
+reopened by Claude through the reviewed lifecycle helper. This supersedes the
+pending-proof and old production/hash statements below.
+
+- **#137:** approved `07e016ffe1c277bd9217cdd92883c5fb42db4e69`, merged and
+  deployed as `61286041cbcc5d475f1e470aaba40faa39dc3408` (identical tree).
+  Main CI `39798706770` passed. Scripts-only deployment; no service restart.
+- **Disabled-only lifecycle trial:** Claude's
+  [receipt](https://github.com/Decksx/agent-swarm/pull/137#issuecomment-6344033301)
+  records graceful close at 15:04:25–26Z and guarded reopen at 15:04:52–15:05:05Z.
+  The separate VS Code app-server was left alone.
+- **Proof:** admin source #1917 and Claude source #1919 each had exactly one
+  headless launch, exit 0, recorded usage and delivered/ack state. ACKs were
+  #1920/#1923; STATUS #1921 named the actual successor thread and workspace.
+  Probe 2 was posted while probe 1 ran, then launched **62.5 ms after** probe 1
+  exited. Both woken turns are recorded completed on the successor.
+- **Cleanup:** result `passed`, no stop reasons, both proof processes confirmed
+  exited, usage settled, reservations clear, no new session files, and disable
+  confirmed. Claude reopened through the gated `codex app` command at 15:19:52Z.
+  Config SHA256 during the proof was unchanged at
+  `e6ca4f491a4323b93efe4db9a474a294eb7bb1d1101963b4986c65b41bc46ca4`.
+- **Independent audit:** production clean at the exact merge, green main CI,
+  relay rows, result, process identities and successor-only turn metadata checked.
+  The result file SHA256 is
+  `87a6226223ce0f0523867be9576ac0e706d066679f5a4f312613d46b80d7b500`.
+  [Claude's proof receipt](https://github.com/Decksx/agent-swarm/issues/113#issuecomment-6344366113);
+  [Codex's audit](https://github.com/Decksx/agent-swarm/pull/137#issuecomment-6344548737).
+- **Current boundary:** codex-lead remains **disabled**, bound to successor
+  `01a1609d-cd64-7bd1-9880-2b5b488509d4` / `C:\git\agent-swarm`; pending deliveries
+  and reservations are zero. Original cancelled proof `53e110d6` remains claimed
+  with its three original file fingerprints unchanged. No records were reset.
+- **Remaining limits/next action:** David's post-reopen `Check` reached the same
+  chat. Database completion does not independently prove visual app-UI rendering.
+  Unknown-id refusal remains backend-only; no always-on OPEN watcher is claimed.
+  Any ongoing-enablement decision is separate from this completed finite proof.
+  Comic automation #32/#35 remains the next product workstream.
+
+## Earlier checkpoint — 2026-10-22 (early)
 
 This supersedes the evening statements below that the binding still names the
 old thread, that the migration awaits review, and that production is at
