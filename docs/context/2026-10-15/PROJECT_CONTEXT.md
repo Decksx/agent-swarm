@@ -2,6 +2,61 @@
 
 ## Current state — 2026-10-22
 
+This supersedes the disabled-only and comic-next-work statements in the earlier
+finite-proof checkpoint below. New operator-facing timestamps use **UTC-6**, as
+David requested in hive #1950; existing historical timestamps retain their units.
+
+- **Swarm #139 / #67:** Codex approved exact head
+  `528f512633e715e3e28db769ed5d501900543efe`, with 117 focused tests and five
+  independently rejected mutations. It merged as
+  `0a8c46956ab693e6745366b1ec52a5ed8945495e`; main CI `39813660608` passed.
+  [Claude's full hub rollout receipt](https://github.com/Decksx/agent-swarm/pull/139#issuecomment-6346264362)
+  records a backup before change, pause/stop, deployment/parity checks, restart
+  and resume; build `b5cc792cd29f`, supervisor 20008 and unchanged relay 30464.
+  Codex independently read production at that exact merge. The receipt's first
+  precheck aborted without changes because it counted a live notice as a
+  headless attempt. The revised precheck distinguishes those cases. No new
+  runtime gate implementation is claimed. The live task-help template is the
+  small discoverability slice of #67, not inferred task fields.
+- **Comic #97:** merged at **11:31:58 UTC-6** as
+  `f88d1da68a4213b1f3eb0030d5a851d3940e511e`, identical tree to approved head
+  `a7c0151753e5acfd1975996e553600dbbd033a84`. Exact-head CI runs `39814410236`
+  and `39817020082` passed; local full suite was 2412 passed / 8 skipped.
+  Codex and Claude each rejected four selected mutants independently.
+  [Independent review](https://github.com/Decksx/cbz-automation-suite/pull/97#issuecomment-6345899007);
+  [merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/97#issuecomment-6347087023).
+  #32 and #35 are now **closed completed**, with evidence pointers. Their
+  implementation had already landed in August; this slice adds real two-ingest
+  serialization/index-handoff, unrelated-series and failed-move witnesses.
+  Tests and log only: no production rollout, live library/database access,
+  staging wiring or routing activation. Remaining authority gates and verified
+  cross-volume rollback are separate. The comic log is
+  `docs/development_log_2026-10-22.md` in that repository.
+- **Finite workflow trial:** Claude reported David's separate terminal
+  authorization for the four-hour trial, enabled at **09:36 UTC-6**, ending
+  **13:36 UTC-6** on 2026-10-22. Codex independently read the binding enabled
+  and the one-shot `AgentSwarmCodexEnableExpiry` task scheduled to call the
+  supported disable route at that deadline. Expiry has not yet been observed;
+  this does not claim an always-on OPEN watcher. App OPEN still uses notices.
+- **CLI/app change during that trial:** hive #1954 records Claude's
+  operator-requested re-registration after an app update removed the former
+  CLI, then graceful app closure at **11:25:35 UTC-6**. Codex independently read
+  the enabled binding to successor `01a1609d-cd64-7bd1-9880-2b5b488509d4` /
+  `C:\git\agent-swarm`, registered CLI `bin\a96ca4c1eee0cf35\codex.exe`, and
+  SHA256 `e757246b4de87359e660647fa9514955a0971ff6a30affdd8c145d1d5ece7b84`.
+  Claude reports version `0.163.0-alpha.11.1`; proof `f120c372` covered
+  `alpha.10.2`, so its result is not a fresh proof of this version. Source #1943
+  subsequently arrived headlessly as #1955 and was ACKed as #1956; this turn
+  merged comic #97. Do not describe the current reservation/queued timestamp
+  notice as the zero-queue state of the earlier proof.
+
+Next action: preserve the existing trial deadline, observe its disable receipt
+after expiry, and separately scope the next product work after comic #32/#35.
+Claude reviews this documentation checkpoint. No new activation or deployment
+is authorized by this record.
+
+### Earlier finite-proof checkpoint
+
 The bounded CLOSED proof `f120c372` **passed** on deployed #137 merge
 `61286041cbcc5d475f1e470aaba40faa39dc3408`, with green exact-merge main CI
 `39798706770`. Claude closed and reopened the app through the reviewed helper;
@@ -11,10 +66,11 @@ verified the retained result, relay rows, process identities and completed
 successor turns. See [the checkpoint](../NEXT_STEPS.md#current-checkpoint--2026-10-22-closed-proof-passed)
 and [audit](https://github.com/Decksx/agent-swarm/pull/137#issuecomment-6344548737).
 
-Codex remains **disabled**, with no pending deliveries or reservations. The old
+At proof completion Codex was **disabled**, with no pending deliveries or reservations. The old
 cancelled proof/claim is unchanged. This finite proof does not enable an ongoing
 watcher or establish visual UI rendering from metadata alone. Any ongoing
-enablement is a separate decision; comic automation #32/#35 is next product work.
+enablement was a separate decision; the trial and completed comic work above
+supersede that next-action statement.
 
 ## Earlier state — 2026-10-21 (supersedes the 2026-10-20 evening section below)
 
