@@ -587,7 +587,7 @@ HTML_TEMPLATE = """
   <footer>
     <!-- A textarea, not an input: a command puts each field on its own line,
          and an <input> drops line breaks. Enter sends; Shift+Enter is a new line. -->
-    <textarea id="prompt" rows="3" placeholder="Message, or a command such as @swarm <title> (Shift+Enter for a new line)" onkeydown="promptKey(event)"></textarea>
+    <textarea id="prompt" rows="3" placeholder="Message, or a command such as @swarm <title> (Shift+Enter for a new line; @swarm help shows the full format)" onkeydown="promptKey(event)"></textarea>
     <button onclick="sendMsg()">Send</button>
   </footer>
 
