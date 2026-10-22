@@ -32,15 +32,20 @@ old thread, that the migration awaits review, and that production is at
     `b6a99abbeafd4c66fa1e551af836ea2e1ecc3071cdc5e8468239ad87b0988166`,
     modified 2026-10-21 22:44:23Z. It was `ef7e7918…1866` on 2026-10-21.
     **The cause of that change is unknown**; it has not been attributed.
-  - The proof-relevant keys are unchanged from before:
+  - The current observed proof-relevant values:
     - `sandbox_mode = "danger-full-access"`;
     - `[windows] sandbox = "unelevated"`;
     - model `gpt-6.1-sol` at reasoning effort `high`;
     - no `approval_policy` or `network_access` key.
 
+    Only the two sandbox values have an earlier recorded reading to compare
+    against (2026-10-21), and they match it.
     `projects."c:\git\agent-swarm".trust_level = "trusted"` is present, which
     fits the successor's workspace.
-  - `prepare` re-reads these and records the then-current hash.
+  - **Before the next `prepare`,** Claude rechecks these keys and supplies the
+    file's then-current sha256 as `--config-sha256`. `prepare` and the
+    preflight do not read the keys: they hash the file and compare that hash
+    with the supplied value.
 - **Next:** a bounded successor proof, when David is available (Codex asked him,
   hive #1887). Before telling him to quit, the target turn must be terminal
   with no `inProgress` turn. Then the comic #32/#35 reconciliation.
