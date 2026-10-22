@@ -1,6 +1,20 @@
 # Next steps after the Codex import
 
-## Current checkpoint — 2026-10-22 (CLOSED proof passed)
+## Current checkpoint — 2026-10-22 (evening)
+
+Supersedes the codex-lead *disabled* boundary below.
+- codex-lead is **enabled, with no end time** (David, terminal, 16:22 UTC-6),
+  after the 15:00 UTC-6 expiry disabled it cleanly. The one-shot expiry task
+  is deleted.
+- Comic #106 and #107 are merged (`90e9ca65`, `f957bded`).
+- Next product work is comic **#108**: a read-only cross-copy inventory ahead
+  of a Tower → X: merge. Codex implements it; Claude reviews.
+- To wake the other lead, a message must start `HANDOFF @name:` or
+  `QUESTION @name:`. STATUS posts never wake anyone.
+- Details are in `2026-10-15/PROJECT_CONTEXT.md`, "Current state — 2026-10-22
+  (evening)".
+
+## Earlier checkpoint — 2026-10-22 (CLOSED proof passed)
 
 The bounded successor proof **`f120c372` passed**, and the app was closed and
 reopened by Claude through the reviewed lifecycle helper. This supersedes the
