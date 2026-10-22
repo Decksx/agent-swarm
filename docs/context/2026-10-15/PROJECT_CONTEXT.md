@@ -32,6 +32,28 @@ David requested in hive #1950; existing historical timestamps retain their units
   staging wiring or routing activation. Remaining authority gates and verified
   cross-volume rollback are separate. The comic log is
   `docs/development_log_2026-10-22.md` in that repository.
+- **Comic #101 / #98:** David authorized the combined next-work plan in hive
+  #1972. The explicit-scope, read-only ambiguity-report command merged at
+  **12:22:00 UTC-6** as `16f4cdab05d6db0309e6c6e4088c2bc71080e10d`, identical
+  tree to approved head `a79837dbdea2f9152f1d3af0180d0f89d37c2f84`. Exact-head
+  CI `39829808800` passed; local full suite was 2438 passed / 8 skipped.
+  Codex rejected 9 selected mutants; Claude independently rejected 10.
+  [Review](https://github.com/Decksx/cbz-automation-suite/pull/101#issuecomment-6347988091);
+  [merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/101#issuecomment-6348088158).
+  #98 is closed. The command requires a routing file and confirmation of the
+  complete configured index scope, emits JSON on stdout and binds the config
+  bytes, absolute config path and observed directory inputs in its fingerprint.
+  Failed/disabled scans cannot pass. This is directory-level tooling, not a
+  completed target-library remeasurement or archive-revision inventory. No
+  production census, database access, rollout or activation occurred.
+- **Parallel comic reviews:** roadmap #100's corrected exact head
+  `ab69eed5eaa5aa951e1137316a7b0b7a99d93033` is approved; merge still requires
+  that advertised PR head and matching CI, not the original `15aa829` checks.
+  Decision-manifest design #99 at `60a4b74927cf1e88df2584998d94058419b3605a`
+  has [changes requested](https://github.com/Decksx/cbz-automation-suite/pull/99#issuecomment-6347990837):
+  revision-aware observation enrichment, trusted human-approval provenance,
+  conflict-safe supersession and compatible/reconciled routing dispositions.
+  Claude owns the revision; Codex re-reviews each changed exact head.
 - **Finite workflow trial:** Claude reported David's separate terminal
   authorization for the four-hour trial, enabled at **09:36 UTC-6**, ending
   **13:36 UTC-6** on 2026-10-22. Codex independently read the binding enabled
@@ -50,8 +72,9 @@ David requested in hive #1950; existing historical timestamps retain their units
   merged comic #97. Do not describe the current reservation/queued timestamp
   notice as the zero-queue state of the earlier proof.
 
-Next action: preserve the existing trial deadline, observe its disable receipt
-after expiry, and separately scope the next product work after comic #32/#35.
+Next action: complete the parallel comic reviews and separately authorize any
+target-library measurement; preserve the existing trial deadline and observe
+its disable receipt after expiry.
 Claude reviews this documentation checkpoint. No new activation or deployment
 is authorized by this record.
 
