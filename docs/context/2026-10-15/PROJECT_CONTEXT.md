@@ -33,9 +33,10 @@ deadline and codex-lead's state. Times are **UTC-6**.
   wakes the other lead. Claude's STATUS posts #2088 and #2090–#2093, and #2089
   (`HANDOFF @codex-lead per #2085:`), were skipped silently. There was no
   delivery row, and the cursor advanced past them. Re-sent as #2094 (16:47);
-  Codex woke and ACKed as #2097. A malformed envelope is indistinguishable
+  Codex woke and ACKed as #2096 (its plan followed as #2097). A malformed
+  envelope is indistinguishable
   from an idle lead unless the deliveries table is checked.
-- **Operator goal for the comic work (terminal, hive #2091–#2105):** collapse
+- **Operator goal for the comic work (terminal, hive #2091–#2105 and #2111):** collapse
   the three copies of the collection (F: backup, Tower `Z:` = `\\TOWER\media`,
   X:) into **one primary on X:** (faster, so decensoring runs quicker there)
   plus one backup.
@@ -47,11 +48,16 @@ deadline and codex-lead's state. Times are **UTC-6**.
   - Tower was copied from X: and then **consolidated**: series split or
     duplicated across scanlation groups were merged. X: still holds those
     duplicates.
+  - **X: is frozen** (David, hive #2111): nothing has been added to X: since
+    it was copied to Z: and Z: became the primary. By David's account,
+    everything only on X: is a duplicate or a pre-consolidation copy.
   - David backs up to F: (beside the existing sets) before any move.
-  - The contract is comic **issue #108**: a read-only cross-copy inventory
-    that classifies X-only items as moved, probable superseded duplicate,
-    truly X-only or unresolved. Codex implements it on fixtures; Claude
-    reviews the exact head.
+  - The contract is comic **issue #108**: a read-only cross-copy inventory.
+    Its **headline output** is the X/F → Tower moved-path mapping and the
+    evidence for probable superseded duplicates. The truly-X-only loss list
+    is a confirmation check **expected to be empty**. Items that cannot be
+    decided are reported as unresolved, never as a loss. Codex implements it
+    on fixtures; Claude reviews the exact head.
 
 Next action: Codex's fixture-only #108 implementation and Claude's exact-head
 review. A live inventory run needs separate authorization. No copy, move,
