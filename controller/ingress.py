@@ -17,6 +17,8 @@ posts, is ever parsed: replies go out as `controller`, which is not an admin.
   verifier, then integration by the configured integrator -- issued stage by
   stage by progression. No mention activates several models at once.
 * `@swarm confirm CMD-<id>` (or `@all confirm ...`) turns a draft into a task.
+* `@swarm help` (one line) replies with the whole task format, and every
+  refused task command shows it after the reason (#67).
 * `@Gemini status T-<id>` reports a task. `@Gemini` cannot start new work: a
   review needs something to review, and progression issues it.
 * `@swarm retry T-<id>` asks the controller for another author attempt on a
@@ -91,6 +93,23 @@ MAX_RATIONALE_SHOWN = 600
 
 class IngressRefused(Exception):
     """A command that cannot be acted on, with the reason to show the operator."""
+
+
+def task_template(projects: dict) -> str:
+    """The whole accepted task format, so it is learnt in one reply (#67)."""
+    names = " | ".join(sorted(projects)) or "none configured"
+    return (
+        "A task is several lines (Shift+Enter between them):\n"
+        f"@swarm <title, at most {MAX_TITLE} characters>\n"
+        f"project: <{names}>\n"
+        "base: <full 40-character commit SHA -- not a branch name>\n"
+        "paths: <writable paths, comma-separated>\n"
+        "context: <read-only paths, optional>\n"
+        f"proof: <{' | '.join(PROOF_MODES)}, optional; default {DEFAULT_PROOF}>\n"
+        "\n"
+        "<objective, after one blank line>\n"
+        "Then confirm the preview with `@swarm confirm CMD-<id>`."
+    )
 
 
 # --- Configuration -----------------------------------------------------------
@@ -703,7 +722,16 @@ def handle_message(conn: sqlite3.Connection, *, sender: str, content: str, proje
                 raise IngressRefused("a confirmation is exactly `@swarm confirm CMD-<10 hex>`")
             return confirm(conn, tokens[2], sender=sender, routing=routing, now=now)
 
-        parsed = parse_task_command(text, author=AUTHOR_MENTIONS[mention], projects=projects)
+        # One line, like the lifecycle words: a task titled "help ..." still drafts.
+        if word == "help" and "\n" not in text.strip():
+            return task_template(projects)
+
+        try:
+            parsed = parse_task_command(text, author=AUTHOR_MENTIONS[mention], projects=projects)
+        except IngressRefused as exc:
+            # The specific reason first, then the whole format, so a first-time
+            # operator does not need four round trips to learn it (#67).
+            raise IngressRefused(f"{exc}\n\n{task_template(projects)}") from None
         draft_id = draft_id_for(parsed, sender)
         draft, created = drafts.ensure_draft(conn, parsed, draft_id=draft_id, created_by=sender, now=now)
         return _preview(draft, created, routing, conn)

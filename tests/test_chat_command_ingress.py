@@ -369,3 +369,51 @@ def test_a_title_that_mentions_a_field_name_is_fine_when_the_fields_follow(conn)
 
     assert reply.startswith("Draft CMD-")
     assert "title:       Fix base: handling in the status page" in reply
+
+
+# --- #67: the format is learnt in one reply ------------------------------------
+
+
+def test_help_replies_with_the_whole_template_and_stores_nothing(conn):
+    reply = send(conn, "@swarm help")
+    assert reply.startswith("A task is several lines"), reply      # an answer, not a refusal
+    for part in ("project: <agenthub>", "base: <full 40-character commit SHA", "paths:",
+                 "context:", "proof:", "<objective, after one blank line>", "@swarm confirm CMD-"):
+        assert part in reply, part
+    assert count(conn, "task_drafts") == 0 and count(conn, "tasks") == 0
+
+
+@pytest.mark.parametrize("mention", ["@swarm", "@all", "@ChatGPT", "@ClaudeCode"])
+def test_help_works_on_every_task_mention(conn, mention):
+    assert send(conn, f"{mention} help").startswith("A task is several lines")
+
+
+def test_a_multi_line_task_titled_help_still_drafts(conn):
+    reply = send(conn, COMMAND.replace("@ChatGPT Show stage filters", "@ChatGPT help with stage filters"))
+    assert "CMD-" in reply and count(conn, "task_drafts") == 1
+
+
+@pytest.mark.parametrize("content, reason", [
+    ("@swarm Fix the thing", "`project:` is required"),
+    (COMMAND.replace(f"base: {BASE}", "base: main"), "full 40-character commit SHA"),
+    (COMMAND.replace("project: agenthub", "project: nope"), "unknown project"),
+    ("@swarm " + "x" * 201, "longer than 200"),
+])
+def test_every_task_refusal_shows_the_reason_then_the_template(conn, content, reason):
+    reply = send(conn, content)
+    assert reply.startswith("Not accepted:") and reason in reply
+    assert reply.index(reason) < reply.index("A task is several lines")
+    assert "project: <agenthub>" in reply
+    assert count(conn, "task_drafts") == 0
+
+
+def test_lifecycle_and_confirm_refusals_do_not_carry_the_template(conn):
+    for content in ("@swarm confirm CMD-zz", "@ChatGPT confirm CMD-0123456789", "@Gemini go"):
+        reply = send(conn, content)
+        assert reply.startswith("Not accepted:") and "A task is several lines" not in reply
+
+
+def test_the_template_lists_every_known_project():
+    text = ingress.task_template({"b": "x", "a": "y"})
+    assert "project: <a | b>" in text
+    assert "none configured" in ingress.task_template({})
