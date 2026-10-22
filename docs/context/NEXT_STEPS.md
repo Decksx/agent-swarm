@@ -28,16 +28,26 @@ unregistered, that the CLOSED proof is pending review, and that no real admin
   engineering and preserved.
   - The relay binding still names the old thread, disabled.
   - The [migration proposal](https://github.com/Decksx/agent-swarm/pull/133#issuecomment-6328204971)
-    needs a reviewed driver change before any rebind or new proof. That
-    change includes the explicit reconciliation of `53e110d6` and of
-    pending notice #1854.
+    is implemented on `feat/codex-proof-successor` and awaits review. It
+    retargets the driver and adds a one-time `reconcile-old`. No rebind or new
+    proof happens before that PR is merged.
+  - Pending notices #1854 and #1860 were reconciled by Codex ACKing their
+    current attempts (hive #1868, #1870). Both are delivered, nothing was
+    cancelled, and nothing was replayed.
 - **`@Leads` is observed end to end.** Admin #1834 created one delivery per
   lead, and both were ACKed. Codex's receipt followed David asking it to
   check; it was not an autonomous pickup.
-- **Relay limits, requested by David:** 20/hour and 160/day (#1834), and
-  chain 80 (#1845). They are implemented on `feat/relay-caps-20-160`,
-  **pending review and rollout**. The running relay still enforces 12/100/12
-  until the restart recorded in that PR's receipt.
+- **Relay limits are live: 20/hour, 160/day, chain 80** (David, #1834 and
+  #1845).
+  - #134 was approved at `89b85ff` and merged pinned as `dc565ef`. Main CI
+    run 39690905890 passed.
+  - Relay-only rollout: the checkout moved at 23:09:44Z, and relay **30464**
+    was created at 23:09:47Z. `/relay/status` reports 20/160/80. Deliveries,
+    sessions, wakes (25), attempts (50) and reservations (0) are unchanged.
+  - [Receipt](https://github.com/Decksx/agent-swarm/pull/134#issuecomment-6328602222).
+    Codex verified it independently (hive #1874).
+  - Production is detached at `dc565ef`. Hub build `0833f9ad1bd2` and
+    supervisor 39260 are unchanged.
 
 ## Earlier checkpoint — 2026-10-21 (afternoon)
 
@@ -54,9 +64,8 @@ Relay 34648 and supervisor 39260 are running. See
 delivery has not been observed end to end yet.
 
 - **Relay caps (#126):** only headless launches count, at 12/hour and
-  100/day, with a lead-to-lead chain limit of 12. Live notices are free. The
-  20/160/80 change requested on 2026-10-21 is pending; see the evening
-  checkpoint.
+  100/day, with a lead-to-lead chain limit of 12. Live notices are free. These
+  were raised to 20/160/80 that evening (#134); see the evening checkpoint.
 - **Dashboard (#128):** the chat page has a Relay | Projects | Tasks |
   Completed | Stats panel. Leads keep the board current with
   `lead_chat.py board`.

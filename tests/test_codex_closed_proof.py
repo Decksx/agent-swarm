@@ -58,7 +58,7 @@ class World:
         self.images = {}
         self.disable_works = True
         self.stray = []
-        self.state_path = tmp_path / "codex_closed_proof.json"
+        self.state_path = tmp_path / proof.STATE_NAME
 
     # Env surface
     def now(self):
@@ -152,11 +152,32 @@ class World:
         return json.loads(proof.result_path(self.state_path, "abcd1234").read_text())
 
 
+def retired_proof(tmp_path, monkeypatch):
+    """The cancelled 53e110d6 files as left on the retired thread, with
+    OLD_FILES pointed at these copies' digests."""
+    files = {
+        "codex_closed_proof.json": json.dumps({"proof_id": "53e110d6", "status": "claimed",
+                                               "run_started": 500.0}),
+        "codex_closed_proof.53e110d6.cancelled.txt": "cancelled before enable\n",
+        "codex_closed_proof.53e110d6.log": "driver exit=127\n",
+    }
+    for name, text in files.items():
+        (tmp_path / name).write_text(text)
+    monkeypatch.setattr(proof, "OLD_FILES", {n: proof.sha256(tmp_path / n) for n in files})
+
+
 @pytest.fixture
-def w(tmp_path, monkeypatch):
+def raw(tmp_path, monkeypatch):
+    """A world whose retired proof is not reconciled yet."""
     world = World(tmp_path)
-    monkeypatch.setattr(world, "config", world.config)
+    retired_proof(tmp_path, monkeypatch)
     return world
+
+
+@pytest.fixture
+def w(raw, tmp_path):
+    assert proof.reconcile(raw, tmp_path) == 0
+    return raw
 
 
 def p1(w):
@@ -647,3 +668,148 @@ def test_unrecorded_end_timing_is_never_a_pass(w):
     w.at(1300, lambda: w.sql("UPDATE attempts SET ended_at = NULL WHERE pid = 501"))
     assert proof.run(w, w.state_path) == 1
     assert w.result()["verdict"] == "expired"
+
+
+# --- Successor migration (#133 comment 6328204971): the new thread, and the
+# --- retired proof 53e110d6 reconciled once without being reset or reused.
+
+def test_the_driver_targets_the_verified_successor_literally():
+    assert proof.THREAD == "01a1609d-cd64-7bd1-9880-2b5b488509d4"
+    assert proof.WORKSPACE == r"C:\git\agent-swarm"
+    assert proof.STATE_NAME == "codex_closed_proof.01a1609d.json"
+    assert proof.OLD_PROOF == "53e110d6" and proof.OLD_OWNER == (47792, "134370937802738350")
+    assert proof.OLD_FILES == {
+        "codex_closed_proof.json": "98f4102198abc8bad6a23534ed8787783ca66ec4851008733485fccdc193ab93",
+        "codex_closed_proof.53e110d6.cancelled.txt":
+            "92650ee384da5405c5052bb203d8cbf32aa223b3df6ebc83949d7d07d7f2030a",
+        "codex_closed_proof.53e110d6.log": "df48b98f75f9dce3c021895129a6ae9b3fca1279f364e897bffc68e8e71a25a5",
+    }
+
+
+@pytest.mark.parametrize("session, workspace", [
+    ("01a14068-d723-76a0-a86d-c7d7b34c1b30", r"C:\git\agent-swarm"),          # retired thread
+    ("01a1609d-cd64-7bd1-9880-2b5b488509d4", r"C:\Users\david\Documents\Codex"),  # old workspace
+])
+def test_the_retired_binding_is_refused(w, session, workspace):
+    w.sql("UPDATE sessions SET session_id = ?, workspace = ?", session, workspace)
+    assert any("binding is" in p for p in proof.preflight(w, w.prepare(), enabled=0, closed=True))
+
+
+def old_bytes(w):
+    return {n: (w.state_path.parent / n).read_bytes() for n in proof.OLD_FILES}
+
+
+def test_reconcile_records_once_and_leaves_the_old_files_untouched(raw, tmp_path):
+    before = old_bytes(raw)
+    assert proof.reconcile(raw, tmp_path) == 0
+    receipt = json.loads((tmp_path / proof.RECONCILED).read_text())
+    assert receipt["verdict"] == "cancelled before enable" and receipt["launches"] == 0
+    assert receipt["result"] is None and receipt["files"] == proof.OLD_FILES
+    assert old_bytes(raw) == before
+    first = (tmp_path / proof.RECONCILED).read_bytes()
+    assert proof.reconcile(raw, tmp_path) == 1                     # never twice
+    assert (tmp_path / proof.RECONCILED).read_bytes() == first
+    assert json.loads((tmp_path / "codex_closed_proof.json").read_text())["status"] == "claimed"
+
+
+@pytest.mark.parametrize("spoil, why", [
+    ("changed", "is missing or changed"),
+    ("owner", "old driver pid 47792 is still running"),
+    ("status", "old state is"),
+    ("result", "has a result file"),
+    ("launch", "attempts launched since"),
+    ("enabled", "not registered disabled"),
+    ("reservation", "has a reservation"),
+])
+def test_reconcile_refuses_unless_the_old_proof_is_really_closed(raw, tmp_path, monkeypatch, spoil, why):
+    if spoil == "changed":
+        (tmp_path / "codex_closed_proof.53e110d6.log").write_text("edited\n")
+    elif spoil == "owner":
+        raw.processes.alive[47792] = "134370937802738350"
+    elif spoil == "status":
+        state = tmp_path / "codex_closed_proof.json"
+        state.write_text(json.dumps({"proof_id": "53e110d6", "status": "finished", "run_started": 500.0}))
+        monkeypatch.setitem(proof.OLD_FILES, "codex_closed_proof.json", proof.sha256(state))
+    elif spoil == "result":
+        proof.result_path(tmp_path / "codex_closed_proof.json", "53e110d6").write_text("{}")
+    elif spoil == "launch":
+        raw.launch(99, 900)
+    elif spoil == "enabled":
+        raw.sql("UPDATE sessions SET enabled = 1")
+    else:
+        raw.sql("INSERT INTO reservations VALUES ('codex:x', 'codex-lead', 'a', 0)")
+    assert proof.reconcile(raw, tmp_path) == 1
+    assert why in raw.lines[-1] and not (tmp_path / proof.RECONCILED).exists()
+
+
+def test_a_live_old_driver_lock_blocks_reconcile(raw, tmp_path):
+    lock = str(tmp_path / "codex_closed_proof.json.lock")
+    child = subprocess.Popen([sys.executable, "-c", HOLDER.format(repo=str(proof.HERE), lock=lock)],
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    try:
+        assert child.stdout.readline().strip() == "held"
+        assert proof.reconcile(raw, tmp_path) == 1
+        assert "holds the old proof's lock" in raw.lines[-1]
+    finally:
+        child.stdin.close()
+        child.wait(10)
+
+
+def test_prepare_refuses_until_the_old_proof_is_reconciled(raw):
+    assert proof.prepare(raw, raw.state_path, raw.cli, proof.sha256(raw.cli_file),
+                         proof.sha256(raw.config)) == 1
+    assert "is not reconciled" in raw.lines[-1] and not raw.state_path.exists()
+
+
+@pytest.mark.parametrize("spoil", ["file", "owner", "receipt"])
+def test_prepare_refuses_if_the_reconciled_proof_changes_afterwards(w, tmp_path, spoil):
+    if spoil == "file":
+        (tmp_path / "codex_closed_proof.53e110d6.cancelled.txt").write_text("rewritten\n")
+    elif spoil == "owner":
+        w.processes.alive[47792] = "134370937802738350"
+    else:
+        r = tmp_path / proof.RECONCILED
+        body = json.loads(r.read_text()); body["files"]["codex_closed_proof.json"] = "0" * 64
+        r.write_text(json.dumps(body))
+    assert proof.prepare(w, w.state_path, w.cli, proof.sha256(w.cli_file), proof.sha256(w.config)) == 1
+    assert not w.state_path.exists()
+
+
+def test_the_cli_uses_the_successor_state_file(tmp_path):
+    db = tmp_path / "lead_relay.db"
+    sqlite3.connect(db).executescript(lead_relay.SCHEMA)
+    assert proof.main(["--db", str(db), "prepare", "--cli", "x", "--cli-sha256", "0", "--config-sha256", "0"]) == 1
+    assert (tmp_path / (proof.STATE_NAME + ".lock")).exists()
+    assert not (tmp_path / "codex_closed_proof.json.lock").exists()
+
+
+def test_a_receipt_that_appears_mid_reconcile_is_never_overwritten(raw, tmp_path, monkeypatch):
+    """The existence check and the write are separate steps; the exclusive
+    create is what keeps a receipt that appears between them."""
+    receipt = tmp_path / proof.RECONCILED
+    receipt.write_text('{"verdict": "earlier"}')
+    real = proof.Path.exists
+    monkeypatch.setattr(proof.Path, "exists", lambda self: False if self == receipt else real(self))
+    assert proof.reconcile(raw, tmp_path) == 1
+    assert receipt.read_text() == '{"verdict": "earlier"}' and "appeared" in raw.lines[-1]
+
+
+@pytest.mark.parametrize("created, launched, ended", [
+    (499.0, 501.0, 502.0),     # Codex's case: row created before the old run, launched in it
+    (400.0, 450.0, 600.0),     # launched before the old run and still running into it
+    (400.0, 450.0, None),      # launched before and never recorded as ended
+])
+def test_reconcile_sees_any_launch_that_overlapped_the_old_run(raw, tmp_path, created, launched, ended):
+    raw.sql("INSERT INTO attempts (attempt_id, message_id, recipient, token, path, state, created_at, "
+            "launched_at, ended_at, pid, proc_start, backend) VALUES "
+            "('x', 99, 'codex-lead', 'tok-x', 'headless', 'exited', ?, ?, ?, 1, 's1', 'codex')",
+            created, launched, ended)
+    assert proof.reconcile(raw, tmp_path) == 1
+    assert "attempts launched since" in raw.lines[-1] and not (tmp_path / proof.RECONCILED).exists()
+
+
+def test_reconcile_ignores_launches_that_ended_before_the_old_run(raw, tmp_path):
+    raw.sql("INSERT INTO attempts (attempt_id, message_id, recipient, token, path, state, created_at, "
+            "launched_at, ended_at, pid, proc_start, backend) VALUES "
+            "('x', 99, 'codex-lead', 'tok-x', 'headless', 'done', 100, 110, 200, 1, 's1', 'codex')")
+    assert proof.reconcile(raw, tmp_path) == 0

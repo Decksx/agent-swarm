@@ -19,8 +19,8 @@ covers:
 - the Codex lead migrated to thread `01a1609d`, with the driver migration
   pending review;
 - `@Leads` observed end to end;
-- relay limits of 20/hour, 160/day and chain 80, requested and implemented,
-  pending review and rollout.
+- relay limits of 20/hour, 160/day and chain 80, **live** since #134's
+  relay-only rollout (relay 30464, production `dc565ef`).
 
 **Afternoon, 2026-10-21:**
 
