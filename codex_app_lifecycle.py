@@ -82,7 +82,7 @@ class Host:
         rows = json.loads(out) if out else []
         return rows if isinstance(rows, list) else [rows]
 
-    def rm_shutdown(self, pid: int, created: str, dry_run: bool = False) -> dict:
+    def rm_shutdown(self, pid: int, created: str, dry_run: bool = False, last_check=None) -> dict:
         """One Restart Manager session for exactly this process. RmGetList must
         show only it, with no reboot reason, before RmShutdown(flags=0): never
         RmForceShutdown, never RmRestart. The session always ends."""
@@ -126,6 +126,11 @@ class Host:
                 return dict(stage="list", rc=None, problem=problem, affected=affected)
             if dry_run:
                 return dict(stage="list", rc=0, affected=affected, reasons=reasons.value)
+            # The last word, at the shutdown boundary itself: work that started
+            # during the identity check or the list stops it (Codex, 18a7b6b).
+            why = last_check() if last_check else None
+            if why:
+                return dict(stage="list", rc=None, problem=why, affected=affected)
             rc = rm.RmShutdown(session, 0, None)          # 0: never RmForceShutdown
             return dict(stage="shutdown", rc=rc, affected=affected)
         finally:
@@ -276,7 +281,18 @@ def close(host) -> int:
     if again != main or not host.processes.is_same(main["pid"], main["created"]):
         host.say(f"REFUSED: the app is no longer the one checked ({again}); app left as is")
         return 1
-    out = host.rm_shutdown(main["pid"], main["created"])
+    def last_check() -> Optional[str]:
+        try:
+            busy = live_turns(host)
+        except Exception as exc:  # noqa: BLE001 -- unreadable is not idle
+            return f"cannot read Codex's turns ({type(exc).__name__}: {exc})"
+        if busy:
+            return f"turns started before shutdown: {busy}"
+        if not host.processes.is_same(main["pid"], main["created"]):
+            return f"pid {main['pid']} is no longer the app"
+        return None
+
+    out = host.rm_shutdown(main["pid"], main["created"], last_check=last_check)
     if out.get("problem"):
         host.say(f"REFUSED before shutdown: {out['problem']}; app left open")
         return 1

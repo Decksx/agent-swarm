@@ -38,6 +38,7 @@ class FakeHost:
         self.server = r"C:\codex\bin\x\codex.exe"
         self.turns = [dict(thread_id=SUCCESSOR, turn_id="t-done", status="completed")]
         self.rm_calls, self.rm_result = [], None
+        self.during_list, self.shutdowns = None, 0
         self.launches = []
         self.own = "closed"
         self.cli_hash = HASH
@@ -75,11 +76,18 @@ class FakeHost:
     def file_sha256(self, path):
         return self.cli_hash
 
-    def rm_shutdown(self, pid, created, dry_run=False):
+    def rm_shutdown(self, pid, created, dry_run=False, last_check=None):
         self.rm_calls.append((pid, created, dry_run))
+        if self.during_list:
+            self.during_list()                  # something happens while the list is read
         if self.rm_result is not None:
             return self.rm_result
+        if not dry_run and last_check:
+            why = last_check()
+            if why:
+                return dict(stage="list", rc=None, problem=why, affected=[])
         if not dry_run:                         # the app agrees and exits
+            self.shutdowns += 1
             self.at(self.t + 6, self.quit_app)
         return dict(stage="shutdown", rc=0, affected=[])
 
@@ -439,3 +447,46 @@ def test_reopen_reports_an_app_that_never_comes_up(h):
     h.launch = lambda cli, ws: h.launches.append((cli, ws)) or 1
     assert life.reopen(h, HASH, None) == 1
     assert "no desktop app-server" in h.lines[-1]
+
+
+# --- Codex, local 18a7b6b: live work is rechecked at the shutdown boundary --------
+
+def busy(h):
+    h.turns = [dict(thread_id=SUCCESSOR, turn_id="sneaky", status="inProgress")]
+
+
+def test_work_that_starts_during_the_identity_check_stops_the_shutdown(h):
+    real = h.processes_list
+    calls = []
+
+    def listing():
+        calls.append(1)
+        if len(calls) == 2:          # the recheck right before the request
+            busy(h)
+        return real()
+    h.processes_list = listing
+    assert life.close(h) == 1
+    assert h.shutdowns == 0 and 100 in h.processes.alive
+    assert "turns started before shutdown" in h.lines[-1]
+
+
+@pytest.mark.parametrize("event, why", [
+    (busy, "turns started before shutdown"),
+    (lambda h: setattr(h, "turns", sqlite3.OperationalError("locked")), "cannot read Codex's turns"),
+    (lambda h: setattr(h, "turns", [dict(thread_id=SUCCESSOR, turn_id="t", status="paused")]),
+     "cannot read Codex's turns"),
+    (lambda h: h.processes.alive.__setitem__(100, "9999"), "no longer the app"),
+])
+def test_anything_changing_during_the_rm_list_stops_the_shutdown(h, event, why):
+    h.during_list = lambda: event(h)
+    assert life.close(h) == 1
+    assert h.shutdowns == 0 and why in h.lines[-1]
+
+
+def test_the_real_rm_path_runs_the_last_check_before_shutdown(monkeypatch):
+    rm = FakeRm([(48052, TICKS, 1, "")])
+    out = real_host_with(monkeypatch, rm).rm_shutdown(48052, str(TICKS),
+                                                      last_check=lambda: "turns started")
+    assert out["problem"] == "turns started"
+    assert ("list",) in rm.calls and not any(c[0] == "shutdown" for c in rm.calls)
+    assert rm.calls[-1] == ("end", 7)

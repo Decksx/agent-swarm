@@ -52,6 +52,7 @@ class World:
         self.config = tmp_path / "config.toml"
         self.config.write_text("sandbox_mode = 'x'\n")
         self.t, self.events, self.lines, self.posts = 1000.0, [], [], []
+        self.post_state = {}       # "ready" / "probe2" -> receipt state; default confirmed
         self.processes, self.backend = Procs(), Backend()
         self.backend.cli = self.cli
         self.app = None
@@ -85,7 +86,8 @@ class World:
 
     def post(self, text):
         self.posts.append((self.t, text))
-        return "#9002"
+        kind = "ready" if text.startswith("STATUS @admin") else "probe2"
+        return dict(state=self.post_state.get(kind, "confirmed"), message_id=9002, detail="")
 
     def statuses(self, since):
         return [{"id": 9003, "content": "STATUS thread 01a14068 workspace ok"}]
@@ -854,3 +856,27 @@ def test_no_ready_post_when_the_enable_does_not_take(w):
     w.relay_cli = lambda command, flag, lead: (1, "refused") if command == "enable" else (0, "ok")
     proof.run(w, w.state_path)
     assert ready_posts(w) == []
+
+
+# --- Codex, local 18a7b6b: an unconfirmed post is never treated as sent -----------
+
+@pytest.mark.parametrize("state", ["unconfirmed", "mismatch"])
+def test_an_unconfirmed_readiness_notice_fails_and_disables_without_resending(w, state):
+    w.prepare()
+    w.post_state["ready"] = state
+    happy(w)
+    assert proof.run(w, w.state_path) == 1
+    r = w.result()
+    assert r["verdict"] == "failed" and "readiness notice was not confirmed" in " ".join(r["why"])
+    assert len(ready_posts(w)) == 1 and r["ready_posted"]["state"] == state
+    assert w.enabled() == 0
+
+
+def test_an_unconfirmed_probe2_post_fails_without_resending(w):
+    w.prepare()
+    w.post_state["probe2"] = "unconfirmed"
+    happy(w)
+    assert proof.run(w, w.state_path) == 1
+    r = w.result()
+    assert "probe2 post not confirmed" in " ".join(r["why"]) and len(probe2_posts(w)) == 1
+    assert w.enabled() == 0
