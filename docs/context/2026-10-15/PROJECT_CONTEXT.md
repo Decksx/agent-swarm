@@ -1,6 +1,94 @@
 # Agent Swarm imported project context
 
-## Current state — 2026-10-22 (night)
+## Current state — 2026-10-23
+
+This supersedes the 2026-10-22 night section below on comic progress and the
+naming contract. Times are **UTC-6**.
+
+- **Day start.** David asked to resume everything (terminal, and hive #2272
+  and #2279). Claude re-enabled codex-lead, re-armed the hive watcher and
+  sent the #117 HANDOFF (#2274). Relay pid 16816 and the caps (60/500/200)
+  are unchanged.
+- **Comic merges, all pinned to approved exact heads with green exact-head
+  CI:**
+
+  | PR | Time | Merge | What |
+  |---|---|---|---|
+  | #117 | 09:55 | `a18000c8` | content-signature re-certify tool (plan/apply/postflight, backup-WAL window). Production run is **operator-gated** |
+  | #118 | 10:11 | `4d0b4cb2` | #112 §6 step 3A: the canonical formatter as a pure fixpoint (`scripts/cbz_canonical_name.py`) |
+  | #121 | 12:08 | `12e34157` | step 3B: watcher and sanitizer converge on the formatter |
+  | #119 | 12:13 | `e7f1724f` | step 4: read-only field resolution and version-family evidence (`comic_automation/archive/field_resolution.py`) |
+
+  Tree identity:
+  - #117, #118 and #121: each merge tree equals its approved head tree.
+  - #119: master had moved (after #121), so Claude tested the combined tree
+    first, **3230 passed / 8 skipped**, and the merge tree `b750bda3` equals
+    that tested tree.
+- **#118 contract.** Codex accepted the nine design-silent choices. They are
+  recorded in the PR #118 body:
+  - the special word goes straight after the series;
+  - an ambiguous series is refused, not rewritten;
+  - the cap is 200 UTF-16 units;
+  - fraction digits are kept verbatim;
+  - unlisted bracket text stays in the series;
+  - collision checks use `casefold`;
+  - checking the full path length is the caller's job.
+- **#121 contract.** It applies to new arrivals only, and takes effect only
+  when the watcher is **deployed**, which is operator-gated. Three review
+  rounds; Claude's own probe added the third rule below:
+  - **Formatter refusals.** A refused name becomes an explicit
+    `FallbackRefused`: the arrival keeps its name and is deferred in import
+    for review, never given a substitute name.
+  - **AI-decensor originals** are completed **per archive**. An original
+    is offloaded only after its own archive left import, never because a
+    sibling landed.
+  - **Collision key.** Years and cosmetic number padding are ignored, so
+    existing year-less and unpadded names still meet. `[vN]` and edition
+    tokens stay distinct.
+  - **Still open:** the standalone `cbz_sanitizer.py` cleaner is deferred.
+    This PR is shared-core/watcher convergence only.
+- **#119 contract.** Five review rounds; Codex found real gaps in each.
+  - **Templates.** An edited injected template does not promote
+    filename-injected Series, Number or Volume.
+  - **Human decisions.** Conflicts persist; they block readiness, `v<N>`
+    classification and the family.
+  - **Editions and languages.** LanguageISO and #118's `EDITION_WORDS` are
+    family identity.
+  - **Page evidence.** Empty or missing digests, row-count mismatches and
+    non-contiguous indexes are incomparable.
+  - **Spelling.** It is kept per token occurrence.
+  - **Special and collection markers.** They are work identity, placed by
+    occurrence against the decided title, and an unplaceable marker run goes
+    to review.
+  - **Canonical names** give filename-grade slot candidates, never
+    authority.
+  - **Unknown tags.** Differing ones refuse the family (Codex-confirmed
+    conservative policy: a false-negative cost, not deletion evidence).
+  - **Retained ambiguity (Codex ruling):** canonical `v01` alongside `[vN]`
+    stays in review. The grammar supplies candidates, not §3.2
+    classification authority.
+  - **Test matrix.** 9720 formatter combinations, of which 5346 are
+    accepted: exhaustive token recovery, every special/edition variant
+    refused against the plain name, identical markers establish.
+- **Filed:** comic #120. `parse_comic_name` raises on multi-dot chapter
+  numbers (`Ch. 1.2.3`), and the watcher's per-file loop catches only
+  `AiDecensorError`.
+
+Next actions, in order:
+1. A test-only PR adding Codex's two non-blocking #119 witnesses.
+2. #112 §6 step 5: the read-only re-derivation and supersession evaluator,
+   bound to strong identities (§4.1, §4.3–4.6).
+3. **Awaiting David:**
+   - square-bracket edition and special words (`[English]`, `[Colored]`,
+     `(Omnibus)`), which are still dropped;
+   - two read-only Tower name scans;
+   - deploying the watcher, and every rebuild, re-certify, re-inventory or
+     deploy.
+
+No copy, move, rename, rebuild, re-certify, deploy or activation is
+authorized by this record.
+
+## Earlier state — 2026-10-22 (night)
 
 This supersedes the evening section below on comic progress, relay caps and
 the #111 decisions. Times are **UTC-6**.
