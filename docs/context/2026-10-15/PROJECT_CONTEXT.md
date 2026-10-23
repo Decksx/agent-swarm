@@ -24,30 +24,51 @@ naming contract. Times are **UTC-6**.
   - #119: master had moved (after #121), so Claude tested the combined tree
     first, **3230 passed / 8 skipped**, and the merge tree `b750bda3` equals
     that tested tree.
-- **#118 contract.** Codex accepted the nine design-silent choices. They are
-  recorded in the PR #118 body:
+- **#118 contract.** Codex accepted the nine design-silent choices, with
+  their dispositions, in the
+  [#118 approval](https://github.com/Decksx/cbz-automation-suite/pull/118#issuecomment-6369311570).
+  The proposals are in the PR body. They include:
   - the special word goes straight after the series;
   - an ambiguous series is refused, not rewritten;
   - the cap is 200 UTF-16 units;
   - fraction digits are kept verbatim;
-  - unlisted bracket text stays in the series;
   - collision checks use `casefold`;
   - checking the full path length is the caller's job.
-- **#121 contract.** It applies to new arrivals only, and takes effect only
-  when the watcher is **deployed**, which is operator-gated. Three review
-  rounds; Claude's own probe added the third rule below:
+
+  **Unlisted bracket text staying in the series** (choice 7) was accepted
+  **only for the pure helper, given already-resolved display text**. The
+  upstream resolver and integration must still distinguish source and
+  scanlator tags and remove them under David's policy. It does not authorize
+  keeping every uploader tag as a canonical title.
+- **#121 contract.** It is **arrival-triggered**, display integration on the
+  watcher's arrival path, and takes effect only when the watcher is
+  **deployed**, which is operator-gated. It is **not** a bulk canonical
+  rename. Two limits:
+  - **Backfill.** The existing `_backfill_chapter_one` path can still rename
+    one earlier library archive when a later chapter arrives, as before;
+    only its target spelling changed.
+  - **Shared cleaners.** The `cbz_core` fixpoint change affects inputs that
+    a single pass did not settle, in every caller of the shared cleaners.
+    The bracket policy and already-stable inputs are unchanged.
+
+  Three changes-requested rounds, all Codex findings, then approval at
+  `ae11f78`:
   - **Formatter refusals.** A refused name becomes an explicit
     `FallbackRefused`: the arrival keeps its name and is deferred in import
     for review, never given a substitute name.
-  - **AI-decensor originals** are completed **per archive**. An original
-    is offloaded only after its own archive left import, never because a
-    sibling landed.
   - **Collision key.** Years and cosmetic number padding are ignored, so
     existing year-less and unpadded names still meet. `[vN]` and edition
     tokens stay distinct.
+  - **AI-decensor originals** are completed **per archive**. An original
+    is offloaded only after its own archive left import, never because a
+    sibling landed.
+
+  (Claude's verification added only the year-in-collision-key change, before
+  the first review.)
   - **Still open:** the standalone `cbz_sanitizer.py` cleaner is deferred.
     This PR is shared-core/watcher convergence only.
-- **#119 contract.** Five review rounds; Codex found real gaps in each.
+- **#119 contract.** Five changes-requested rounds, each a real gap found by
+  Codex, followed by approval at the sixth review (`774bf14`).
   - **Templates.** An edited injected template does not promote
     filename-injected Series, Number or Volume.
   - **Human decisions.** Conflicts persist; they block readiness, `v<N>`
@@ -67,15 +88,23 @@ naming contract. Times are **UTC-6**.
   - **Retained ambiguity (Codex ruling):** canonical `v01` alongside `[vN]`
     stays in review. The grammar supplies candidates, not §3.2
     classification authority.
-  - **Test matrix.** 9720 formatter combinations, of which 5346 are
-    accepted: exhaustive token recovery, every special/edition variant
-    refused against the plain name, identical markers establish.
+  - **Test matrix.** Of 9720 formatter combinations, 5346 are accepted.
+    The other 4374 are counted formatter refusals, not pytest skips.
+    - Token recovery is exhaustive.
+    - Every special or edition variant is refused against the plain name
+      (5280 pairs).
+    - Identical-marker pairs establish a family, **with pinned exceptions:**
+      - 486 identical pairs for the empty-key titles Uncensored/Decensored
+        are refused;
+      - 729 volume+issue pairs establish a family but stay unrenamable
+        (1458 archive results), under the retained ambiguity rule above.
 - **Filed:** comic #120. `parse_comic_name` raises on multi-dot chapter
   numbers (`Ch. 1.2.3`), and the watcher's per-file loop catches only
   `AiDecensorError`.
 
 Next actions, in order:
-1. A test-only PR adding Codex's two non-blocking #119 witnesses.
+1. A test-only PR adding Codex's two non-blocking #119 witnesses (comic
+   #122).
 2. #112 §6 step 5: the read-only re-derivation and supersession evaluator,
    bound to strong identities (§4.1, §4.3–4.6).
 3. **Awaiting David:**
