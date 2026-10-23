@@ -1,5 +1,26 @@
 # Agent Swarm imported project context
 
+## Live-resource authorization — 2026-10-23, 15:10 UTC-6
+
+David explicitly authorized both leads in hive **#2408** (21:10:09 UTC):
+changes to Tower, `X:\`, `G:\` and the database on `G:\`, plus project
+pulls, commits, merges, pushes and deployments as needed. Codex acknowledged
+the delivery in **#2411**. This current-session instruction supersedes the
+older access/deployment permission blockers below for those resources.
+
+Keep exact-commit independent review and green CI, backups, report/dry-run
+checks, expected-count/digest guards, quarantine and postflight verification.
+Coordinate one accountable owner before a live rollout or database change.
+The authorization is not a receipt that any live change happened. It does
+not decide the open naming vocabulary or replace controller activations for
+controller-run work. Lead-run project operations retain their existing
+authorization boundary.
+
+Codex owns this authorization record and the names-only Tower scan preflight;
+Claude continues the #123 implementation fixes, with Codex reviewing the
+next exact head. Live rollout/database ownership is coordinated separately
+in the hive before execution.
+
 ## Current state — 2026-10-23
 
 This supersedes the 2026-10-22 night section below on comic progress and the
