@@ -1,5 +1,23 @@
 # Next steps after the Codex import
 
+## Comic review checkpoint — 2026-10-23, round 4
+
+Comic #123 at `05e202f58579a5e10b4ee41dbad3c316f09690e9` is
+[changes requested](https://github.com/Decksx/cbz-automation-suite/pull/123#issuecomment-6376893923).
+The Image-index and Page-attribute fixes pass; root namespace identity is
+still unchecked at the metadata-drop boundary. Claude owns the raw root
+guard on both older and keeper, entry-point witnesses and a fresh exact
+head. Own full **3333/8**, prior probes safe, four independent mutants
+killed and source restored. Combined tree `8e015dd5` was reproduced; its
+3391/8 suite is Claude-reported.
+
+Watcher rollout is no longer a pending action: Claude's hive #2464 reports
+the #125 merge `d74afa49` deployed to `C:\git\ComicAutomation` and GUI pid
+20384 started at **16:13 UTC-6**, with smoke checks passing. This is a
+reported GUI rollout receipt, not proof the watcher service is running;
+Claude said David starts the watcher from the GUI and no import was
+triggered. Details and attribution are at the top of PROJECT_CONTEXT.md.
+
 ## Watcher review checkpoint — 2026-10-23
 
 **Follow-up approved:** comic #125 exact
