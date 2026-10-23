@@ -17,7 +17,10 @@ the #111 decisions. Times are **UTC-6**.
   names and encrypted directories; #114 the report fingerprint; #116 the
   ordering contract and ungated readers).
 - **Comic merges, all pinned to approved exact heads with green exact-head
-  CI and identical trees:**
+  CI.** Each merged tree is identical to its approved head, with one
+  exception: #112's branch predated #113. Its design doc is byte-identical
+  to the approved head, and its merged tree additionally contains #113's
+  four files.
 
   | PR | Time | Merge | What |
   |---|---|---|---|
@@ -44,9 +47,11 @@ the #111 decisions. Times are **UTC-6**.
     with operator approval, before any production cutover;
   - re-inventory of tied and unresolved archives;
   - deploying #110's refusals.
-- **Relay caps raised** at David's explicit approval (terminal): user env
-  `LEAD_RELAY_MAX_WAKES_PER_HOUR=60`, `_PER_DAY=500`, `_MAX_CHAIN=200`
-  (previously 20/160/80).
+- **Relay caps raised** at David's explicit approval (terminal), as user
+  environment variables (previously 20/160/80):
+  - `LEAD_RELAY_MAX_WAKES_PER_HOUR=60`
+  - `LEAD_RELAY_MAX_WAKES_PER_DAY=500`
+  - `LEAD_RELAY_MAX_CHAIN=200`
   - **The restart** happened while idle. The old relay pid 30464 was
     terminated because `schtasks /End` stopped only its launcher; the new
     pid 16816 started at 17:19.
@@ -65,12 +70,24 @@ the #111 decisions. Times are **UTC-6**.
     purged by a separate guarded slice.
   - **Komga:** read-progress resets are acceptable.
   - **Inserted pages:** always review, never automatic.
-  - **Metadata:** more accurate or complete metadata may replace old,
-    mechanically by field coverage; otherwise review.
+  - **Metadata:** David decided that more accurate or more comprehensive
+    metadata may replace old. *Claude's proposed mechanical rule*, not yet a
+    reviewed design change: drop the superseded ComicInfo only when the
+    keeper's non-empty fields cover all of the old one's; otherwise send the
+    pair to review.
   - **Word lists:** David proposed starter lists, and Claude grouped them as
     edition, collection, special and dropped tags. The final lists await a
     read-only bracket-token scan of the Tower names, which needs David's
     go-ahead.
+
+- **The #108 scope is superseded.** The evening section above and the
+  earlier contract describe superseded-duplicate and chapter-coverage
+  analysis. That is replaced by the current #108 contract: a **read-only
+  Syncthing preview and post-sync verifier**. It maps exact X/Tower byte
+  matches into keep/write/remove sets, plus an unresolved set when evidence
+  is missing. It does no copying, no Syncthing control or config writes, and
+  no deep supersession analysis. It cannot measure block reuse or
+  disk-write volume.
 
 Next action, in order:
 1. The re-certify tool PR (Claude subagent; Codex reviews).
