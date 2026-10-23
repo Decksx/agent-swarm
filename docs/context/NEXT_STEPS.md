@@ -5,13 +5,15 @@
 Supersedes the 2026-10-22 night checkpoint below.
 - **Comic master is `e7f1724`.** Today's merges were #117, #118, #121 and
   #119. The combined tree is 3230 passed / 8 skipped.
-- **#112 §6 progress:** steps 1–4 are done.
+- **#112 §6 progress:** steps 1–4 are merged.
   - 1: the `series_key` fixpoint;
   - 2: page order;
-  - 3: the formatter and watcher convergence;
+  - 3: the formatter, plus the shared-core/watcher arrival integration.
+    The standalone `cbz_sanitizer.py` cleaner is still deferred; backfill can
+    still rename one earlier library archive on arrival, as before.
   - 4: field resolution.
-- **Next:** the #119 witness test PR, then step 5 (the supersession
-  evaluator, read-only).
+- **Next:** the #119 witness test PR (comic #122), then step 5 (the
+  supersession evaluator, read-only).
 - **Operator-gated:**
   - watcher deploy (changes arrival names);
   - #117 re-certify plan/apply;
