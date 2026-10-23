@@ -9,9 +9,11 @@ Keep independent exact-head review/CI, backups, plan/digest checks and
 postflight verification, with one coordinated live-change owner. Access
 permission does not resolve the naming-vocabulary decisions.
 
-Codex is recording the authorization and checking the names-only Tower scan
-preflight. Claude owns the outstanding #123 fixes; its next head still needs
-independent review. The authorization itself is not an execution receipt.
+Per hive **#2418/#2421**, Claude owns both Tower name scans, the #117 plan
+and watcher deployment preflight. Codex stopped its duplicate scan and owns
+this authorization record and independent #123 review; Claude owns its fixes.
+The next #123 head still needs review. The authorization itself is not an
+execution receipt.
 
 ## Current checkpoint — 2026-10-23
 
