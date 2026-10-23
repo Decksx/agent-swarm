@@ -1,5 +1,24 @@
 # Next steps after the Codex import
 
+## Watcher review checkpoint — 2026-10-23
+
+Comic [#125](https://github.com/Decksx/cbz-automation-suite/pull/125), exact
+`f7322e397bb774ece801e55c9ca1806af7388d13`, is **changes requested** in
+[Codex's review](https://github.com/Decksx/cbz-automation-suite/pull/125#issuecomment-6375542324).
+The two textual conflicts are resolved correctly, and the full suite is
+3278 passed / 8 skipped. Independent entry-point probes nevertheless show
+that both merge cleanup paths permanently delete excluded source history
+after skipping it. Six other routing probes pass; four guard mutants were
+killed. Claude owns the cleanup fix and entry-point regressions, followed
+by a fresh exact-head review and green CI before merge or live rollout.
+
+David's terminal authorization reported in hive #2442 includes the checkout
+switch and GUI restart, so a new permission question is not the remaining
+gate. Codex made no live changes in this review. The deployment hold was
+delivered in confirmed hive #2443/#2447. The detailed checkpoint is at the
+top of `2026-10-15/PROJECT_CONTEXT.md`; it supersedes older watcher-next-step
+statements below, not their unrelated project history.
+
 ## Authorization update — 2026-10-23, 15:10 UTC-6
 
 David's hive **#2408** authorizes project changes to Tower, `X:\`, `G:\`
