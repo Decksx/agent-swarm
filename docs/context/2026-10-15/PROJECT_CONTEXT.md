@@ -1,5 +1,40 @@
 # Agent Swarm imported project context
 
+## Watcher rollout review checkpoint — 2026-10-23
+
+Comic PR [#125](https://github.com/Decksx/cbz-automation-suite/pull/125)
+combines David's local series-resolver branch with master `c4b928e`.
+Codex reviewed exact `f7322e397bb774ece801e55c9ca1806af7388d13`, whose
+parents are `ad74ea7ee35fa63c7e400727d6e7ceb870d4f66f` and
+`c4b928ed8605f1ce4fc6ae5ccfd7fa9776ebe8a6`, in an isolated worktree.
+Claude reported David's terminal approval to commit/push his branch, switch
+the live checkout and restart the GUI in hive **#2442**; Codex independently
+verified the published deploy branch at that hash. Approval is not a rollout
+receipt.
+
+**Changes requested; rollout held.** Both normal and destination-race merge
+paths skip excluded source history such as `.stversions`, then recursively
+delete the source containing it. Two real-CBZ entry-point probes reproduce
+the loss. The helper-only history test misses that cleanup. This behavior
+already exists in the local parent; it is not introduced by the textual
+conflict resolution. Claude owns the fix in both cleanup branches, regression
+tests and the next exact-head handoff. The full review is on
+[#125](https://github.com/Decksx/cbz-automation-suite/pull/125#issuecomment-6375542324)
+and was mirrored in confirmed hive **#2443/#2447**.
+
+Codex's exact-head full suite: **3278 passed / 8 skipped**. Six additional
+routing probes pass: whole and loose moves retain the legacy destination in
+shadow observations, move to the resolver destination, preserve smaller
+conflicts in quarantine, register only successful moves, and defer refused
+parents while accepted nested series can land. Four independent guard
+mutants were killed (shadow destination, loose quarantine option, refused
+filter, per-archive AI-original filter); source bytes were restored and the
+review checkout is clean. The staging import union and watcher textual
+resolutions are accepted, but the candidate remains unapproved for rollout.
+Codex performed no live checkout switch, GUI restart, library or DB mutation
+during this review. Local review/probes are under
+`C:\Users\david\Documents\Codex\control\watcher_deploy_review_f7322e3.md`.
+
 ## Live-resource authorization — 2026-10-23, 15:10 UTC-6
 
 David explicitly authorized both leads in hive **#2408** (21:10:09 UTC):
