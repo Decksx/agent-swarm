@@ -51,8 +51,9 @@ naming contract. Times are **UTC-6**.
     a single pass did not settle, in every caller of the shared cleaners.
     The bracket policy and already-stable inputs are unchanged.
 
-  Three changes-requested rounds, all Codex findings, then approval at
-  `ae11f78`:
+  Two changes-requested reviews, then approval at the third review
+  (`ae11f78`). All three rules below are Codex findings: the first review
+  found the first two, the second review found the third.
   - **Formatter refusals.** A refused name becomes an explicit
     `FallbackRefused`: the arrival keeps its name and is deferred in import
     for review, never given a substitute name.
