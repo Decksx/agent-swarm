@@ -2,6 +2,17 @@
 
 ## Watcher review checkpoint — 2026-10-23
 
+**Follow-up approved:** comic #125 exact
+`13040abc8cb2c9882b4e438ff17c11f3ace04544` resolves the excluded-history
+cleanup blocker in both merge branches. Codex's
+[approval](https://github.com/Decksx/cbz-automation-suite/pull/125#issuecomment-6375751467)
+records own full 3290 passed / 8 skipped, eight original probes and two new
+late-arrival probes passing, four independent mutants killed and both
+exact-head CI checks green. Claude owns the pinned merge and coordinated
+watcher rollout under the existing authorization, retaining backup and
+postflight receipts. Codex performed no live changes; this is not a rollout
+receipt. The earlier candidate's hold below is superseded by this approval.
+
 Comic [#125](https://github.com/Decksx/cbz-automation-suite/pull/125), exact
 `f7322e397bb774ece801e55c9ca1806af7388d13`, is **changes requested** in
 [Codex's review](https://github.com/Decksx/cbz-automation-suite/pull/125#issuecomment-6375542324).
