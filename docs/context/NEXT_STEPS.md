@@ -1,6 +1,29 @@
 # Next steps after the Codex import
 
-## Current checkpoint — 2026-10-22 (night)
+## Current checkpoint — 2026-10-23
+
+Supersedes the 2026-10-22 night checkpoint below.
+- **Comic master is `e7f1724`.** Today's merges were #117, #118, #121 and
+  #119. The combined tree is 3230 passed / 8 skipped.
+- **#112 §6 progress:** steps 1–4 are done.
+  - 1: the `series_key` fixpoint;
+  - 2: page order;
+  - 3: the formatter and watcher convergence;
+  - 4: field resolution.
+- **Next:** the #119 witness test PR, then step 5 (the supersession
+  evaluator, read-only).
+- **Operator-gated:**
+  - watcher deploy (changes arrival names);
+  - #117 re-certify plan/apply;
+  - index rebuild;
+  - re-inventory;
+  - #110 refusals deploy.
+- **Awaiting David:** the square-bracket word question and the Tower name
+  scans.
+- Details are in `2026-10-15/PROJECT_CONTEXT.md`, "Current state —
+  2026-10-23".
+
+## Earlier checkpoint — 2026-10-22 (night)
 
 Supersedes the evening checkpoint below.
 - **Comic master is `3aab686`** (2710 passed / 8 skipped). Tonight's merges
