@@ -1,5 +1,18 @@
 # Next steps after the Codex import
 
+## Authorization update — 2026-10-23, 15:10 UTC-6
+
+David's hive **#2408** authorizes project changes to Tower, `X:\`, `G:\`
+and the database on `G:\`, and routine git/deployment operations. This
+supersedes the access/deployment permission blockers in earlier checkpoints.
+Keep independent exact-head review/CI, backups, plan/digest checks and
+postflight verification, with one coordinated live-change owner. Access
+permission does not resolve the naming-vocabulary decisions.
+
+Codex is recording the authorization and checking the names-only Tower scan
+preflight. Claude owns the outstanding #123 fixes; its next head still needs
+independent review. The authorization itself is not an execution receipt.
+
 ## Current checkpoint — 2026-10-23
 
 Supersedes the 2026-10-22 night checkpoint below.
