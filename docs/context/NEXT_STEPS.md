@@ -1,6 +1,24 @@
 # Next steps after the Codex import
 
-## Current checkpoint — 2026-10-22 (evening)
+## Current checkpoint — 2026-10-22 (night)
+
+Supersedes the evening checkpoint below.
+- **Comic master is `3aab686`** (2710 passed / 8 skipped). Tonight's merges
+  were #109, #110, #112, #113, #114, #115 and #116. The two Step 8 defects
+  (the `series_key` split and page order) are fixed.
+- **Relay caps** are 60/hour, 500/day and chain 200 (David approved, user
+  env). codex-lead is enabled with no end time.
+- **Next:** the re-certify tool for v1 content signatures (it must precede
+  any production cutover), then #112 §6 step 3.
+- **Awaiting David:** read-only Tower name scans (the key-change report and
+  the bracket words), and every operator-gated rebuild, re-certify,
+  re-inventory or deploy.
+- **When a reply is overdue,** check the relay attempt's exit code and log.
+  An ACK can precede a failed turn (model capacity).
+- Details are in `2026-10-15/PROJECT_CONTEXT.md`, "Current state —
+  2026-10-22 (night)".
+
+## Earlier checkpoint — 2026-10-22 (evening)
 
 Supersedes the codex-lead *disabled* boundary below.
 - codex-lead is **enabled, with no end time** (David, terminal, 16:22 UTC-6),
