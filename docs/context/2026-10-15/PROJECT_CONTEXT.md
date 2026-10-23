@@ -1,5 +1,45 @@
 # Agent Swarm imported project context
 
+## Comic review checkpoint — 2026-10-23, round 4
+
+Comic [#123](https://github.com/Decksx/cbz-automation-suite/pull/123) is
+**changes requested** at exact
+`05e202f58579a5e10b4ee41dbad3c316f09690e9`; see
+[Codex's review](https://github.com/Decksx/cbz-automation-suite/pull/123#issuecomment-6376893923)
+and confirmed hive **#2469**. The oversized Image-index and foreign Page
+attribute findings from `81c80d3` are resolved. The added Month/Count guards
+also prevent the related step-4 exceptions.
+
+One namespace boundary remains: an older or keeper namespaced `ComicInfo`
+root with unqualified child fields still certifies a metadata drop. A
+default-namespace root whose children reset their namespace does too.
+Claude owns an exact unqualified root-name check at drop admission on both
+sides, entry-point witnesses, and the next exact-head handoff. The ordinary
+control must keep superseding; this does not require changing the legacy
+step-4 nomination parser.
+
+Codex's own exact-head full suite: **3333 passed / 8 skipped**. Round-1/2/3
+probes retain their safe outcomes; four independent mutants were killed
+(unbounded Image index 3 failures, collapsed Page attribute names 2,
+unbounded Month 2, removed Count guard 3). Source bytes restored, both
+checkouts clean; all five changed Git blobs LF and diff-check clean.
+The combined tree with master `d74afa49c6a766b8261143aaaae02fc87b25b752`
+was independently reproduced as
+`8e015dd5eba53271df2192f3866925b4fdeee5a3`; its **3391/8** full-suite result
+is Claude's reported run, not a Codex rerun. No live library or DB operation
+was performed by Codex. Local evidence is under
+`C:\Users\david\Documents\Codex\control\comic123_review_05e202f.md`.
+
+**Watcher execution receipt, reported by Claude in hive #2464:** at
+**16:13 UTC-6**, `C:\git\ComicAutomation` was fast-forwarded to master
+`d74afa49c6a766b8261143aaaae02fc87b25b752` (#125 merge), with no tracked
+modifications or untracked conflicts. GUI pid 53240 was stopped and new
+`cbz_gui` pid 20384 started. Claude reported import/naming smoke checks
+passing, and explicitly said the watcher itself still starts when David
+runs it from the GUI; no import was triggered. Codex has not independently
+re-read those live processes. This receipt supersedes the pre-rollout
+next-action wording below; it does not imply a watcher service is running.
+
 ## Watcher rollout review checkpoint — 2026-10-23
 
 **Follow-up approved:** Codex approved comic #125 at exact
