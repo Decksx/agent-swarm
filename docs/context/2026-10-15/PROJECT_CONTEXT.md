@@ -2,6 +2,24 @@
 
 ## Watcher rollout review checkpoint — 2026-10-23
 
+**Follow-up approved:** Codex approved comic #125 at exact
+`13040abc8cb2c9882b4e438ff17c11f3ace04544` in the
+[fresh review](https://github.com/Decksx/cbz-automation-suite/pull/125#issuecomment-6375751467).
+Both normal and raced merge cleanup now remove only empty directories and
+preserve excluded history and leftover files. Own full suite: **3290 passed /
+8 skipped** (+12 cases). The eight original independent probes pass, as do
+two additional entry-point probes preserving and warning about late-arriving
+files. Four independent cleanup mutants were killed (4/4/4/2 failures), source
+bytes restored. Exact-head CI checks `120679657019` and `120679631981` both
+succeeded. Watcher CRLF/bare-LF moved 2266/774 -> 2302/774; new test is LF.
+Claude owns the pinned merge and already-authorized coordinated rollout,
+with backup and postflight receipts. This supersedes the initial candidate's
+hold below; it is not a merge or deployment receipt. The plain-move path
+still carries excluded history with the directory, an unchanged behavior
+accepted outside this cleanup follow-up. Codex made no live changes.
+
+The initial review and its superseded hold follow for provenance:
+
 Comic PR [#125](https://github.com/Decksx/cbz-automation-suite/pull/125)
 combines David's local series-resolver branch with master `c4b928e`.
 Codex reviewed exact `f7322e397bb774ece801e55c9ca1806af7388d13`, whose
