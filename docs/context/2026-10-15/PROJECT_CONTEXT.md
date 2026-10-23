@@ -1,6 +1,105 @@
 # Agent Swarm imported project context
 
-## Current state — 2026-10-22 (evening)
+## Current state — 2026-10-22 (night)
+
+This supersedes the evening section below on comic progress, relay caps and
+the #111 decisions. Times are **UTC-6**.
+
+- **Parallel slices.** David asked for more concurrency with nothing cut
+  from the roadmap. Claude ran fixture-only subagents in isolated clones,
+  then verified each independently before handing it to Codex:
+  - full suite run on the combined tree;
+  - Claude's own mutants on top of the author's;
+  - line-ending counts checked.
+
+  Codex reviewed every exact head and found real defects in most first
+  heads (#109 cleanup-on-failure; #110 the memory-bound claim, duplicate
+  names and encrypted directories; #114 the report fingerprint; #116 the
+  ordering contract and ungated readers).
+- **Comic merges, all pinned to approved exact heads with green exact-head
+  CI.** Each merged tree is identical to its approved head, with one
+  exception: #112's branch predated #113. Its design doc is byte-identical
+  to the approved head, and its merged tree additionally contains #113's
+  four files.
+
+  | PR | Time | Merge | What |
+  |---|---|---|---|
+  | #109 | 17:40 | `580b7772` | Step 5: `read_guards` opens through the DAL; DAL closes on policy failure |
+  | #110 | 18:02 | `657e1293` | Step 7: archive caps (50k entries, 16 GiB declared; **approved by David**), unsafe paths, encrypted members. These are **refusals**, a behaviour change on deploy |
+  | #113 | 18:16 | `4ab8041d` | Step 8: `high_entry_count` corpus case, seeded invariant properties, fault injection |
+  | #112 | 18:26 | `7e5714cd` | design for #111, canonical naming and WIP-version supersession (three review rounds) |
+  | #114 | 19:45 | `6410880f` | `series_key` fixpoint, plus the read-only key-change report |
+  | #115 | 20:08 | `a8d81cc2` | Step 5: `perceptual_reuse_analysis` through the DAL (allowlist now 5 files / 7 calls) |
+  | #116 | 20:55 | `3aab6865` | page order: raw-name tie-break; duplicate names unresolved; `CONTENT_SIGNATURE_VERSION` 2 with one gate for every ordered reader |
+
+  Master is `3aab686`, full suite **2710 passed / 8 skipped**.
+- **The two Step 8 defects are fixed on master.**
+  - **`series_key` split:** `Berserk_Uncensored` used to key apart from
+    `Berserk Uncensored`.
+  - **Page order:** it depended on physical member order on natural-key
+    ties.
+- **Operator-gated consequences, none run:**
+  - an index rebuild under the new key, after David reviews
+    `scripts/cbz_series_key_change_report.py --root …`;
+  - re-certifying v1 content signatures. Until then, every existing row is
+    *legacy* and the duplicate audit and near-duplicate generation return
+    nothing. The re-certify tool is in progress as its own PR and must land,
+    with operator approval, before any production cutover;
+  - re-inventory of tied and unresolved archives;
+  - deploying #110's refusals.
+- **Relay caps raised** at David's explicit approval (terminal), as user
+  environment variables (previously 20/160/80):
+  - `LEAD_RELAY_MAX_WAKES_PER_HOUR=60`
+  - `LEAD_RELAY_MAX_WAKES_PER_DAY=500`
+  - `LEAD_RELAY_MAX_CHAIN=200`
+  - **The restart** happened while idle. The old relay pid 30464 was
+    terminated because `schtasks /End` stopped only its launcher; the new
+    pid 16816 started at 17:19.
+  - **David confirmed** the new caps on the chat dashboard.
+- **Codex capacity failure.** Codex's headless run for #2235 ACKed but ended
+  `turn.failed: Selected model is at capacity`, and no review was posted.
+  Claude re-woke it with a new HANDOFF (#2238), and the review then
+  completed (#2241). **An ACK is not a finished turn.** Check the attempt's
+  exit code and log when a reply does not arrive.
+- **David's #111 decisions (recorded on the issue):**
+  - **Format:** `Series v01 #003 (2019)` or `Series ch. 1 (2019)`.
+  - **Version marker:** `[vN]`.
+  - **Brackets:** stripped for identity matching; the display name keeps
+    `(YYYY)`, `[vN]` and edition words.
+  - **Retention:** quarantined superseded versions are kept **2 days**,
+    purged by a separate guarded slice.
+  - **Komga:** read-progress resets are acceptable.
+  - **Inserted pages:** always review, never automatic.
+  - **Metadata:** David decided that more accurate or more comprehensive
+    metadata may replace old. *Claude's proposed mechanical rule*, not yet a
+    reviewed design change: drop the superseded ComicInfo only when the
+    keeper's non-empty fields cover all of the old one's; otherwise send the
+    pair to review.
+  - **Word lists:** David proposed starter lists, and Claude grouped them as
+    edition, collection, special and dropped tags. The final lists await a
+    read-only bracket-token scan of the Tower names, which needs David's
+    go-ahead.
+
+- **The #108 scope is superseded.** The evening section above and the
+  earlier contract describe superseded-duplicate and chapter-coverage
+  analysis. That is replaced by the current #108 contract: a **read-only
+  Syncthing preview and post-sync verifier**. It maps exact X/Tower byte
+  matches into keep/write/remove sets, plus an unresolved set when evidence
+  is missing. It does no copying, no Syncthing control or config writes, and
+  no deep supersession analysis. It cannot measure block reuse or
+  disk-write volume.
+
+Next action, in order:
+1. The re-certify tool PR (Claude subagent; Codex reviews).
+2. The canonical formatter as a fixpoint function, with the watcher and
+   sanitizer converging on it (#112 §6 step 3).
+3. Two read-only Tower name scans, awaiting David: the key-change report
+   and the bracket-word scan.
+
+No copy, move, rename, rebuild, re-certify, deploy or activation is
+authorized by this record.
+
+## Earlier state — 2026-10-22 (evening)
 
 This supersedes the day section below on the comic review queue, the trial
 deadline and codex-lead's state. Times are **UTC-6**.
