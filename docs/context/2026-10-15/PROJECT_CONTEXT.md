@@ -16,10 +16,11 @@ not decide the open naming vocabulary or replace controller activations for
 controller-run work. Lead-run project operations retain their existing
 authorization boundary.
 
-Codex owns this authorization record and the names-only Tower scan preflight;
-Claude continues the #123 implementation fixes, with Codex reviewing the
-next exact head. Live rollout/database ownership is coordinated separately
-in the hive before execution.
+Ownership was reconciled in hive **#2418/#2421**: Claude owns both Tower
+name scans, the #117 re-certification plan and watcher deployment preflight.
+Codex stopped a duplicate scan and owns this authorization record and #123
+independent review; Claude continues its implementation fixes. Record each
+actual rollout/database operation separately with its plan and receipts.
 
 ## Current state — 2026-10-23
 
