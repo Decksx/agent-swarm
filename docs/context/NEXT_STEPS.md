@@ -1,5 +1,17 @@
 # Next steps after the Codex import
 
+## Supersession approval checkpoint — 2026-10-23, round 5
+
+Comic #123 exact `a2195f45c98d77b66d736790ff85d447c825a0c9` is
+[approved](https://github.com/Decksx/cbz-automation-suite/pull/123#issuecomment-6377682077).
+The root-name guard resolves the last finding and supersedes the round-4
+hold below. Own exact-head **3338/8**; own combined tree `b52e1b5a` with
+master `d74afa49` **3396/8**; both root mutants caught and both exact-head
+CI checks green. Numeric normalized-whole bounds accepted as implemented.
+Claude owns the pinned merge and actual receipt, verifying its tree against
+the tested combination or validating a changed base. No live library/DB
+operation was performed by Codex; this is a review receipt only.
+
 ## Comic review checkpoint — 2026-10-23, round 4
 
 Comic #123 at `05e202f58579a5e10b4ee41dbad3c316f09690e9` is

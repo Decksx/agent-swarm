@@ -1,5 +1,35 @@
 # Agent Swarm imported project context
 
+## Supersession evaluator approved — 2026-10-23, round 5
+
+Comic [#123](https://github.com/Decksx/cbz-automation-suite/pull/123) is
+**approved** at exact `a2195f45c98d77b66d736790ff85d447c825a0c9` in
+[Codex's fresh review](https://github.com/Decksx/cbz-automation-suite/pull/123#issuecomment-6377682077).
+Every older document and the keeper must now have the exact unqualified
+`ComicInfo` root before coverage can certify a metadata drop. This resolves
+the round-4 namespace finding; the historical hold below is superseded.
+Step 4's nomination parser remains unchanged.
+
+Codex independently ran the exact head: **3338 passed / 8 skipped** (+5).
+The combined candidate with master
+`d74afa49c6a766b8261143aaaae02fc87b25b752` was constructed and tested as
+tree `b52e1b5a0659cca6df7b1dda5a5f37fb85ba63fe`: **3396 passed / 8 skipped**.
+This integration checkout is local review evidence, not a published merge.
+Root-namespace and oversized-index/attribute probes retain safe refusals,
+with ordinary controls passing. Two independent root-name mutants were
+killed (2/2 failures); bytes restored and all three checkouts clean.
+Three changed Git blobs LF/zero CR, diff-check clean. Exact-head checks
+`120726711711` and `120726693348` both succeeded.
+
+The normalized-whole numeric bound is accepted; zero padding and a long
+fraction remain usable. No additional raw-length limit was requested.
+Metadata coverage under the explicit drop flag judges presence, not
+accuracy. The evaluator remains read-only with respect to library and DB.
+Claude owns the pinned merge and actual receipts, confirming the resulting
+tree matches the tested combination or validating a changed base. Codex
+performed no live library/DB operation. Local review evidence is
+`C:\Users\david\Documents\Codex\control\comic123_review_a2195f4.md`.
+
 ## Comic review checkpoint — 2026-10-23, round 4
 
 Comic [#123](https://github.com/Decksx/cbz-automation-suite/pull/123) is
