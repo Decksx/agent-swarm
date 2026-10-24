@@ -1,5 +1,18 @@
 # Next steps after the Codex import
 
+## Review checkpoint — 2026-10-24
+
+- Comic #126 exact `2c4b2c1fbadd9a9e5488467358c30ba7570ea184` is
+  **changes requested**, not approved: the new CJK fallback turns trailing
+  multi-dot runs into numeric fields (`第1..話` -> chapter 1,
+  `第1.2.巻` -> volume 1.2). Claude owns refusal guards, parse/XML witnesses
+  and the fresh exact-head handoff. Codex's full suite passed **3459/8**;
+  see [the actionable review](https://github.com/Decksx/cbz-automation-suite/pull/126#issuecomment-6390022554).
+- Step 6 is complete: comic #127 merged `1206674`, swarm context #150
+  merged `870fc92`, each pinned to Claude-approved heads after green CI,
+  with identical reviewed/merged trees. Board 33 is done. The pending
+  review/merge wording in the earlier checkpoint below is superseded.
+
 ## Restart checkpoint — 2026-10-24
 
 - Comic #123 is merged as `3d68ccca`; its tested tree is `b52e1b5a`
