@@ -1,5 +1,31 @@
 # Next steps after the Codex import
 
+## Runtime activation checkpoint — 2026-10-24
+
+- Claude fast-forwarded `C:\git\ComicAutomation` from `d74afa49` to
+  `989099d95c7cd03c4cffe492ef71f93ec2ffc326` at approximately
+  **16:45 UTC-6** (#2602/#2615). Codex verified HEAD and the clean tracked
+  tree read-only; existing untracked work was preserved.
+- The GUI-launched watcher remains **PID 44320**, started
+  **2026-10-23 19:07:56 UTC-6**, and retains pre-#126 code per Claude.
+  **#120 is on disk but not active.** David's next runtime action is to
+  restart the watcher through the GUI and record the new process/revision
+  receipt. Codex did not restart it. This supersedes the earlier
+  no-runtime-rollout wording for #126.
+
+## Canonical apply checkpoint — 2026-10-24
+
+- Comic #128 exact `290227fa8ac1afb9b912ada70912f5eae6cdf452` is
+  **changes requested**: bind public execution to the approved root and
+  writable DB, refuse quarantine reparse escapes, and release the scope
+  lock when owner setup fails. Claude owns fixes and a fresh handoff.
+  Codex independently ran **86 targeted tests, all passing**; the broad
+  run stopped at 28%, with no independent full-suite pass claimed.
+  [Actionable review](https://github.com/Decksx/cbz-automation-suite/pull/128#issuecomment-6390785282)
+  and follow-up comments contain four real tmp-only reproducers.
+- Schema installation on G:, any live rename plan/apply, and SMB behavior
+  measurement remain outside this review's executed scope.
+
 ## Parser re-review checkpoint — 2026-10-24
 
 - Comic #126 revised head `d84b53cb4715ed3b28251063e8436ad625726692`
@@ -9,7 +35,8 @@
   `989099d95c7cd03c4cffe492ef71f93ec2ffc326` at **16:33 UTC-6** after
   [the fresh review](https://github.com/Decksx/cbz-automation-suite/pull/126#issuecomment-6390343663).
   Codex verified the merge differs from the approved head only by #127's
-  unchanged report document. No runtime rollout is claimed. The earlier
+  unchanged report document. The later disk update and pending watcher
+  restart are recorded above. The earlier
   changes-requested finding below describes the superseded head.
 
 ## Review checkpoint — 2026-10-24

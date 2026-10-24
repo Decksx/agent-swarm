@@ -1,5 +1,62 @@
 # Agent Swarm imported project context
 
+## Runtime checkpoint — 2026-10-24
+
+Claude-lead reports in hive **#2602/#2615** that David's checkout at
+`C:\git\ComicAutomation` was fast-forwarded, clean tracked tree and
+ff-only, from `d74afa49` to `989099d95c7cd03c4cffe492ef71f93ec2ffc326`
+at approximately **16:45 UTC-6**. Codex subsequently verified that HEAD
+and the clean tracked tree read-only; existing untracked work was preserved.
+
+**On disk is not active in the watcher.** The GUI-launched watcher is
+still **PID 44320**, started **2026-10-23 19:07:56 UTC-6**, before that
+update. Codex verified the live PID/start time and watcher command; Claude
+reports that it retains pre-#126 code loaded in memory. The #120 fix is
+therefore on disk but **not active** in that watcher. David must restart
+the watcher through the GUI, then record the new process/revision receipt.
+Codex performed no restart. This supersedes the earlier #126 wording
+that no runtime rollout was claimed: the checkout has advanced, while
+activation remains pending.
+
+## Canonical apply review — 2026-10-24
+
+Comic [#128](https://github.com/Decksx/cbz-automation-suite/pull/128), step 7,
+is **changes requested** at exact
+`290227fa8ac1afb9b912ada70912f5eae6cdf452`. Codex posted four tmp-only
+reproducers on the PR; Claude owns the fixes and fresh exact-head handoff:
+
+- [Scope/root and junction findings](https://github.com/Decksx/cbz-automation-suite/pull/128#issuecomment-6390785282):
+  a correctly loaded plan for root A can run through the public API with
+  root B's lock/journal while A's lock is already held; a real quarantine
+  junction lets CLI apply exit 0 after moving outside the approved root.
+- [Lock cleanup](https://github.com/Decksx/cbz-automation-suite/pull/128#issuecomment-6390803989):
+  an owner-metadata write failure after lock acquisition leaks the OS
+  lock. Fixing the owner path still leaves a subsequent acquirer locked out.
+- [Writable DB binding](https://github.com/Decksx/cbz-automation-suite/pull/128#issuecomment-6390824401):
+  the unchanged approved plan/digest can target a backup-API clone, rename
+  the library file and update only the clone, leaving the original catalog
+  at the old path. Exact-row CAS does not bind the catalog identity.
+
+Independent targeted verification: **86 passed**, running both
+`test_canonical_apply.py` and `test_canonical_apply_components.py` with
+`-n 4 --dist loadfile`. The broad suite was interrupted at **28%** on this
+rejected head; no independent full-suite pass is claimed. The passing
+targeted tests do not cover the four reported failures. No production
+path, Tower or live DB was used. Probe scripts are under
+`C:\Users\david\Documents\Codex\control\comic128_*`; their private
+fixtures are under `%LOCALAPPDATA%\Temp\codex128_*`.
+Four independent existing-guard mutants were killed (one focused failure
+each): removed path-preimage CAS, `os.rename` changed to `os.replace`,
+intent-only destination treated as owned, and removed journal fsync.
+All three mutated source files were restored byte-for-byte; checkout
+clean, all eleven changed Git blobs LF and diff-check clean.
+
+The unnumbered schema installer is a declared prototype deviation, not
+a production ledger policy. Attested quiescence, no abandon path and
+unmeasured SMB/volume behavior remain explicit limits; no G: installation
+or runtime rollout was performed or approved by this review. Confirmed
+hive **#2606/#2609** carries the actionable handoffs.
+
 ## Malformed-number re-review — 2026-10-24
 
 Comic [#126](https://github.com/Decksx/cbz-automation-suite/pull/126) is
@@ -25,7 +82,8 @@ head at **16:33 UTC-6** as `989099d95c7cd03c4cffe492ef71f93ec2ffc326`
 (receipt hive **#2590**; time verified from GitHub's merged_at). Codex
 fetched the merge and confirmed tree `8a2b7e77` differs from the approved
 head only by #127's report document, whose blob matches `1206674` exactly.
-This is a merge receipt, not a runtime deployment receipt.
+The later on-disk update and pending watcher restart are recorded in the
+runtime checkpoint above; the existing process still uses pre-#126 code.
 
 Four fresh independent mutants were killed: `fullmatch` to `match`
 (**86** failures), restored trailing-dot stripping (**85**), a loose
