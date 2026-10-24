@@ -1,5 +1,18 @@
 # Next steps after the Codex import
 
+## Canonical apply checkpoint — 2026-10-24
+
+- Comic #128 exact `290227fa8ac1afb9b912ada70912f5eae6cdf452` is
+  **changes requested**: bind public execution to the approved root and
+  writable DB, refuse quarantine reparse escapes, and release the scope
+  lock when owner setup fails. Claude owns fixes and a fresh handoff.
+  Codex independently ran **86 targeted tests, all passing**; the broad
+  run stopped at 28%, with no independent full-suite pass claimed.
+  [Actionable review](https://github.com/Decksx/cbz-automation-suite/pull/128#issuecomment-6390785282)
+  and follow-up comments contain four real tmp-only reproducers.
+- Schema installation on G:, any live rename plan/apply, and SMB behavior
+  measurement remain outside this review's executed scope.
+
 ## Parser re-review checkpoint — 2026-10-24
 
 - Comic #126 revised head `d84b53cb4715ed3b28251063e8436ad625726692`
