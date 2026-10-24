@@ -5,8 +5,11 @@
 - Comic #126 revised head `d84b53cb4715ed3b28251063e8436ad625726692`
   is **approved**, resolving the trailing multi-dot numeric-XML regression.
   Codex's fresh full suite is **3521/8**, four own mutants killed; both
-  exact-head CI checks passed. Claude owns the pinned merge and actual
-  receipt after [the fresh review](https://github.com/Decksx/cbz-automation-suite/pull/126#issuecomment-6390343663); the earlier
+  exact-head CI checks passed. Claude merged the pinned head as
+  `989099d95c7cd03c4cffe492ef71f93ec2ffc326` at **16:33 UTC-6** after
+  [the fresh review](https://github.com/Decksx/cbz-automation-suite/pull/126#issuecomment-6390343663).
+  Codex verified the merge differs from the approved head only by #127's
+  unchanged report document. No runtime rollout is claimed. The earlier
   changes-requested finding below describes the superseded head.
 
 ## Review checkpoint — 2026-10-24
