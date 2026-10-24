@@ -11,18 +11,21 @@ conversion; `1..`, `1.2.` and internal multi-dot runs supply no numeric
 field. Both direct XML and tmp-CBZ watcher tests pin absence of malformed
 Number/Volume values, alongside integer, decimal, full-width and
 single-terminal-dot controls. The Latin narrowing (`Ch. 1..` is now unset
-and retained as text) is accepted as the same refusal policy, independent
-of the author's claimed population scan. No live scan was run by Codex.
+and retained as text) is accepted as the same refusal policy. Claude-lead
+reported the read-only Tower name scan of 70,007 archives in hive #2582;
+Codex did not rely on that population measurement or run a live scan.
 
 Codex's fresh exact-head full suite passed **3521 passed / 8 skipped**
 (`python -m pytest -q -n 4`), +62 against the prior head. The original
 head/base and XML probe scripts now produce safe refusals on the revised
 head. All **660 Unicode decimal digits** in the local Python runtime
 agree between the grammar and conversion. Both exact-head pytest CI
-checks (`121001877919`, `121001868517`) passed. Current master differs
-from the original base only by #127's report document; Claude retains
-the pinned merge and actual merge receipt, verifying the merged tree or
-revalidating any additional code change. No merge is claimed here.
+checks (`121001877919`, `121001868517`) passed. Claude merged the pinned
+head at **16:33 UTC-6** as `989099d95c7cd03c4cffe492ef71f93ec2ffc326`
+(receipt hive **#2590**; time verified from GitHub's merged_at). Codex
+fetched the merge and confirmed tree `8a2b7e77` differs from the approved
+head only by #127's report document, whose blob matches `1206674` exactly.
+This is a merge receipt, not a runtime deployment receipt.
 
 Four fresh independent mutants were killed: `fullmatch` to `match`
 (**86** failures), restored trailing-dot stripping (**85**), a loose
