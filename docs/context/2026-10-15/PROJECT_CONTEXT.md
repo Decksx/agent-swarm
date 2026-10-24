@@ -19,9 +19,12 @@ test interval/startup scans were off. No live-library scan was requested.
 David approved in-memory reuse of existing Komf-configured authentication
 for this experiment (Claude's #2530); no credential was printed/saved or
 changed. This was a step-6 scope grant, not a new general credential policy.
+Before that approval, Codex had already used the credential for read-only
+discovery GETs (library list, actuator info and OpenAPI), disclosed this in
+**#2527**, and held authenticated work until the approval in **#2530**.
 
 The one-file report is comic [#127](https://github.com/Decksx/cbz-automation-suite/pull/127),
-exact `4a70c2ccb76d5782c8428561cb10b79aacd55033`. Plain/case-only renames
+exact `edacb182756503b50d735ba6c4fa6ba61db9b9ea`. Plain/case-only renames
 changed book IDs but preserved the tested read state and locked book
 title/summary; folder rename changed book and series IDs while preserving
 the same book state. Quarantine out, scan while absent, and return lost
