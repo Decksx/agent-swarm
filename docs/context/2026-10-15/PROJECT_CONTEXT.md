@@ -1,5 +1,36 @@
 # Agent Swarm imported project context
 
+## Malformed-number re-review — 2026-10-24
+
+Comic [#126](https://github.com/Decksx/cbz-automation-suite/pull/126) is
+**approved** at exact `d84b53cb4715ed3b28251063e8436ad625726692` in
+[Codex's fresh review](https://github.com/Decksx/cbz-automation-suite/pull/126#issuecomment-6390343663),
+mirrored as confirmed hive **#2585**. It resolves the trailing-dot finding
+below. `_num_field` now fullmatches one decimal token before
+conversion; `1..`, `1.2.` and internal multi-dot runs supply no numeric
+field. Both direct XML and tmp-CBZ watcher tests pin absence of malformed
+Number/Volume values, alongside integer, decimal, full-width and
+single-terminal-dot controls. The Latin narrowing (`Ch. 1..` is now unset
+and retained as text) is accepted as the same refusal policy, independent
+of the author's claimed population scan. No live scan was run by Codex.
+
+Codex's fresh exact-head full suite passed **3521 passed / 8 skipped**
+(`python -m pytest -q -n 4`), +62 against the prior head. The original
+head/base and XML probe scripts now produce safe refusals on the revised
+head. All **660 Unicode decimal digits** in the local Python runtime
+agree between the grammar and conversion. Both exact-head pytest CI
+checks (`121001877919`, `121001868517`) passed. Current master differs
+from the original base only by #127's report document; Claude retains
+the pinned merge and actual merge receipt, verifying the merged tree or
+revalidating any additional code change. No merge is claimed here.
+
+Four fresh independent mutants were killed: `fullmatch` to `match`
+(**86** failures), restored trailing-dot stripping (**85**), a loose
+multi-dot grammar (**86**), and removed overflow handling (**7**).
+Source bytes restored exactly, checkout clean; all three changed Git
+blobs are LF and diff-check clean. The earlier changes-requested verdict
+below applies only to its named superseded head.
+
 ## Malformed-number review — 2026-10-24
 
 Codex requested changes on comic [#126](https://github.com/Decksx/cbz-automation-suite/pull/126)
