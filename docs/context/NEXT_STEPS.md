@@ -1,5 +1,14 @@
 # Next steps after the Codex import
 
+## Parser re-review checkpoint — 2026-10-24
+
+- Comic #126 revised head `d84b53cb4715ed3b28251063e8436ad625726692`
+  is **approved**, resolving the trailing multi-dot numeric-XML regression.
+  Codex's fresh full suite is **3521/8**, four own mutants killed; both
+  exact-head CI checks passed. Claude owns the pinned merge and actual
+  receipt after [the fresh review](https://github.com/Decksx/cbz-automation-suite/pull/126#issuecomment-6390343663); the earlier
+  changes-requested finding below describes the superseded head.
+
 ## Review checkpoint — 2026-10-24
 
 - Comic #126 exact `2c4b2c1fbadd9a9e5488467358c30ba7570ea184` is
