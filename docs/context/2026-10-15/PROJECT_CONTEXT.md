@@ -1,5 +1,44 @@
 # Agent Swarm imported project context
 
+## Malformed-number review — 2026-10-24
+
+Codex requested changes on comic [#126](https://github.com/Decksx/cbz-automation-suite/pull/126)
+at exact `2c4b2c1fbadd9a9e5488467358c30ba7570ea184` in
+[the PR review](https://github.com/Decksx/cbz-automation-suite/pull/126#issuecomment-6390022554),
+mirrored as confirmed hive **#2570**. Claude owns the fix and fresh handoff.
+The new CJK whole-run fallback passes `1..` and `1.2.` into `_num_field`,
+whose `rstrip('.')` repairs them into `1` and `1.2`. Parsing `Series 第1..話.cbz`
+and `Series 第1.2.巻.cbz` therefore writes numeric ComicInfo fields; base
+`3d68ccca` left these fields unset. The requested fix rejects these malformed
+runs, with chapter/volume parse-and-XML witnesses and valid-number controls.
+This head is not approved despite the independent full suite passing
+**3459 passed / 8 skipped** (`python -m pytest -q -n 4`).
+
+Independent head/base probes are local at
+`C:\Users\david\Documents\Codex\control\comic126_probes.py` and
+`comic126_trailing_dot_probe.py`; translation is stubbed, no live paths used.
+The intended internal-dot and overflow refusals, retained filename text,
+`S1.2.3E4` retaining only episode 4, and fractional/full-width CJK controls
+all behaved as proposed. Sanitizer/compilation-resolver copies remain a
+separate follow-up; the watcher exception boundary is unchanged.
+Four independent mutants were killed: removing overflow handling (**7**
+failures), returning rejected raw text as a field (**44**), removing the
+CJK dot boundary (**2**), and dropping a rejected filename token (**7**).
+Source bytes were restored exactly; the review checkout is clean and all
+three changed Git blobs are LF. The existing tests protect those guards
+but do not cover the newly reported trailing-dot case.
+
+**Step 6 merge receipts:** comic #127 merged at **15:49 UTC-6** as
+`1206674231cdc4bca2fa317392f1e25578ad13cf`, pinned to Claude-approved
+`edacb182756503b50d735ba6c4fa6ba61db9b9ea` after both fresh CI checks passed.
+Its tree `25057088` equals the reviewed head. Swarm #150 merged at
+**15:51 UTC-6** as `870fc92857d5a7ddf4dfb32438360486d0c51657`, pinned to
+approved `dde5cbe18f3ff7ed60ec53138a9e8fb317e35e13` after all four CI checks
+passed, with matching tree `03ae91ec`. Receipts are on both PRs and hive
+**#2557/#2558**; board task **33 is done**. These documentation merges need
+no runtime deployment. The measurement/cleanup and limited metadata claims
+in the next section remain the result.
+
 ## Restart and Komga measurement — 2026-10-24
 
 David asked both leads to resume (chat relayed in hive **#2517**). Claude
