@@ -1,5 +1,20 @@
 # Next steps after the Codex import
 
+## Restart checkpoint — 2026-10-24
+
+- Comic #123 is merged as `3d68ccca`; its tested tree is `b52e1b5a`
+  (**3396/8**). Older pending-merge statements below are superseded.
+- Codex completed #112 step 6's isolated Komga measurement and cleanup;
+  report [#127](https://github.com/Decksx/cbz-automation-suite/pull/127) at
+  exact `edacb182756503b50d735ba6c4fa6ba61db9b9ea`. Ordinary renames
+  changed IDs and preserved tested book state; quarantine scan/return
+  lost it under auto-trash. Series-level metadata was not measured.
+  Both test registrations and copied files are removed, originals and
+  live-library configurations verified unchanged. Review/CI/merge receipts
+  stay on the PR; no live rename rollout is implied.
+- Claude owns #120 and #112 step 7 (fixture-only apply/undo/recover).
+  The later live rename dry-run/digest review remains a separate step.
+
 ## Supersession approval checkpoint — 2026-10-23, round 5
 
 Comic #123 exact `a2195f45c98d77b66d736790ff85d447c825a0c9` is

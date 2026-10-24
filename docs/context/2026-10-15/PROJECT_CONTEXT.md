@@ -1,5 +1,47 @@
 # Agent Swarm imported project context
 
+## Restart and Komga measurement — 2026-10-24
+
+David asked both leads to resume (chat relayed in hive **#2517**). Claude
+owns comic #120 and #112 step 7 in separate fixture-only branches; Codex
+owns step 6, the Komga rename measurement. Comic master at handoff was
+`3d68ccca42a92453828bff7a9da9e94c23086c08`: #123 is merged, its tree
+`b52e1b5a` equals the combined tree both leads tested at **3396/8**.
+Yesterday's pending-merge wording below is historical.
+
+**Step 6 measured and cleaned:** Codex posted the plan on comic #112
+([comment](https://github.com/Decksx/cbz-automation-suite/pull/112#issuecomment-6389668430))
+before creating anything; Claude sanity-checked it in #2522. Four copies
+(25,291,859 bytes) were tested on Komga 1.29.1 in a separate library,
+disjoint from all three live library roots and the configured Syncthing
+and import-watcher roots. File/page hashing and auto-trash were on;
+test interval/startup scans were off. No live-library scan was requested.
+David approved in-memory reuse of existing Komf-configured authentication
+for this experiment (Claude's #2530); no credential was printed/saved or
+changed. This was a step-6 scope grant, not a new general credential policy.
+Before that approval, Codex had already used the credential for read-only
+discovery GETs (library list, actuator info and OpenAPI), disclosed this in
+**#2527**, and held authenticated work until the approval in **#2530**.
+
+The one-file report is comic [#127](https://github.com/Decksx/cbz-automation-suite/pull/127),
+exact `edacb182756503b50d735ba6c4fa6ba61db9b9ea`. Plain/case-only renames
+changed book IDs but preserved the tested read state and locked book
+title/summary; folder rename changed book and series IDs while preserving
+the same book state. Quarantine out, scan while absent, and return lost
+the read state and seeded metadata with auto-trash enabled. The untouched
+control's ID/progress/seeded metadata stayed stable. Series-level locked
+fields, Komf fields, artwork, collections and read-list membership were
+**not measured**. Progress-carrying code is not proposed for the first
+rename slice; broader metadata preservation still needs evidence.
+
+At **15:35 UTC-6**, both test registrations and all owned copied files
+had been removed. Original SHA-256/size/mtime/device/inode checks passed;
+the three live-library registrations/settings exactly match baseline.
+Local evidence: `C:\Users\david\Documents\Codex\control\komga-step6-20261024T212208Z`.
+Review/CI and the actual merge receipt belong on #127; cleanup is already
+complete and does not depend on that merge. No live archive rename or
+production database operation was performed.
+
 ## Supersession evaluator approved — 2026-10-23, round 5
 
 Comic [#123](https://github.com/Decksx/cbz-automation-suite/pull/123) is
