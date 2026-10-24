@@ -1,5 +1,44 @@
 # Agent Swarm imported project context
 
+## Canonical apply review — 2026-10-24
+
+Comic [#128](https://github.com/Decksx/cbz-automation-suite/pull/128), step 7,
+is **changes requested** at exact
+`290227fa8ac1afb9b912ada70912f5eae6cdf452`. Codex posted four tmp-only
+reproducers on the PR; Claude owns the fixes and fresh exact-head handoff:
+
+- [Scope/root and junction findings](https://github.com/Decksx/cbz-automation-suite/pull/128#issuecomment-6390785282):
+  a correctly loaded plan for root A can run through the public API with
+  root B's lock/journal while A's lock is already held; a real quarantine
+  junction lets CLI apply exit 0 after moving outside the approved root.
+- [Lock cleanup](https://github.com/Decksx/cbz-automation-suite/pull/128#issuecomment-6390803989):
+  an owner-metadata write failure after lock acquisition leaks the OS
+  lock. Fixing the owner path still leaves a subsequent acquirer locked out.
+- [Writable DB binding](https://github.com/Decksx/cbz-automation-suite/pull/128#issuecomment-6390824401):
+  the unchanged approved plan/digest can target a backup-API clone, rename
+  the library file and update only the clone, leaving the original catalog
+  at the old path. Exact-row CAS does not bind the catalog identity.
+
+Independent targeted verification: **86 passed**, running both
+`test_canonical_apply.py` and `test_canonical_apply_components.py` with
+`-n 4 --dist loadfile`. The broad suite was interrupted at **28%** on this
+rejected head; no independent full-suite pass is claimed. The passing
+targeted tests do not cover the four reported failures. No production
+path, Tower or live DB was used. Probe scripts are under
+`C:\Users\david\Documents\Codex\control\comic128_*`; their private
+fixtures are under `%LOCALAPPDATA%\Temp\codex128_*`.
+Four independent existing-guard mutants were killed (one focused failure
+each): removed path-preimage CAS, `os.rename` changed to `os.replace`,
+intent-only destination treated as owned, and removed journal fsync.
+All three mutated source files were restored byte-for-byte; checkout
+clean, all eleven changed Git blobs LF and diff-check clean.
+
+The unnumbered schema installer is a declared prototype deviation, not
+a production ledger policy. Attested quiescence, no abandon path and
+unmeasured SMB/volume behavior remain explicit limits; no G: installation
+or runtime rollout was performed or approved by this review. Confirmed
+hive **#2606/#2609** carries the actionable handoffs.
+
 ## Malformed-number re-review — 2026-10-24
 
 Comic [#126](https://github.com/Decksx/cbz-automation-suite/pull/126) is
