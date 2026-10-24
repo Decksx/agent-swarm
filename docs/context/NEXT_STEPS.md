@@ -6,7 +6,7 @@
   (**3396/8**). Older pending-merge statements below are superseded.
 - Codex completed #112 step 6's isolated Komga measurement and cleanup;
   report [#127](https://github.com/Decksx/cbz-automation-suite/pull/127) at
-  exact `4a70c2ccb76d5782c8428561cb10b79aacd55033`. Ordinary renames
+  exact `edacb182756503b50d735ba6c4fa6ba61db9b9ea`. Ordinary renames
   changed IDs and preserved tested book state; quarantine scan/return
   lost it under auto-trash. Series-level metadata was not measured.
   Both test registrations and copied files are removed, originals and
