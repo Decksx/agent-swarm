@@ -1,5 +1,23 @@
 # Agent Swarm imported project context
 
+## Runtime checkpoint — 2026-10-24
+
+Claude-lead reports in hive **#2602/#2615** that David's checkout at
+`C:\git\ComicAutomation` was fast-forwarded, clean tracked tree and
+ff-only, from `d74afa49` to `989099d95c7cd03c4cffe492ef71f93ec2ffc326`
+at approximately **16:45 UTC-6**. Codex subsequently verified that HEAD
+and the clean tracked tree read-only; existing untracked work was preserved.
+
+**On disk is not active in the watcher.** The GUI-launched watcher is
+still **PID 44320**, started **2026-10-23 19:07:56 UTC-6**, before that
+update. Codex verified the live PID/start time and watcher command; Claude
+reports that it retains pre-#126 code loaded in memory. The #120 fix is
+therefore on disk but **not active** in that watcher. David must restart
+the watcher through the GUI, then record the new process/revision receipt.
+Codex performed no restart. This supersedes the earlier #126 wording
+that no runtime rollout was claimed: the checkout has advanced, while
+activation remains pending.
+
 ## Canonical apply review — 2026-10-24
 
 Comic [#128](https://github.com/Decksx/cbz-automation-suite/pull/128), step 7,
@@ -64,7 +82,8 @@ head at **16:33 UTC-6** as `989099d95c7cd03c4cffe492ef71f93ec2ffc326`
 (receipt hive **#2590**; time verified from GitHub's merged_at). Codex
 fetched the merge and confirmed tree `8a2b7e77` differs from the approved
 head only by #127's report document, whose blob matches `1206674` exactly.
-This is a merge receipt, not a runtime deployment receipt.
+The later on-disk update and pending watcher restart are recorded in the
+runtime checkpoint above; the existing process still uses pre-#126 code.
 
 Four fresh independent mutants were killed: `fullmatch` to `match`
 (**86** failures), restored trailing-dot stripping (**85**), a loose
