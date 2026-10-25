@@ -1,5 +1,90 @@
 # Agent Swarm imported project context
 
+## Read-only planner and tag review — 2026-10-24
+
+Codex's comic [#130](https://github.com/Decksx/cbz-automation-suite/pull/130)
+implements the read-only step-8 planner at exact
+`df1175d4bfccb467153725d51ee711f59e14a1b0`, nine one-file commits on
+`989099d`. It emits `canonical-naming-plan-v1` independently of #128's
+executor. Claude is reviewing it (confirmed handoff **#2680**, ACK #2682).
+Codex owns fixes and the pinned merge after approval and exact-head CI;
+Claude owns the later Tower read-only dry run after #128 and tag policy land.
+
+Measured base full suite **3521/8**; final candidate **3562/8**, +41 new
+tests, focused **41 passed**. All **15** guard mutants killed (one focused
+failure each) in a separate worktree, original bytes restored and both
+trees clean. Four generated plan categories (ordinary, family, case-only,
+review) pass the actual #128 reader at `095e9be` with no conflicts. That
+compatibility check does not approve the rejected executor head.
+
+The planner uses one outer WAL-aware guard, exact current catalog mapping,
+byte-derived evidence and whole-unit collision holds. It infers no folder
+authority, owns no tag vocabulary and holds unknown variants/decensor
+identities. An `ai-decensor-originals` root refuses before archive reads.
+No live scan or mutation was performed. Protocol/limits are in the PR's
+`docs/canonical_naming_plan.md`; batch apply still needs David's exact digest.
+
+Claude's tag PR [#129](https://github.com/Decksx/cbz-automation-suite/pull/129)
+at `fc9891bd23414c5d10c197471014b8c64107b0a8` is **changes requested**
+for documentation/authorization limits, not a requested cleaner redesign.
+[Review](https://github.com/Decksx/cbz-automation-suite/pull/129#issuecomment-6392430808),
+confirmed hive **#2683**. Distinguish David's group/status/language decision,
+the inherited broader arrival stripping and the bulk planner's conservative
+unknown-variant policy. The PR's season-collision safety claim is false:
+Codex's tmp watcher probe strips `(s2)` and replaces/discards an existing
+same-chapter file when the incoming archive is larger. The same result
+occurs with unchanged master core code, so this is inherited, not caused by
+the new English display change. Claude owns accurate limits/follow-up and
+a fresh head; Codex owns re-review.
+
+Independent #129 checks at that head: **3657 passed/8 skipped** full suite;
+**972** canonical display matrix cases pass (only English removed, other
+tokens/padding preserved, fixpoint and unchanged identity); **3/3** own
+mutants killed (4/1/1 focused failures), source restored byte-for-byte.
+Private probes/mutation runners remain in the local Codex control directory;
+all filesystem examples are temporary fixtures, never live libraries.
+
+## Runtime activation and re-certify receipt — 2026-10-24
+
+Claude reports the GUI/watcher restart in hive **#2656** on comic
+`989099d95c7cd03c4cffe492ef71f93ec2ffc326`. Codex independently checked
+process metadata: GUI **11832** and watcher **48284** both started at
+**20:01:34 UTC-6**; old watcher **44320** is absent and the checkout HEAD
+is `989099d`. Claude verified identical resolver arguments and a clean
+start log, reporting #120 active. This supersedes pending-restart wording
+below; Codex's check establishes processes/checkout, not a memory dump.
+
+Claude's hive **#2672** reports board **35 done**, G: **test DB only**:
+
+- Target `G:\ComicAutomation\TestDatabase\inspection-working.db`.
+  Fresh read-only plan at **20:06 UTC-6**, digest
+  `8c6e8de519053060608a89cdd397f08f1a1c9f992af13c9c89bb9884e9aa503d`,
+  expected **58,246**. Counts/rows match the prior plan; `planned_at_ns`
+  changed, so the old digest was not reused.
+- Verified backup at **20:07 UTC-6**:
+  `G:\ComicAutomation\TestDatabase\inspection-working-pre-recertify-20261024.db`,
+  **2,409,934,848 bytes**, migrations 1-14, 24 tables and 89 schema objects
+  verbatim; backup verification true.
+- Apply at **20:09 UTC-6**, pinned to that digest/count and backup report:
+  **58,246 relabelled, 0 already, 0 skipped**, postflight passed. Apply JSON
+  SHA256 prefix `5570b35006bd7a04`.
+- Claude's separate postflight passed: quick-check ok, **58,246 comparable**,
+  **191 legacy = 178 stale + 13 tied untouched**, unknown/unresolved 0,
+  no planned order-stable rows still legacy. Reports remain in Claude's
+  scratchpad `scans/recertify_*_20261024.json`.
+
+These DB/backup results are attributed to Claude; Codex did not repeat the
+apply or independently inspect those report files. No production DB,
+X: or Tower mutation is claimed by this operation.
+
+Swarm [#155](https://github.com/Decksx/agent-swarm/pull/155) merged approved
+`b3709d7a213e1f749a72fd3f41dc57e4d47187a3` as
+`5a3fa6c574b3e66fd3daa543864272b822b3a6e1` at **20:17 UTC-6**.
+Four exact-head checks passed; reviewed/merged tree identical
+`5639d4d407ec9dc83e28043f207773c65395753d`.
+[Receipt](https://github.com/Decksx/agent-swarm/pull/155#issuecomment-6392367415),
+confirmed hive **#2674**. Docs only, no runtime deployment.
+
 ## Admin decisions and ownership — 2026-10-24, 20:00 UTC-6
 
 David's hive **#2646** answers Claude's numbered questions in **#2641**.
