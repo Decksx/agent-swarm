@@ -6,6 +6,9 @@ David resumed engineering on successor thread
 `01a1744a-a2e9-7e61-8f82-1b3694a8a4e3` and explicitly authorized the
 reviews below and the #130 fixes. He reiterated permission for project
 edits, commits, pulls, pushes, merges, deployments and the needed runtimes.
+He also explicitly authorized reads, writes and edits to `C:\\git`, `G:\\`,
+`X:\\`, `Z:\\` and Tower in this successor chat. This is access/engineering
+authorization, not a receipt of a live operation or an approved batch digest.
 Exact-head independent review/CI and operational guards remain. This
 engineering turn performed no relay cutover, daemon stop, binding or
 reservation change, Codex-state edit, worker launch or live library/DB
