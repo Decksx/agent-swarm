@@ -20,10 +20,15 @@
 - **#132** `9aa95a1` remains changes requested: failed hold-name restore
   bypasses the next retry, and restored held names break pending AI-original
   routing. Claude owns fixes/fresh head; option (b) is already approved.
-- **#133** `ee98a40` is approved (own full **3873/8**, four killed mutants).
-  Claude owns pinned merge after CI and combined-tree checks; no rollout
-  is claimed. Swarm **#157** merged `672eb29` with identical reviewed tree
-  after four green checks. The night snapshot below is historical.
+- **#133** `ee98a40` merged pinned as comic master **`668c6c2`** after
+  green CI, tree **`d2caa0ac`** equal to the reviewed head; own full
+  **3873/8**, four killed mutants. Claude's #2752 records the live checkout
+  ff-only update to `668c6c2`, no watcher restart (watcher/core unchanged;
+  sanitizer launched as a subprocess). Claude's Oct25 process-list check
+  in #158 records GUI **25696**, started **09:50:05 UTC-6**; GUI11832 is
+  gone, watcher **43624** still runs from Oct24 **20:36:02 UTC-6**.
+  Swarm **#157** merged `672eb29` with identical reviewed tree after four
+  green checks. The night snapshot below is historical.
 
 ## Night closeout — 2026-10-24, claude-lead
 
