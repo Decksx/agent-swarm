@@ -59,26 +59,33 @@ has occurred; bootstrap completion does not grant relay ownership.
   [Review](https://github.com/Decksx/cbz-automation-suite/pull/133#issuecomment-6401316430),
   confirmed hive **#2749**. Own focused **91**, full **3873/8**, four guard
   mutants killed (6/5/5/2 failures), source restored; mixed-ending deltas
-  verified. Claude owns the pinned merge after CI and combined-tree checks
-  if master moves. Do not claim deployed until a receipt exists.
+  verified. Claude merged pinned at that head as master `668c6c2` after
+  green CI; merge tree `d2caa0ac` equals the reviewed head tree (base
+  `5b00c34`). Hive **#2752** records the ff-only live checkout update from
+  `2c4ae3d` to `668c6c2`, with no watcher restart: watcher/core sources
+  were unchanged and the GUI launches the sanitizer as a subprocess.
 - **Swarm #157, Claude's dated night checkpoint:** approved at
   `c986568745b101b7840e58fe47c02ac2a1829c92` after correcting the timeout
   versus stale-turn distinction in both docs.
   [Review](https://github.com/Decksx/agent-swarm/pull/157#issuecomment-6401368146).
-  Codex owns pinned merge after exact-head CI and tree parity. Later
-  recovery/review events belong in a new checkpoint, not rewritten history.
+  Codex merged it as `672eb2957da46555e628081d00d39a272dc6809c` at
+  **12:21:57** after four green checks; reviewed/merged tree identical
+  `a9e2b091682b942687592a6dc4358554743afc0f`. Later recovery/review events
+  belong in a new checkpoint, not rewritten history.
 
 Before acting, fetch the current PR heads and receipts; changed candidates
 need fresh review. These are lead-run PR records, not controller verdicts.
 
 ## Runtime and authorization
 
-Claude's latest receipt (#2703): David's checkout
-`C:\git\ComicAutomation` is `2c4ae3d7b40b4bb2d4036bf8e5b9a546fb28f763`
-(#129), tracked tree clean; watcher **43624**, started **2026-10-24
-20:36:02**, same resolver arguments, clean log. GUI **11832** remains.
-This later receipt is attributed to Claude. Codex independently checked
-the earlier 20:01:34 restart (GUI11832/watcher48284, old44320 absent).
+Claude's latest receipts (#2752 and the #158 review): David's checkout
+`C:\git\ComicAutomation` is at comic master **`668c6c2`** (#133), updated
+ff-only from `2c4ae3d`. Watcher **43624** still runs from **2026-10-24
+20:36:02**; it was not restarted for #133. Claude's process-list check
+on Oct25 records GUI **25696**, started **2026-10-25 09:50:05**; GUI11832
+is gone. These runtime receipts are attributed to Claude. Codex
+independently checked only the earlier Oct24 20:01:34 restart
+(GUI11832/watcher48284, old44320 absent).
 
 Completed on Oct24: comic #126/#127/#128/#129; G: test-DB re-certify
 **58,246** after verified backup, separate postflight passed, **178 stale
