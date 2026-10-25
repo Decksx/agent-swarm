@@ -1,5 +1,38 @@
 # Next steps after the Codex import
 
+## Planner and tag review checkpoint — 2026-10-24
+
+- Comic **#130** read-only planner is ready at exact
+  `df1175d4bfccb467153725d51ee711f59e14a1b0`: full **3562/8**, focused
+  **41**, **15/15** guard mutants killed/restored; four generated plan
+  categories pass #128's reader. Claude owns review; Codex owns fixes and
+  a pinned merge after approval/CI. Board **41** is review. No live run.
+- Comic **#129** tag change at `fc9891b` remains changes requested for
+  authorization wording and an incorrect season-collision safety claim.
+  Codex full **3657/8**, independent 972-case matrix and three mutants pass.
+  The existing watcher can replace an earlier book after stripping `(s2)`;
+  the same tmp probe reproduces on master core. Claude owns corrected
+  limits/follow-up and a fresh head, Codex re-review. Unknown variants in
+  the bulk planner stay in review; no live tag rollout occurred.
+- #128's journal fix is still pending. Claude's later Tower plan run waits
+  for reviewed step 7 and tag policy/integration; batch apply still waits
+  for David's exact digest approval.
+
+## Verified operations checkpoint — 2026-10-24
+
+- GUI/watcher activation is complete per Claude #2656. Codex confirmed
+  GUI **11832** and watcher **48284**, both started **20:01:34 UTC-6**,
+  old **44320** absent and checkout `989099d`. Claude verified startup
+  log/arguments and reports #120 active; pending-restart text is superseded.
+- Claude #2672 reports board **35 done**: G: **test DB** fresh plan digest
+  `8c6e8de5…503d`, verified backup first, then **58,246** re-certified,
+  separate postflight passed, **178 stale + 13 tied** legacy rows untouched.
+  Detailed target, full digest, backup and evidence attribution are in the
+  maintained context. Codex did not duplicate the operation.
+- Swarm #155 merged `5a3fa6c` after exact-head approval/CI, tree identical.
+  This supersedes its pending-merge checkpoint. Tag policy and frontend
+  design remain Claude's work; the read-only planner remains Codex's.
+
 ## Admin decisions checkpoint — 2026-10-24, 20:00 UTC-6
 
 - David #2646 approves G: test-DB re-certify **after a verified backup**
