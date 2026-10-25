@@ -1,5 +1,30 @@
 # Next steps after the Codex import
 
+## Admin decisions checkpoint — 2026-10-24, 20:00 UTC-6
+
+- David #2646 approves G: test-DB re-certify **after a verified backup**
+  and authorizes GUI shutdown. Claude owns quiescence, backup/apply and
+  actual process/revision receipts; do not start duplicate operations.
+  Board 35's earlier awaiting-approval reason is superseded.
+  Claude #2656 reports a **20:01 UTC-6** restart on `989099d` (GUI 11832,
+  watcher 48284, identical resolver arguments, clean-start log), #120 now
+  active. This attributed receipt supersedes the pending-restart text below;
+  Codex has not independently rechecked those processes.
+- The frontend must eventually work off-network. Claude owns the concrete
+  authentication/exposure and first-version design; no public rollout is
+  claimed. Strip the four named round-bracket group/status/language tags
+  while retaining years, editions, version and decensor distinctions.
+- The separate progress-table installer is accepted for now. #128 still
+  requires its journal-path fixes and fresh exact-head review/CI before
+  merge. Then generate the approved **read-only** Tower rename plan;
+  batch apply still waits for David's approval of the exact plan digest.
+  Codex accepted the planner implementation (#2656/#2658), tmp fixtures
+  only and independent of #128 merging. Claude owns the later Tower live
+  dry run after #128 and the tag-stripping PR land, plus the tag-strip PR.
+- Context #154 is merged as `2e6ef3c` after exact-head approval and green
+  CI, with reviewed/merged tree parity; see the maintained context for
+  the full receipt. These decisions are separate from execution results.
+
 ## Apply re-review checkpoint — 2026-10-24
 
 - Comic #128 exact `095e9be048bf15cc086fb7bfcc731451f4d9220d` remains
