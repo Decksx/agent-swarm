@@ -42,7 +42,8 @@ import lead_chat
 import lead_relay_status
 from lead_relay_backends import (  # noqa: F401 -- re-exported for callers and tests
     CLOSED, OPEN, UNKNOWN, AlreadyRunning, ClaudeBackend, ProcessApi, Session,
-    acquire_lock, child_environment, separate_process_group, session_key,
+    acquire_lock, child_environment, migrate_provenance, popen_contained,
+    separate_process_group, session_key,
 )
 from lead_relay_codex import CodexBackend  # noqa: F401 -- re-exported
 
@@ -120,6 +121,7 @@ def migrate(db) -> None:
     if "backend" not in columns:
         db.execute("ALTER TABLE attempts ADD COLUMN backend TEXT")
     db.execute("UPDATE attempts SET backend = 'claude' WHERE backend IS NULL")
+    migrate_provenance(db, columns)
 
 
 
@@ -469,8 +471,9 @@ class Relay:
     def _ended(self, attempt, code: Optional[int], how: str) -> None:
         now = self.now()
         self.popen.pop(attempt["attempt_id"], None)
-        self.db.execute("UPDATE attempts SET state = 'exited', exit_code = ?, ended_at = ? "
-                        "WHERE attempt_id = ?", (code, now, attempt["attempt_id"]))
+        self.db.execute("UPDATE attempts SET state = 'exited', exit_code = ?, ended_at = ?, "
+                        "ended_by = ? WHERE attempt_id = ?",
+                        (code, now, how, attempt["attempt_id"]))
         self._record_usage(self._attempt(attempt["attempt_id"]))
         if how == "timeout":
             self.say(f"RELAY TIMEOUT #{attempt['message_id']} → {attempt['recipient']}: "
@@ -561,7 +564,8 @@ class Relay:
             current = delivery is not None and delivery["attempt_id"] == attempt["attempt_id"]
             uncertain = current and not acked and delivery["state"] in ACTIVE
             with self.txn():
-                self.db.execute("UPDATE attempts SET state = 'exited', ended_at = COALESCE(ended_at, ?) "
+                self.db.execute("UPDATE attempts SET state = 'exited', ended_at = COALESCE(ended_at, ?), "
+                                "ended_by = COALESCE(ended_by, 'recovery') "
                                 "WHERE attempt_id = ?", (self.now(), attempt["attempt_id"]))
                 if current and acked:
                     self._set_delivery(delivery, "delivered", "ack")
@@ -806,8 +810,9 @@ class Relay:
         # leaves a row that recovery can supervise rather than forget.
         with self.txn():
             self.db.execute("UPDATE attempts SET pid = ?, proc_start = ?, launched_at = ?, "
-                            "log_path = ? WHERE attempt_id = ?",
-                            (pid, proc_start, self.now(), str(log_path), attempt_id))
+                            "log_path = ?, container = ? WHERE attempt_id = ?",
+                            (pid, proc_start, self.now(), str(log_path),
+                             getattr(handle, "container", None), attempt_id))
 
         error = self._feed(handle, prompt_for(message, delivery["recipient"], token))
         if error and self._stopped(pid, proc_start, handle):
@@ -833,9 +838,9 @@ class Relay:
         log_path = self.log_dir / f"{attempt_id}.log"
         out = open(log_path, "ab")
         env = child_environment(os.environ, session.recipient)
-        handle = subprocess.Popen(command, cwd=session.workspace, stdin=subprocess.PIPE,
-                                  stdout=out, stderr=subprocess.STDOUT, env=env,
-                                  **separate_process_group())
+        handle = popen_contained(attempt_id, command, cwd=session.workspace,
+                                 stdin=subprocess.PIPE, stdout=out, stderr=subprocess.STDOUT,
+                                 env=env, **separate_process_group())
         out.close()
         return handle.pid, self.processes.creation_time(handle.pid), handle, log_path
 
