@@ -54,6 +54,69 @@ class ProcessApi:
     def is_same(self, pid: Optional[int], proc_start: Optional[str]) -> bool:
         return bool(pid) and bool(proc_start) and self.creation_time(pid) == proc_start
 
+    def descendants(self, pid: int, proc_start: str) -> list[int]:
+        """Live processes that may still belong to the tree rooted at
+        (pid, proc_start). Raises when the process table can't be read.
+
+        Windows keeps a dead parent's pid in each child's entry, so the tree
+        is followed by parent pid, counting only processes created after
+        their parent: a reused pid's own children are newer than the reuse,
+        so they still count, which is a refusal, never a false "gone". On
+        POSIX a woken run is its own process group (`separate_process_group`).
+        """
+        if os.name != "nt":
+            members = []
+            for stat in Path("/proc").glob("[0-9]*/stat"):
+                try:
+                    fields = stat.read_text(encoding="utf-8").rsplit(")", 1)[1].split()
+                except (OSError, IndexError):
+                    continue  # exited while we looked
+                if int(fields[2]) == pid and int(stat.parent.name) != pid:
+                    members.append(int(stat.parent.name))
+            return members
+        children: dict[int, list[int]] = {}
+        for child, parent in self._windows_table():
+            children.setdefault(parent, []).append(child)
+        found, todo = [], [(pid, int(proc_start))]
+        while todo:
+            parent, born = todo.pop()
+            for child in children.get(parent, ()):
+                start = self.creation_time(child)
+                if child not in found and start is not None and int(start) >= born:
+                    found.append(child)
+                    todo.append((child, int(start)))
+        return found
+
+    @staticmethod
+    def _windows_table() -> list[tuple[int, int]]:
+        """(pid, parent pid) for every process, from a Toolhelp snapshot."""
+        from ctypes import wintypes
+
+        class Entry(ctypes.Structure):
+            _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+                        ("th32ProcessID", wintypes.DWORD), ("th32DefaultHeapID", ctypes.c_size_t),
+                        ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+                        ("th32ParentProcessID", wintypes.DWORD), ("pcPriClassBase", ctypes.c_long),
+                        ("dwFlags", wintypes.DWORD), ("szExeFile", ctypes.c_wchar * 260)]
+
+        kernel32 = ctypes.windll.kernel32
+        kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+        snapshot = kernel32.CreateToolhelp32Snapshot(0x2, 0)   # TH32CS_SNAPPROCESS
+        if not snapshot or snapshot == wintypes.HANDLE(-1).value:
+            raise OSError("CreateToolhelp32Snapshot failed")
+        try:
+            entry, rows = Entry(), []
+            entry.dwSize = ctypes.sizeof(Entry)
+            more = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
+            while more:
+                rows.append((entry.th32ProcessID, entry.th32ParentProcessID))
+                more = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
+            if not rows:
+                raise OSError("the process snapshot was empty")
+            return rows
+        finally:
+            kernel32.CloseHandle(snapshot)
+
     def kill_tree(self, pid: int) -> None:
         if os.name == "nt":
             subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
