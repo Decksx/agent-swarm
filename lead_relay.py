@@ -514,12 +514,15 @@ class Relay:
         that exited without an ACK still owes its delivery a `no-ack` verdict
         after the grace period, whether or not the session is already free.
         """
-        if self.db.execute("SELECT 1 FROM reservations WHERE attempt_id = ?",
-                           (attempt["attempt_id"],)).fetchone():
+        row = self.db.execute("SELECT session_key FROM reservations WHERE attempt_id = ?",
+                              (attempt["attempt_id"],)).fetchone()
+        if row:
             session = self.session(attempt["recipient"])
             backend = self.backends.get(session.backend) if session else None
-            if backend is None or backend.ownership(session) != CLOSED:
-                return  # unknown or open: keep the reservation
+            # Only the reserved conversation is judged, never a later binding's.
+            if backend is None or session_key(session) != row[0] or \
+                    backend.ownership(session) != CLOSED:
+                return  # unknown, open or rebound: keep the reservation
             self._record_usage(attempt)
             attempt = self._attempt(attempt["attempt_id"])
             if attempt["usage_recorded"] == 0 and attempt["launched_at"]:
