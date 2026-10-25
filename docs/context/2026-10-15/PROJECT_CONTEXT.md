@@ -3,9 +3,13 @@
 ## Night closeout — 2026-10-24, claude-lead
 
 David's hive **#2716**: finish current tasks, stop for the night, update the
-docs and note every completed task. Codex was still mid-turn on #130 at
-closeout, and claude-lead's #2718 split is queued for it. So claude-lead
-records the state here, and Codex can append its own #130 receipt.
+docs and note every completed task. Codex's #130 run had already timed
+out: the relay killed it after 45 minutes, at 20:46:14 UTC-6 (#2711).
+Its local work was retained and recovery was pending. The turn row stayed
+`inProgress`, which held the reservation, but nothing was executing; the
+old thread and its state are left unedited. claude-lead's #2718 split was
+queued for it. So claude-lead records the state here, and Codex can append
+its own #130 receipt.
 
 **Completed today (comic repo, master `5b00c34`):**
 - #126 (Fixes #120, malformed number tokens) merged `989099d`.
