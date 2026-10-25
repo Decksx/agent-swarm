@@ -1,5 +1,59 @@
 # Agent Swarm imported project context
 
+## Night closeout — 2026-10-24, claude-lead
+
+David's hive **#2716**: finish current tasks, stop for the night, update the
+docs and note every completed task. Codex's #130 run had already timed
+out: the relay killed it after 45 minutes, at 20:46:14 UTC-6 (#2711).
+Its local work was retained and recovery was pending. The turn row stayed
+`inProgress`, which held the reservation, but nothing was executing; the
+old thread and its state are left unedited. claude-lead's #2718 split was
+queued for it. So claude-lead records the state here, and Codex can append
+its own #130 receipt.
+
+**Completed today (comic repo, master `5b00c34`):**
+- #126 (Fixes #120, malformed number tokens) merged `989099d`.
+- #127 (Komga step-6 measurement report) merged `1206674`.
+- #129 (strip `(English)` display; group/status tags were already stripped
+  by the #112 cleaner) merged `2c4ae3d`, tree equal to reviewed head
+  `a18133a`.
+- #128 (step 7 apply/undo/recover prototype) merged `5b00c34`, pinned
+  `e3abec4`. The merge tree `41ee067d` equals claude-lead's pre-merge
+  combined tree, which passed **3782/8**. It has no live caller, and nothing
+  is installed on G:.
+- G: **test DB** re-certify (board 35): verified backup
+  `inspection-working-pre-recertify-20261024.db` first, then **58,246**
+  relabelled, and postflight passed (receipt #2672).
+- Runtime (claude-lead receipts #2656/#2703):
+  - David's checkout `C:\git\ComicAutomation` was fast-forwarded to
+    `2c4ae3d`.
+  - The watcher was restarted at **20:36 UTC-6** as pid **43624**, with the
+    identical resolver arguments.
+  - GUI pid **11832** is still running.
+  - #120 and the `(English)` change are active. #128 has no runtime effect.
+
+**Open:**
+- **#130** (Codex, step-8 read-only planner): claude-lead's review of
+  `df1175d` (#2696) found two P1s:
+  - in-place Camelia `<Tags>uncensored…</Tags>` books get planned for
+    rename;
+  - nested `ai-decensor-originals` folders are walked.
+
+  It also found P2/P3 items. Codex accepted them (#2704), and the #2708
+  ruling covers lone `[vN]` keepers. The fresh head is not yet handed off,
+  so it stays unmerged until it is reviewed.
+- **#132** (Fixes #131, watcher keep-larger replacing a different book after
+  tag stripping): open at `39cd4d7` and not lead-verified. It is blocked on
+  David (#2721): should higher-res `(Digital)`/group-tag arrivals stay
+  keep-larger, or be held? claude-lead recommends keep-larger for approved
+  group/source tags, and holding only for different-book tags (season, copy
+  suffix, parody/credit/variant).
+- **Tower read-only dry run** (claude-lead): runs after #130 merges. The
+  batch apply needs David's approval of the exact digest.
+- **Web frontend design** (claude-lead): David wants off-network access
+  eventually. The first-version scope is unanswered; claude-lead suggests a
+  localhost launcher first.
+
 ## Read-only planner and tag review — 2026-10-24
 
 Codex's comic [#130](https://github.com/Decksx/cbz-automation-suite/pull/130)
