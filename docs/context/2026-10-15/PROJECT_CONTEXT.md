@@ -1,5 +1,81 @@
 # Agent Swarm imported project context
 
+## Successor engineering checkpoint — 2026-10-25
+
+David resumed engineering on successor thread
+`01a1744a-a2e9-7e61-8f82-1b3694a8a4e3` and explicitly authorized the
+reviews below and the #130 fixes. He reiterated permission for project
+edits, commits, pulls, pushes, merges, deployments and the needed runtimes.
+Exact-head independent review/CI and operational guards remain. This
+engineering turn performed no relay cutover, daemon stop, binding or
+reservation change, Codex-state edit, worker launch or live library/DB
+operation. Claude retains cutover ownership.
+
+- **Swarm #159:** **changes requested** at
+  `b7ade88f8c63ded2f3c35cb281e5791006f82a6c`.
+  [Review](https://github.com/Decksx/agent-swarm/pull/159#issuecomment-6404018147),
+  confirmed hive **#2784**. Independent temporary fixtures reproduce:
+  recovery/quit being labelled a timeout kill without a kill; a live
+  Windows descendant hidden by an exited intermediate wrapper; process
+  query failure becoming absence; and ordinary `register` accepting a
+  retired conversation. Claude owns fixes and a fresh exact-head handoff;
+  cutover is not approved by this review. **231 focused passed**, exact-head
+  CI **40223700919** succeeded, **3/3** selected guard mutants killed with
+  source hashes unchanged. Initial sandbox selection was **159 passed /
+  2 failed** (host child cleanup and inherited cap overrides); the final
+  rerun used host execution and cleared overrides only in the test process.
+  No independent full-suite result is claimed.
+- **Comic #132:** **approved** at
+  `19958f890e648f83f3be39a42cd4e7337985087f`.
+  [Review](https://github.com/Decksx/cbz-automation-suite/pull/132#issuecomment-6404132239),
+  confirmed hive **#2787**. Deferring distinguishing-tag renames until
+  landing resolves the old retry loss and AI-original mapping findings.
+  The predecessor's unchanged four entry-point probes pass in both modes:
+  existing bytes remain, incoming stays tagged/held, and its original is
+  not offloaded. Independent full suite **3870 passed / 8 skipped**,
+  **4/4** additional in-memory guard mutants killed, source hash unchanged.
+  Checkout clean; watcher remains `i/mixed`, other changed blobs LF;
+  LF-file diff-check clean. Exact-head CI **40223042359** succeeded. Claude
+  owns pinned merge with combined-tree checks if master moves, and any
+  separate watcher rollout receipt. Approval is not deployment.
+- **Comic #130:** blocking items in Claude's
+  [5219265 review](https://github.com/Decksx/cbz-automation-suite/pull/130#issuecomment-6401492458)
+  are implemented and pushed at
+  `7d33cd29760f3ffc08659d1668ee235dae423060`.
+  [Fresh review handoff](https://github.com/Decksx/cbz-automation-suite/pull/130#issuecomment-6404361582),
+  confirmed hive **#2791**.
+  - Lone canonical labels are judged within the decided identity candidate
+    group, not the folder. No-op diagnostics certify no version or family.
+    Same-group co-members still require the normal family proof.
+  - Proposed names are re-resolved together using the same ComicInfo and
+    page facts. This pass may only reject an original proposal. A
+    non-fixpoint holds the entire affected family, including quarantine.
+  - A database resolving inside the library is refused before any SQLite
+    open, including directory aliases, to avoid WAL/SHM writes there.
+  - Real mixed-case originals, root junction, output junction and saved
+    diagnostic-receipt tests kill Claude's B2/B3/D7/E4 survivors.
+  - One-file commits: `f7a8421` source, `65bdd84` tests,
+    `332c9c8` protocol; then clean master merge `7d33cd2` with
+    `668c6c29f479ce6d299fededcbd87dc9b0bf736e` (#133).
+    Starting head `5219265` was independently measured at **3858/8**;
+    final exact-head full suite **3960/8**, **87 focused passed**.
+    Delta = **91 master tests + 11 planner tests**. Seven new behavior
+    witnesses fail on the starting head. The actual tmp executor applies
+    a ch1 family beside ch2/ch3 renames, re-plans all unchanged, and restores
+    family proof when v3 appears.
+  - **7/7 final-head in-memory mutants killed**, source hashes unchanged:
+    old folder-wide scope, missing fixpoint guard, missing DB containment,
+    B2/B3/D7/E4. Earlier 25-mutant evidence remains bound to `5219265`.
+    Clean implementation checkout and diff-check. Exact-head CI
+    **40240922326** was **in progress** at handoff, not claimed passed.
+    Claude owns fresh review; Codex retains fixes/pinned merge after
+    approval and green exact-head CI. Nonblocking P3-a/b/c/e follow-ups and
+    the outside-diff step-5 observation remain deferred.
+
+Claude still owns the later Tower read-only plan after #130 passes.
+Batch apply needs David's exact plan-digest approval and operational
+preflight. None of these lead-run records is a controller-ledger verdict.
+
 ## Recovery and successor bootstrap — 2026-10-25
 
 David approved a fresh codex-lead thread in chat and hive **#2735**.
