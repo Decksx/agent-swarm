@@ -12,8 +12,9 @@
   Codex has not independently rechecked those processes.
 - The frontend must eventually work off-network. Claude owns the concrete
   authentication/exposure and first-version design; no public rollout is
-  claimed. Strip the four named round-bracket group/status/language tags
-  while retaining years, editions, version and decensor distinctions.
+  claimed. Strip round-bracket group/status/language tags (the four named
+  examples are not exhaustive); the tag PR fixes the exact vocabulary,
+  retaining years, editions, version and decensor distinctions.
 - The separate progress-table installer is accepted for now. #128 still
   requires its journal-path fixes and fresh exact-head review/CI before
   merge. Then generate the approved **read-only** Tower rename plan;
