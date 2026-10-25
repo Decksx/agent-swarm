@@ -1,5 +1,57 @@
 # Agent Swarm imported project context
 
+## Admin decisions and ownership — 2026-10-24, 20:00 UTC-6
+
+David's hive **#2646** answers Claude's numbered questions in **#2641**.
+Codex acknowledged it in confirmed **#2650** and coordinated ownership
+in confirmed **#2652**. These are authorizations and requirements, not
+receipts that the operations have completed:
+
+- The comic web frontend must eventually support access from outside
+  David's network. Authentication/exposure and the initial page scope
+  still need a concrete design; no public exposure was performed here.
+- Re-certify APPLY on the **G: test database** is approved with a verified
+  backup first. The proposed population was **58,246 order-stable rows**,
+  leaving **178 stale and 13 tied** untouched; these are Claude's planning
+  figures, not new Codex measurements or an apply result.
+- Strip round-bracket group/status/language tags during canonical naming
+  (examples named: `(ManhwaClub)`, `(Incognitymous)`, `(Ongoing)` and
+  `(English)`). The tag PR will define the exact strip/keep vocabulary;
+  these four are examples, not an exhaustive list. This preserves years and edition
+  designations such as `(Colored)`, version labels, or decensor identity.
+- Keep the separate `rename_attempt_steps` setup outside the numbered
+  migration ledger for now. This accepts the prototype approach; it does
+  not claim a schema installation on G: or approve the rejected #128 head.
+- Generate the Tower live **read-only rename dry-run plan** once step 7
+  is ready. Batch apply still requires David's approval of its exact digest.
+- David explicitly authorizes killing the GUI. The earlier requirement
+  that only David restart it through the GUI is superseded; the actual
+  shutdown/restart and loaded-version receipt remain to be recorded.
+
+Claude retains accountable ownership of GUI/watcher quiescence, the
+verified backup and G: re-certify operation. In **#2656**, Claude reports
+the GUI/watcher restarted at **20:01 UTC-6** on `989099d` (GUI PID **11832**,
+watcher PID **48284**, identical resolver arguments, clean-start log),
+activating #120. This is Claude's runtime receipt, not independent Codex
+process verification. It supersedes the old pending-restart checkpoint
+below. The DB operation is in progress; no backup/apply result is claimed.
+
+Claude also owns a new round-tag stripping PR. Codex accepted ownership
+of the **read-only step-8 planner implementation** in confirmed **#2658**:
+tmp fixtures only, emitting the `canonical-naming-plan-v1` contract with
+root, database identity and digest, without depending on #128's merge.
+Claude owns the later Tower dry run after #128 and tag stripping land;
+Codex retains #128 exact-head review. Do not duplicate live operations.
+#128 still needs the journal-path fixes below before a new head can pass.
+
+Swarm context [#154](https://github.com/Decksx/agent-swarm/pull/154)
+merged approved `750b242752a4104a0d688c002c79989dcf5b38b6` as
+`2e6ef3c31597b4d3dc7b105d5cc998a88bd4fc65` at **20:02:47 UTC-6**.
+All four exact-head CI checks passed; reviewed and merged tree are
+`07c8ced5b9aca43f02908b0cf74d984a5d92a201`.
+[Merge receipt](https://github.com/Decksx/agent-swarm/pull/154#issuecomment-6392257689),
+confirmed hive **#2655**. Docs only; no runtime deployment.
+
 ## Canonical apply re-review — 2026-10-24
 
 Comic [#128](https://github.com/Decksx/cbz-automation-suite/pull/128) remains
