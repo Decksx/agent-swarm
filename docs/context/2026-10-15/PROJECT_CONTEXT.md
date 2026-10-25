@@ -1,5 +1,65 @@
 # Agent Swarm imported project context
 
+## Recovery and successor bootstrap — 2026-10-25
+
+David approved a fresh codex-lead thread in chat and hive **#2735**.
+The new local Agent Swarm project thread is
+`01a1744a-a2e9-7e61-8f82-1b3694a8a4e3`, titled
+**codex-lead successor 2026-10-25**, workspace `C:\git\agent-swarm`.
+Bounded read-only bootstrap turn `01a1744a-aa2e-7351-b321-fd048e513066`
+completed **12:21:04 UTC-6**, no error, and the app's exact-thread read
+shows idle. It reported the runtime id/workspace and standby without relay
+ownership. No binding, reservation, Codex history or controller state changed.
+See [the durable handoff](../HANDOFF_CODEX_SUCCESSOR_2026-10-25.md).
+
+**Cutover is not complete.** Production's supported `register` refuses the
+retained timed-out reservation. Claude owns a narrowly reviewed successor
+transition (#2760) that preserves old evidence and registers only the new
+thread disabled; Codex reviews its exact head. Proof/lifecycle retargeting
+and a bounded bridge proof are still required before enablement. Do not
+reinterpret the old `inProgress` row as idle or edit Codex state.
+
+Codex recovered the interrupted planner without discarding work:
+
+- Comic **#130**, exact `5219265e5b273dedc5bf15622be636fba7a7bd4d`,
+  committed/pushed, fresh Claude review requested in confirmed **#2742**.
+  Master `5b00c34` integrated; independent full **3858/8**, +76 tests;
+  **25/25** guard mutants killed/restored, clean trees and LF Git blobs.
+  Metadata-only Camelia holds, nested originals exclusion, stem spellings,
+  exact catalog paths and exclusive UTF-8 output are fixed. Real tmp
+  executor apply/recover/undo and family re-plan tests pass. The #2708
+  unchanged-only unverified-version diagnostic certifies no version/family.
+  [Fresh handoff](https://github.com/Decksx/cbz-automation-suite/pull/130#issuecomment-6401267098).
+  No approval, live run or batch apply claimed.
+- Comic **#132**, exact `9aa95a1a61268bbe958fa853b074b06abc706022`,
+  **changes requested** in confirmed **#2745**: a failed hold-name restore
+  releases the next retry; a successful restore leaves the AI-original
+  pair keyed to the stripped path and offloads a pending original. Both
+  entry-point probes reproduce in legacy/resolver modes; focused **68**
+  pass, no independent full run on the rejected head. Claude accepted
+  both findings (#2747), owns fixes and fresh handoff. David's option (b)
+  is settled; do not ask it again.
+  [Review](https://github.com/Decksx/cbz-automation-suite/pull/132#issuecomment-6401286299).
+- Comic **#133** approved at `ee98a40c94f7198cc5c3545b63edba22e65bd64e`,
+  confirmed **#2749**. Own focused **91**, full **3873/8**, four mutants
+  killed (6/5/5/2), restored byte-for-byte and ending deltas verified.
+  Claude merged pinned after green CI as comic master **`668c6c2`**;
+  merge tree **`d2caa0ac`** equals the reviewed head tree (base `5b00c34`).
+  Hive **#2752** records the ff-only live checkout update `2c4ae3d` ->
+  `668c6c2`; no watcher restart because watcher/core sources are unchanged
+  and the GUI launches the sanitizer as a subprocess. Claude's Oct25
+  process-list check in the #158 review records GUI **25696**, started
+  **09:50:05 UTC-6**, with GUI11832 gone. Watcher **43624** still runs
+  from Oct24 **20:36:02 UTC-6**. These are Claude's runtime receipts.
+  [Review](https://github.com/Decksx/cbz-automation-suite/pull/133#issuecomment-6401316430).
+
+Swarm **#157** merged corrected, reviewed `c986568745b101b7840e58fe47c02ac2a1829c92`
+as `672eb2957da46555e628081d00d39a272dc6809c` at **12:21:57 UTC-6**;
+four exact-head checks passed, reviewed/merged tree identical
+`a9e2b091682b942687592a6dc4358554743afc0f`. Docs only; no runtime deployment.
+Its night snapshot below remains dated history. Current pending work and
+worktree locations are in the successor handoff, not replay requests.
+
 ## Night closeout — 2026-10-24, claude-lead
 
 David's hive **#2716**: finish current tasks, stop for the night, update the
