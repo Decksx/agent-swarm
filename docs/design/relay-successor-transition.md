@@ -155,7 +155,7 @@ Each failure prints `REFUSED:` with its specific reason and changes nothing.
        process group is a refusal. A process that calls `setsid` itself
        leaves it; POSIX has no stronger container without cgroups.
    - **No container.** This covers every run from before this change, and
-     any run whose job could not be made (that is logged, and the run goes
+     any run whose job could not be made (that is a WARNING, and the run goes
      uncontained). The command refuses when *any* live process on the host
      was created during `[launched_at - 10 s, ended_at + 10 s]`. It lists
      each one's pid, image name and creation time. A broken chain hides a
@@ -220,6 +220,39 @@ the run's last job-handle holder (normally the root). Before, a leftover
 child of `claude -p` or `codex exec` survived the run. A woken lead that
 needs a lasting process must start it outside the run (a scheduled task or a
 service), not as its child.
+
+Kill-on-close is what the proof rests on, and it can't be dropped. A
+process's membership does not keep its job's name: the name lives only as
+long as some handle to the job. This was checked on the lead host with the
+real launch path and kill-on-close off:
+
+- root -> wrapper -> worker, with the relay's handle closed;
+- while the root runs, the job is found by name and lists root, its console
+  host and the worker;
+- once root and wrapper exit, the worker is alive and still in the job, but
+  `OpenJobObject` by name returns not-found;
+- after the worker is killed, the job is still not found.
+
+So without kill-on-close, "no such job" would read a live worker as absent.
+`test_without_kill_on_close_a_live_member_does_not_keep_the_job_name` keeps
+that fact on the host. With kill-on-close, the same moment, the last
+holder's exit, is when the kernel ends the worker.
+
+Both lead CLIs start inside the job. Under `popen_contained`, with the
+relay's own launch options, and without any prompt or model call:
+
+- `codex.exe --version` (bin `2993767bd1dfb009`) printed `codex-cli
+  0.164.0-alpha.11.1` and exited 0;
+- `claude --version` printed `2.1.309 (Claude Code)` and exited 0.
+
+In both cases `IsProcessInJob` was true while the child was still suspended,
+and the job then accounted 2 processes (the CLI and its console host), none
+active after exit. That is a launch check only. Whether a real Codex turn's
+own sandboxed commands start inside a job that allows no breakaway is still
+to be seen on the first contained wake.
+
+If the job can't be made, the run starts uncontained, with a WARNING, and
+its proof falls to the window check (§2.8).
 
 ## 4. After the rebind
 
