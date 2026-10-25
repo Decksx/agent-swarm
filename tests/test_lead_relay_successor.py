@@ -774,6 +774,48 @@ def test_a_contained_run_shows_a_survivor_behind_an_exited_wrapper_and_dies_with
 
 
 @WINDOWS_ONLY
+def test_without_kill_on_close_a_live_member_does_not_keep_the_job_name():
+    """Why the job is kill-on-close. A process in a job does not keep the
+    job's name: once the last handle closes, the name is gone while a member
+    still runs, so "no such job" would read a live worker as absent."""
+    from ctypes import byref, sizeof, Structure, c_void_p, wintypes
+
+    class Security(Structure):
+        _fields_ = [("n", wintypes.DWORD), ("sd", c_void_p), ("inherit", wintypes.BOOL)]
+
+    kernel32 = lead_relay_backends._kernel32()
+    name = f"Global\\lead-relay-test-plain-{os.getpid():x}{int(time.time() * 1000):x}"
+    job = kernel32.CreateJobObjectW(byref(Security(sizeof(Security), None, False)), name)
+    assert job, "a plain job (no limits)"
+    worker = subprocess.Popen([sys.executable, "-c", WORKER], stdin=subprocess.DEVNULL,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              creationflags=0x08000000 | lead_relay_backends.CREATE_SUSPENDED)
+    try:
+        assert kernel32.AssignProcessToJobObject(job, int(worker._handle))
+        assert lead_relay_backends._resume(worker.pid)
+        api = lead_relay.ProcessApi()
+        assert worker.pid in api.job_members(name), "found by name while a handle is open"
+        kernel32.CloseHandle(job)
+        assert worker.poll() is None and live(api, worker.pid), "the member still runs"
+        assert api.job_members(name) is None, "yet the job can no longer be found by name"
+    finally:
+        worker.kill()
+        worker.wait(timeout=10)
+
+
+@WINDOWS_ONLY
+def test_a_run_whose_job_cannot_be_made_runs_uncontained_with_a_warning(monkeypatch, caplog):
+    monkeypatch.setattr(lead_relay_backends, "JOB_PREFIX", "NoSuchNamespace\\lead-relay-")
+    caplog.set_level("WARNING", logger="lead_relay")
+    handle = lead_relay_backends.popen_contained(
+        "a1", [sys.executable, "-c", "pass"], stdin=subprocess.DEVNULL,
+        **lead_relay.separate_process_group())
+    assert handle.wait(timeout=30) == 0 and handle.container is None
+    [record] = [r for r in caplog.records if "uncontained" in r.getMessage()]
+    assert record.levelname == "WARNING" and "NoSuchNamespace" in record.getMessage()
+
+
+@WINDOWS_ONLY
 def test_an_uncontained_survivor_is_listed_by_the_window_check():
     api = lead_relay.ProcessApi()
     launched = time.time()
