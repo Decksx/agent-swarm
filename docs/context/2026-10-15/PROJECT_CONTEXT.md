@@ -43,8 +43,14 @@ Codex recovered the interrupted planner without discarding work:
 - Comic **#133** approved at `ee98a40c94f7198cc5c3545b63edba22e65bd64e`,
   confirmed **#2749**. Own focused **91**, full **3873/8**, four mutants
   killed (6/5/5/2), restored byte-for-byte and ending deltas verified.
-  Claude owns pinned merge after CI/combined-tree checks; no deployment
-  receipt is claimed here.
+  Claude merged pinned after green CI as comic master **`668c6c2`**;
+  merge tree **`d2caa0ac`** equals the reviewed head tree (base `5b00c34`).
+  Hive **#2752** records the ff-only live checkout update `2c4ae3d` ->
+  `668c6c2`; no watcher restart because watcher/core sources are unchanged
+  and the GUI launches the sanitizer as a subprocess. Claude's Oct25
+  process-list check in the #158 review records GUI **25696**, started
+  **09:50:05 UTC-6**, with GUI11832 gone. Watcher **43624** still runs
+  from Oct24 **20:36:02 UTC-6**. These are Claude's runtime receipts.
   [Review](https://github.com/Decksx/cbz-automation-suite/pull/133#issuecomment-6401316430).
 
 Swarm **#157** merged corrected, reviewed `c986568745b101b7840e58fe47c02ac2a1829c92`
