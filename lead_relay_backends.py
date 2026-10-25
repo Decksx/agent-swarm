@@ -295,7 +295,7 @@ def popen_contained(attempt_id: str, command: list[str], **options) -> subproces
             return handle
         assigned = bool(kernel32.AssignProcessToJobObject(job, int(handle._handle)))
         if not assigned:
-            log.error("could not assign %s to its job (error %s); it runs uncontained",
+            log.warning("could not assign %s to its job (error %s); it runs uncontained",
                       attempt_id, ctypes.get_last_error())
         if not _resume(handle.pid):
             handle.kill()
@@ -322,7 +322,14 @@ def _kernel32():
 
 
 def _new_job(name: str):
-    """An inheritable KILL_ON_JOB_CLOSE job handle, or None (logged)."""
+    """An inheritable KILL_ON_JOB_CLOSE job handle, or None (a WARNING; the
+    run then goes uncontained and falls under the window check, §2.8).
+
+    Kill-on-close is what makes "no such job" proof. A job's name lives only
+    as long as some handle to it: with root -> wrapper -> worker, once the
+    root (the only holder) exits, the job can no longer be opened by name
+    although the worker is still in it (checked on the lead host; see
+    `test_without_kill_on_close_a_live_member_does_not_keep_the_job_name`)."""
     from ctypes import wintypes
 
     class Security(ctypes.Structure):
@@ -351,12 +358,12 @@ def _new_job(name: str):
     if not job or error == 183:   # ERROR_ALREADY_EXISTS: not ours to vouch for
         if job:
             kernel32.CloseHandle(job)
-        log.error("could not create job %s (error %s); the run is uncontained", name, error)
+        log.warning("could not create job %s (error %s); the run is uncontained", name, error)
         return None
     limits = Extended()
     limits.Basic.LimitFlags = 0x2000   # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
     if not kernel32.SetInformationJobObject(job, 9, ctypes.byref(limits), ctypes.sizeof(limits)):
-        log.error("could not make job %s kill-on-close (error %s); the run is uncontained",
+        log.warning("could not make job %s kill-on-close (error %s); the run is uncontained",
                   name, ctypes.get_last_error())
         kernel32.CloseHandle(job)
         return None
