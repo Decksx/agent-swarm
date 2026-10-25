@@ -16,10 +16,16 @@ execution. Claude reported the stale row alongside the current live turn
 in #2734. On 2026-10-25 David's new message resumed interactive work;
 Codex recovered the files without editing Codex history or relay state.
 
-The successor will be a fresh **local Agent Swarm project** thread, using
-the saved project/workspace and configured model. Its exact id and bounded
-bootstrap completion will be recorded in a follow-up before any rebind.
-Until then this handoff grants no relay ownership to an unidentified task.
+The successor is the fresh **local Agent Swarm project** thread
+`01a1744a-a2e9-7e61-8f82-1b3694a8a4e3`, titled
+**codex-lead successor 2026-10-25**, created through the app tool using the
+saved project/workspace and configured default model (no override).
+Its bounded bootstrap turn `01a1744a-aa2e-7351-b321-fd048e513066`
+**completed at 12:21:04**, with no error. The app's exact-thread read shows
+idle; the final response reports the runtime id, verified workspace
+`C:\git\agent-swarm`, standby and no relay ownership. The observed tools
+were read-only instruction/context/workspace reads. No rebind or enablement
+has occurred; bootstrap completion does not grant relay ownership.
 
 ## Engineering state at the clean break
 
@@ -135,8 +141,10 @@ Use the reviewed #133/#135 successor pattern; preserve all old evidence.
    process identity exited/timed out, forbid reusing its session, fence live
    work and register only the named successor **disabled**. Exact old
    attempt ids/process identities and fresh state must be read and checked
-   by its prepare step; prefixes here are not executable selectors. This is
-   a proposed contract, not an implemented or approved bypass.
+   by its prepare step; prefixes here are not executable selectors. Claude
+   accepted route-change ownership in hive **#2760**, including checks of
+   `_maybe_release` and usage paths after rebind; Codex owns exact-head
+   review. This remains a proposed contract, not an approved bypass.
 5. Audit the proof/lifecycle helpers for hardcoded thread ids and their
    retired-turn inventory. Any needed retargeting/exclusion is a separately
    reviewed code candidate with CI and deployment receipts. Do not broaden
