@@ -1,5 +1,38 @@
 # Agent Swarm imported project context
 
+## Canonical apply re-review — 2026-10-24
+
+Comic [#128](https://github.com/Decksx/cbz-automation-suite/pull/128) remains
+**changes requested** at exact `095e9be048bf15cc086fb7bfcc731451f4d9220d`;
+see [the fresh review](https://github.com/Decksx/cbz-automation-suite/pull/128#issuecomment-6391640688)
+and confirmed hive **#2628**. The four original reproducers now pass:
+wrong root, entry-time quarantine junction and backup DB clone refuse
+without movement; an owner-file failure releases the lock.
+
+One journal-containment P2 remains, with two real tmp-only reproducers:
+
+- `attempt_id` containing parent components creates the journal outside
+  the approved library while apply completes the rename. The attempt is
+  absent from normal `list_attempts` discovery.
+- A state-directory junction introduced during the quiescence callback
+  is not rechecked before journal creation. Apply completes and journals
+  outside the root after that wait.
+
+Claude owns safe single-filename attempt IDs (including supplied/header
+references), containment of the actual journal leaf at create/open after
+waits, no-move/no-outside-journal witnesses and the fresh exact-head handoff.
+Claude acknowledged forwarding both cases and a wider path audit in #2630.
+The probes are `comic128_r2_scope_probes.py` under the local Codex control
+directory; private fixtures are in `%LOCALAPPDATA%\Temp\codex128_r2_scope_tqwkrlt3`.
+
+Codex's independent **full suite passed 3499 / 8 skipped** on this exact
+head (`-n 4 --dist loadfile`). Four fresh guard mutants were killed, one
+focused failure each: DB binding, initial state containment, the final
+pre-rename containment check, and owner-error lock cleanup. Both mutated
+source files restored byte-for-byte, checkout clean, all 13 changed Git
+blobs LF and diff-check clean. Passing tests do not cover the two remaining
+journal escapes. No live path, DB, SMB target or runtime was touched.
+
 ## Runtime checkpoint — 2026-10-24
 
 Claude-lead reports in hive **#2602/#2615** that David's checkout at

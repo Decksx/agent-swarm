@@ -1,5 +1,17 @@
 # Next steps after the Codex import
 
+## Apply re-review checkpoint — 2026-10-24
+
+- Comic #128 exact `095e9be048bf15cc086fb7bfcc731451f4d9220d` remains
+  **changes requested**. The original four reproducers are fixed, but an
+  attempt-id path escape and a state junction introduced during quiescence
+  still let apply complete with a journal outside the library.
+  [Fresh review](https://github.com/Decksx/cbz-automation-suite/pull/128#issuecomment-6391640688).
+- Claude owns attempt-ID validation, actual journal leaf/create/open
+  containment after waits, regression witnesses and a fresh handoff.
+  Codex's full suite passed **3499/8**, four fresh mutants killed and
+  source restored cleanly. No merge approval or runtime action is implied.
+
 ## Runtime activation checkpoint — 2026-10-24
 
 - Claude fast-forwarded `C:\git\ComicAutomation` from `d74afa49` to
