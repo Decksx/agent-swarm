@@ -5,9 +5,9 @@ below refer to it. In one paragraph: a reservation whose conversation never
 reads idle again (an orphaned `inProgress` Codex turn after a timeout kill)
 blocks `register` forever. This retires that one reservation as evidence and
 binds the lead to a new conversation, disabled, only when the relay's own
-records prove the run ended and its process tree is gone. It never declares
-the old conversation idle, never charges usage, and never reads or writes
-the backend's own state.
+records prove the run ended and the host shows nothing of it alive. It never
+declares the old conversation idle, never charges usage, and never reads or
+writes the backend's own state.
 """
 
 from __future__ import annotations
@@ -15,10 +15,10 @@ from __future__ import annotations
 import json
 import re
 import time
-from typing import Optional
+from typing import Iterable, Optional
 
-from lead_relay import ACTIVE, RUN_TIMEOUT, log
-from lead_relay_backends import session_key
+import lead_relay
+from lead_relay import ACTIVE, log, migrate
 
 RETIRED = """
 CREATE TABLE IF NOT EXISTS retired_reservations (
@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS retired_reservations (
 
 UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 KEEP = object()   # `cli`: carry the current binding's over (§1)
+# §2.8: a run with no container is checked against every live process created
+# while it ran. Process creation and the relay's own timestamps are the same
+# wall clock; the skew covers the launch and kill bookkeeping around them.
+WINDOW_SKEW = 10.0
 
 
 class Refused(Exception):
@@ -41,40 +45,185 @@ def retired(db) -> list[dict]:
     return [dict(r) for r in db.execute("SELECT * FROM retired_reservations ORDER BY retired_at")]
 
 
-def tree_gone(processes, pid, proc_start) -> Optional[str]:
-    """None when the run's whole process tree is gone, else why not (§2.8)."""
-    if processes.is_same(pid, proc_start):
-        return f"its process {pid} is still alive (same pid and creation time)"
+def retired_key(db, key: str) -> Optional[dict]:
+    """The retired reservation on conversation `key`, if any (§2.9). A
+    retired conversation is never bound again, by `successor` or `register`.
+    Read-only: inside a caller's transaction, so it never runs DDL."""
+    if not db.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                      "AND name = 'retired_reservations'").fetchone():
+        return None
+    row = db.execute("SELECT * FROM retired_reservations WHERE session_key = ? "
+                     "ORDER BY retired_at LIMIT 1", (key.lower(),)).fetchone()
+    return dict(row) if row else None
+
+
+def _ticks(value) -> Optional[int]:
     try:
-        alive = processes.descendants(pid, proc_start)
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _when(epoch: Optional[float]) -> str:
+    if epoch is None:
+        return "unknown"
+    return time.strftime("%Y-%m-%d %H:%M:%S%z", time.localtime(epoch))
+
+
+def _describe(procs) -> str:
+    return "; ".join(f"pid {p.pid} {p.name or '?'} created {_when(p.created)}"
+                     for p in sorted(procs, key=lambda p: p.pid))
+
+
+def tree_members(table, pid: int, proc_start) -> list:
+    """Live processes the parent-pid chain ties to the run (§2.8), or Refused
+    when a candidate's creation time could not be read.
+
+    Windows keeps a dead parent's pid in each child's entry, so the chain is
+    followed counting only processes created after their parent. A reused
+    pid's own children are newer than the reuse, so they still count, which
+    is a refusal, never a false "gone". The chain breaks where an
+    intermediate process has exited and its child was reparented, which is
+    why this is never the only check (§2.8).
+    """
+    children: dict[int, list] = {}
+    for proc in table:
+        children.setdefault(proc.ppid, []).append(proc)
+    found, todo, seen = [], [(pid, _ticks(proc_start))], {pid}
+    while todo:
+        parent, born = todo.pop()
+        for child in children.get(parent, ()):
+            if child.pid in seen:
+                continue
+            start = _ticks(child.start)
+            if start is None:
+                raise Refused(f"the creation time of pid {child.pid} ({child.name or '?'}), a "
+                              f"child of {parent}, could not be read; it may be part of the run")
+            if born is None or start >= born:
+                seen.add(child.pid)
+                found.append(child)
+                todo.append((child.pid, start))
+    return found
+
+
+def tree_proof(processes, attempt, inspected: Iterable[int] = ()) -> str:
+    """How the host shows nothing of the run alive (§2.8), or Refused."""
+    pid, start = attempt["pid"], attempt["proc_start"]
+    try:
+        table = processes.snapshot()
     except Exception as exc:  # noqa: BLE001 -- unreadable is not empty
-        return f"its process tree could not be read ({type(exc).__name__}: {exc})"
-    if alive:
-        return f"part of its process tree is still alive (pids {sorted(alive)})"
-    return None
+        raise Refused(f"the process table could not be read ({type(exc).__name__}: {exc})")
+    root = next((p for p in table if p.pid == pid), None)
+    if root is not None:
+        if root.start is None:
+            raise Refused(f"pid {pid} is live and its creation time could not be read, so it "
+                          "cannot be told apart from the run's own process")
+        if str(root.start) == str(start):
+            raise Refused(f"its process {pid} is still alive (same pid and creation time)")
+    members = tree_members(table, pid, start)
+    if members:
+        raise Refused(f"part of its process tree is still alive: {_describe(members)}")
+
+    container = attempt["container"]
+    if container and container.startswith("job:"):
+        name = container[4:]
+        try:
+            alive = processes.job_members(name)
+        except Exception as exc:  # noqa: BLE001 -- a failed query is not absence
+            raise Refused(f"its job {name} could not be queried ({type(exc).__name__}: {exc})")
+        if alive is None:
+            return (f"its job {name} no longer exists; it was created kill-on-close, so the "
+                    "kernel ended every member before destroying it")
+        if alive:
+            named = {p.pid: p for p in table}
+            listed = "; ".join(f"pid {p} {named[p].name}" if p in named else f"pid {p}"
+                               for p in sorted(alive))
+            raise Refused(f"its job {name} still has {len(alive)} live process(es): {listed}")
+        return f"its job {name} has no live process"
+    if container and container.startswith("session:"):
+        sid = _ticks(container[8:])
+        unreadable = [p for p in table if p.start is None]
+        if sid is None or unreadable:
+            raise Refused(f"its session {container[8:]} cannot be checked: "
+                          + (_describe(unreadable) if unreadable else "bad container"))
+        alive = [p for p in table if sid in (p.group, p.session)]
+        if alive:
+            raise Refused(f"its session {sid} still has live processes: {_describe(alive)}")
+        return f"no live process is in its session {sid}"
+    if container:
+        raise Refused(f"its container {container!r} is not one this relay knows how to check")
+    return _window_proof(table, attempt, set(inspected))
 
 
-def terminal(attempt, delivery, run_timeout: float) -> str:
+def _window_proof(table, attempt, inspected: set) -> str:
+    """No container: refuse on every live process created while the run ran,
+    unless the operator inspected exactly those pids (§2.8)."""
+    lo = attempt["launched_at"] - WINDOW_SKEW
+    hi = attempt["ended_at"] + WINDOW_SKEW
+    unreadable = [p for p in table if p.created is None]
+    if unreadable:
+        raise Refused("no container was recorded for this run, and the creation time of "
+                      f"{_describe(unreadable)} could not be read")
+    during = [p for p in table if lo <= p.created <= hi]
+    unexplained = [p for p in during if p.pid not in inspected]
+    if unexplained:
+        raise Refused(
+            f"no container was recorded for this run, so absence is checked by creation time: "
+            f"{len(unexplained)} live process(es) were created during its run window "
+            f"{_when(lo)} to {_when(hi)}: {_describe(unexplained)}. A broken parent chain "
+            "hides a surviving child, so any of them may be the run's. Inspect each; if none is, "
+            "name them all with --inspected-pids "
+            + ",".join(str(p.pid) for p in sorted(unexplained, key=lambda p: p.pid)))
+    proof = (f"no container was recorded; root and parent chain gone, and no live process was "
+             f"created during its run window {_when(lo)} to {_when(hi)}")
+    if during:
+        proof += (" other than the operator-inspected "
+                  + ", ".join(str(p.pid) for p in sorted(during, key=lambda p: p.pid)))
+    return proof
+
+
+def terminal(attempt, delivery, run_timeout: float, provenance_since: Optional[float],
+             historical: bool = False) -> str:
     """How the relay's own record proves the run ended (§2.5), or Refused."""
+    aid = attempt["attempt_id"]
     if attempt["state"] not in ("exited", "done"):
-        raise Refused(f"attempt {attempt['attempt_id']} is {attempt['state']}, not proven terminal")
+        raise Refused(f"attempt {aid} is {attempt['state']}, not proven terminal")
     missing = [k for k in ("launched_at", "ended_at", "pid", "proc_start") if attempt[k] is None]
     if missing:
-        raise Refused(f"attempt {attempt['attempt_id']} has no {', '.join(missing)} recorded; "
-                      "not proven terminal")
+        raise Refused(f"attempt {aid} has no {', '.join(missing)} recorded; not proven terminal")
     if attempt["exit_code"] is not None:
         return f"exited with code {attempt['exit_code']}"
     ran = attempt["ended_at"] - attempt["launched_at"]
-    if ran >= run_timeout and not (delivery is not None and delivery["state"] == "uncertain"):
-        return f"killed by the run timeout after {ran / 60:.1f} min"
-    raise Refused(f"attempt {attempt['attempt_id']} ended without an exit code after "
-                  f"{ran / 60:.1f} min and was not a timeout kill; not proven terminal "
-                  "(a quit or a restart's recovery is not proof)")
+    uncertain = delivery is not None and delivery["state"] == "uncertain"
+    how = attempt["ended_by"]
+    if how == "timeout" and ran >= run_timeout and not uncertain:
+        return f"killed by the run timeout after {ran / 60:.1f} min (recorded by its timeout path)"
+    predates = how is None and provenance_since is not None \
+        and attempt["ended_at"] < provenance_since
+    if predates and ran >= run_timeout and not uncertain:
+        if not historical:
+            raise Refused(
+                f"attempt {aid} ended with no exit code after {ran / 60:.1f} min (at least "
+                f"RUN_TIMEOUT, {run_timeout / 60:.0f} min), before this database recorded how "
+                "runs end; that is not proof of a timeout kill. The relay's own hive line "
+                f"'RELAY TIMEOUT #{attempt['message_id']}', if posted, is the timeout path's, "
+                "and is for the operator to check. To retire it on exactly that evidence, add "
+                "--historical-evidence")
+        return (f"historical evidence only: ended, no exit code, ran {ran / 60:.1f} min "
+                f">= RUN_TIMEOUT ({run_timeout / 60:.0f} min), no termination provenance "
+                "recorded (it predates it); not proven a timeout kill")
+    raise Refused(f"attempt {aid} ended without an exit code after {ran / 60:.1f} min and the "
+                  f"relay recorded no timeout kill (ended_by {how or 'not recorded'}); not "
+                  "proven terminal (a quit or a restart's recovery is not proof)")
 
 
 def preflight(db, lead: str, attempt_id: str, session: str, workspace: str, reason: str,
-              processes, *, run_timeout: float = RUN_TIMEOUT) -> dict:
-    """Every §2 check, read-only. Returns the plan, or raises Refused."""
+              processes, *, run_timeout: Optional[float] = None, historical: bool = False,
+              inspected: Iterable[int] = ()) -> dict:
+    """Every §2 check, read-only. Returns the plan, or raises Refused.
+
+    `run_timeout` defaults to the relay's own, read when called."""
+    run_timeout = lead_relay.RUN_TIMEOUT if run_timeout is None else run_timeout
     if not UUID.fullmatch(session or ""):
         raise Refused("--session must be the new conversation's UUID")
     if not re.match(r"^([A-Za-z]:[\\/]|/|\\\\)", workspace or ""):
@@ -117,7 +266,9 @@ def preflight(db, lead: str, attempt_id: str, session: str, workspace: str, reas
         raise Refused(f"attempt {attempt_id} is not {lead}'s headless run on {current}")
     delivery = db.execute("SELECT * FROM deliveries WHERE message_id = ? AND recipient = ?",
                           (attempt["message_id"], lead)).fetchone()
-    how = terminal(attempt, delivery, run_timeout)
+    since = db.execute("SELECT value FROM meta WHERE key = 'provenance_since'").fetchone()
+    how = terminal(attempt, delivery, run_timeout, float(since[0]) if since else None,
+                   historical)
     if not attempt["usage_recorded"]:
         raise Refused(f"attempt {attempt_id}'s usage is not recorded yet; the running relay "
                       "charges it on its next tick")
@@ -125,9 +276,10 @@ def preflight(db, lead: str, attempt_id: str, session: str, workspace: str, reas
             and delivery["state"] in ACTIVE:
         raise Refused(f"delivery #{attempt['message_id']} is still {delivery['state']}; "
                       "it owes its verdict first")
-    alive = tree_gone(processes, attempt["pid"], attempt["proc_start"])
-    if alive:
-        raise Refused(f"attempt {attempt_id}: {alive}")
+    try:
+        gone = tree_proof(processes, attempt, inspected)
+    except Refused as exc:
+        raise Refused(f"attempt {attempt_id}: {exc}") from None
 
     if new_key in (reservation["session_key"], current):
         raise Refused("the successor must be a different conversation from the reserved one")
@@ -136,28 +288,30 @@ def preflight(db, lead: str, attempt_id: str, session: str, workspace: str, reas
                        (binding["backend"], session, lead)).fetchone()
     if taken:
         raise Refused(f"that session is already registered to {taken[0]}")
-    if db.execute("SELECT 1 FROM retired_reservations WHERE session_key = ?",
-                  (new_key,)).fetchone():
+    if retired_key(db, new_key):
         raise Refused("that conversation holds a retired reservation; choose a new one")
     return {"binding": dict(binding), "reservation": dict(reservation), "how": how,
-            "new_key": new_key, "message_id": attempt["message_id"]}
+            "gone": gone, "new_key": new_key, "message_id": attempt["message_id"]}
 
 
 def transition(db, lead: str, attempt_id: str, session: str, workspace: str, reason: str, *,
                processes, confirm: Optional[str] = None, cli=KEEP, now=time.time,
-               run_timeout: float = RUN_TIMEOUT) -> tuple[int, str]:
+               run_timeout: Optional[float] = None, historical: bool = False,
+               inspected: Iterable[int] = ()) -> tuple[int, str]:
     """Retire one reservation as evidence and bind the successor, disabled (§3).
 
     Without `confirm` it only reports. With it, `confirm` must name the
     attempt, and the caller must hold the relay's lock (`main` does), for
     the reason `cancel_held` gives.
     """
+    migrate(db)
     db.executescript(RETIRED)
     db.execute("BEGIN IMMEDIATE")
     try:
         try:
             plan = preflight(db, lead, attempt_id, session, workspace, reason, processes,
-                             run_timeout=run_timeout)
+                             run_timeout=run_timeout, historical=historical,
+                             inspected=inspected)
             if confirm is not None and confirm != attempt_id:
                 raise Refused(f"--confirm must name the attempt being retired ({attempt_id})")
         except Refused as exc:
@@ -166,7 +320,7 @@ def transition(db, lead: str, attempt_id: str, session: str, workspace: str, rea
         binding = plan["binding"]
         chosen = binding["cli"] if cli is KEEP else cli
         text = (f"retire reservation {plan['reservation']['session_key']} of attempt {attempt_id} "
-                f"(#{plan['message_id']}, {plan['how']}; process tree gone), then bind {lead} -> "
+                f"(#{plan['message_id']}, {plan['how']}; {plan['gone']}), then bind {lead} -> "
                 f"{binding['backend']} {session} workspace {workspace} cli {chosen} (disabled)")
         if confirm is None:
             db.execute("ROLLBACK")
