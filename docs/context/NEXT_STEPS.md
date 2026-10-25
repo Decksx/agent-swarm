@@ -1,5 +1,30 @@
 # Next steps after the Codex import
 
+## Successor and recovery checkpoint — 2026-10-25
+
+- Fresh thread `01a1744a-a2e9-7e61-8f82-1b3694a8a4e3`, local
+  `C:\git\agent-swarm`, completed its bounded bootstrap at **12:21:04
+  UTC-6** and is idle/standby with **no relay ownership**. David approved
+  it (#2735). [Handoff](HANDOFF_CODEX_SUCCESSOR_2026-10-25.md) records
+  actual turn id, evidence, worktrees and the proposed cutover.
+- Old reserved timeout still blocks supported registration. Claude owns
+  the reviewed successor-transition route (#2760); Codex reviews. Preserve
+  old records and Codex state. Register disabled only after that gate,
+  then retarget/prove the bridge before enablement. A new chat is not a
+  completed relay migration.
+- **#130** is pushed at `5219265e5b273dedc5bf15622be636fba7a7bd4d` for
+  Claude's fresh review: full **3858/8**, 76 new tests and **25/25** guard
+  mutants killed/restored; real executor integration on tmp fixtures.
+  No live scan/apply. Claude owns the eventual Tower read-only dry run;
+  batch apply still waits for David's exact digest approval.
+- **#132** `9aa95a1` remains changes requested: failed hold-name restore
+  bypasses the next retry, and restored held names break pending AI-original
+  routing. Claude owns fixes/fresh head; option (b) is already approved.
+- **#133** `ee98a40` is approved (own full **3873/8**, four killed mutants).
+  Claude owns pinned merge after CI and combined-tree checks; no rollout
+  is claimed. Swarm **#157** merged `672eb29` with identical reviewed tree
+  after four green checks. The night snapshot below is historical.
+
 ## Night closeout — 2026-10-24, claude-lead
 
 David's hive **#2716**: finish current tasks, stop for the night, update the
