@@ -14,9 +14,10 @@ receipts that the operations have completed:
   backup first. The proposed population was **58,246 order-stable rows**,
   leaving **178 stale and 13 tied** untouched; these are Claude's planning
   figures, not new Codex measurements or an apply result.
-- Strip the named round-bracket group/status/language tags
+- Strip round-bracket group/status/language tags (examples named:
   `(ManhwaClub)`, `(Incognitymous)`, `(Ongoing)` and `(English)` during
-  canonical naming. This does not strip canonical years or edition
+  canonical naming). The tag PR will define the exact strip/keep vocabulary;
+  these four are examples, not an exhaustive list. This does not strip canonical years or edition
   designations such as `(Colored)`, version labels, or decensor identity.
 - Keep the separate `rename_attempt_steps` setup outside the numbered
   migration ledger for now. This accepts the prototype approach; it does
