@@ -1,5 +1,53 @@
 # Agent Swarm imported project context
 
+## Independent comic naming re-review — 2026-10-26
+
+Comic [#142](https://github.com/Decksx/cbz-automation-suite/pull/142), exact
+**084d4e8c13ae26904262673fa87e5153e0ebff34**, received Codex **CHANGES REQUESTED**
+in [review6426560666](https://github.com/Decksx/cbz-automation-suite/pull/142#issuecomment-6426560666),
+confirmed hive **#3048**. This supersedes the pending review/ownership notes below.
+David's takeover instruction **#3010**, Claude's **#3011**, and final handoff
+**#3045** assign Claude the fixes and pinned merge; Codex independently reviews.
+The five follow-up commits are on top of rejected39d5759. No approval or merge
+of either rejected head is implied by passing tests.
+
+- **R1 HIGH:** the planner still erases an unmatched-title filename series year.
+  Fixture `Batman/Other (2016) #003.cbz` with ComicInfo Series Batman/Number3,
+  no Year, proposes `Batman #003.cbz` with no review entry. Master9a79172 holds
+  the same fixture as year-unresolved. The watcher's leftover-year guard
+  covers this case, but the planner/shared decision does not. Source bytes
+  remain unchanged by both read-only plans.
+- **R2 HIGH:** a failed issue-year metadata write still permits landing after
+  the filename year was erased. A real configured-registry import of
+  `Batman (2016) #003 (2019).cbz`, no ComicInfo, with PermissionError injected
+  only into the real Year-recording temporary writer, exhausts all five
+  attempts and logs failure yet lands `Batman (2016) #003.cbz` without Year2019
+  in XML and with nothing left in intake. Persist/verify Year before discarding
+  it from the name, and retain/recover the distinguishing name on failure.
+  Failed-write and retry/restart regressions are required.
+
+Own full Windows/Python3.11 suite **4284 passed /10 skipped (226.92s)**;
+exact PR CI **40393511393 completed/success** independently checked.
+**8/8 additional selected in-memory guard mutants killed**, both mutated
+modules' source SHA256s unchanged. Successful scene imports retain Year2019
+in XML; corroborated ComicInfo/ComicVine and Full apply/re-plan cases pass.
+Clean reviewed tree **ea561377cb3329f475b4198cb3672888c9ff170a**; derived LF
+diff-check clean (45 CRLF/mixed exclusions). Against39d,3503/3507 old watcher
+lines remain byte-exact,3528 final lines,2689 CRLF/839 bare LF.
+
+F3's unconfirmed bare scene number retaining its legacy name, G2's issue-shaped
+intake directory, and the existing planner/Number conflict parity gap remain
+disclosed follow-ups. No live library/DB/config/watcher, relay or Codex state
+was changed in this review. Batch apply still requires a fresh digest and
+verified backup with David's approval. No reviewer test processes remain.
+
+Context #167 merged55bcc82 as **ae8936454bf1597ca6addf6ef958c2d5b27b6b17**
+(API verified). Claude's hive **#3044** reports David chose a4h/5h relay budget
+and Claude applied14400 while no Codex run was active; this supersedes Codex's
+earlier suggested18000 value. This is Claude's rollout receipt, not a Codex
+runtime change or an independently verified Android error diagnosis.
+
+
 ## Media naming review fixes and operator decisions — 2026-10-26
 
 Comic [#142](https://github.com/Decksx/cbz-automation-suite/pull/142) is ready
