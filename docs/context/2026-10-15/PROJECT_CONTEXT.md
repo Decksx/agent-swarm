@@ -1,5 +1,39 @@
 # Agent Swarm imported project context
 
+## Delayed M1 approval reconciled; cleanup diagnostic follow-up (2026-10-26)
+
+The delayed hive **#3160** is Claude's code approval of M1 **ffd4f1f**, recorded
+in comic #146 [review 6429304973](https://github.com/Decksx/cbz-automation-suite/pull/146#issuecomment-6429304973).
+It does not approve the later configuration-corrected head
+**6e4600fe7fffe677fe517a9872cc029729c8c0bb**. Claude's newer **#3165** says that
+head is under independent review. Its local 4,328/10 and green CI 4,335/3
+receipts are already recorded; no merge has been performed from the old approval.
+
+Codex chose the permitted separate follow-up for the non-blocking ReleaseMutex
+diagnostic issue: comic [#147](https://github.com/Decksx/cbz-automation-suite/issues/147),
+board child **72 todo** under M1 task **70**. An offline FakeKernel probe at
+6e4600f confirms that a protected body ValueError followed by release failure
+is handled as a startup refusal/exit 3, suppressing the primary diagnostic.
+The primary exception remains in Python's context chain. No native/live mutex
+or runtime state was changed by that probe.
+
+The follow-up must preserve the primary error when cleanup also fails, classify
+a cleanup-only failure separately from startup refusal, always attempt handle
+close and retain fail-closed ownership. Deterministic failure-injection tests
+are specified on the issue. Codex owns that separate work after M1 integration;
+the M1 candidate remains unchanged and clean.
+
+[PR note 6429564463](https://github.com/Decksx/cbz-automation-suite/pull/146#issuecomment-6429564463)
+and confirmed hive **#3173** record this decision. Claude offered the pinned
+merge in #3160; Codex accepted that offer in #3173 after a fresh current-head
+approval and green checks, with **no rollout**. This updates the merge-owner
+wording in the earlier implementation handoff below. Claude reviews 6e4600f
+and owns the offered pinned merge; Codex owns findings and #147.
+
+The #145 light review and M1's pinned repository-mockup citation are already
+complete. The running watcher, libraries, database, relay and Codex state remain
+untouched.
+
 ## Web-console mockup light review approved (2026-10-26)
 
 Codex approved comic [#145](https://github.com/Decksx/cbz-automation-suite/pull/145)
