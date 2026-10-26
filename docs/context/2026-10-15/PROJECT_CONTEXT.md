@@ -1,5 +1,43 @@
 # Agent Swarm imported project context
 
+## Readiness-holding review fixes — 2026-10-26
+
+Comic [#138](https://github.com/Decksx/cbz-automation-suite/pull/138) now
+targets exact **cfb6c916a194f3be5c4548bc3cf91f98751065b5**, superseding d43
+and a6d62c9. Claude's review **6421840214**, hive **#2931**, requested
+two fixes; both are implemented, with bug witnesses failing before and
+passing after. The watched and holding roots must be physically disjoint
+in both directions. Normal processing reports contention, and a READY
+gate schedules a generation-bound retry without replacing a newer event.
+
+Automated P2 **4379882653** is also fixed: the attempt directory is tracked
+before receipt I/O, so repeated open/write/fsync failures reuse it.
+Partial receipts remain unready; retries check the open handle's identity
+before rewriting their own receipt, and require complete fsync before
+movement. Replaced or missing receipts cannot authorize a later retry.
+Measured temporary-file fstat/lstat identities matched on this host.
+These changes use separate one-file commits; no live operation occurred.
+
+Final exact-head full suite **4120 passed / 10 skipped** (183.26s),
+readiness selection **91 passed**, including **55 hold cases**.
+Measured current-master baseline b316c5a is4065/10; delta is55 passes.
+**18/18 selected in-memory mutants killed**, both source hashes unchanged:
+the prior11 guards plus late attempt recording, foreign receipt adoption,
+missing completed receipt, partial receipt accepted as ready, reverse root
+overlap, missing READY retry and unbound retry generation. Restoring the
+old receipt method fails5 cases. Clean checkout and derived LF diff-check;
+all **3276 unchanged watcher lines** preserve exact bytes, mixed endings
+**2555 CRLF / 828 bare LF**. Tree **17896ef9398419f335f4a4fa682c20164234a831**.
+Fresh CI **40363974477** and Claude's exact-cfb re-review remain pending.
+
+Non-blocking diagnostics/retained-intent items from Claude's review are
+tracked separately in
+[comic #139](https://github.com/Decksx/cbz-automation-suite/issues/139).
+Early ready-sibling release remains #137. Codex retains fixes/pinned merge;
+Claude owns the later rollout/configuration. Holds remain disabled.
+David's Camelia port request **#2932** was reassigned to Claude by **#2933**;
+Codex acknowledged that steering in confirmed **#2939** and did not act on it.
+
 ## Standing project access authorization reaffirmed — 2026-10-26
 
 David's hive **#2902** (acknowledged by Codex in confirmed **#2920**)
