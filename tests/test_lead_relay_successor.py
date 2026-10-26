@@ -189,7 +189,7 @@ def test_a_dry_run_changes_nothing_and_names_the_proof(tmp_path):
     code, text = rebind(w, confirm=None)
     assert code == 0 and text.startswith("DRY RUN"), text
     assert "killed by the run timeout" in text and "recorded by its timeout path" in text
-    assert "no live process was created during its run window" in text
+    assert "descends from a live process older than the run" in text
     assert f"--confirm {w.aid}" in text
     assert snapshot(w) == before
 
@@ -351,6 +351,7 @@ def test_each_failed_precondition_is_refused_with_its_reason(tmp_path, name):
 
 def test_a_reused_pid_is_not_the_run(tmp_path):
     w = orphaned(tmp_path)
+    older(w)
     w.processes.add(4000, 1, 9_999_999, in_window(w, 5000))   # same pid, later process
     assert rebind(w)[0] == 0
 
@@ -494,7 +495,7 @@ def test_a_survivor_of_an_exited_wrapper_is_found_by_creation_time(tmp_path):
     window is a refusal, listed for the operator."""
     w = orphaned(tmp_path)
     w.processes.add(4300, 4200, 4000 * 1000 + 50, in_window(w), "codex.exe")
-    text = refused(w, "1 live process(es) were created during its run window")
+    text = refused(w, "1 live process(es) created since its launch")
     assert "pid 4300 codex.exe created" in text and "--inspected-pids 4300" in text
 
 
@@ -505,7 +506,7 @@ def test_inspected_pids_must_cover_every_process_in_the_window(tmp_path):
     text = refused(w, "pid 4300", inspected=[4400])
     assert "pid 4400" not in text and "--inspected-pids 4300" in text
     code, text = rebind(w, confirm=None, inspected=[4300, 4400])
-    assert code == 0 and "other than the operator-inspected 4300, 4400" in text, text
+    assert code == 0 and "or from the operator-inspected 4300, 4400" in text, text
 
 
 def test_inspection_never_overrides_a_member_of_the_parent_chain(tmp_path):
@@ -514,13 +515,79 @@ def test_inspection_never_overrides_a_member_of_the_parent_chain(tmp_path):
     refused(w, "part of its process tree is still alive: pid 4100", inspected=[4100])
 
 
-@pytest.mark.parametrize("created, passes", [(-11, True), (-9, False), (9, False), (11, True)])
-def test_the_window_is_the_run_plus_a_small_skew(tmp_path, created, passes):
+def older(w):
+    """pid 1: a live process created long before the run (a service host)."""
+    w.processes.add(1, 0, 1, attempt(w)["launched_at"] - 3600, "services.exe")
+
+
+@pytest.mark.parametrize("created, passes", [(-11, True), (-9, False), (9, False), (11, False),
+                                             (86400, False)])
+def test_an_orphan_created_any_time_since_the_launch_refuses(tmp_path, created, passes):
+    """Only the launch bounds the check: a survivor creates processes after
+    the root ended, so a broken-chain process born then is still listed."""
     w = orphaned(tmp_path)
     row = attempt(w)
     edge = row["launched_at"] if created < 0 else row["ended_at"]
-    w.processes.add(4300, 1, 1, edge + created)
+    w.processes.add(4300, 4200, 1, edge + created)
     assert (rebind(w, confirm=None)[0] == 0) is passes
+
+
+@pytest.mark.parametrize("route", ["recorded", "historical"])
+def test_a_worker_born_after_the_window_behind_an_exited_wrapper_refuses(tmp_path, route):
+    """codex-lead's witness on 8bbe297: root 4000 -> wrapper 4200 (exited) ->
+    worker 4300 created at ended_at + WINDOW_SKEW + 1. Neither the parent
+    chain nor a window ending at the root's end can see it; dry run and
+    confirmed transition must both refuse, changing nothing."""
+    w = orphaned(tmp_path)
+    kw = {}
+    if route == "historical":
+        historical(w)
+        kw["historical"] = True
+    late = attempt(w)["ended_at"] + lead_relay_successor.WINDOW_SKEW + 1
+    w.processes.add(4300, 4200, 4000 * 1000 + 99, late, "codex.exe")
+    refused(w, "pid 4300 codex.exe", confirm=None, **kw)
+    refused(w, "--inspected-pids 4300", **kw)
+
+
+def test_a_late_child_of_an_older_live_process_is_not_the_runs(tmp_path):
+    w = orphaned(tmp_path)
+    older(w)
+    w.processes.add(4500, 1, 1, attempt(w)["ended_at"] + 600, "chrome.exe")
+    code, text = rebind(w, confirm=None)
+    assert code == 0 and "descends from a live process older than the run" in text, text
+
+
+def test_only_the_process_where_the_chain_breaks_is_listed(tmp_path):
+    """wrapper 4200 gone; 4300 survives and starts 4310 and 4320. Inspecting
+    4300 covers what it started; inspecting only a child does not."""
+    w = orphaned(tmp_path)
+    late = attempt(w)["ended_at"] + 600
+    w.processes.add(4300, 4200, 1, late, "codex.exe")
+    w.processes.add(4310, 4300, 2, late + 1, "cmd.exe")
+    w.processes.add(4320, 4310, 3, late + 2, "git.exe")
+    text = refused(w, "1 live process(es)", inspected=[4310, 4320])
+    assert "--inspected-pids 4300" in text and "pid 4310" not in text
+    code, text = rebind(w, confirm=None, inspected=[4300])
+    assert code == 0 and "or from the operator-inspected 4300" in text, text
+
+
+def test_a_parent_newer_than_its_child_is_a_reused_pid_and_breaks_the_chain(tmp_path):
+    """4300's parent 4200 exited; an unrelated process reused pid 4200
+    later, under an older live parent. 4300 must not inherit that ancestry."""
+    w = orphaned(tmp_path)
+    older(w)
+    late = attempt(w)["ended_at"] + 600
+    w.processes.add(4300, 4200, 1, late, "codex.exe")
+    w.processes.add(4200, 1, 2, late + 30, "notepad.exe")
+    refused(w, "pid 4300 codex.exe")
+
+
+def test_a_parent_cycle_is_a_break_not_a_hang(tmp_path):
+    w = orphaned(tmp_path)
+    late = attempt(w)["ended_at"] + 600
+    w.processes.add(4300, 4310, 1, late, "a.exe")
+    w.processes.add(4310, 4300, 2, late, "b.exe")
+    refused(w, "created since its launch")
 
 
 def test_an_unreadable_creation_time_refuses_the_window_check(tmp_path):
@@ -826,11 +893,13 @@ def test_an_uncontained_survivor_is_listed_by_the_window_check():
     try:
         worker = int(root.stdout.readline())
         start = api.creation_time(root.pid)
-        held = lead_relay_backends._kernel32().OpenProcess(0x1000, False, root.pid)
         root.kill()
         root.wait(timeout=10)
-        assert held and not live(api, root.pid), "an exited root still held is not listed"
-        lead_relay_backends._kernel32().CloseHandle(held)
+        # An exited process stays in the table while any handle to it is open
+        # (CI's Windows Server 2025 runner lists it; this host does not), and
+        # a listed root with its own creation time is a refusal. Close ours.
+        root._handle.Close()
+        assert wait_until(lambda: not live(api, root.pid)), "the exited root left the table"
         # Its console host outlives it briefly, a child the chain does reach.
         assert wait_until(lambda: not lead_relay_successor.tree_members(
             api.snapshot(), root.pid, start))
