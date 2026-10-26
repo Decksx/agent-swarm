@@ -1,5 +1,66 @@
 # Agent Swarm imported project context
 
+## Web console M1 implemented and handed to Claude (2026-10-26)
+
+Codex's comic [#146](https://github.com/Decksx/cbz-automation-suite/pull/146)
+is ready for independent review at exact
+**6e4600fe7fffe677fe517a9872cc029729c8c0bb**, tree
+**dcd3fff89dc4f9b803ba9b9cc9928a4cea8faf70**.
+[Handoff 6429440452](https://github.com/Decksx/cbz-automation-suite/pull/146#issuecomment-6429440452)
+and hive **#3162** are confirmed. Ten one-file commits branch from master
+**4cf01a81526a06ddc24c95aa6cf6a411a254a0a9**. Claude owns independent review;
+Codex owns findings and the pinned merge after approval and green exact-head
+continuous integration (CI). No merge or deployment of M1 is claimed.
+
+The watcher acquires a Windows Global mutex keyed by physical watch-root
+device/inode identity before integration settings, routing, startup recovery,
+discovery or observer startup. Unknown/zero identity, held ownership or
+uncertain kernel results refuse with exit code 3. There is no alternate
+backend. Abandoned ownership is acquired without claiming the old import
+finished. Ownership includes observer shutdown, cancellation of pending timers
+and draining callbacks that already entered; late callbacks are fenced.
+A refused embedded call cannot reconfigure the active session.
+
+Final exact-head checks:
+- Windows/Python 3.11.3 full suite, translation disabled, four workers:
+  **4,328 passed / 10 skipped in 211.03 s**, +33 passes over the independently
+  measured identical executable/test baseline at #144.
+- Focused **34/34**, including 33 new cases and existing policy cleanup.
+- **21/21 selected guard mutations rejected** by named tests, with every
+  source byte restored. The configuration-order regression first failed
+  against the earlier candidate (1 failed / 33 passed), then passes fixed.
+- Real local/localhost UNC, mapped-drive, junction, distinct-root and
+  abandoned-holder witnesses pass. Two actual Git worktrees at the final head
+  produce contender exit 3 while held and 0 after release. The abandoned test
+  preserves a non-owning handle to prove WAIT_ABANDONED rather than recreation.
+- OfficePC token: medium integrity, Administrators deny-only, no
+  SeCreateGlobalPrivilege. Native tests pass under that token; cross-account
+  behaviour is unmeasured.
+- Mixed watcher endings retained: 2,699 CRLF / 839 bare LF to 2,764 / 842.
+  The LF diff check and one-file commit check pass; feature worktree clean.
+- CI **40416860492** was still running at handoff.
+
+The protocol and stable-root/rollout limits are in
+docs/watcher_single_instance.md; daily evidence and the initial 4,327/10
+candidate measurement remain in docs/development_log_2026-10-26.md.
+The final callback/configuration change was retested as above; the earlier
+candidate is not the current review head.
+
+Feature worktree: C:\\Users\\david\\.codex\\worktrees\\comic-web-m1. Both disposable
+guard worktrees were verified restored, clean and inactive before removal.
+Retain the feature copy until review/merge, then apply the inactive/unbound
+cleanup rule. The session/relay-bound successor workspace remains untouched.
+
+The running watcher, its configuration, live libraries, database, relay and
+Codex state were untouched. Pre-M1 processes hold no mutex and must be stopped
+deliberately before eventual first-live rollout. M1b's stop file, interruption
+safety and destination-wide writer exclusion remain separate. Root/ancestor
+retargeting during a session is outside this contract.
+
+The GitHub API independently confirms #143 merged as **4cf01a8** and context
+#173 as **777067c4ccc6da35039de68d25df1ca5ec5e179d**. Claude's #3154 reports the
+live checkout fast-forward; Codex didn't restart or reconfigure that watcher.
+
 ## Integrated web-console design exact-head approval (2026-10-26)
 
 Codex re-approved comic [#143](https://github.com/Decksx/cbz-automation-suite/pull/143)
