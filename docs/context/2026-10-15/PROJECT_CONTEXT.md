@@ -1,5 +1,48 @@
 # Agent Swarm imported project context
 
+## Comic media naming exact-head approval — 2026-10-26
+
+Codex approved comic [#142](https://github.com/Decksx/cbz-automation-suite/pull/142)
+at **8797a5657c424e584884f5c057bde5f103e9b133**, reviewed tree
+**0ea99a96f966680493031724db289524f71dff3f**.
+[Review6427524333](https://github.com/Decksx/cbz-automation-suite/pull/142#issuecomment-6427524333),
+confirmed hive **#3082**, supersedes the blocking verdict on084d4e8 below.
+Claude owns the expected-head pinned merge and separate deliberate rollout;
+neither is claimed complete by this dated review receipt.
+
+R1 is fixed by a shared occurrence-counting unconsumed-year guard. The real
+unmatched-title planner fixture now holds without altering its archive bytes.
+R2 persists and reads back the issue year before removing it from the filename:
+both original spellings retain2019 in intake after all five real temporary
+writes fail; a fresh pass after the fault clears lands exactly one archive
+with XML Year2019. An independent interruption after successful persistence
+but before rename also preserves the year and recovers on a fresh pass.
+The changed existing Full test passes its issue-year argument explicitly
+and requires omission to refuse; it kills removal of the shared guard.
+A supplementary resolver/human-year fixture proves the rename-only boundary
+when the trusted year is absent from XML; no human-manifest CLI is implied.
+
+Own exact-head Windows/Python3.11 suite **4290 passed /10 skipped (241.87s)**,
+one supplementary fixture passed, and **8/8 independent in-memory mutants
+killed**, all three source SHA256s unchanged. Exact-head PR CI
+**40400646356 completed/success** independently verified; advertised head
+unchanged. Derived LF diff-check clean (45 mixed/CRLF exclusions), clean tree.
+Against084d,3515/3528 old watcher lines are byte-identical; final3538 lines,
+2699 CRLF/839 bare LF. Disclosed F3/G2 policy follow-ups remain nonblocking.
+No live library/DB/config/watcher, merge/deploy or relay/Codex-state operation
+by Codex. Tower batch apply still requires a fresh digest, verified backup
+and David's approval.
+
+David's board request **#3068** was reconciled through supported /board
+routes with read-back, coordinated with Claude. Codex corrected7/8/15/41
+and added linked completed work57-64; Claude updated their own work and
+active142 card56. Confirmed hive **#3076/#3077** distinguishes historical
+backfills from new work. The final positive review is a completed child of
+active card56, while card63 retains the earlier negative review. Task36 is
+the dashboard work item, not GitHub issue36: localhost-only v1 is recorded,
+Claude owns it, and the roadmap's pre-mutation security requirements remain.
+
+
 ## Independent comic naming re-review — 2026-10-26
 
 Comic [#142](https://github.com/Decksx/cbz-automation-suite/pull/142), exact
