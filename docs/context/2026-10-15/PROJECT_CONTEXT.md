@@ -26,7 +26,7 @@ the approved production font/content-security-policy requirements.
 M1 [#146](https://github.com/Decksx/cbz-automation-suite/pull/146) now cites the
 [pinned repository copy](https://github.com/Decksx/cbz-automation-suite/blob/296f53588305331a5bda7a5bf2fc8e08ef6890f4/docs/design/web-console-mockup/README.md)
 in its PR description and [reference comment 6429515540](https://github.com/Decksx/cbz-automation-suite/pull/146#issuecomment-6429515540).
-This changes metadata only. Its independently reviewed candidate remains
+This changes metadata only. Its candidate under independent review remains
 **6e4600fe7fffe677fe517a9872cc029729c8c0bb**, with the same green CI.
 No feature source, runtime or live watcher state changed.
 
