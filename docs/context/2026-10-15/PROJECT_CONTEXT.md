@@ -1,5 +1,134 @@
 # Agent Swarm imported project context
 
+## Delayed M1 approval reconciled; cleanup diagnostic follow-up (2026-10-26)
+
+The delayed hive **#3160** is Claude's code approval of M1 **ffd4f1f**, recorded
+in comic #146 [review 6429304973](https://github.com/Decksx/cbz-automation-suite/pull/146#issuecomment-6429304973).
+It does not approve the later configuration-corrected head
+**6e4600fe7fffe677fe517a9872cc029729c8c0bb**. Claude's newer **#3165** says that
+head is under independent review. Its local 4,328/10 and green CI 4,335/3
+receipts are already recorded; no merge has been performed from the old approval.
+
+Codex chose the permitted separate follow-up for the non-blocking ReleaseMutex
+diagnostic issue: comic [#147](https://github.com/Decksx/cbz-automation-suite/issues/147),
+board child **72 todo** under M1 task **70**. An offline FakeKernel probe at
+6e4600f confirms that a protected body ValueError followed by release failure
+is handled as a startup refusal/exit 3, suppressing the primary diagnostic.
+The primary exception remains in Python's context chain. No native/live mutex
+or runtime state was changed by that probe.
+
+The follow-up must preserve the primary error when cleanup also fails, classify
+a cleanup-only failure separately from startup refusal, always attempt handle
+close and retain fail-closed ownership. Deterministic failure-injection tests
+are specified on the issue. Codex owns that separate work after M1 integration;
+the M1 candidate remains unchanged and clean.
+
+[PR note 6429564463](https://github.com/Decksx/cbz-automation-suite/pull/146#issuecomment-6429564463)
+and confirmed hive **#3173** record this decision. Claude offered the pinned
+merge in #3160; Codex accepted that offer in #3173 after a fresh current-head
+approval and green checks, with **no rollout**. This updates the merge-owner
+wording in the earlier implementation handoff below. Claude reviews 6e4600f
+and owns the offered pinned merge; Codex owns findings and #147.
+
+The #145 light review and M1's pinned repository-mockup citation are already
+complete. The running watcher, libraries, database, relay and Codex state remain
+untouched.
+
+## Web-console mockup light review approved (2026-10-26)
+
+Codex approved comic [#145](https://github.com/Decksx/cbz-automation-suite/pull/145)
+at exact **296f53588305331a5bda7a5bf2fc8e08ef6890f4** in
+[review 6429508134](https://github.com/Decksx/cbz-automation-suite/pull/145#issuecomment-6429508134).
+Hive handoff **#3169** is confirmed; board child **71** is done.
+Claude owns the pinned merge. This delayed #3157 handoff was handled after
+M1's implementation/review handoff, respecting its priority.
+
+All **6/6 payload SHA-256 values** match the committed provenance README.
+The canvas parses, its five boards/order match the artboards, the relative
+design-document link resolves, and page links resolve except the explicitly
+documented missing support.js. The change is seven regular documentation
+files only; diff-check passes. Reviewed tree
+**c215bdcaffa16af835df6a21738466ab44fcc67d**; exact-head continuous integration
+(CI) **40414424474** is green. No local suite or mutation rerun was needed.
+
+The written design stays authoritative, data is sample data, and Series Review
+remains v1.1. This was static markup/provenance review: Codex didn't download the
+private canvas version independently or render the pages. The original download
+receipt remains Claude's evidence. Mockup Google Fonts references do not change
+the approved production font/content-security-policy requirements.
+
+M1 [#146](https://github.com/Decksx/cbz-automation-suite/pull/146) now cites the
+[pinned repository copy](https://github.com/Decksx/cbz-automation-suite/blob/296f53588305331a5bda7a5bf2fc8e08ef6890f4/docs/design/web-console-mockup/README.md)
+in its PR description and [reference comment 6429515540](https://github.com/Decksx/cbz-automation-suite/pull/146#issuecomment-6429515540).
+This changes metadata only. Its candidate under independent review remains
+**6e4600fe7fffe677fe517a9872cc029729c8c0bb**, with the same green CI.
+No feature source, runtime or live watcher state changed.
+
+## Web console M1 implemented and handed to Claude (2026-10-26)
+
+Codex's comic [#146](https://github.com/Decksx/cbz-automation-suite/pull/146)
+is ready for independent review at exact
+**6e4600fe7fffe677fe517a9872cc029729c8c0bb**, tree
+**dcd3fff89dc4f9b803ba9b9cc9928a4cea8faf70**.
+[Handoff 6429440452](https://github.com/Decksx/cbz-automation-suite/pull/146#issuecomment-6429440452)
+and hive **#3162** are confirmed. Ten one-file commits branch from master
+**4cf01a81526a06ddc24c95aa6cf6a411a254a0a9**. Claude owns independent review;
+Codex owns findings and the pinned merge after approval and green exact-head
+continuous integration (CI). No merge or deployment of M1 is claimed.
+
+The watcher acquires a Windows Global mutex keyed by physical watch-root
+device/inode identity before integration settings, routing, startup recovery,
+discovery or observer startup. Unknown/zero identity, held ownership or
+uncertain kernel results refuse with exit code 3. There is no alternate
+backend. Abandoned ownership is acquired without claiming the old import
+finished. Ownership includes observer shutdown, cancellation of pending timers
+and draining callbacks that already entered; late callbacks are fenced.
+A refused embedded call cannot reconfigure the active session.
+
+Final exact-head checks:
+- Windows/Python 3.11.3 full suite, translation disabled, four workers:
+  **4,328 passed / 10 skipped in 211.03 s**, +33 passes over the independently
+  measured identical executable/test baseline at #144.
+- Focused **34/34**, including 33 new cases and existing policy cleanup.
+- **21/21 selected guard mutations rejected** by named tests, with every
+  source byte restored. The configuration-order regression first failed
+  against the earlier candidate (1 failed / 33 passed), then passes fixed.
+- Real local/localhost UNC, mapped-drive, junction, distinct-root and
+  abandoned-holder witnesses pass. Two actual Git worktrees at the final head
+  produce contender exit 3 while held and 0 after release. The abandoned test
+  preserves a non-owning handle to prove WAIT_ABANDONED rather than recreation.
+- OfficePC token: medium integrity, Administrators deny-only, no
+  SeCreateGlobalPrivilege. Native tests pass under that token; cross-account
+  behaviour is unmeasured.
+- Mixed watcher endings retained: 2,699 CRLF / 839 bare LF to 2,764 / 842.
+  The LF diff check and one-file commit check pass; feature worktree clean.
+- CI **40416860492** was still running at initial handoff. It was then
+  independently verified **SUCCESS at the same head: 4,335 passed / 3 skipped
+  in 261.01 s**. [Receipt 6429464896](https://github.com/Decksx/cbz-automation-suite/pull/146#issuecomment-6429464896)
+  supersedes that pending status. Claude acknowledged the handoff in **#3164**;
+  independent review is still pending.
+
+The protocol and stable-root/rollout limits are in
+docs/watcher_single_instance.md; daily evidence and the initial 4,327/10
+candidate measurement remain in docs/development_log_2026-10-26.md.
+The final callback/configuration change was retested as above; the earlier
+candidate is not the current review head.
+
+Feature worktree: C:\\Users\\david\\.codex\\worktrees\\comic-web-m1. Both disposable
+guard worktrees were verified restored, clean and inactive before removal.
+Retain the feature copy until review/merge, then apply the inactive/unbound
+cleanup rule. The session/relay-bound successor workspace remains untouched.
+
+The running watcher, its configuration, live libraries, database, relay and
+Codex state were untouched. Pre-M1 processes hold no mutex and must be stopped
+deliberately before eventual first-live rollout. M1b's stop file, interruption
+safety and destination-wide writer exclusion remain separate. Root/ancestor
+retargeting during a session is outside this contract.
+
+The GitHub API independently confirms #143 merged as **4cf01a8** and context
+#173 as **777067c4ccc6da35039de68d25df1ca5ec5e179d**. Claude's #3154 reports the
+live checkout fast-forward; Codex didn't restart or reconfigure that watcher.
+
 ## Integrated web-console design exact-head approval (2026-10-26)
 
 Codex re-approved comic [#143](https://github.com/Decksx/cbz-automation-suite/pull/143)
