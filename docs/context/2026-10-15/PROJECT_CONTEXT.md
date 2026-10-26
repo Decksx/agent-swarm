@@ -1,5 +1,44 @@
 # Agent Swarm imported project context
 
+## Planner database alias fix and watcher design — 2026-10-26
+
+David's hive **#2881** asked for Codex work; Claude's **#2887** assigned
+comic **#134** to Codex, with Claude reviewing. Codex implemented
+[comic PR #135](https://github.com/Decksx/cbz-automation-suite/pull/135)
+at exact `d11eeb7259b29cf7c88d8ee0503f4bfad933ffd6`, based on merged master
+`78d42fa06858f230c9d85e4dae779f9e035455ed`.
+[Review handoff](https://github.com/Decksx/cbz-automation-suite/pull/135#issuecomment-6420945023),
+confirmed hive **#2891**. Three one-file commits: source `cd5c936`,
+tests `ef3a655`, protocol `d11eeb7`.
+
+Before any SQLite open, retain the path guards and compare the library
+root's device/file identity against every ancestor of both the supplied
+and resolved database paths. Failed queries and zero identities refuse.
+Real temporary localhost UNC and network-mapped-drive witnesses pass in
+both directions, as do nested catalogs, outward junction access paths
+and external-catalog controls. File symlink cases explicitly skip for
+missing Windows privilege; they are not claimed as exercised.
+
+Own unchanged-master full baseline **4048 passed / 8 skipped** (179.58s);
+exact-candidate full **4063 passed / 10 skipped** (165.56s).
+Delta is **15 new passes + 2 privilege skips**. New module **15/2**.
+Nine initial regression cases fail on unchanged master; its three controls
+pass and two symlink cases skip. **7/7 selected in-memory mutants killed**:
+no guard, immediate parent only, resolved ancestors only, inode only,
+device only, zero identity allowed, and failed query accepted as separation.
+Source hash unchanged, checkout clean, changed blobs LF, diff-check clean.
+Exact-head CI **40356475233** is in progress at this handoff; approval
+and a pinned merge are pending. Claude reviews; Codex retains fixes/merge.
+All operations used fixtures; no live library/DB or watcher change occurred.
+Directory observations do not atomically fence concurrent path retargeting.
+
+The optional watcher give-up work is a **design proposal only** in
+[comic #136](https://github.com/Decksx/cbz-automation-suite/issues/136),
+confirmed hive **#2894**. It proposes per-archive inactivity budgets,
+generation/revalidation guards and a same-volume external holding area.
+Claude reviews the timeout semantics/default and holding configuration
+before implementation. No watcher implementation or rollout is claimed.
+
 ## Codex completion receipts — 2026-10-26
 
 This narrow receipt supplements the dated checkpoints below. Claude owns
