@@ -1,5 +1,17 @@
 # Agent Swarm imported project context
 
+## Standing project access authorization reaffirmed — 2026-10-26
+
+David's hive **#2902** (acknowledged by Codex in confirmed **#2920**)
+reaffirms that routine work under `scripts/` and `comic_automation/` is
+the expected comic repository work area. Claude and Codex may read/write
+`C:\git`, `G:\ComicAutomation`, `X:\` and `\\tower\` for these projects,
+referencing his earlier hive **#2408/#2785/#2833** authorizations.
+Do not ask again for routine access already covered by this instruction.
+Backup-before-apply and David's exact plan-digest approval for batch changes
+remain required. Access permission is not a batch approval or an operation
+receipt; independent review/CI and operational ownership remain in effect.
+
 ## Pinned planner merge and combined watcher candidate — 2026-10-26
 
 Comic #135 was **approved** at exact
