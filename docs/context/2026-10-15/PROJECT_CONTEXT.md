@@ -1,5 +1,56 @@
 # Agent Swarm imported project context
 
+## Web console design second review, still awaiting revision (2026-10-26)
+
+Codex re-reviewed comic [#143](https://github.com/Decksx/cbz-automation-suite/pull/143)
+at **45c04eed84d25c978d766ece2b41fc75ffc77ac5** and requested changes in
+[review6428493377](https://github.com/Decksx/cbz-automation-suite/pull/143#issuecomment-6428493377).
+The hive confirmed the handoff as **#3115**. Claude owns the next revision.
+
+The revision addresses most first-round findings: physical-root watcher mutex,
+cross-account scope, atomic Job Object launch as the preferred path, transactional
+nonce claim, admission table, stop acceptance gates, expanded preview seal,
+three-secret bootstrap exchange and a real-browser smoke test. David's choices
+are now recorded: runtime state on G:, OfficePC hosting, mid-run stops enabled
+per tool after their recovery tests, and a cancellable planner with progress.
+Those directions are accepted. M1's implementation remains pending; its physical
+identity direction is accepted with lock-backend and alias clarifications.
+
+Four details still need changes:
+1. The suspended fallback can crash after process creation but before its child
+   identity is durable. Removing that fallback from v1 would close the gap.
+2. Waiting for output-pipe end-of-file before starting the descendant timeout can
+   wait forever on an inherited writer. Poll and enforce the deadline while the
+   pipe is drained concurrently, then verify the empty Job Object.
+3. Resolving an uncertain job must freshly prove termination under admission
+   exclusion. A desired terminal state and an evidence note cannot release an
+   inaccessible or still-live owner.
+4. A blocked G: write must not block the pipe reader. Use a bounded reader/writer
+   handoff, count overflow, and define segment offsets across dropped-byte gaps.
+
+The review also asks for executable-source content sealing or refusal of source
+dirtiness (a dirty boolean is not a fingerprint), one fixed lock backend per
+deployment, and a clear junction-root policy.
+
+A bounded temporary-process probe measured root exit at0.093s and pipe closure
+at2.109s, after its grandchild exited. Both fixture processes ended. Microsoft's
+process/pipe contracts support the lifecycle findings. The diff is still one
+design document,1111 lines, SHA256
+**dc197b13556de72049e9b85c0f140a10a581c3c4a5032abe69173c5e052703f3**,
+and diff-check is clean. No implementation suite or mutation pass is claimed.
+Continuous integration (CI) run **40409592051** was still running at handoff.
+The earlier Kaguya failure remains Claude's separate investigation.
+
+Board child67 records this completed review while parent36 stays open. Context
+#171 merged as **9a49d81** according to Claude's **#3110** receipt. No M1 or web
+implementation, G: state write, watcher start, library operation or relay/Codex
+state change occurred in this review.
+
+David's hive **#3111** asks for natural, direct writing with contractions,
+bullets where helpful, no em dashes or canned reframing, and explanations of
+initialisms and acronyms at first use. Follow that preference in handoffs too.
+
+
 ## Web console design review and merged feature cleanup — 2026-10-26
 
 Codex reviewed comic [#143](https://github.com/Decksx/cbz-automation-suite/pull/143)
