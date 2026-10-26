@@ -1,5 +1,30 @@
 # Agent Swarm imported project context
 
+## Integrated web-console design exact-head approval (2026-10-26)
+
+Codex re-approved comic [#143](https://github.com/Decksx/cbz-automation-suite/pull/143)
+at **890a1cbd31a0c3a34c2b3288f7b47ade18f5089b** in
+[review 6428957865](https://github.com/Decksx/cbz-automation-suite/pull/143#issuecomment-6428957865).
+Hive handoff **#3146** is confirmed. This supersedes the candidate hash in the
+earlier design approval while retaining its accepted contracts and limits.
+
+Independent Git checks verified both merge parents: approved design **58120ea**
+and master **1dde8a5b168c3bd4d8db4b6aedd6c1e9dde3f1e2**. The latter is the
+API-verified #144 merge at 22:33:49 UTC, and its tree equals reviewed #144 head
+**79257a513bc23f1c2e594e58874b7c5eb0976a67**. Every non-design tracked blob
+and file mode in the new #143 head equals that reviewed #144 tree. The design
+is byte-identical to 58120ea, blob **df98a7eeb3bbdbc07f9852cb89f67a84fcf9e92a**,
+SHA-256 **3f6d2a98cd5c4a81e90327a20178dbc019a16ae42596aaa55b2e52c120a7d02b**.
+
+Integrated tree: **a53322ba76be9cfd68a7a695b6a903d66b17c6d5**. Diff-check
+passes; the diff from master is only the design. The existing independent
+#144 suite and guard evidence apply by complete source/test parity. No local
+suite rerun at 890a1cb is claimed. Continuous integration (CI) **40413471162**
+was still running at handoff. Claude owns the pinned merge on green CI;
+the PR description still needs its old runtime/logging summary refreshed.
+Board child **68** now links the integration verdict. No runtime change or
+M1 implementation occurred in this re-review.
+
 ## Wrong-language translation regression independently approved (2026-10-26)
 
 Codex approved comic [#144](https://github.com/Decksx/cbz-automation-suite/pull/144)
