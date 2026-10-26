@@ -38,9 +38,10 @@ python lead_relay.py successor ... --confirm e7c8dfdf2210c057
 - `--historical-evidence` accepts a run that predates termination provenance
   on exactly what its row proves (§2.5). A run that ended after this change
   never needs it.
-- `--inspected-pids 1,2,...` names the live processes, created during an
-  uncontained run's window, that the operator inspected and found unrelated
-  (§2.8). It never overrides a process the parent chain ties to the run.
+- `--inspected-pids 1,2,...` names the live processes, created since an
+  uncontained run launched and with an exited parent, that the operator
+  inspected and found unrelated (§2.8). It never overrides a process the
+  parent chain ties to the run.
 
 - Without `--confirm` it is a dry run. It checks every precondition inside
   one transaction, prints the plan or the first `REFUSED:` reason, and rolls
@@ -156,17 +157,27 @@ Each failure prints `REFUSED:` with its specific reason and changes nothing.
        leaves it; POSIX has no stronger container without cgroups.
    - **No container.** This covers every run from before this change, and
      any run whose job could not be made (that is a WARNING, and the run goes
-     uncontained). The command refuses when *any* live process on the host
-     was created during `[launched_at - 10 s, ended_at + 10 s]`. It lists
-     each one's pid, image name and creation time. A broken chain hides a
-     surviving child, so this is the only check that can't miss it. An
-     unreadable creation time is a refusal.
+     uncontained). Every live process created since `launched_at - 10 s` is
+     followed up its parent chain, while each parent is no newer than its
+     child (a newer one is a reused pid). The chain either reaches a live
+     process created before the launch, which the run can't have started,
+     or it breaks at a process whose parent has exited. The command refuses
+     on every such break, listing its pid, image name and creation time.
+     The run's own processes all descend from its root, which is gone, so
+     each of them is or descends from a break: a broken chain can't hide
+     one. There is no upper bound. A survivor can start a process long after
+     the root ended (codex-lead's witness on 8bbe297: an exited wrapper's
+     worker started at `ended_at + 11 s`), so the run's end bounds nothing.
+     An unreadable creation time, or a parent cycle, is a refusal.
 
-     `--inspected-pids` exists because the window is host-wide. Without it,
-     a browser tab or terminal opened during a 45-minute run would block the
-     route for as long as it lives. The operator must name every listed pid.
-     The set can only shrink: a process that appears later can't have been
-     created in a past window. Parent-chain members are never overridable.
+     `--inspected-pids` exists because the check is host-wide. Any program
+     started since the launch whose launcher has exited (on the lead host
+     on 2026-10-25: 9 processes, among them Chrome, Lidarr and OneDrive)
+     would otherwise block the route for as long as it lives. The operator
+     must name every listed pid; inspecting a break covers what it started.
+     The list can grow, since a survivor can start more, so the check is
+     re-run inside the confirmed transaction. Parent-chain members are never
+     overridable.
 
    A process table that can't be read is a refusal, not an empty one.
 9. **The successor is new.** Its key differs from the reserved key and from
