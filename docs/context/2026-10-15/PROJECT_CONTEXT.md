@@ -1,5 +1,91 @@
 # Agent Swarm imported project context
 
+## Standing project access authorization reaffirmed — 2026-10-26
+
+David's hive **#2902** (acknowledged by Codex in confirmed **#2920**)
+reaffirms that routine work under `scripts/` and `comic_automation/` is
+the expected comic repository work area. Claude and Codex may read/write
+`C:\git`, `G:\ComicAutomation`, `X:\` and `\\tower\` for these projects,
+referencing his earlier hive **#2408/#2785/#2833** authorizations.
+Do not ask again for routine access already covered by this instruction.
+Backup-before-apply and David's exact plan-digest approval for batch changes
+remain required. Access permission is not a batch approval or an operation
+receipt; independent review/CI and operational ownership remain in effect.
+
+## Pinned planner merge and combined watcher candidate — 2026-10-26
+
+Comic #135 was **approved** at exact
+`fb0bf61e519431372514a3fbfd1ce51cf4c9e272` in Claude review **6421557911**,
+then merged pinned as **b316c5a02b184063b40a3b18537175ed0dd92df8**.
+[Merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/135#issuecomment-6421598309),
+confirmed hive **#2917**. Exact-head CI40359738026 passed; own full4065/10.
+Fetched merge tree **107f5001b62b9ea4613322d365fd2ad3f816aa4f** equals the
+reviewed/tested tree. No live checkout update or rollout was performed.
+
+Comic #138 now integrates that master with implementation9823bfc at exact
+**d43f63ddf9e47e2c4c35d318b60c23034fe4abf9**.
+[Fresh handoff](https://github.com/Decksx/cbz-automation-suite/pull/138#issuecomment-6421688375).
+All four watcher/policy/test/protocol blobs remain unchanged; only the three
+reviewed planner files were integrated. Own fresh combined full suite
+**4112 passed / 10 skipped** (187.66s), matching master4065/10 plus47 hold
+passes. Tree **374ad98949297917f3962b19448a7eebf8aabd84**; clean checkout,
+derived LF-file diff-check clean and mixed-line byte preservation verified.
+The 11-mutant evidence below remains bound to9823bfc with identical sources;
+no fresh integrated-head mutation rerun is claimed. CI **40361418746** and
+Claude's exact-d43 verdict are pending. Codex retains fixes/pinned merge;
+Claude owns later deployment/configuration. Holds remain off.
+
+## Watcher stalled-archive holding and planner re-review — 2026-10-26
+
+Claude approved the watcher design in comic #136 comment **6420991540**
+and hive **#2896**. Codex implemented it in
+[comic PR #138](https://github.com/Decksx/cbz-automation-suite/pull/138),
+exact `9823bfcfc19f78443562bccc1085df61b233e8c2`, based on master
+`78d42fa06858f230c9d85e4dae779f9e035455ed`.
+[Exact-head handoff](https://github.com/Decksx/cbz-automation-suite/pull/138#issuecomment-6421537637),
+confirmed hive **#2910**. Six one-file commits across policy, watcher,
+tests and protocol; no live rollout or GUI configuration occurred.
+
+Holds are off unless an explicit existing writable, non-reparse,
+same-volume root outside the watch tree is configured. Default inactivity
+is 30 minutes, 0 disables. Only `incomplete_central_directory` is
+allowlisted. Identity/size/mtime progress resets an archive's monotonic
+budget; events/retries do not. Generation and processing ownership,
+fresh ZIP probes, source/root revalidation, a fsynced operator intent
+sidecar and Windows no-replace rename guard the move. Failed moves retain
+their source; external holding events cannot re-enter intake. The receipt
+explicitly says it precedes rename and is not completion proof.
+
+Final exact-head full suite **4095 passed / 8 skipped** (164.63s),
+readiness selection **83 passed**. The earlier unchanged-master baseline
+was **4048/8**; delta is exactly **47 passing hold tests**. The fixture
+models Lookism's seven-part-RAR/part-1-only case as a stable ZIP prefix
+without EOCD. **11/11 selected in-memory guard mutants killed**,
+both source hashes unchanged. Checkout clean; LF files pass diff-check.
+All **3281 unchanged watcher lines** preserve exact bytes; mixed endings
+remain **2552 CRLF / 823 bare LF**. CI **40360332176** is pending at handoff;
+Claude reviews and owns later rollout, Codex retains fixes/pinned merge.
+
+Early sibling release is deliberately separate in
+[comic #137](https://github.com/Decksx/cbz-automation-suite/issues/137),
+as allowed by Claude's design review; confirmed hive **#2906**. The current
+importer rescans/renames/moves whole trees, so subset processing widens
+this change. After a successful hold, #138 freshly rescans before allowing
+remaining ready siblings through the directory gate.
+
+Comic **#135** received a tests-only changes request on `d11eeb7`,
+review **6421246241**, hive **#2907**: supplied-ancestors-only survived
+and missed an external junction into library metadata under a UNC root.
+Codex added both privilege-free junction directions in one-file test commit
+`fb0bf61e519431372514a3fbfd1ce51cf4c9e272`; implementation is unchanged.
+[Fresh handoff](https://github.com/Decksx/cbz-automation-suite/pull/135#issuecomment-6421471765),
+confirmed hive **#2909**. New module **17 passed / 2 privilege skips**;
+exact-head full **4065 passed / 10 skipped** (204.22s). **8/8** selected
+mutants now killed, including supplied-only and resolved-only ancestor
+checks (two failures each), source hash unchanged. Exact-head CI
+**40359738026** passed. Claude's fresh review and the pinned merge remain
+pending; no live database/library operation was performed.
+
 ## Planner database alias fix and watcher design — 2026-10-26
 
 David's hive **#2881** asked for Codex work; Claude's **#2887** assigned
