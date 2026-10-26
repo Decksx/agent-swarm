@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS retired_reservations (
 UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 KEEP = object()   # `cli`: carry the current binding's over (§1)
 # §2.8: a run with no container is checked against every live process created
-# while it ran. Process creation and the relay's own timestamps are the same
-# wall clock; the skew covers the launch and kill bookkeeping around them.
+# since it launched. Process creation and the relay's own timestamps are the
+# same wall clock; the skew covers the launch bookkeeping before the spawn.
 WINDOW_SKEW = 10.0
 
 
@@ -156,29 +156,52 @@ def tree_proof(processes, attempt, inspected: Iterable[int] = ()) -> str:
 
 
 def _window_proof(table, attempt, inspected: set) -> str:
-    """No container: refuse on every live process created while the run ran,
-    unless the operator inspected exactly those pids (§2.8)."""
+    """No container: refuse on every live process that may descend from the
+    run, unless the operator inspected it (§2.8).
+
+    A process may descend from the run when it was created since the run's
+    launch and its parent chain, followed back while each parent is older
+    than its child, breaks (the parent has exited) before reaching a live
+    process created before the launch. The run's own processes all have
+    ancestors created since its launch, back to its root, which is gone, so
+    every one of them breaks this way. A survivor can create processes long
+    after the root ended, so there is no upper bound. Only the processes where
+    a chain breaks are listed: inspecting one covers its descendants."""
     lo = attempt["launched_at"] - WINDOW_SKEW
-    hi = attempt["ended_at"] + WINDOW_SKEW
     unreadable = [p for p in table if p.created is None]
     if unreadable:
         raise Refused("no container was recorded for this run, and the creation time of "
                       f"{_describe(unreadable)} could not be read")
-    during = [p for p in table if lo <= p.created <= hi]
-    unexplained = [p for p in during if p.pid not in inspected]
+    by_pid = {p.pid: p for p in table}
+    breaks: dict[int, object] = {}
+    for proc in table:
+        if proc.created < lo:
+            continue
+        here, seen = proc, {proc.pid}
+        while True:
+            parent = by_pid.get(here.ppid)
+            if parent is None or parent.pid in seen or parent.created > here.created:
+                breaks[here.pid] = here       # its parent exited: it may be the run's
+                break
+            if parent.created < lo:
+                break                         # a live process older than the run
+            seen.add(parent.pid)
+            here = parent
+    unexplained = [p for p in breaks.values() if p.pid not in inspected]
     if unexplained:
         raise Refused(
-            f"no container was recorded for this run, so absence is checked by creation time: "
-            f"{len(unexplained)} live process(es) were created during its run window "
-            f"{_when(lo)} to {_when(hi)}: {_describe(unexplained)}. A broken parent chain "
-            "hides a surviving child, so any of them may be the run's. Inspect each; if none is, "
-            "name them all with --inspected-pids "
+            f"no container was recorded for this run, so absence is checked by ancestry: "
+            f"{len(unexplained)} live process(es) created since its launch at {_when(lo)} have "
+            f"an exited parent, so any of them may be the run's survivor or one it created: "
+            f"{_describe(unexplained)}. Inspect each (and what it started); if none is the "
+            "run's, name them all with --inspected-pids "
             + ",".join(str(p.pid) for p in sorted(unexplained, key=lambda p: p.pid)))
-    proof = (f"no container was recorded; root and parent chain gone, and no live process was "
-             f"created during its run window {_when(lo)} to {_when(hi)}")
-    if during:
-        proof += (" other than the operator-inspected "
-                  + ", ".join(str(p.pid) for p in sorted(during, key=lambda p: p.pid)))
+    proof = (f"no container was recorded; root and parent chain gone, and every live process "
+             f"created since its launch at {_when(lo)} descends from a live process older "
+             "than the run")
+    if breaks:
+        proof += (", or from the operator-inspected "
+                  + ", ".join(str(p) for p in sorted(breaks)))
     return proof
 
 
