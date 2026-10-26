@@ -1,5 +1,136 @@
 # Agent Swarm imported project context
 
+## Successor transition re-review — 2026-10-25
+
+Swarm [#159](https://github.com/Decksx/agent-swarm/pull/159) remains
+**changes requested** at exact
+`8bbe297254225f7592a7a3e30e06739ce9aeacd1`, responding to Claude's
+handoff **6405087862**.
+[Codex review](https://github.com/Decksx/agent-swarm/pull/159#issuecomment-6407917439),
+confirmed hive **#2835**. Claude owns fixes and a fresh exact-head handoff.
+This is not cutover approval or a controller-ledger verdict.
+
+The new termination provenance, honest historical-evidence route, failed
+query refusals and retired-key registration fence address their b7ade88
+findings. Contained Windows runs now use a kill-on-close job. Two blockers
+remain:
+
+- **P1, late-born uncontained survivor:** root -> wrapper -> worker, where
+  the wrapper outlives the root and creates the worker after
+  `ended_at + WINDOW_SKEW`, then exits. The current parent chain cannot
+  reach the worker, and the bounded creation-time window ignores it.
+  Independent temporary database/fake-host probes show both dry-run and
+  confirmed transition returning 0, retiring the reservation and binding
+  the successor while the worker remains alive. Both recorded-timeout and
+  historical routes reproduce without inspection overrides. The root's
+  end cannot bound descendants' later births; all currently live candidates
+  born since launch (or equivalent durable lifetime proof) must be covered.
+- **P2, exact-head CI failure:** run **40246305853**, core job
+  **121328490335**, reports **1 failed / 2918 passed**. The new
+  `test_an_uncontained_survivor_is_listed_by_the_window_check` asserts at
+  line 832 that a terminated root's PID is absent immediately after
+  `wait()`; the Windows Server 2025 runner still lists it. Aggregate
+  `pytest-unit` is red; hub and bypass are green. Fix the host witness and
+  liveness interpretation without skipping the boundary or treating
+  uncertain/live processes as absent; fresh exact-head CI is required.
+
+Independent local selection: **314 passed** (successor, relay, CLOSED path
+and authored-change/view-budget tests), with inherited `LEAD_RELAY_*`
+overrides removed only inside the test process. **6/6** selected in-memory
+mutants killed: termination provenance, historical flag, snapshot failure,
+job survivors, in-window candidates, retired registration. Source hashes
+unchanged, no tracked edits, diff-check clean. No independent full local
+suite is claimed. These passing guards do not cover the late-born gap.
+
+Codex's design judgement: retain kill-on-close and no-breakaway if job-name
+absence remains the containment proof. The documented CLI version checks
+do not establish real Codex sandbox-tool compatibility. After the blockers
+and CI are resolved, Claude's rollout needs a bounded contained canary
+with a shell command and observed terminal turn/process results before
+ordinary held-queue replay or enablement. Preserve old evidence and the
+retired-session fence on failure/rollback. Codex performed no daemon stop,
+production DB write, relay registration/reservation change, merge/deploy,
+Codex-state edit or model turn in this review.
+
+## Successor engineering checkpoint — 2026-10-25
+
+David resumed engineering on successor thread
+`01a1744a-a2e9-7e61-8f82-1b3694a8a4e3` and explicitly authorized the
+reviews below and the #130 fixes. He reiterated permission for project
+edits, commits, pulls, pushes, merges, deployments and the needed runtimes.
+He also explicitly authorized reads, writes and edits to `C:\\git`, `G:\\`,
+`X:\\`, `Z:\\` and Tower in this successor chat. This is access/engineering
+authorization, not a receipt of a live operation or an approved batch digest.
+Exact-head independent review/CI and operational guards remain. This
+engineering turn performed no relay cutover, daemon stop, binding or
+reservation change, Codex-state edit, worker launch or live library/DB
+operation. Claude retains cutover ownership.
+
+- **Swarm #159:** **changes requested** at
+  `b7ade88f8c63ded2f3c35cb281e5791006f82a6c`.
+  [Review](https://github.com/Decksx/agent-swarm/pull/159#issuecomment-6404018147),
+  confirmed hive **#2784**. Independent temporary fixtures reproduce:
+  recovery/quit being labelled a timeout kill without a kill; a live
+  Windows descendant hidden by an exited intermediate wrapper; process
+  query failure becoming absence; and ordinary `register` accepting a
+  retired conversation. Claude owns fixes and a fresh exact-head handoff;
+  cutover is not approved by this review. **231 focused passed**, exact-head
+  CI **40223700919** succeeded, **3/3** selected guard mutants killed with
+  source hashes unchanged. Initial sandbox selection was **159 passed /
+  2 failed** (host child cleanup and inherited cap overrides); the final
+  rerun used host execution and cleared overrides only in the test process.
+  No independent full-suite result is claimed.
+- **Comic #132:** **approved** at
+  `19958f890e648f83f3be39a42cd4e7337985087f`.
+  [Review](https://github.com/Decksx/cbz-automation-suite/pull/132#issuecomment-6404132239),
+  confirmed hive **#2787**. Deferring distinguishing-tag renames until
+  landing resolves the old retry loss and AI-original mapping findings.
+  The predecessor's unchanged four entry-point probes pass in both modes:
+  existing bytes remain, incoming stays tagged/held, and its original is
+  not offloaded. Independent full suite **3870 passed / 8 skipped**,
+  **4/4** additional in-memory guard mutants killed, source hash unchanged.
+  Checkout clean; watcher remains `i/mixed`, other changed blobs LF;
+  LF-file diff-check clean. Exact-head CI **40223042359** succeeded. Claude
+  owns pinned merge with combined-tree checks if master moves, and any
+  separate watcher rollout receipt. Approval is not deployment.
+- **Comic #130:** blocking items in Claude's
+  [5219265 review](https://github.com/Decksx/cbz-automation-suite/pull/130#issuecomment-6401492458)
+  are implemented and pushed at
+  `7d33cd29760f3ffc08659d1668ee235dae423060`.
+  [Fresh review handoff](https://github.com/Decksx/cbz-automation-suite/pull/130#issuecomment-6404361582),
+  confirmed hive **#2791**.
+  - Lone canonical labels are judged within the decided identity candidate
+    group, not the folder. No-op diagnostics certify no version or family.
+    Same-group co-members still require the normal family proof.
+  - Proposed names are re-resolved together using the same ComicInfo and
+    page facts. This pass may only reject an original proposal. A
+    non-fixpoint holds the entire affected family, including quarantine.
+  - A database resolving inside the library is refused before any SQLite
+    open, including directory aliases, to avoid WAL/SHM writes there.
+  - Real mixed-case originals, root junction, output junction and saved
+    diagnostic-receipt tests kill Claude's B2/B3/D7/E4 survivors.
+  - One-file commits: `f7a8421` source, `65bdd84` tests,
+    `332c9c8` protocol; then clean master merge `7d33cd2` with
+    `668c6c29f479ce6d299fededcbd87dc9b0bf736e` (#133).
+    Starting head `5219265` was independently measured at **3858/8**;
+    final exact-head full suite **3960/8**, **87 focused passed**.
+    Delta = **91 master tests + 11 planner tests**. Seven new behavior
+    witnesses fail on the starting head. The actual tmp executor applies
+    a ch1 family beside ch2/ch3 renames, re-plans all unchanged, and restores
+    family proof when v3 appears.
+  - **7/7 final-head in-memory mutants killed**, source hashes unchanged:
+    old folder-wide scope, missing fixpoint guard, missing DB containment,
+    B2/B3/D7/E4. Earlier 25-mutant evidence remains bound to `5219265`.
+    Clean implementation checkout and diff-check. Exact-head CI
+    **40240922326** was **in progress** at handoff, not claimed passed.
+    Claude owns fresh review; Codex retains fixes/pinned merge after
+    approval and green exact-head CI. Nonblocking P3-a/b/c/e follow-ups and
+    the outside-diff step-5 observation remain deferred.
+
+Claude still owns the later Tower read-only plan after #130 passes.
+Batch apply needs David's exact plan-digest approval and operational
+preflight. None of these lead-run records is a controller-ledger verdict.
+
 ## Recovery and successor bootstrap — 2026-10-25
 
 David approved a fresh codex-lead thread in chat and hive **#2735**.
