@@ -1,5 +1,63 @@
 # Agent Swarm imported project context
 
+## Codex completion receipts — 2026-10-26
+
+This narrow receipt supplements the dated checkpoints below. Claude owns
+the next broader runtime/cutover checkpoint; no live operation is claimed
+here.
+
+- **Swarm #159 approved** at exact
+  `f5d66c15ed9d001ed0a29794b3f3e8ecf30ba622`.
+  [Review](https://github.com/Decksx/agent-swarm/pull/159#issuecomment-6410119858),
+  confirmed hive **#2857**. Independent exact-head full suite through
+  explicit Git Bash: **3336 passed / 10 skipped** (2924 core + 412 hub),
+  307.60s. All four CI checks in **40268954916** passed.
+  The late-born worker refuses on recorded and historical routes, for both
+  dry-run and confirmed transition, with unchanged table snapshots.
+  **9/9** selected non-equivalent guard mutants killed, source hashes
+  unchanged. A strict older-parent traversal shortcut is equivalent because
+  every ancestor is visited by the outer loop; it survived and is not
+  counted as killed. Diff-check clean; changed Git blobs LF.
+  Claude owns pinned merge, deployment, successor transition and the
+  bounded contained shell-command canary before ordinary replay/enablement.
+  Fresh process inspection and helper retargeting are execution-time gates.
+- **Comic #130 merged** pinned to integration head
+  `c5e41fc470cac9e572643635f287690b6ca07c2d` as
+  `78d42fa06858f230c9d85e4dae779f9e035455ed`.
+  [Merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/130#issuecomment-6410237908),
+  confirmed hive **#2865**. Parents are approved `7d33cd2` and master
+  `6d9aac6`. Claude reconfirmed the exact integration tree in hive
+  **#2860**, preserved on the PR in comments **6410133961/6410172869**.
+  Own fresh full suite **4048 passed / 8 skipped**, 273.46s. All three
+  exact-head CI jobs passed (runs **40282805216**, **40282799475**,
+  **40282798983**). Fetched merged tree equals the tested/reviewed tree
+  `088dd6446d2a0c26fabf0d290bd21d745f0f736b`. Implementation checkout
+  clean. The live comic checkout was still `6d9aac6` at Codex's
+  read-only post-merge check: this is not deployment evidence.
+  Claude owns coordinated checkout update and the authorized Tower
+  read-only step-8 plan. Batch apply still requires David's exact
+  plan-digest approval and operational preflight.
+  The accepted nonblocking UNC/drive-alias containment gap is now tracked
+  as [comic #134](https://github.com/Decksx/cbz-automation-suite/issues/134);
+  its reproduction remains attributed to Claude, not a new live Codex test.
+- **Swarm #160 merged** approved `d35cb00` as
+  `b03b8e10af08a97e2403f9fbb1c94a1d9ac1059f`, four exact-head checks
+  green (run **40266922383**), reviewed/merged tree
+  `eb545967c2e0fdade7ab19673be1af77b221ad0b`.
+  [Receipt](https://github.com/Decksx/agent-swarm/pull/160#issuecomment-6410148179),
+  confirmed hive **#2862**. Docs only; no runtime deployment.
+
+**Successor workspace correction** (Claude's fresh precheck in hive
+**#2855**, Codex agreement **#2856**): this thread's actual runtime cwd is
+`C:\Users\david\.codex\worktrees\review159-successor\agent-swarm`.
+The backend requires that exact registered workspace, so preserve the
+worktree and audit all proof-helper targets. Re-check the installed CLI
+at cutover. No new thread is required. Before app closure or a headless
+canary, Claude must independently verify the exact interactive turn is
+terminal; this checkpoint is not a completion/idle receipt. Codex performed
+no relay stop, cutover, registration/reservation change, Codex-state edit,
+watcher restart or live library/database mutation in these operations.
+
 ## Successor transition re-review — 2026-10-25
 
 Swarm [#159](https://github.com/Decksx/agent-swarm/pull/159) remains
