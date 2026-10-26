@@ -22,6 +22,7 @@ from lead_relay import (
     log, migrate, status,
 )
 from lead_relay_codex import CodexBackend, codex_usage
+import lead_relay_successor
 
 
 
@@ -119,6 +120,35 @@ def cancel_held(db, lead: str, ids: list[int], reason: str, *, confirm: bool,
     return 0, f"cancelled {len(ids)} for {lead}: {plan}"
 
 
+def successor(db, db_path: Path, args) -> int:
+    """`successor`: docs/design/relay-successor-transition.md. Applying takes
+    the daemon's lock, as `cancel --confirm` does, for the same reason."""
+    try:
+        inspected = [int(p) for p in (args.inspected_pids or "").split(",") if p.strip()]
+    except ValueError:
+        print("REFUSED: --inspected-pids must be comma-separated pids. Nothing changed.")
+        return 1
+    lock = None
+    if args.confirm is not None:
+        try:
+            lock = acquire_lock(db_path.with_name(db_path.name + ".lock"))
+        except AlreadyRunning:
+            print("REFUSED: the relay daemon is running; stop it before --confirm "
+                  "(a dry run needs no stop). Nothing changed.")
+            return 3
+    try:
+        code, text = lead_relay_successor.transition(
+            db, args.lead, args.retire_attempt, args.session, args.workspace, args.reason,
+            processes=ProcessApi(), confirm=args.confirm,
+            cli=lead_relay_successor.KEEP if args.cli is None else args.cli,
+            historical=args.historical_evidence, inspected=inspected)
+    finally:
+        if lock is not None:
+            os.close(lock)
+    print(text)
+    return code
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--db", default=str(HERE / "control" / "lead_relay.db"))
@@ -138,6 +168,22 @@ def main(argv=None) -> int:
     p.add_argument("--ids", required=True, help="comma-separated message ids, each still held")
     p.add_argument("--reason", required=True)
     p.add_argument("--confirm", action="store_true")
+    p = sub.add_parser("successor", help="retire a terminal run's reservation and bind a new "
+                       "session, disabled (dry run without --confirm)")
+    p.add_argument("--lead", required=True, choices=LEADS)
+    p.add_argument("--session", required=True)
+    p.add_argument("--workspace", required=True)
+    p.add_argument("--cli", help="default: the current binding's")
+    p.add_argument("--retire-attempt", required=True)
+    p.add_argument("--reason", required=True)
+    p.add_argument("--confirm", metavar="ATTEMPT_ID", help="the attempt id again, to apply")
+    p.add_argument("--historical-evidence", action="store_true",
+                   help="accept a run that predates termination provenance on its record alone "
+                   "(ended, no exit code, ran >= RUN_TIMEOUT); see the design note §2.5")
+    p.add_argument("--inspected-pids", metavar="PIDS",
+                   help="comma-separated live pids, created since an uncontained run launched "
+                   "with an exited parent, that the operator inspected and found unrelated "
+                   "(§2.8)")
     p = sub.add_parser("run")
     p.add_argument("--interval", type=float, default=20.0)
     sub.add_parser("once")
@@ -146,7 +192,7 @@ def main(argv=None) -> int:
     db_path = Path(args.db)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if args.command in ("register", "enable", "disable", "status", "cancel"):
+    if args.command in ("register", "enable", "disable", "status", "cancel", "successor"):
         db = sqlite3.connect(str(db_path), isolation_level=None)
         db.row_factory = sqlite3.Row
         db.executescript(SCHEMA)
@@ -166,6 +212,13 @@ def main(argv=None) -> int:
                 # One conversation, one identity: two leads resuming the same
                 # session would each get their own reservation (Codex, #116).
                 print(f"REFUSED: that session is already registered to {other[0]}")
+                return 1
+            old = lead_relay_successor.retired_key(db, key)
+            if old:
+                # A retired conversation is never bound again, by any route
+                # (docs/design/relay-successor-transition.md §2.9).
+                print(f"REFUSED: that conversation's reservation was retired (attempt "
+                      f"{old['attempt_id']}, {old['recipient']}); register a new one")
                 return 1
             if db.execute("SELECT 1 FROM reservations WHERE recipient = ? OR session_key = ?",
                           (args.lead, key)).fetchone():
@@ -203,8 +256,11 @@ def main(argv=None) -> int:
                     os.close(lock)
             print(text)
             return code
+        elif args.command == "successor":
+            return successor(db, db_path, args)
         else:
-            print(json.dumps(status(db), indent=2))
+            print(json.dumps({**status(db), "retired_reservations":
+                              lead_relay_successor.retired(db)}, indent=2))
         return 0
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

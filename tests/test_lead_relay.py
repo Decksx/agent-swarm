@@ -577,7 +577,10 @@ def test_spawn_uses_the_separate_process_group(tmp_path, monkeypatch):
     w.relay._spawn(["claude"], session, "a1")
 
     for key, value in lead_relay.separate_process_group().items():
-        assert seen[key] == value
+        if key == "creationflags":   # plus CREATE_SUSPENDED, for the job (popen_contained)
+            assert seen[key] & value == value
+        else:
+            assert seen[key] == value
 
 
 def test_a_run_past_its_timeout_is_killed_and_recorded(tmp_path):
