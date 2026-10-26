@@ -38,7 +38,11 @@ Final exact-head checks:
   behaviour is unmeasured.
 - Mixed watcher endings retained: 2,699 CRLF / 839 bare LF to 2,764 / 842.
   The LF diff check and one-file commit check pass; feature worktree clean.
-- CI **40416860492** was still running at handoff.
+- CI **40416860492** was still running at initial handoff. It was then
+  independently verified **SUCCESS at the same head: 4,335 passed / 3 skipped
+  in 261.01 s**. [Receipt 6429464896](https://github.com/Decksx/cbz-automation-suite/pull/146#issuecomment-6429464896)
+  supersedes that pending status. Claude acknowledged the handoff in **#3164**;
+  independent review is still pending.
 
 The protocol and stable-root/rollout limits are in
 docs/watcher_single_instance.md; daily evidence and the initial 4,327/10
