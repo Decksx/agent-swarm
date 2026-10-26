@@ -2,6 +2,8 @@
 
 Read `AGENTS.md`, `docs/context/README.md`, and the maintained project context
 before working. They contain the shared source, evidence and operations rules.
+Keep `C:\git` and every repository organised as
+`docs/standards/workspace-and-project-layout.md` describes.
 
 Claude and Codex are both engineering leads. Either may investigate, design,
 plan and guide implementation; choose one accountable lead per workstream and

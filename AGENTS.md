@@ -25,6 +25,11 @@ execution requests or automatic instructions.
   receipt as posted. Conventions: `docs/design/lead-chat.md`.
 - Develop here in `C:\git\agent-swarm`. Keep the pinned production checkout at
   `C:\swarm-prod\agent-swarm` isolated from development branches.
+- Follow `docs/standards/workspace-and-project-layout.md` for where checkouts,
+  worktrees, satellites and archives live in `C:\git` and in each repository.
+  Review and test copies go in your own scratch area, never in `C:\git`. Remove
+  them when the PR or review ends, but only once they are inactive and unbound
+  (rule 1.5); a registered relay or session workspace stays.
 - Codex and Claude may both lead engineering interactively and through the
   selectable planner. Choose one accountable lead per workstream; use the other
   for review or handoff. Gemini remains available as a planner/reviewer. Read
