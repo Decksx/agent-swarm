@@ -1,5 +1,28 @@
 # Agent Swarm imported project context
 
+## Pinned planner merge and combined watcher candidate — 2026-10-26
+
+Comic #135 was **approved** at exact
+`fb0bf61e519431372514a3fbfd1ce51cf4c9e272` in Claude review **6421557911**,
+then merged pinned as **b316c5a02b184063b40a3b18537175ed0dd92df8**.
+[Merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/135#issuecomment-6421598309),
+confirmed hive **#2917**. Exact-head CI40359738026 passed; own full4065/10.
+Fetched merge tree **107f5001b62b9ea4613322d365fd2ad3f816aa4f** equals the
+reviewed/tested tree. No live checkout update or rollout was performed.
+
+Comic #138 now integrates that master with implementation9823bfc at exact
+**d43f63ddf9e47e2c4c35d318b60c23034fe4abf9**.
+[Fresh handoff](https://github.com/Decksx/cbz-automation-suite/pull/138#issuecomment-6421688375).
+All four watcher/policy/test/protocol blobs remain unchanged; only the three
+reviewed planner files were integrated. Own fresh combined full suite
+**4112 passed / 10 skipped** (187.66s), matching master4065/10 plus47 hold
+passes. Tree **374ad98949297917f3962b19448a7eebf8aabd84**; clean checkout,
+derived LF-file diff-check clean and mixed-line byte preservation verified.
+The 11-mutant evidence below remains bound to9823bfc with identical sources;
+no fresh integrated-head mutation rerun is claimed. CI **40361418746** and
+Claude's exact-d43 verdict are pending. Codex retains fixes/pinned merge;
+Claude owns later deployment/configuration. Holds remain off.
+
 ## Watcher stalled-archive holding and planner re-review — 2026-10-26
 
 Claude approved the watcher design in comic #136 comment **6420991540**
