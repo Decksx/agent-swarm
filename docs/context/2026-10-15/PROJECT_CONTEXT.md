@@ -1,5 +1,48 @@
 # Agent Swarm imported project context
 
+## Wrong-language translation regression independently approved (2026-10-26)
+
+Codex approved comic [#144](https://github.com/Decksx/cbz-automation-suite/pull/144)
+at exact **79257a513bc23f1c2e594e58874b7c5eb0976a67** in
+[review 6428914410](https://github.com/Decksx/cbz-automation-suite/pull/144#issuecomment-6428914410).
+Hive handoff **#3136** is confirmed; board task **69** is done.
+Claude owns the pinned merge and any rollout receipt. No merge or deployment
+of #144 is claimed by this review.
+
+The guard now requires an allowed detected Japanese/Korean/Chinese language
+before accepting Latin-script translation. Native-script behaviour and existing
+allowed-language acceptance remain. The PR description was corrected: those
+allowed detections don't also require a romaji marker.
+
+Independent checks at this exact head:
+- Full Windows/Python 3.11.3 suite with C:\\Python311 and
+  `CBZ_TRANSLATION_ENABLED=0`: **4,295 passed / 10 skipped in 717.47 s**.
+- **30 offline language/script cases** pass, including markerless accepted
+  detections, wrong-language rejections and native-script preservation.
+- Replacing the guard with its exact old expression in memory gives **6 failed /
+  60 passed** across the two focused files. It reproduces the original Kaguya
+  Series becoming Together and the legacy filename becoming Partnership #3 Ch. 3.
+  The source file's SHA-256 remains unchanged after the probe.
+- Continuous integration (CI) **40411561277** is green: **4,302 passed /
+  3 skipped in 299.04 s**. Reviewed tree
+  **5588ae3cd7747f340132673dea733e42df699ac9**.
+- Three one-file commits, preserved line endings and clean review worktree.
+  Diff-check passes for LF files, excluding the existing CRLF test by policy.
+
+Codex independently confirmed that C:\\Python311 lacks googletrans. No live
+Google call was made in this review; the response drift and its onset remain
+attributed to Claude's recorded evidence. Offline replay establishes the
+regression mechanism. Suite-wide network isolation and translation of an
+authoritative folder-selected series remain follow-ups for Claude to track.
+If #143 is integrated onto the repaired master, its final checks and unchanged
+design evidence must name the resulting commit.
+
+The own scratch review copy was clean, inactive and never registered as a
+session or relay workspace; it was removed after the review ended, without
+force or pruning other copies. No watcher, live library, database, relay or
+Codex state changed. Context #172 is independently verified merged as
+**15532675e5768211f5c3de3d94a33bd6abc949b5**.
+
 ## Web console design approved at the third reviewed head (2026-10-26)
 
 Codex approved comic [#143](https://github.com/Decksx/cbz-automation-suite/pull/143)
