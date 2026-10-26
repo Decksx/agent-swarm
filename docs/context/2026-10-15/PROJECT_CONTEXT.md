@@ -1,5 +1,74 @@
 # Agent Swarm imported project context
 
+## Holding merge, media naming handoff and workspace reviews — 2026-10-26
+
+Comic [#138](https://github.com/Decksx/cbz-automation-suite/pull/138) merged
+reviewed **cfb6c916a194f3be5c4548bc3cf91f98751065b5** as
+**6c15b76594165018076db536e07047b0b92ce0f9**. Claude approved the exact head
+in **6422332562**; exact CI **40363974477** succeeded. Codex verified the
+reviewed/merged tree **17896ef9398419f335f4a4fa682c20164234a831** and posted
+merge receipt **6422430664**, confirmed hive **#2955**. Own full **4120/10**.
+Claude reports deployment in **#2956**: the live checkout advanced, no watcher
+or GUI was running, and holds remain disabled until David chooses a root.
+Codex did not deploy, restart or configure it.
+
+Comic naming design [#140](https://github.com/Decksx/cbz-automation-suite/issues/140)
+was approved by Claude in **6422344608**. Implementation is ready for independent
+review as [#142](https://github.com/Decksx/cbz-automation-suite/pull/142), exact
+**3a5517f36bd8b1e44025ee47720f3f1f043e3679**, incorporating master **9a79172**;
+tree **ffce372d9b0ba2635d35a4c7da3aff59356d87f1**. Final handoff **6423219499**,
+confirmed hive **#2965**. Codex owns fixes/pinned merge after exact-head Claude
+approval and green CI; Claude owns review and deliberate rollout.
+
+- Final own full suite **4192 passed / 10 skipped (160.20s)** versus measured
+  unchanged base **4120/10 (180.03s)**: exactly **72 new passes**.
+- **16/16 selected in-memory guard mutants killed**, all six source hashes
+  unchanged. The final subfolder conflict witness fails before **2192b2f**
+  and passes after: narrowing an auto-registry scan cannot erase title conflict.
+- Clean checkout and derived LF diff-check (45 CRLF/mixed exclusions).
+  All **3375** unchanged watcher lines are byte-exact against the **3383**-line
+  master; final **2631 CRLF / 838 bare LF**.
+- Exact-head CI **40370986680** is pending at this local handoff; predecessor
+  CI or local results do not substitute for it.
+
+Western issues use `#003`; TPB/Vol/numbered Full collections use `v01 (TPB)`
+with a separate collection slot preserving Colored and other editions.
+Manga chapters use `ch. 3`; volumes omit TPB. Unnumbered Full stays held
+pending David's volume-default decision. Narrow normalized-equal folder display
+wins while substantive conflicts stay held. The shared style registry matches
+physical ancestor identities, supports explicit style and an external
+`CBZ_NUMBER_STYLE_REGISTRY`, and is sealed into planner provenance/digest.
+The watcher binds original metadata before rewriting and selects style from
+the final resolved destination. Protocol/limits are in `docs/media_aware_naming.md`.
+
+**Rollout gate:** the checked-in registry is empty and unknown auto destinations
+stay in intake. Claude explicitly confirmed **#2964**: no live fast-forward to
+#142 until the shared Tower/X: registry exists and is verified (Manga chapter,
+Comix/Graphic Novels issue). A Manga Vol-labelled singleton without authoritative
+Volume may still hold at proposed-name re-resolution. No new live library,
+DB, configuration, watcher or relay operation by Codex; batch apply still needs
+a fresh read-only plan, verified backup and David's exact new digest approval.
+
+Codex reviewed workspace PRs swarm **#165@8b2e110b8775c4a5434fb5fe1a652d31438fc79a**
+and comic **#141@9f71bcb1cfcbb520d63fc3dd03a867a28af15ed8**, approving fresh
+heads after the inactive/unbound cleanup guard was added (reviews
+**6422919349/6422919788**, confirmed hive **#2961**). Their exact CI
+**40369069209/40369077630** succeeded; API confirms merges
+**a5026b4a9b2fdda985cfc612915dc306c98ab6b6** and
+**9a7917205b2b3329f21a8918a4925e309f8a96bd**. Claude's **#2962** reports the
+live docs checkout update and David's separate cleanup. Registered/live session
+workspaces stay exempt until supported rebind/decommission. Codex's bound
+swarm successor workspace remains unchanged. Active #142 copy
+`C:\git\cbz-media-naming-20261026` is announced/exempt until merge, then will
+be removed; future copies use Codex scratch.
+
+Delayed Camelia request **#2932** was ACKed in confirmed **#2953** and reconciled
+against David's cancellation/reassignment **#2933**. Claude owns it: **#2940**
+diagnosed orphan Node children holding port3000; **#2960** reports the launcher
+tree-kill fix merged as autodecen #1 and the repo moved at David's request to
+`C:\git\ComicAutomation\_related\autodecen`. These are Claude's code/path
+receipts, not a Codex verification of a successful restart or freed port.
+
 ## Readiness-holding review fixes — 2026-10-26
 
 Comic [#138](https://github.com/Decksx/cbz-automation-suite/pull/138) now
