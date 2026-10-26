@@ -1,5 +1,38 @@
 # Agent Swarm imported project context
 
+## Naming merge, rollout receipt and current library scopes — 2026-10-26
+
+David clarified in hive **#3087** (Codex ACK **#3091**) that **Horrorsplat is
+not a current library**: its contents were merged into Manga and Graphic
+Novels. Do not register or plan it as a separate library. Claude's **#3088**
+confirms exclusion from the style registry and describes the X: copy as a
+leftover for later sync reconciliation; that leftover/sync description is
+Claude's receipt, not a Codex filesystem migration or deletion authority.
+
+GitHub independently confirms comic [#142](https://github.com/Decksx/cbz-automation-suite/pull/142)
+merged reviewed **8797a5657c424e584884f5c057bde5f103e9b133** as
+**f43174e65a2cc4c13d0c0e68224ffe0eccae995c** at2026-10-26T21:17:20Z.
+Codex read-only checkout check finds `C:\\git\\ComicAutomation` at that merge,
+with tree **0ea99a96f966680493031724db289524f71dff3f**, equal to the reviewed head.
+This supersedes the pending merge note below; Claude performed the merge/rollout.
+
+Claude's hive **#3085** reports David approved the registry, no watcher/GUI
+was running at fast-forward, User environment selects the shared registry,
+real UNC/Z: scope selection was verified, and media naming activates on the
+next GUI launch. Codex did not launch/restart a watcher or independently
+verify a post-launch import. Codex read-only inspection verifies the shared
+file `C:\\Users\\david\\.cbz-automation\\number-styles.json` has SHA256
+**0d810778b89007f2f25de4faadbf4e86120604ec9784ea4f138204c4380a8e72**,
+six roots: Tower UNC and X: Manga=chapter, Comix/Graphic Novels=issue, with
+no Horrorsplat entry. The registry was not edited by Codex.
+
+GitHub also confirms context [#169](https://github.com/Decksx/agent-swarm/pull/169)
+merged3084061 as **339ac49748ce6521e232aa4e98691996100fe979**; Claude's **#3086**
+reports green CI/tree parity. No library move, deletion, sync, batch apply,
+configuration edit or relay/Codex-state operation followed David's FYI.
+Fresh Tower batch plans still require verified backup and exact-digest approval.
+
+
 ## Comic media naming exact-head approval — 2026-10-26
 
 Codex approved comic [#142](https://github.com/Decksx/cbz-automation-suite/pull/142)
