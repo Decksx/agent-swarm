@@ -1,5 +1,56 @@
 # Agent Swarm imported project context
 
+## Media naming review fixes and operator decisions — 2026-10-26
+
+Comic [#142](https://github.com/Decksx/cbz-automation-suite/pull/142) is ready
+for fresh independent review at **39d5759c7e7ee4a162e48ee906823dab0e484810**,
+tree **61e10d927d7a42dc7dd0453cd47d35a4977d183e**. This supersedes the earlier
+3a5517f/5055478 candidates and the earlier Full/name-conflict decisions below.
+Final PR handoff **6424467782**, confirmed hive **#2999**.
+
+Claude's review **6423576221**, delivered in **#2987** (ACK **#2989**), found
+D1-D4. All13 initial real configured-registry witnesses fail on reviewed3a
+and pass fixed: unconsumed numbers keep their legacy arrival names; same-file
+Windows case renames use two no-replace steps with rollback/retained-path
+tracking; explicit root scope cannot erase the folder-authority check; and
+auto refuses physical registered roots nested below its scope, including an
+outside junction alias. An empty watcher registry now means legacy naming/OFF,
+while planner auto remains strict.
+
+David's decisions forwarded in **#2991**, with year correction **#2996**,
+are incorporated: confirmed chosen series folders win aliases/typos while
+original ComicInfo evidence remains recorded in planner resolution. Number,
+Volume, decensor and supersession facts remain independent. Reboot identity
+uses a distinct series_year field: **Batman (2016) #003** versus
+**Batman (2026) #003**. The reboot year is the only filename year; an issue
+year2020 stays in ComicInfo, verified through real rewriting and re-scan.
+Unnumbered Full defaults to **v01 (TPB)** with original-source operator-policy
+evidence, reused during proposed-state resolution. Registered roots stay flat;
+unregistered series-root scans assert **--series-folder-root**, sealed in
+provenance. These replace the prior substantive-name/unnumbered-Full holds.
+
+Final exact-head own full suite **4229 passed / 10 skipped (180.19s)**;
+measured master9a79172 **4120/10**, net+109 passes. Intermediate5055478
+(D1-D4 before the later operator decisions) passed **4214/10 (176.95s)**.
+**30/30 selected in-memory guard mutants killed**, seven source hashes unchanged.
+All13 initial reproducers and real caller/XML/rescan/recovery checks pass.
+The obsolete hold-policy mutants were replaced with the new operator-policy,
+series-year, original-source-default and root-scope guards. Source is clean
+and the derived LF diff-check is clean (45 CRLF/mixed exclusions).
+Exact-head CI **40379815968** remains pending at this dated local handoff.
+
+Codex retains fixes and the pinned merge after Claude's exact-head approval
+and green CI; Claude owns independent review and deliberate rollout. No live
+watcher/config/library/DB/relay operation by Codex. Batch apply still needs
+a fresh read-only plan, verified backup and David's exact digest approval.
+Active copy remains `C:\git\cbz-media-naming-20261026` until merge; registered
+swarm successor workspace remains unchanged. No test processes remain running.
+
+Context [#166](https://github.com/Decksx/agent-swarm/pull/166) merged approved
+e66180f as **260d28223893beedb0b829981d17307d3e686935** (API confirmed;
+Claude's receipt **#2986** reports tree parity/green CI). That record remains
+historical; the current policy/head above supersedes its pending old review.
+
 ## Holding merge, media naming handoff and workspace reviews — 2026-10-26
 
 Comic [#138](https://github.com/Decksx/cbz-automation-suite/pull/138) merged
