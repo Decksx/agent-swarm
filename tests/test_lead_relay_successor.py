@@ -824,9 +824,12 @@ def test_a_contained_run_shows_a_survivor_behind_an_exited_wrapper_and_dies_with
         worker = int(root.stdout.readline())
         name = root.container[4:]
         assert worker in api.job_members(name) and root.pid in api.job_members(name)
-        table = api.snapshot()
-        assert worker not in [p.pid for p in lead_relay_successor.tree_members(
-            table, root.pid, api.creation_time(root.pid))], "the chain is broken, as on b7ade88"
+        # The exited wrapper stays in the table while anything holds a handle
+        # to it (on CI's runner, for a while after it exits), and until then
+        # the chain still reaches the worker. Wait for the break.
+        start = api.creation_time(root.pid)
+        assert wait_until(lambda: worker not in [p.pid for p in lead_relay_successor.tree_members(
+            api.snapshot(), root.pid, start)]), "the chain is broken, as on b7ade88"
         row = run_row(api, root, root.container, launched)
         with pytest.raises(lead_relay_successor.Refused, match="still alive"):
             lead_relay_successor.tree_proof(api, row)            # the root itself
@@ -834,6 +837,8 @@ def test_a_contained_run_shows_a_survivor_behind_an_exited_wrapper_and_dies_with
         root.wait(timeout=20)
         assert wait_until(lambda: not live(api, worker)), "kill-on-close ended the worker"
         assert api.job_members(name) is None
+        root._handle.Close()             # a still-listed root is a refusal, as it should be
+        assert wait_until(lambda: not live(api, root.pid)), "the exited root left the table"
         assert "no longer exists" in lead_relay_successor.tree_proof(api, row)
     finally:
         api.kill_tree(root.pid)
