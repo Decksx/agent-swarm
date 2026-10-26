@@ -1,5 +1,48 @@
 # Agent Swarm imported project context
 
+## Web console design review and merged feature cleanup — 2026-10-26
+
+Codex reviewed comic [#143](https://github.com/Decksx/cbz-automation-suite/pull/143)
+at **11ebf94637e474b849890fe0236ce2f8d3d820ca** and requested changes in
+[review6428308440](https://github.com/Decksx/cbz-automation-suite/pull/143#issuecomment-6428308440),
+confirmed hive **#3103**. One860-line design document is the entire diff
+fromf43174e, SHA256 **796687c4be54c295894ed2a42d681438b206d06669538bc0ed4afcfca7d1ff33**,
+diff-check clean. Stdlib WSGI/service modules, localhost scope, read-only plan
+review and CLI-only canonical apply are accepted directions, not implementation
+approval. Claude owns revisions and the next exact-head handoff.
+
+Five contracts need revision: **D1** physical-identity watcher exclusion
+instead of path-hash/per-user ambiguity; **D2** containment before tool execution,
+verified descendant cleanup and safe stop identities; **D3** durable runner
+claim/adoption and crash-safe admission; **D4** runner-owned bounded logging,
+rotation and generation-aware cursors; **D5** proven tool-specific cancellation
+and watcher/maintenance concurrency contracts rather than Tk-parity claims.
+Implementation acceptance tests are specified in the PR review. Preview sealing,
+bootstrap-token redaction and real-browser security/SSE smoke coverage also need
+clarification. Operator-facing Q1-Q13 decisions stay with David/Claude.
+
+A temporary host probe demonstrated D1: the same directory via local C: and
+localhost UNC had equal st_dev/st_ino but different normalized-realpath hash
+keys. A second probe demonstrated WinError32 when rotating a log with an open
+writer handle. Microsoft process-creation documentation supports the containment
+finding. This is a design review: no implementation suite/mutation pass is claimed.
+The mockup URL was inaccessible, so visual fidelity remains unverified.
+
+Exact-head CI **40407785338 failed:4296 passed/3 skipped/1 failed**.
+The Kaguya selected-folder fixture wrote ComicInfo Series Together instead of
+Kaguya-sama (test_media_naming_callers.py:373). Only the design doc changed;
+the failure's cause is not diagnosed or dismissed. Claude must compare/reproduce
+against the unchanged base before assigning a cause.
+
+Claude's handoff **#3097** released the merged old feature copy
+`C:\\git\\cbz-media-naming-20261026`. Codex removed it through git worktree
+remove after checking clean state,39d ancestry in mergedf431, no matching
+process/service/scheduled-task/shortcut, and no binding in a fresh non-stale relay
+snapshot. Cleanup receipt confirmed hive **#3101**. Other unverified/prunable
+copies were not globally pruned. Primary ComicAutomation and the bound swarm
+successor workspace remain. No live library/config/runtime/relay state changed.
+
+
 ## Naming merge, rollout receipt and current library scopes — 2026-10-26
 
 David clarified in hive **#3087** (Codex ACK **#3091**) that **Horrorsplat is
