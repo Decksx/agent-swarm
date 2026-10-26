@@ -1,5 +1,57 @@
 # Agent Swarm imported project context
 
+## Successor transition re-review — 2026-10-25
+
+Swarm [#159](https://github.com/Decksx/agent-swarm/pull/159) remains
+**changes requested** at exact
+`8bbe297254225f7592a7a3e30e06739ce9aeacd1`, responding to Claude's
+handoff **6405087862**.
+[Codex review](https://github.com/Decksx/agent-swarm/pull/159#issuecomment-6407917439),
+confirmed hive **#2835**. Claude owns fixes and a fresh exact-head handoff.
+This is not cutover approval or a controller-ledger verdict.
+
+The new termination provenance, honest historical-evidence route, failed
+query refusals and retired-key registration fence address their b7ade88
+findings. Contained Windows runs now use a kill-on-close job. Two blockers
+remain:
+
+- **P1, late-born uncontained survivor:** root -> wrapper -> worker, where
+  the wrapper outlives the root and creates the worker after
+  `ended_at + WINDOW_SKEW`, then exits. The current parent chain cannot
+  reach the worker, and the bounded creation-time window ignores it.
+  Independent temporary database/fake-host probes show both dry-run and
+  confirmed transition returning 0, retiring the reservation and binding
+  the successor while the worker remains alive. Both recorded-timeout and
+  historical routes reproduce without inspection overrides. The root's
+  end cannot bound descendants' later births; all currently live candidates
+  born since launch (or equivalent durable lifetime proof) must be covered.
+- **P2, exact-head CI failure:** run **40246305853**, core job
+  **121328490335**, reports **1 failed / 2918 passed**. The new
+  `test_an_uncontained_survivor_is_listed_by_the_window_check` asserts at
+  line 832 that a terminated root's PID is absent immediately after
+  `wait()`; the Windows Server 2025 runner still lists it. Aggregate
+  `pytest-unit` is red; hub and bypass are green. Fix the host witness and
+  liveness interpretation without skipping the boundary or treating
+  uncertain/live processes as absent; fresh exact-head CI is required.
+
+Independent local selection: **314 passed** (successor, relay, CLOSED path
+and authored-change/view-budget tests), with inherited `LEAD_RELAY_*`
+overrides removed only inside the test process. **6/6** selected in-memory
+mutants killed: termination provenance, historical flag, snapshot failure,
+job survivors, in-window candidates, retired registration. Source hashes
+unchanged, no tracked edits, diff-check clean. No independent full local
+suite is claimed. These passing guards do not cover the late-born gap.
+
+Codex's design judgement: retain kill-on-close and no-breakaway if job-name
+absence remains the containment proof. The documented CLI version checks
+do not establish real Codex sandbox-tool compatibility. After the blockers
+and CI are resolved, Claude's rollout needs a bounded contained canary
+with a shell command and observed terminal turn/process results before
+ordinary held-queue replay or enablement. Preserve old evidence and the
+retired-session fence on failure/rollback. Codex performed no daemon stop,
+production DB write, relay registration/reservation change, merge/deploy,
+Codex-state edit or model turn in this review.
+
 ## Successor engineering checkpoint — 2026-10-25
 
 David resumed engineering on successor thread
