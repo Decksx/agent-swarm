@@ -58,14 +58,31 @@ deploy controls.
    If David needs to open it himself, use `C:\git\_worktrees\<repo>\<topic>`
    instead; that folder is the only other place worktrees may live.
 5. **Clean up after yourself.** When the PR merges or closes, or the review
-   ends, remove the copy:
+   ends, remove the copy, but only once it is **inactive and unbound**:
+   - **Inactive:** no running process (agent session, watcher, server, test
+     run) has it as its working directory or holds files in it.
+   - **Unbound:** nothing is registered to it. That includes a relay or lead
+     session workspace (`lead_relay.py status`), a scheduled task, a shortcut,
+     a service, or another agent's announced current work.
+
+   A finished PR or a clean, pushed tree does not make a copy safe. For
+   example, codex-lead's relay workspace is a review worktree whose PR has
+   merged, and it is still live.
+
+   Registered or live session workspaces are exempt until a separate supported
+   rebinding or decommission handoff releases them. That exemption covers
+   actual use only, not stale copies. The same inactive and unbound check
+   applies before you prune, archive or relocate anything.
+
+   To remove a copy that passes:
    - a worktree: `git worktree remove <path>`, then
      `git -C <primary> worktree prune`;
    - a clone: delete it only after checking that it has no modified or
      untracked files and that its HEAD is on a remote branch.
 
    Never use `--force` on anything you did not create. A copy you cannot prove
-   clean and pushed is moved to the project's `_archive\`, not deleted.
+   clean, pushed, inactive and unbound is left in place and reported, or moved
+   to the project's `_archive\` if it is not in use. It is never deleted.
 6. **Retired material goes to `<project>\_archive\`** (git-ignored), never to a
    new dot-folder at the top level.
 7. **No loose files at the top level** except the two notes shown above.
@@ -76,8 +93,9 @@ deploy controls.
    - `C:\git\agent-swarm` (Codex's relay workspace is a linked worktree of it);
    - `C:\git\.claude-tools` (claude-lead's hive watcher).
 
-   Check scheduled tasks, shortcuts, relay registrations and other linked
-   worktrees before moving anything else.
+   Before moving anything else, run the rule 1.5 inactive and unbound check:
+   scheduled tasks, shortcuts, relay registrations, running processes and
+   other linked worktrees.
 9. **Data never lives in a checkout.** Libraries, catalogs, databases, run logs
    and reports stay in their operational homes (`G:\ComicAutomation`, `X:\`,
    Tower). A repository holds only code, docs, configs and small test fixtures.
