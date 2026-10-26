@@ -181,8 +181,9 @@ def main(argv=None) -> int:
                    help="accept a run that predates termination provenance on its record alone "
                    "(ended, no exit code, ran >= RUN_TIMEOUT); see the design note §2.5")
     p.add_argument("--inspected-pids", metavar="PIDS",
-                   help="comma-separated live pids created during an uncontained run's window "
-                   "that the operator inspected and found unrelated (§2.8)")
+                   help="comma-separated live pids, created since an uncontained run launched "
+                   "with an exited parent, that the operator inspected and found unrelated "
+                   "(§2.8)")
     p = sub.add_parser("run")
     p.add_argument("--interval", type=float, default=20.0)
     sub.add_parser("once")
