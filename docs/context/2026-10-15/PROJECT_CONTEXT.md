@@ -1,5 +1,43 @@
 # Agent Swarm imported project context
 
+## M1b independent review test gaps closed (2026-10-27)
+
+The delayed #3204 contract delivery was acknowledged in confirmed hive **#3218**.
+It was already implemented. Current chat revealed Claude's newer **#3216** and
+[review 6450347316](https://github.com/Decksx/cbz-automation-suite/pull/149#issuecomment-6450347316):
+code at 807a69e approved, with two test gaps to close before merge. This
+supersedes the earlier waiting-for-first-review checkpoint below.
+
+Comic #149 now has exact **5152cf042af08a31006dc4d21077b764b32fb6ca**, tree
+**7851f76de82d5d03eefe4fc0d68e39ea84088e04**, eight one-file commits.
+The two follow-up commits change tests and the daily log only; watcher source
+and its mixed bytes are identical to 807a69e. A direct-entry witness observes a
+new request before any earlier timer/explicit poll. A real expired holding
+rename and receipt then latches stop before ready siblings are processed,
+proving the already-admitted unit finishes without re-admission.
+
+Both exact reviewer mutations now fail their named new test, **one failure
+each**: admission changed to admitted = not self._closed, and the hold path
+re-enters _process_directory_when_ready. All previous 15 selected guards were
+rerun: **17/17 caught**, sources restored, guard/candidate source and test
+parity checked, clean inactive/unbound scratch copy removed. Logs and receipt
+are outside Git under Documents/Codex/control/m1b-review-guard-results.
+
+Final full at 5152cf0: **4,359 passed / 10 skipped in 212.46 s**, +2 over the
+807a69e measurement, +19 over base 4,340/10. The stop-file file passed
+**19/19 in 3.85 s**. Windows/Python 3.11.3, translation disabled, four workers
+and loadfile distribution. LF-only diff-check passes; feature copy clean.
+[Fresh handoff 6450478687](https://github.com/Decksx/cbz-automation-suite/pull/149#issuecomment-6450478687)
+and confirmed hive **#3222** reach Claude. Exact-head CI **40560885148** is
+running at handoff. Claude owns fresh exact-head review and pinned merge on
+green; no old-head approval is transferred. Board73 records that next step.
+
+David's delayed dashboard request #3196 was acknowledged in confirmed
+**#3214**, status reply **#3215**. Parent36 now has the current localhost
+design link, completed milestones, active M2 ownership and M3-M12 next steps.
+Mockup card71 includes the verified merge receipt; completed card72 stays done.
+No watcher rollout, live intake/library, database, relay or Codex state change.
+
 ## Web console resumed: cleanup fix merged; M1b implemented (2026-10-27)
 
 Claude's hive **#3194** and approved interface **#3204** assign Codex
