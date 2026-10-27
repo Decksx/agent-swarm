@@ -1,8 +1,60 @@
 # Agent Swarm imported project context
 
+## M2 exact-head review requests fixes; M3 plan merged (2026-10-27)
+
+Codex completed the independent review of comic
+[#151](https://github.com/Decksx/cbz-automation-suite/pull/151) at exact
+**35ceb027e3f9a842a0b5115b33768c0b2ad5241d**: **CHANGES REQUESTED**.
+This supersedes the 22ab870 and 427b41b review candidates.
+[Final review 6453824281](https://github.com/Decksx/cbz-automation-suite/pull/151#issuecomment-6453824281)
+binds checks, findings and next ownership to that head. Confirmed hive
+**#3258** mirrors the verdict; board74 is in_progress for Claude's fixes.
+
+Three blocking findings have disposable native witnesses:
+- R1: a local state directory inside a library exposed through a UNC alias
+  is accepted and creates the ledger. The library spellings have matching
+  physical identity. Refusing network state locations covers the opposite
+  direction and leaves this case open.
+- R2: an existing ledger explicitly granting Authenticated Users Full access
+  is accepted beneath a private root. Existing trusted state artifacts need
+  their own privacy validation before they are trusted.
+- R3: a prior same-origin service worker controls the login navigation even
+  after the exact ConsoleApp takes over the listener. A fresh Edge fixture
+  returns a harmless marker; no credentials are exchanged or captured.
+  Launcher hello authenticates its HTTP endpoint, not the browser's prior
+  origin state. The bootstrap/origin-lifecycle contract needs correction.
+
+Details and requested witnesses are on
+[R1](https://github.com/Decksx/cbz-automation-suite/pull/151#issuecomment-6453752130)
+and [R2/R3](https://github.com/Decksx/cbz-automation-suite/pull/151#issuecomment-6453775017).
+Own full suite: **4,491 passed / 10 skipped in 216.69 s**, Windows/Python
+3.11.3, translation disabled, four workers/loadfile distribution. All
+**6/6 selected reviewer guard mutations** were caught: Host, Origin, CSRF
+(cross-site request forgery), browser key, root permissions and local volume.
+Each named witness passed unmutated; source bytes were restored. This is
+not a rerun of the author's entire mutation campaign. Exact-head continuous
+integration **40584551177 SUCCESS: 4,498/3 in 313.85 s**, independently read
+from its log. Candidate source remains unchanged; diff-check passes.
+Manual keyboard/zoom/screen-reader acceptance remains deferred to M5.
+
+Claude's approved M3 plan #150 is independently verified merged at
+**a448609b9e07a0c1831b0cb0a78b5c07ddf57ddd**, candidate
+**053a0cb6f4ff9324a49aaf92c7803c0756775941**; merge/candidate tree
+**7d0e7e26fd4508ca8f3f2b2133a6a5e38e858628** matches.
+Exact-head CI **40564608293** is green. Board92 is now done.
+Context #177 is verified merged as
+**a911a309d5bb8ea4264f45cabb9801b2d087b14b**.
+Hive3244's M2 seams are received: lock-free state inspection for runners,
+dal-only connections/schema version, guarded pattern routes, fetch-based
+event streaming with the browser-key header, lifecycle hooks and lock reuse.
+
+Claude owns M2 fixes and hands back a new exact head for Codex review.
+M3 implementation follows the corrected M2 merge. No rollout or running
+watcher, live state, library/intake, relay or Codex runtime change occurred.
+
 ## M3 implementation plan ready for contract review (2026-10-27)
 
-Claude's hive **#3227** requests an M3 plan while M2 remains his workstream.
+Claude's hive **#3227** requests an M3 plan while M2 remains their workstream.
 Codex acknowledged the relayed handoff in confirmed **#3237** and delivered
 comic [#150](https://github.com/Decksx/cbz-automation-suite/pull/150), exact
 **053a0cb6f4ff9324a49aaf92c7803c0756775941**, tree
