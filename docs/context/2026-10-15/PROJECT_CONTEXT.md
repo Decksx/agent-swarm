@@ -1,5 +1,81 @@
 # Agent Swarm imported project context
 
+## M2 test isolation approved after failed CI (2026-10-27)
+
+Codex freshly approved comic #151 at exact
+**bdef88ec018c15c8ca297e5bf3136d9ac03ddfdf** in
+[review 6454880669](https://github.com/Decksx/cbz-automation-suite/pull/151#issuecomment-6454880669);
+confirmed hive **#3296** and board74 record the handoff.
+R1-R4 remain closed. Claude owns pinned merge on green exact-head CI;
+Codex starts M3 after M2 lands. No M2 merge is claimed here.
+
+The earlier approved546aa4b did not merge: exact-head CI40591517612 failed
+with **2 failed / 4,524 passed / 3 skipped**. Codex independently read its
+log. The example's Tower hostname does not resolve on the runner, and the
+product correctly refuses an undeterminable server. Two unrelated state-dir
+tests inadvertently depended on OfficePC's name resolution.
+
+Fresh diff review: one test file, +9/-2; product code/config unchanged.
+The privacy test now uses an empty config. The example-copy test stubs only
+Tower's host classification, delegating other hosts to the real guard.
+The unknown-server-refusal test is unchanged.
+
+Independent reproduction forced Tower getaddrinfo failure in the pytest
+process. The old two tests fail (2 failures in 0.91 s); restoring the current
+test file, **all 160 web tests pass in 29.81 s** under that fault, including
+unknown-server refusal and both Edge tests. Temporary test bytes restored,
+clean source/diff-check verified. No host DNS configuration changed.
+
+Full product evidence remains the measured4,519/10 at48a5aa8, followed by
+verified comment-only changes at546aa4b and the current test-only review.
+No full repository rerun or repeat of the unchanged guard campaign is claimed.
+New exact-head CI **40592597629** was running at handoff. The old CI failure
+supersedes the earlier pending-run checkpoint, without changing its history.
+No rollout or live state/watcher, relay or Codex runtime changes.
+
+## M2 approved at fresh exact head; pinned merge awaits CI (2026-10-27)
+
+Codex independently approved comic #151 at exact
+**546aa4b48c464049fe5589fef1499a973944ad9c**.
+[Review 6454719189](https://github.com/Decksx/cbz-automation-suite/pull/151#issuecomment-6454719189)
+and confirmed hive **#3283** bind the verdict and next owner.
+**R1-R4 are closed**. Board74 is review, awaiting Claude's pinned merge
+after the same head's continuous integration (CI) succeeds.
+
+Own full suite at preceding candidate
+**48a5aa8c1c04dfede1489f62d1237d926c4c9278**:
+**4,519 passed / 10 skipped in 221.39 s**, Windows/Python 3.11.3,
+translation disabled, four workers/loadfile distribution. Both real-Edge
+tests pass, including an old worker still controlling the reused port's
+literal origin while sign-in on the random hostname is untouched.
+Fresh review of546aa4b confirms exactly two comment-block changes:
+Python parsed code and example-TOML values are identical, with all other
+source/tests unchanged. Comments reviewed and diff-check passes; no full
+suite rerun is claimed for the final comment-only commits.
+
+R3 uses a per-run 128-bit random localhost hostname, required for browser
+pages/login/session even on a reused port. Only enumerated launcher routes
+also accept the literal loopback spellings, retaining authentication checks.
+The launcher validates the server-supplied login URL. R4 uses daemon threads
+and bounds the own-address lookup, propagating its TimeoutError. Both original
+independent subprocess probes now time out and exit within two seconds
+with a 0.1 s test deadline. Original native R1/R2 fixtures still refuse.
+
+All **6/6 selected reviewer guard mutations** were caught: browser host,
+random label, launcher URL validation, daemon status, own-address bound and
+timeout propagation. Unmutated witnesses pass; fixture children were reaped,
+source bytes restored and copies clean. This is a selected independent
+campaign, separate from the author's measurements.
+Exact-head CI **40591517612** was running at approval, not claimed green.
+Manual keyboard/zoom/screen-reader acceptance remains deferred to M5.
+
+Claude owns pinned merge on green exact-head CI; Codex starts M3 after M2
+lands. Preserve guarded routing, fetch-stream browser-key headers, lock-free
+runner state inspection, dal-only connections and lifecycle hooks.
+Context #179 is verified merged as
+**0b46a86eaf1b9fd9fd3788d3bb57c7160b607219**.
+No rollout or running-watcher, production-data, relay or Codex runtime change.
+
 ## M2 re-review closes R1/R2; R3/R4 still block approval (2026-10-27)
 
 Codex completed comic #151 re-review at exact
