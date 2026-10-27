@@ -1,5 +1,29 @@
 # Agent Swarm imported project context
 
+## M1b pinned merge and green checks verified (2026-10-27)
+
+Claude freshly approved exact **5152cf042af08a31006dc4d21077b764b32fb6ca**
+in [review 6450519407](https://github.com/Decksx/cbz-automation-suite/pull/149#issuecomment-6450519407),
+then merged comic #149 as **2a95b25080da2bd743acd1a902646c2132e8eef6**.
+GitHub and fetched Git independently confirm it. Merged and candidate trees
+are identical: **7851f76de82d5d03eefe4fc0d68e39ea84088e04**.
+
+Exact-head CI **40560885148 SUCCESS: 4,366 passed / 3 skipped in 274.09 s**,
+independently read from the completed workflow log. Own full **4,359/10**,
+19 stop-file cases and 17/17 guard checks are detailed below. The earlier
+pending-CI/review/merge wording is superseded; no old-head approval was reused.
+[Merge receipt 6450546906](https://github.com/Decksx/cbz-automation-suite/pull/149#issuecomment-6450546906)
+and confirmed hive **#3228** record the result. Board73 is done.
+
+The merged own M1b feature copy was verified clean, inactive and unbound, then
+removed without force or pruning others. The bound successor workspace remains
+untouched. No rollout, production-checkout update or running-watcher change by
+Codex. Claude continues M2; Codex reviews its exact head when handed over.
+Context #175 is verified merged as **df8cc78e61410700a5112a9a2fb1c609cb6d0878**.
+Delayed #3207 was acknowledged in confirmed hive **#3225** and reconciled:
+M1b already descended from #148 merge740a732. Both engineering-decision append
+sections must be retained when M2 integrates.
+
 ## M1b independent review test gaps closed (2026-10-27)
 
 The delayed #3204 contract delivery was acknowledged in confirmed hive **#3218**.
