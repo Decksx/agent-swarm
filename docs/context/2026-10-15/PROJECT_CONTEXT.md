@@ -1,5 +1,92 @@
 # Agent Swarm imported project context
 
+## Web console resumed: cleanup fix merged; M1b implemented (2026-10-27)
+
+Claude's hive **#3194** and approved interface **#3204** assign Codex
+**#147 then M1b**, with Claude reviewing each exact head and owning pinned
+merges on green continuous integration (CI). Claude owns the separate M2 web
+package; its implementation has not been independently reviewed by Codex.
+Board **72** is done; **73** records M1b progress and next ownership. David's
+dashboard request **#3196** was addressed through supported board updates;
+Claude's **#3202/#3203** also list completed work and the remaining milestones.
+
+### M1 and cleanup follow-up reconciled
+
+GitHub independently confirms M1 #146 merged approved **6e4600f** as
+**fb6ef7dbc8a45d16b15103bff5f5dae8e11f32b6**, mockup #145 as
+**5889beb7e97d46f2a74d09b1d10b73d3731331f1**, and context #174 as
+**eade953e9358c7bc8460c471f5c56ed0cb25d822**. These supersede the pending
+review/merge wording below. Claude's **#3192** reports the M1 live checkout
+fast-forward, no watcher running at that deployment, and physical-root mutex
+smoke; Codex did not repeat that live operation or restart the watcher.
+
+Codex implemented #147 in comic [#148](https://github.com/Decksx/cbz-automation-suite/pull/148)
+at exact **f50df64c3eff008a84622bef492557cefc81e50a**, six one-file commits.
+It preserves an original session/acquisition error with cleanup logged/noted;
+cleanup-only failure is exit 4. Handle close is attempted after release errors,
+and uncertain cleanup retains process-local root exclusion. Startup refusal
+remains exit 3. Protocol and daily provenance are committed in that PR.
+
+Own measured base **4,328 passed / 10 skipped in 232.40 s**; final full
+**4,340 / 10 in 242.91 s**, +12 cases, focused **45**. All **8/8** targeted
+guard mutations were caught with named failures; restored scratch copy removed.
+Windows/Python 3.11.3, translation disabled, four workers/loadfile distribution.
+Exact-head CI **40557029434 SUCCESS: 4,347 / 3 in 291.84 s**.
+[Handoff 6449953668](https://github.com/Decksx/cbz-automation-suite/pull/148#issuecomment-6449953668)
+and confirmed hive **#3206** reached Claude; **#3207** reports independent
+approval, five reviewer mutations caught and pinned merge. GitHub and Git
+independently confirm merge **740a7324f40bfc4201ad9e5aff513c29a317c5a3**,
+tree equal to candidate **c2d2e3ff14300c15ffc453066d82736dc14ba920**.
+[Receipt 6450126101](https://github.com/Decksx/cbz-automation-suite/pull/148#issuecomment-6450126101)
+records the green CI and parity. No #147 rollout by Codex.
+
+### M1b graceful stop handed to Claude
+
+Comic [#149](https://github.com/Decksx/cbz-automation-suite/pull/149) is ready at
+exact **807a69ef9fa625b2ede79938ecdae4cbfc28722a**, tree
+**42b14321556f8810c49bfab1a739f6f14b1447fe**, six one-file commits from
+master **740a732**. [Handoff 6450301141](https://github.com/Decksx/cbz-automation-suite/pull/149#issuecomment-6450301141) and confirmed hive **3211**
+record the actionable handoff. Claude owns independent review and the pinned
+merge on green exact-head CI. No approval, merge or activation is inferred.
+
+The optional absolute --stop-file requires an existing parent. Presence latches
+stop; content is ignored and the watcher never deletes the request. It stops
+admitting directory units, cancels pending timers, joins the observer and drains
+callbacks/direct units while M1 still owns the root. Admitted units finish.
+Startup requests exit successfully before routing/recovery/imports. Poll errors
+warn once and keep running, as Claude requested for transient state-drive
+failures. No forced termination is added; M6 retains its interruption/recovery
+gate. Active operations and startup work can make graceful latency unbounded.
+
+Final own full suite at 807a69e: **4,357 passed / 10 skipped in 227.15 s**; broad focused **130
+passed in 23.64 s**, including **17 new cases**. Base tree parity with the just
+tested #148 candidate establishes **4,340/10**, without a redundant baseline
+run. Initial M1b 4ffc50a also passed **4,357/10 in 245.38 s**. The final commit
+only scopes a stat-fault test so failed guards produce ordinary named failures
+instead of interfering with pytest reporting; watcher source is unchanged.
+
+All **15/15 selected guards** were caught at the final tree: absolute path
+(1 failure), existing parent (2), latch (1), poll-error continuation (2),
+warn-once (2), directory admission (1), pending cancellation (1), direct-unit
+draining (1), startup stop (1), idle stop (1), exit log (1), and each of four
+timer-entry polls (1 each). Logs/receipt remain outside Git under
+Documents/Codex/control/m1b-guard-results. Every source byte was restored;
+the clean, inactive, unbound mutation copy was removed.
+
+Native fixture witnesses include atomic-request shutdown of a real observer
+process, stopping between startup directories, and a contender refused until an
+admitted directory finishes. Mixed watcher endings remain **2,767 CRLF / 842
+bare LF -> 2,842 / 865**; the actual edits explain both deltas. LF-only diff
+check and one-file commit checks pass. Final CI **40559498616** is pending
+at handoff; green checks remain a merge gate. Protocol and daily evidence are
+docs/watcher_graceful_stop.md and docs/development_log_2026-10-27_m1b.md.
+
+Own merged M1 and #147 feature copies were verified clean, inactive and unbound,
+then removed without force or pruning others. Keep the active M1b feature copy
+at C:/Users/david/.codex/worktrees/comic-web-m1b until review/merge. The bound
+successor session/relay workspace was not moved or changed. No running watcher,
+launcher, live intake/library, database, relay or Codex state was changed.
+
 ## Delayed M1 approval reconciled; cleanup diagnostic follow-up (2026-10-26)
 
 The delayed hive **#3160** is Claude's code approval of M1 **ffd4f1f**, recorded
