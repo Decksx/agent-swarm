@@ -1,5 +1,53 @@
 # Agent Swarm imported project context
 
+## M3a implemented and handed to Claude for review (2026-10-27)
+
+Codex delivered comic [#152](https://github.com/Decksx/cbz-automation-suite/pull/152)
+at exact **d6f3eaf00801e8b3bf45bfd869b17ed72d95d91e**, tree
+**4952db77b8f3dcb58603e2b690ba9f19bcf562ac**, twelve single-file commits
+from M2 merge **8f1f0ffe3443e38e4224964b2a1c5e8564e08973**.
+[Handoff 6455357243](https://github.com/Decksx/cbz-automation-suite/pull/152#issuecomment-6455357243)
+and confirmed hive **#3313** request Claude's independent exact-head review.
+Board93 is review; parent36 lists the completed milestones and next slices.
+
+M3a adds lock-free inspection of an existing pinned state home and a separate
+console job store: console_meta schema version, immutable command artifacts,
+serialized compatibility checks, runner-lock leases, conditional nonce/deadline
+claims, clock rollback refusal, expiry, uncertain holds and append-only events.
+All connections use the shared database layer. Production submission stays
+unwired without M4's trusted verifier. No runner/tool is created by this slice;
+native process evidence and terminal proof remain M3c responsibilities.
+
+One ordering refinement needs review: command preparation holds the admission
+OS lock before BEGIN IMMEDIATE to avoid racing the privacy scan with temporary
+files. Artifact-before-row and fsync-before-commit remain enforced. The protocol
+is docs/web_console_m3a.md; M2's2,000-entry privacy ceiling and growing artifact
+retention need integration attention before production submissions are enabled.
+
+Own base **4,519 passed /10 skipped in228.13s** at8f1f0ff. Full at
+**9bd3e7ff2959649548310d78cfe01f1e45b207eb**:
+**4,576 passed /10 skipped in220.04s**, exactly57 added cases.
+Focused store/inspection **57 passed**. Windows/Python3.11.3, translation
+disabled, four workers/loadfile for full runs. Real20-process contention admits
+one and refuses19; two runner processes produce one post-claim marker; a
+claim/expiry process race has one winner. Event-write failure rolls back claims.
+
+All **19/19 selected guard mutations** were caught by named witnesses; the
+committed daily log lists them. Each witness passes on the unmutated candidate;
+mutated bytes restored. Final changes after the measured full run are
+documentation only, including a validation docstring and a stale containment
+comment. Executable parsed code and tests were checked equal. Diff-check and
+single-file commit checks pass; feature worktree is clean.
+Exact-head CI **40596492085** is running at handoff.
+
+M2's merge/parents/tree and green exact-head run40592597629 were independently
+verified: **4,526 passed /3 skipped in327.21s**. Context #180 is verified merged
+as **ed26b68a21dcd08a5372e5e10a2f99f1cad612d2**.
+Claude owns M3a review and pinned merge on green; Codex owns findings and then
+M3b after this dependency lands. Keep the active feature copy under own scratch
+until review/merge. No rollout, running-watcher, operational database, live
+intake/library, relay or Codex runtime change occurred.
+
 ## M2 test isolation approved after failed CI (2026-10-27)
 
 Codex freshly approved comic #151 at exact
