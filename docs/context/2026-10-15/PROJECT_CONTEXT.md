@@ -1,5 +1,38 @@
 # Agent Swarm imported project context
 
+## M2 test isolation approved after failed CI (2026-10-27)
+
+Codex freshly approved comic #151 at exact
+**bdef88ec018c15c8ca297e5bf3136d9ac03ddfdf** in
+[review 6454880669](https://github.com/Decksx/cbz-automation-suite/pull/151#issuecomment-6454880669);
+confirmed hive **#3296** and board74 record the handoff.
+R1-R4 remain closed. Claude owns pinned merge on green exact-head CI;
+Codex starts M3 after M2 lands. No M2 merge is claimed here.
+
+The earlier approved546aa4b did not merge: exact-head CI40591517612 failed
+with **2 failed / 4,524 passed / 3 skipped**. Codex independently read its
+log. The example's Tower hostname does not resolve on the runner, and the
+product correctly refuses an undeterminable server. Two unrelated state-dir
+tests inadvertently depended on OfficePC's name resolution.
+
+Fresh diff review: one test file, +9/-2; product code/config unchanged.
+The privacy test now uses an empty config. The example-copy test stubs only
+Tower's host classification, delegating other hosts to the real guard.
+The unknown-server-refusal test is unchanged.
+
+Independent reproduction forced Tower getaddrinfo failure in the pytest
+process. The old two tests fail (2 failures in 0.91 s); restoring the current
+test file, **all 160 web tests pass in 29.81 s** under that fault, including
+unknown-server refusal and both Edge tests. Temporary test bytes restored,
+clean source/diff-check verified. No host DNS configuration changed.
+
+Full product evidence remains the measured4,519/10 at48a5aa8, followed by
+verified comment-only changes at546aa4b and the current test-only review.
+No full repository rerun or repeat of the unchanged guard campaign is claimed.
+New exact-head CI **40592597629** was running at handoff. The old CI failure
+supersedes the earlier pending-run checkpoint, without changing its history.
+No rollout or live state/watcher, relay or Codex runtime changes.
+
 ## M2 approved at fresh exact head; pinned merge awaits CI (2026-10-27)
 
 Codex independently approved comic #151 at exact
