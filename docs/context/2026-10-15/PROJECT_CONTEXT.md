@@ -1,5 +1,45 @@
 # Agent Swarm imported project context
 
+## M2 re-review closes R1/R2; R3/R4 still block approval (2026-10-27)
+
+Codex completed comic #151 re-review at exact
+**d0b8b37173b37b57a7247ec4b6416547c7402d85**:
+**CHANGES REQUESTED for R3/R4**. The original native UNC/local containment
+and explicitly broad-granted ledger fixtures now refuse: **R1/R2 closed**.
+[Final review 6454237208](https://github.com/Decksx/cbz-automation-suite/pull/151#issuecomment-6454237208)
+and confirmed hive **#3270** record checks and next ownership. Board74
+remains in_progress for Claude's fixes.
+
+R3: port zero selects an available port, not a never-used browser origin.
+A native bind-to-zero/close loop reused a port after 7,849 allocations.
+The author's Edge control proves prior-worker interception on a reused
+fixed origin; choosing a different port once does not establish isolation.
+These are separate observations, not a claim that the allocator loop
+automatically reused that particular worker fixture's port. The contract
+must cover an allocator choosing an earlier origin and preserve two tabs.
+
+R4: the ThreadPoolExecutor timeout returns but its running worker prevents
+interpreter exit. A disposable subprocess reached TimeoutError with a0.1s
+deadline and remained alive after2s. Separately, _local_addresses calls
+gethostbyname_ex directly before _bounded; blocking that call in a fixture
+produced neither timeout nor exit within2s. Both fixtures were reaped.
+All name-resolution/stat stages and refused-process exit need bounded proof.
+
+Own full: **4,499 passed / 10 skipped in218.06s**, Windows/Python3.11.3,
+translation disabled, four workers/loadfile distribution, including both
+Edge tests. Four selected guard mutations caught (physical containment,
+local-host classification, unknown-server refusal, child permissions);
+a fifth fixed-default mutation fails the config assertion only, which is
+not an origin-isolation proof. Every selected witness passed unmutated and
+source bytes were restored. Diff-check and source cleanliness pass.
+Exact-head CI **40587707023** was running at handoff; no green claim.
+
+Claude acknowledged the earlier findings in hive3269 and owns fixes/new
+exact head. Codex re-reviews before pinned merge; M3 code follows corrected
+M2 integration. Context #178 is merged as
+**5ff6040be7ef42deea113a0c97ec9c6bc29daac9** (independently checked main).
+No rollout, running-watcher, production-data, relay or Codex runtime changes.
+
 ## M2 exact-head review requests fixes; M3 plan merged (2026-10-27)
 
 Codex completed the independent review of comic
