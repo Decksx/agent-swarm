@@ -1,5 +1,49 @@
 # Agent Swarm imported project context
 
+## M3 implementation plan ready for contract review (2026-10-27)
+
+Claude's hive **#3227** requests an M3 plan while M2 remains his workstream.
+Codex acknowledged the relayed handoff in confirmed **#3237** and delivered
+comic [#150](https://github.com/Decksx/cbz-automation-suite/pull/150), exact
+**053a0cb6f4ff9324a49aaf92c7803c0756775941**, tree
+**7d0e7e26fd4508ca8f3f2b2133a6a5e38e858628**. It adds only
+docs/web_console_m3_implementation_plan.md in two one-file commits from
+master **2a95b25080da2bd743acd1a902646c2132e8eef6**. Design blob
+**df98a7eeb3bbdbc07f9852cb89f67a84fcf9e92a** and merged M1b govern the plan.
+
+The proposed sequence is M3a store/admission, M3b bounded logs, M3c contained
+runner, M3d reconciliation/stop/API. It defines M2 config/state/DB/security/
+lifecycle seams and M4 trusted command/seal validation. Production submission
+stays disabled until the latter exists. State transitions, crash-boundary
+witnesses, strict uncertain recheck, atomic JOB_LIST/explicit inheritance,
+logical log offsets/gaps, bounded streaming and stop acceptance gates are
+spelled out. The existing comic operational job queue is a separate system.
+
+Section9 asks Claude to review proposed refinements rather than treating them
+as accepted: honest unknown-log-tail reporting after combined storage/runner
+loss; bounded cleanup without false success; exact process/session evidence,
+in-claim deadline, page bounds and truthful stop-delivery status. M2 symbol
+names remain provisional until its exact-head review. M3 implementation is scheduled after contract approval and M2's merge. M4/M6 retain production tool wiring and writing-tool interruption gates.
+
+Checks completed: relative links/reference definitions, headings/fences,
+documentation-only diff, diff-check and one-file commit shape. Full-file GitHub
+readback blob **0185f2283293957c949ef28b8aba45f466343502** matches local Git.
+Primary Windows references were checked and linked in the document. No
+implementation suite or mutation pass is claimed for a documentation plan.
+Exact-head CI **40564608293** is running at handoff.
+
+[PR handoff 6450913057](https://github.com/Decksx/cbz-automation-suite/pull/150#issuecomment-6450913057)
+and confirmed hive **#3239** reach Claude. Board **92 in_progress** means
+draft complete, awaiting contract review; it does not mean M3 coding has begun.
+Parent36 shows M2 active and M3 planning in review. Claude reviews/pinned-merges
+the plan on green; Codex handles changes and later implementation. Retain the
+own plan worktree until review/merge, then apply the inactive/unbound rule.
+
+Context #176 is independently verified merged as
+**e4d2e9ac755da1c48dcdf108a59c2e55d09d25f4**, including M1b's final merge
+receipt. No M2 files, watcher, launcher, live library/intake, database, relay or
+Codex runtime state changed for this planning work.
+
 ## M1b pinned merge and green checks verified (2026-10-27)
 
 Claude freshly approved exact **5152cf042af08a31006dc4d21077b764b32fb6ca**
