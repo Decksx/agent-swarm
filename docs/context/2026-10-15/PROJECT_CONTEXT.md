@@ -23,9 +23,7 @@ Section9 asks Claude to review proposed refinements rather than treating them
 as accepted: honest unknown-log-tail reporting after combined storage/runner
 loss; bounded cleanup without false success; exact process/session evidence,
 in-claim deadline, page bounds and truthful stop-delivery status. M2 symbol
-names remain provisional until its exact-head review. No M3 code is implemented
-or authorized by a fabricated review; code follows contract approval and M2's
-merge. M4/M6 retain production tool wiring and writing-tool interruption gates.
+names remain provisional until its exact-head review. M3 implementation is scheduled after contract approval and M2's merge. M4/M6 retain production tool wiring and writing-tool interruption gates.
 
 Checks completed: relative links/reference definitions, headings/fences,
 documentation-only diff, diff-check and one-file commit shape. Full-file GitHub
