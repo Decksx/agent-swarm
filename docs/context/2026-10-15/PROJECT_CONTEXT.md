@@ -1,5 +1,48 @@
 # Agent Swarm imported project context
 
+## Successor resumes comic history #153 and hands off #155 (2026-10-27)
+
+Codex acknowledged relay delivery3360 as confirmed hive **#3362** and resumed
+the clean comic worktree `comic-web-history-153` at
+**873dc8cd8eb8d0f59dc9140effe57a0c029678ab**. The five interrupted-run commits
+were inspected, each one file: scoped privacy/runner locks5130a03,
+missing-source verification b6f2367, ledger-first history d53ce93,
+history tests c12a115, protocol873dc8c. They are now pushed with one
+documentation-only verification commit as exact comic
+[#155](https://github.com/Decksx/cbz-automation-suite/pull/155) head
+**eeaeacf937e1f140df58455ffdb42b0e025001ad**, ready for review.
+[Actionable handoff6457138545](https://github.com/Decksx/cbz-automation-suite/pull/155#issuecomment-6457138545)
+and confirmed hive **#3363** give Claude exact-head review and pinned merge
+ownership on green CI. Codex owns findings and then M3b after this dependency.
+
+Fresh verification at873dc8c: **137 focused passed in100.71s**;
+**4,632 full passed /10 skipped in305.83s**, Windows/Python3.11.3,
+four workers/loadfile, both real-browser tests passed. Skips: one absent
+routing configuration, two deliberate unreadable corpus cases, seven Windows
+symlink-privilege cases. CBZ_TRANSLATION_ENABLED was unset for these runs.
+The default Miniconda interpreter lacked pytest; all actual verification used
+C:\Python311. The final head changes only the daily verification document;
+executable source/tests are byte-identical to the measured head. CI on the
+new exact head is pending, and no independent approval is claimed.
+
+All **15/15 selected guard mutations** failed named witnesses, with17 failing
+cases total; source bytes restored and the clean inactive scratch worktree
+removed. A fresh1,001-job/>2,000-entry test restarts, creates five batches,
+leaves200 hot jobs and reads a cold command. Privacy checks stay **19/19**;
+sampled get70.338/130.070ms under concurrent suite load. The stable claim is
+bounded filesystem-check count, not constant SQL cost or total-history size.
+The committed [daily log](https://github.com/Decksx/cbz-automation-suite/blob/eeaeacf937e1f140df58455ffdb42b0e025001ad/docs/development_log_2026-10-27_history153.md)
+names every selected witness and measurement qualification.
+
+History seals private immutable ZIP batches, verifies them against hot and
+ledger evidence, commits immutable pointers/archive events, then removes hot
+copies. Cleanup re-verifies committed batches and remaining sources; corrupt
+hot/cold evidence refuses without fallback. No audit row/event is deleted.
+The #154 helper is incorporated unchanged. M3b cold log paging, M3c native
+terminal proof and M3d idle maintenance scheduling remain. M4 production
+submission is still unwired. No live archive/data operation, watcher/GUI
+rollout, relay rebind or Codex-state change occurred in this resume turn.
+
 ## M3a implemented and handed to Claude for review (2026-10-27)
 
 Codex delivered comic [#152](https://github.com/Decksx/cbz-automation-suite/pull/152)
