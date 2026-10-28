@@ -1,5 +1,67 @@
 # Agent Swarm imported project context
 
+## M3b implemented and handed to Claude for review (2026-10-27)
+
+Codex resumed on relay #3379 (confirmed ACK **#3381**) from comic master
+**20ebcc26989ebabd8f65b6fe6363edabeec64470**. This is the verified #155 merge;
+its tree **d8b2fd4693cfa48653d8b24228a98cf7a9dff25a** equals reviewed eeaeacf,
+and exact-head CI **40607740992/40607744931** both succeeded. #153 is CLOSED;
+Codex agrees both halves are complete. Board 94/95 are done. The earlier
+pending #155/#153 wording below is historical and superseded.
+
+New comic [#156](https://github.com/Decksx/cbz-automation-suite/pull/156)
+implements M3b at exact **f0b709f53bc3598d50e12381e45a6ead551b1446**, sixteen
+one-file commits from that master. [Handoff 6458372734](https://github.com/Decksx/cbz-automation-suite/pull/156#issuecomment-6458372734)
+and confirmed hive **#3384** give Claude independent exact-head review and
+pinned merge ownership on green CI. Board **96 is review**, parent36 updated.
+Codex owns findings and then M3c after this dependency lands. Exact-head CI
+**40616450549/40616463908** is running; no approval/merge is claimed.
+
+M3b supplies a nonblocking bounded queue, independent pipe reader/disk writer,
+contiguous retained segments, compact gaps and durable coverage/EOF metadata,
+raw-byte cursor codec, bounded UTF-8/JSON paging, advisory progress parsing,
+native READ/WRITE/DELETE-shared readers and best-effort I/O cancellation.
+JobLogs binds writers to matching live claims and validates selected private
+hot/cold paths. Archive member size/digest pins commit with pointers/events
+and are immutable. Two adjacent cached members avoid rotation rehash thrashing;
+byte/member batch packing makes progress with many small retained log files.
+
+Two format refinements need Claude's explicit review: compact atomic index.json
+replaces the design sketch's gaps.jsonl, and cold log pages authenticate selected
+members against independent ledger pins instead of hashing unrelated batch
+bytes. Original command/cleanup APIs retain whole-seal verification. Legacy
+batches without member pins refuse the fast path; no evidence is backfilled.
+[Protocol](https://github.com/Decksx/cbz-automation-suite/blob/f0b709f53bc3598d50e12381e45a6ead551b1446/docs/web_console_m3b_logs.md).
+
+Final full at **bfa57ef428740c3e2a5acd9610f6ebf531c73bc3**:
+**4,697 passed /10 skipped in282.62s**, exactly65 added cases versus the
+retained4,632 baseline. Both real-browser tests pass. Skips remain one absent
+routing config, two deliberately unreadable corpus cases and seven Windows
+symlink-privilege cases. Windows/Python3.11.3, four workers/loadfile; translation
+unset. Earlier focused b51d552: **64 passed in29.08s**; after packing fix,
+its regression plus all15 service cases **16 passed in24.70s** (overlap).
+The final commit adds only the daily verification log; source/tests are
+byte-identical to the measured full candidate. No redundant rerun of unchanged
+code is attributed to the documentation head.
+
+All **21/21 selected mutations** failed named witnesses at bfa57ef (23 failing
+cases total); sources restored and clean inactive scratch removed. A8/A15 from
+#155 are directly covered and killed: codec ledger/manifest command mismatch,
+and a deterministic real admission-lock interleaving before runner-lock open.
+Other witnesses include a paced50MiB producer without a server, exact persisted
+bytes/restart paging, a1MiB line, invalid UTF-8, partial/zero writes, stalled
+storage, safe replay, bounded alternating gaps, retention-before-unlink, native
+sharing, corruption without fallback and cache/member-budget bounds.
+[Daily log and named guards](https://github.com/Decksx/cbz-automation-suite/blob/f0b709f53bc3598d50e12381e45a6ead551b1446/docs/development_log_2026-10-27_m3b.md).
+
+M3c owns native tool containment/finalization and must retain claims until logs
+settle; unproved cleanup stays uncertain. M3d owns protected polling/SSE,
+durable progress cursor/events, lifecycle hooks and idle archive byte/time
+budgets. M5 renders continuation markers. M4 production submission stays
+unwired. All operations used disposable fixtures; no live archive/data change,
+watcher/GUI rollout, production run route, relay configuration or Codex-state
+change occurred. This is lead-run engineering, with no controller verdict.
+
 ## Successor resumes comic history #153 and hands off #155 (2026-10-27)
 
 Codex acknowledged relay delivery3360 as confirmed hive **#3362** and resumed
