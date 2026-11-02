@@ -1,5 +1,48 @@
 # Agent Swarm imported project context
 
+## M3b restart and test-only CI correction (2026-11-02)
+
+David restarted the project via relay #3394; Codex acknowledged as confirmed
+hive **#3396**, started in **#3397**, and checkpointed in **#3406**. This
+supersedes the October 27 night stop. Comic #156 and context #183 were both
+drafts at restart; Claude owns fresh exact-head review of #156, then pinned
+merge of #183 after #156. Codex owns findings and later M3c.
+
+Comic candidate **9b8a93873dd77392928912196ecae98f241f56d7** appends two
+one-file commits to f0b709f: test correction
+**3fa4c7aab2e71540522b831c151aca939f0b1fbc**, then its evidence document.
+All production source is byte-identical to f0b709f. Failed original exact-head
+CI40616463908 was **4,703 passed /3 skipped /1 failed**, not green: the50MiB
+test called cancellation-capable join(30) immediately, imposing a throughput
+deadline before EOF. At failure it had read37,879,808 and persisted37,355,520
+of52,428,800 bytes with error=None. Its companion40616450549 passed.
+
+Controlled healthy per-chunk delay reproduces the original failure
+(one failed in50.51s) and the corrected witness passes with exact-byte/restart
+checks (one passed in102.09s). The fixture now waits for finite capture under
+an independent180s test watchdog before the bounded5s cleanup join. Production
+join/cancellation limits are unchanged. Bypassing that wait kills the new
+deterministic ordering test (one failure); restored clean scratch copies were
+removed. Focused three critical cases pass; all50 log tests pass in31.49s.
+
+At3fa4c7a both Windows full CI runs **41491498875/41491510758** pass
+**4,705 tests /3 skips** (348.01/358.69s), exactly one new regression case.
+The local full completed **4,697 passed /10 skipped /1 failed in425.51s**:
+the50MiB witness passes, but the zero-write test encountered WinError5 replacing
+its index. The unmodified f0b709f checkout independently reproduces the same
+index-replace access denial without injection; focused current rerun passes.
+Its underlying host cause remains undiagnosed. No clean local full pass or
+antivirus/ACL fix is claimed. The document records both outcomes explicitly.
+
+The final comic commit changes only documentation after the measured test
+head; latest-head CI is running. Both PRs stay draft until their updated heads
+are green; readiness and final exact-head receipts go on their PRs and in hive.
+[Diagnosis, reproduction and qualifications](https://github.com/Decksx/cbz-automation-suite/blob/9b8a93873dd77392928912196ecae98f241f56d7/docs/development_log_2026-11-02_m3b_ci.md).
+The earlier full implementation/21-guard measurements below retain their own
+candidate binding; they are not relabelled as new campaigns. No merge, live
+archive/database/watcher change, deployment, relay configuration or Codex-state
+edit occurred. This is lead-run engineering, not a controller verdict.
+
 ## M3b implemented and handed to Claude for review (2026-10-27)
 
 Codex resumed on relay #3379 (confirmed ACK **#3381**) from comic master
