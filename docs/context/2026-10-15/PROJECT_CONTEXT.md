@@ -1,5 +1,51 @@
 # Agent Swarm imported project context
 
+## M3c slice2A live-owner receipt candidate (2026-11-02)
+
+Delivery #3495 acknowledged as confirmed hive **#3497**. Comic #159 approved
+head55260768ab428c5fba095de9a01534a85ad3bffa merged as
+**080e39d5a644b67c9df1b2d55d8e222b21995935**, tree
+**ba9d1a2394231ffc25682e580fccb840dc5675bd** equal the previously tested
+synthetic integration. Swarm #187 head5263bfa9833fa956af00bb7edfaa0ce5ca1946b2
+merged as **289c334b0f708f520775c06c26837cd43c7d0753**, all four CI checks
+SUCCESS; merge/head tree **772b5b2d357e025cff6660bb69000727d56f1dca** equal.
+These receipts supersede the pending merge language below.
+
+Codex started slice2 from080e39d. [Comic #162](https://github.com/Decksx/cbz-automation-suite/pull/162)
+is the first review checkpoint at exact **e07b94dd60eb5ebecb03826e62eb8e215a2ce869**,
+eight one-file commits. Code/test/protocol checkpoint
+**7c853b713aa4e42ecea9dcb475450c719ad155d1** is unchanged afterward; only the
+dated evidence record was added/updated. [Actionable review handoff](https://github.com/Decksx/cbz-automation-suite/pull/162#issuecomment-6589939943)
+names Claude next owner for exact-head review/pinned merge after green CI.
+
+Store APIs authenticate the live exact claim/nonce/runner/state/version and
+physical lock, validate the immutable command, and atomically record running,
+pre-birth refusal or terminal state/event. Receipt publication is checked
+write/fsync/atomic replace/readback; finalization repeats actual owned root
+exit/empty-job and settled LogPump/complete pinned-index proof. Both require
+fresh trusted outcome mapping; JSON cannot choose success. Late receipts
+cannot auto-clear uncertain. Stop intent/outcomes currently refuse. Native
+environment sorting is corrected to uppercase order with a direct witness.
+
+Focused store/receipt/native **136 passed in40.75s**. Full local suite at7c853b7:
+**4,832 passed /10 skipped in375.81s**, including54 added cases (53 receipt,
+1 native environment). The prior alternating-overflow WinError5 did not
+reproduce; cause remains undiagnosed. Nineteen selected mutants killed,
+31 failing executions with overlap, source restored byte-equal; diff-check
+clean. No production native launch, library operation or rollout.
+
+This is **slice2 checkpoint A, not completed runner supervision**. Native
+fixtures exercise the store/receipt boundary; no runner entry point, LaunchSpec
+builder or production adapter/route is enabled. Synchronous publication may
+stall. Checkpoint B still owes responsive native supervision, post-birth commit
+failure, descendant/drain deadlines, stop gates, bounded cleanup and the
+failed-writer child writing beyond the pipe buffer while its reader drains
+and discards. Slice3 recovery evidence and M3d/M4 remain separate. Final-head
+CI and independent review are pending at this checkpoint; final receipts go
+on #162 and this context PR. Codex owns findings and then checkpoint B.
+[Protocol](https://github.com/Decksx/cbz-automation-suite/blob/e07b94dd60eb5ebecb03826e62eb8e215a2ce869/docs/web_console_m3c_receipts.md);
+[dated evidence](https://github.com/Decksx/cbz-automation-suite/blob/e07b94dd60eb5ebecb03826e62eb8e215a2ce869/docs/development_log_2026-11-02_m3c_receipts.md).
+
 ## Comic #159 approved after root-guard repair (2026-11-02)
 
 Delivery #3484 acknowledged as confirmed hive **#3488**. Codex independently
