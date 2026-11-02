@@ -1,5 +1,65 @@
 # Agent Swarm imported project context
 
+## M3b R1 writer-validation follow-up (2026-11-02)
+
+This supersedes the pending review at 9b8a938 below. Claude requested changes
+for measured per-chunk full inspections in Comic #156 (review comment
+6584982033, relay #3421; confirmed Codex ACK #3423 and progress #3427).
+
+New Comic candidate **19324e9c3de6030a346c7d064fa48c584fc40eca** is six
+single-file follow-ups. Source/tests/protocol were verified at
+**cc90ef094d15f5f31a76a486b0b306096db1f60e**; the final commit only adds the
+daily evidence record. The full state/config/containment/ledger-pin check
+remains under admission at writer creation. Streaming validates the physical
+home identity, home/selected-path/parent privacy, reparse components and open
+claim without full scans or ledger/config reads. Watcher AST parsing caches
+the most recent source bytes, so edits invalidate it even with unchanged
+size/timestamps.
+
+The real create_writer witness persists 8 MiB in 128 x 64 KiB chunks with exact hash,
+no gaps and exactly one full inspection. Adapter/config 45 passed in 27.50 s
+(nine added cases). Five selected mutations caused nine named failures and
+were restored: repeated full inspection, identity, selected privacy/reparse,
+closed claim and parse-cache guards. An additional mid-job StateDirRefused
+witness leaves 6 durable bytes from 11 read, incomplete and unknown_tail after
+uncertainty is recorded. M3c must classify boundary refusals as uncertain,
+stop/cancel as needed and retain the claim until both threads settle.
+
+Append-only private-home measurements: 20 x 1,024 bytes in 0.8697 s and 20 x 65,536 bytes
+in 1.1649 s; creation/finish excluded. These are host measurements, not guaranteed
+throughput or a controlled before/after benchmark. The count is the contract.
+
+At final Comic head 19324e9, both Windows full CI runs passed
+**4,714 tests /3 skipped**:
+[41502080927](https://github.com/Decksx/cbz-automation-suite/actions/runs/41502080927)
+in 427.65 s and
+[41502093875](https://github.com/Decksx/cbz-automation-suite/actions/runs/41502093875)
+in 294.75 s. Counts reconcile to nine added cases.
+
+The local full run began at cc90ef0 and source/tests remained byte-identical
+through 19324e9. It completed **4,706 passed /10 skipped /1 failed in 1,167.62 s**.
+The only failure is the exact alternating-overflow test reported by Claude:
+WinError 5 at os.replace(index.tmp,index.json), candidate offset 742.
+The bare LogDisk implementation and that test are unchanged by R1. This is a
+current Codex reproduction of the reported host exception; its underlying
+cause remains undiagnosed. No clean local full pass is claimed. All new
+adapter/config cases and the existing 50 MiB/cancellation cases passed in that
+full run.
+
+Claude's OfficePC alternating-overflow WinError 5 at 9b8a938 is explicitly
+recorded as an environment exception (his 338 passed / 1 failed review result).
+The earlier f0b709f zero-write failure was independently reproduced by Codex.
+The cause remains undiagnosed; no Defender/ACL/indexer explanation or new retry
+is claimed. The reviewer offered either a bounded test retry or recording the
+exception; this follow-up deliberately chooses the latter.
+
+[Protocol and refusal semantics](https://github.com/Decksx/cbz-automation-suite/blob/19324e9c3de6030a346c7d064fa48c584fc40eca/docs/web_console_m3b_logs.md);
+[R1 evidence and host exception](https://github.com/Decksx/cbz-automation-suite/blob/19324e9c3de6030a346c7d064fa48c584fc40eca/docs/development_log_2026-11-02_m3b_r1.md).
+Exact-head CI/readiness receipts and actionable handoffs go on #156/#183 and
+in hive. Claude owns fresh review of #156, then pinned merge of #183 after it;
+Codex owns findings and later M3c. No merge, rollout, production data access,
+relay or Codex-state change occurred in this correction.
+
 ## M3b restart and test-only CI correction (2026-11-02)
 
 David restarted the project via relay #3394; Codex acknowledged as confirmed
