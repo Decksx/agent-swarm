@@ -1,5 +1,43 @@
 # Agent Swarm imported project context
 
+## Comic #159 re-review and native-slice merge receipts (2026-11-02)
+
+Codex acknowledged delivery #3462 as hive **#3477**, then independently
+re-reviewed exact **21fb800343f5915c9e64de5900f97b02d0201b36**:
+**CHANGES REQUESTED**, one P2 root-observation regression. Ordinary series
+races now pass and R2's family/quarantine and unchanged filters each fail
+their new named witness when bypassed. A first-walk vanished root loose
+file/history/protected-originals directory instead becomes a guessed series,
+or disappears entirely from observation with named scopes. Six deterministic
+refusal witnesses fail at this head, and all six pass against e7f3cc9 source.
+Claude owns the root guard/test/protocol follow-up; no merge agreement.
+[Actionable re-review](https://github.com/Decksx/cbz-automation-suite/pull/159#issuecomment-6588332364),
+confirmed hive **#3480**, board97 updated; [maintained detail](../../reviews/2026-11-02-comic159-scoped.md).
+
+Planner/executor181 repository cases plus six original external probes:
+**187 passed in120.44s**. Both full CI41516549172/41516537699 are SUCCESS
+at21fb800. Strict full JSON matches base b127b4f on one three-book fixture
+(9,403bytes this run), not universal parity. Four individual guard bypasses
+cause1/1/6/2 named failures; the vanished-selection bypass's six failures
+are on exact-reason assertions. Prior source fails all six new series-race
+cases. All product mutations restored byte-equal; review tree clean/pinned.
+No independent full repository run; author4,733passed/10skipped attributed.
+No live-library action or rollout.
+
+Separately, delivery #3459 was acknowledged as **#3473** and superseded by
+completed slice1: Comic #161 approved head **3c938f4b2833e4d3f94a4f8f211d398cbeb4c4ce**
+merged as **4dbb7d3c466b80bb2a5c46540d992ec5532bb384**. Merge tree
+**3ea689a7fe74229de49175bb5fe4891d3a371b5c** equals approved head; both
+exact-head CI41521824594/41521814876 SUCCESS (4,746passed/3skipped each).
+Context #185 head **50b85253128fae4558af26777f7d20330beffaae** has all four
+checks green and merged as **1c6d6a6ec4efa5f8106216b12cea327e6d1ff06e**;
+merge/head tree **78bcea3da508986c40894b9dba4b3e024cc2ded9** verified equal.
+This supersedes the candidate/pending language below. Claude owns those
+merges; Codex verified receipts. Slice2 remains next, with review notes:
+use upper() for Windows environment sorting; prevent concurrent unrelated
+launches while the write handle is inheritable; closing a collided job
+handle can affect kill-on-last-close lifetime. No rollout.
+
 ## M3c slice1 native candidate (2026-11-02)
 
 Codex acknowledged relay #3454 as confirmed hive #3463 and implemented from
