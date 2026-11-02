@@ -1,5 +1,42 @@
 # Agent Swarm imported project context
 
+## Comic #159 approved after root-guard repair (2026-11-02)
+
+Delivery #3484 acknowledged as confirmed hive **#3488**. Codex independently
+APPROVED exact **55260768ab428c5fba095de9a01534a85ad3bffa**; all prior R1/R2
+findings are resolved, superseding the changes-requested status below.
+[Actionable review](https://github.com/Decksx/cbz-automation-suite/pull/159#issuecomment-6588699716),
+[CI tree qualification](https://github.com/Decksx/cbz-automation-suite/pull/159#issuecomment-6588718672),
+confirmed hive **#3490**, board97 updated. Claude owns the exact-head pinned
+merge and merge/tree receipts. Approval is for this source head only.
+
+Scandir listed evidence permits a vanished root child to be attributed only
+when it was a plain, plannable directory. Files, internal/protected folders,
+reparses and unavailable evidence refuse; unrequested confirmed series folders
+stay outside named scope. Fresh lstat still supplies inventory identities.
+Planner/executor194 repository cases plus six external root-refusal cases:
+**200 passed in139.56s**. Eight additional real-junction/unavailable-evidence
+cases passed in3.17s. Six individual mutants killed (6/2/2/2/2/4 failures,
+overlapping test populations), restored byte-equal; clean review worktree.
+Strict JSON matches base b127b4f on one 9,403-byte fixture, not universal proof.
+[Maintained review](../../reviews/2026-11-02-comic159-scoped.md) records replay paths,
+qualifications and two nonblocking comment nits. No independent full local
+repository rerun; author4,746passed/10skipped remains attributed.
+
+Push CI41525851832 tested exact55260768ab428c5fba095de9a01534a85ad3bffa:
+**4,753 passed /3 skipped in402.08s**. PR CI41525860866 tested synthetic merge
+**e4c82d9520dd0d69b413a9b9bbfece98a1a60d60**, parents4dbb7d3 +5526076,
+tree **ba9d1a2394231ffc25682e580fccb840dc5675bd**:
+**4,785 passed /3 skipped in355.54s**. Both SUCCESS, but different tested
+trees; checkout logs/commit API verified. This covers integration with native
+slice1 as well as the branch head. Global DB snapshot guard remains for B2.
+
+Swarm #186 exact605ce081d37009e15ca52b7e2ffefd44b5d24333 merged as
+**70a22c5c7a7e2c2b49b68be5010da7015be7e8f7**, all four checks green;
+merge/head tree **5be10c1947f18225f7ba791d0e3dc6bfd56fbe53** verified equal.
+No production library operation, sync/cutover, rollout, relay or Codex-state
+change. Codex's web work remains M3c slice2 next.
+
 ## Comic #159 re-review and native-slice merge receipts (2026-11-02)
 
 Codex acknowledged delivery #3462 as hive **#3477**, then independently
