@@ -1,5 +1,170 @@
 # Agent Swarm imported project context
 
+## M3b R1 writer-validation follow-up (2026-11-02)
+
+This supersedes the pending review at 9b8a938 below. Claude requested changes
+for measured per-chunk full inspections in Comic #156 (review comment
+6584982033, relay #3421; confirmed Codex ACK #3423 and progress #3427).
+
+New Comic candidate **19324e9c3de6030a346c7d064fa48c584fc40eca** is six
+single-file follow-ups. Source/tests/protocol were verified at
+**cc90ef094d15f5f31a76a486b0b306096db1f60e**; the final commit only adds the
+daily evidence record. The full state/config/containment/ledger-pin check
+remains under admission at writer creation. Streaming validates the physical
+home identity, home/selected-path/parent privacy, reparse components and open
+claim without full scans or ledger/config reads. Watcher AST parsing caches
+the most recent source bytes, so edits invalidate it even with unchanged
+size/timestamps.
+
+The real create_writer witness persists 8 MiB in 128 x 64 KiB chunks with exact hash,
+no gaps and exactly one full inspection. Adapter/config 45 passed in 27.50 s
+(nine added cases). Five selected mutations caused nine named failures and
+were restored: repeated full inspection, identity, selected privacy/reparse,
+closed claim and parse-cache guards. An additional mid-job StateDirRefused
+witness leaves 6 durable bytes from 11 read, incomplete and unknown_tail after
+uncertainty is recorded. M3c must classify boundary refusals as uncertain,
+stop/cancel as needed and retain the claim until both threads settle.
+
+Append-only private-home measurements: 20 x 1,024 bytes in 0.8697 s and 20 x 65,536 bytes
+in 1.1649 s; creation/finish excluded. These are host measurements, not guaranteed
+throughput or a controlled before/after benchmark. The count is the contract.
+
+At final Comic head 19324e9, both Windows full CI runs passed
+**4,714 tests /3 skipped**:
+[41502080927](https://github.com/Decksx/cbz-automation-suite/actions/runs/41502080927)
+in 427.65 s and
+[41502093875](https://github.com/Decksx/cbz-automation-suite/actions/runs/41502093875)
+in 294.75 s. Counts reconcile to nine added cases.
+
+The local full run began at cc90ef0 and source/tests remained byte-identical
+through 19324e9. It completed **4,706 passed /10 skipped /1 failed in 1,167.62 s**.
+The only failure is the exact alternating-overflow test reported by Claude:
+WinError 5 at os.replace(index.tmp,index.json), candidate offset 742.
+The bare LogDisk implementation and that test are unchanged by R1. This is a
+current Codex reproduction of the reported host exception; its underlying
+cause remains undiagnosed. No clean local full pass is claimed. All new
+adapter/config cases and the existing 50 MiB/cancellation cases passed in that
+full run.
+
+Claude's OfficePC alternating-overflow WinError 5 at 9b8a938 is explicitly
+recorded as an environment exception (his 338 passed / 1 failed review result).
+The earlier f0b709f zero-write failure was independently reproduced by Codex.
+The cause remains undiagnosed; no Defender/ACL/indexer explanation or new retry
+is claimed. The reviewer offered either a bounded test retry or recording the
+exception; this follow-up deliberately chooses the latter.
+
+[Protocol and refusal semantics](https://github.com/Decksx/cbz-automation-suite/blob/19324e9c3de6030a346c7d064fa48c584fc40eca/docs/web_console_m3b_logs.md);
+[R1 evidence and host exception](https://github.com/Decksx/cbz-automation-suite/blob/19324e9c3de6030a346c7d064fa48c584fc40eca/docs/development_log_2026-11-02_m3b_r1.md).
+Exact-head CI/readiness receipts and actionable handoffs go on #156/#183 and
+in hive. Claude owns fresh review of #156, then pinned merge of #183 after it;
+Codex owns findings and later M3c. No merge, rollout, production data access,
+relay or Codex-state change occurred in this correction.
+
+## M3b restart and test-only CI correction (2026-11-02)
+
+David restarted the project via relay #3394; Codex acknowledged as confirmed
+hive **#3396**, started in **#3397**, and checkpointed in **#3406**. This
+supersedes the October 27 night stop. Comic #156 and context #183 were both
+drafts at restart; Claude owns fresh exact-head review of #156, then pinned
+merge of #183 after #156. Codex owns findings and later M3c.
+
+Comic candidate **9b8a93873dd77392928912196ecae98f241f56d7** appends two
+one-file commits to f0b709f: test correction
+**3fa4c7aab2e71540522b831c151aca939f0b1fbc**, then its evidence document.
+All production source is byte-identical to f0b709f. Failed original exact-head
+CI40616463908 was **4,703 passed /3 skipped /1 failed**, not green: the50MiB
+test called cancellation-capable join(30) immediately, imposing a throughput
+deadline before EOF. At failure it had read37,879,808 and persisted37,355,520
+of52,428,800 bytes with error=None. Its companion40616450549 passed.
+
+Controlled healthy per-chunk delay reproduces the original failure
+(one failed in50.51s) and the corrected witness passes with exact-byte/restart
+checks (one passed in102.09s). The fixture now waits for finite capture under
+an independent180s test watchdog before the bounded5s cleanup join. Production
+join/cancellation limits are unchanged. Bypassing that wait kills the new
+deterministic ordering test (one failure); restored clean scratch copies were
+removed. Focused three critical cases pass; all50 log tests pass in31.49s.
+
+At3fa4c7a both Windows full CI runs **41491498875/41491510758** pass
+**4,705 tests /3 skips** (348.01/358.69s), exactly one new regression case.
+The local full completed **4,697 passed /10 skipped /1 failed in425.51s**:
+the50MiB witness passes, but the zero-write test encountered WinError5 replacing
+its index. The unmodified f0b709f checkout independently reproduces the same
+index-replace access denial without injection; focused current rerun passes.
+Its underlying host cause remains undiagnosed. No clean local full pass or
+antivirus/ACL fix is claimed. The document records both outcomes explicitly.
+
+The final comic commit changes only documentation after the measured test
+head; latest-head CI is running. Both PRs stay draft until their updated heads
+are green; readiness and final exact-head receipts go on their PRs and in hive.
+[Diagnosis, reproduction and qualifications](https://github.com/Decksx/cbz-automation-suite/blob/9b8a93873dd77392928912196ecae98f241f56d7/docs/development_log_2026-11-02_m3b_ci.md).
+The earlier full implementation/21-guard measurements below retain their own
+candidate binding; they are not relabelled as new campaigns. No merge, live
+archive/database/watcher change, deployment, relay configuration or Codex-state
+edit occurred. This is lead-run engineering, not a controller verdict.
+
+## M3b implemented and handed to Claude for review (2026-10-27)
+
+Codex resumed on relay #3379 (confirmed ACK **#3381**) from comic master
+**20ebcc26989ebabd8f65b6fe6363edabeec64470**. This is the verified #155 merge;
+its tree **d8b2fd4693cfa48653d8b24228a98cf7a9dff25a** equals reviewed eeaeacf,
+and exact-head CI **40607740992/40607744931** both succeeded. #153 is CLOSED;
+Codex agrees both halves are complete. Board 94/95 are done. The earlier
+pending #155/#153 wording below is historical and superseded.
+
+New comic [#156](https://github.com/Decksx/cbz-automation-suite/pull/156)
+implements M3b at exact **f0b709f53bc3598d50e12381e45a6ead551b1446**, sixteen
+one-file commits from that master. [Handoff 6458372734](https://github.com/Decksx/cbz-automation-suite/pull/156#issuecomment-6458372734)
+and confirmed hive **#3384** give Claude independent exact-head review and
+pinned merge ownership on green CI. Board **96 is review**, parent36 updated.
+Codex owns findings and then M3c after this dependency lands. Exact-head CI
+**40616450549/40616463908** is running; no approval/merge is claimed.
+
+M3b supplies a nonblocking bounded queue, independent pipe reader/disk writer,
+contiguous retained segments, compact gaps and durable coverage/EOF metadata,
+raw-byte cursor codec, bounded UTF-8/JSON paging, advisory progress parsing,
+native READ/WRITE/DELETE-shared readers and best-effort I/O cancellation.
+JobLogs binds writers to matching live claims and validates selected private
+hot/cold paths. Archive member size/digest pins commit with pointers/events
+and are immutable. Two adjacent cached members avoid rotation rehash thrashing;
+byte/member batch packing makes progress with many small retained log files.
+
+Two format refinements need Claude's explicit review: compact atomic index.json
+replaces the design sketch's gaps.jsonl, and cold log pages authenticate selected
+members against independent ledger pins instead of hashing unrelated batch
+bytes. Original command/cleanup APIs retain whole-seal verification. Legacy
+batches without member pins refuse the fast path; no evidence is backfilled.
+[Protocol](https://github.com/Decksx/cbz-automation-suite/blob/f0b709f53bc3598d50e12381e45a6ead551b1446/docs/web_console_m3b_logs.md).
+
+Final full at **bfa57ef428740c3e2a5acd9610f6ebf531c73bc3**:
+**4,697 passed /10 skipped in282.62s**, exactly65 added cases versus the
+retained4,632 baseline. Both real-browser tests pass. Skips remain one absent
+routing config, two deliberately unreadable corpus cases and seven Windows
+symlink-privilege cases. Windows/Python3.11.3, four workers/loadfile; translation
+unset. Earlier focused b51d552: **64 passed in29.08s**; after packing fix,
+its regression plus all15 service cases **16 passed in24.70s** (overlap).
+The final commit adds only the daily verification log; source/tests are
+byte-identical to the measured full candidate. No redundant rerun of unchanged
+code is attributed to the documentation head.
+
+All **21/21 selected mutations** failed named witnesses at bfa57ef (23 failing
+cases total); sources restored and clean inactive scratch removed. A8/A15 from
+#155 are directly covered and killed: codec ledger/manifest command mismatch,
+and a deterministic real admission-lock interleaving before runner-lock open.
+Other witnesses include a paced50MiB producer without a server, exact persisted
+bytes/restart paging, a1MiB line, invalid UTF-8, partial/zero writes, stalled
+storage, safe replay, bounded alternating gaps, retention-before-unlink, native
+sharing, corruption without fallback and cache/member-budget bounds.
+[Daily log and named guards](https://github.com/Decksx/cbz-automation-suite/blob/f0b709f53bc3598d50e12381e45a6ead551b1446/docs/development_log_2026-10-27_m3b.md).
+
+M3c owns native tool containment/finalization and must retain claims until logs
+settle; unproved cleanup stays uncertain. M3d owns protected polling/SSE,
+durable progress cursor/events, lifecycle hooks and idle archive byte/time
+budgets. M5 renders continuation markers. M4 production submission stays
+unwired. All operations used disposable fixtures; no live archive/data change,
+watcher/GUI rollout, production run route, relay configuration or Codex-state
+change occurred. This is lead-run engineering, with no controller verdict.
+
 ## Successor resumes comic history #153 and hands off #155 (2026-10-27)
 
 Codex acknowledged relay delivery3360 as confirmed hive **#3362** and resumed
