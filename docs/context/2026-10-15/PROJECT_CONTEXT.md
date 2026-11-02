@@ -1,5 +1,62 @@
 # Agent Swarm imported project context
 
+## M3c slice1 native candidate (2026-11-02)
+
+Codex acknowledged relay #3454 as confirmed hive #3463 and implemented from
+the agreed contract merge **f09fcfcb9bfa276ecc99416aa796a743c7dbfc02**.
+[Comic #161](https://github.com/Decksx/cbz-automation-suite/pull/161) is at
+exact **3c938f4b2833e4d3f94a4f8f211d398cbeb4c4ce**, ten single-file commits.
+Four initial code/helper/test/protocol commits reached
+**d257487836a442eb39e001612973650942ed50d8**; later follow-ups refine tests/
+helpers and evidence, with product source unchanged.
+
+The internal win32 adapter owns a private noninheritable kill-on-close job,
+uses JOB_LIST/HANDLE_LIST at birth, and transfers/closes process, thread,
+pipe, CRT, attribute-list and security-descriptor resources. No uncontained/
+suspended fallback. Named/denied/wrong-type collisions stay uncertain.
+Exceptional native return recovers raw PROCESS_INFORMATION handles and
+marks possible child birth. FILETIME/session observations distinguish alive/
+gone/unknown, immediately close query handles and never adopt/kill a PID.
+A retained owner can request job termination, but policy/finality remain
+later runner responsibilities. No ledger or HTTP wiring is enabled.
+
+OfficePC probe: Python3.11.3 AMD64, Windows build26200, session1,
+TokenIsElevated=0 and TokenElevationType=3 (non-elevated filtered token).
+The witnessed tree held two Python and two conhost processes; tests verify
+actual identities plus whole-job zero/absence instead of a guessed count.
+Owner death is measured after factory return and after CreateProcessW before
+identity returns, with explicit atomic ready/release handshakes. No in-kernel
+API interruption is claimed. Wrong-session/denial queries cannot prove absence.
+
+Final native file: **32 passed in2.58s**. Thirteen failure boundaries include
+CRT transfers and post-birth exceptions; raw returned handles are checked
+independently of Python wrappers. Eleven selected mutants caused twelve
+named failures, restored: omitted job/list inheritance/kill-on-close,
+collision bypasses, birth classification/raw-handle cleanup, noninheritance,
+denial/namespace handling. Refined helper/mutation checks were replayed.
+Negative probes terminate only their own random fixture job after their own
+identity handshakes; recent fixture identities are gone.
+
+The local full -n4/--dist loadfile run started at d257487 and completed
+**4,737 passed /10 skipped /1 failed in495.81s**, including all31 then-current
+native cases. Sole failure is the already recorded OfficePC alternating-
+overflow WinError5 at index replace, candidate offset442. Log source and that
+test are unchanged from M3b; cause remains undiagnosed. No clean local full
+pass is claimed. Test-only follow-ups add physical alias-safe sentinel
+identity, process-count/expiry/owner-alive refinements, create-call counts,
+bounded negative cleanup and one real missing-executable case (32native now).
+Product code remains unchanged. Final exact-head full CI is pending at this
+checkpoint; readiness and final receipts go on #161 and this context PR.
+
+[Native API/probe protocol](https://github.com/Decksx/cbz-automation-suite/blob/3c938f4b2833e4d3f94a4f8f211d398cbeb4c4ce/docs/web_console_m3c_native.md);
+[daily evidence and qualifications](https://github.com/Decksx/cbz-automation-suite/blob/3c938f4b2833e4d3f94a4f8f211d398cbeb4c4ce/docs/development_log_2026-11-02_m3c_native.md).
+Claude owns independent exact-head implementation review; Codex owns findings.
+Slice2 still owes trusted launch reconstruction, claims/store/receipt
+finalization, descendant/drain timing, failed-writer beyond-pipe-buffer
+witness and recovery integration. M3d scheduling/routes and M4 production
+adapters remain separate. No merge, rollout, production library operation,
+relay or Codex-state change by Codex. Slice1 uses disposable native fixtures.
+
 ## M3b merged, M3c agreement and scoped-plan review (2026-11-02)
 
 GitHub independently confirms Comic #156 reviewed head
