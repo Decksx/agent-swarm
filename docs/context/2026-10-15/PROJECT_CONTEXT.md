@@ -1,5 +1,66 @@
 # Agent Swarm imported project context
 
+## M3b merged, M3c agreement and scoped-plan review (2026-11-02)
+
+GitHub independently confirms Comic #156 reviewed head
+**19324e9c3de6030a346c7d064fa48c584fc40eca** merged as
+**b127b4f166b558ab275abd2b20e4759950c67257**, and context #183 head
+**7d11b758718364f11971a0b5c229863d31e0fd37** merged as
+**29f22f0e1de973092f6fa277cf5ed9f000a72a68**. This supersedes the pending
+review wording below. Claude's #3439 reports tree parity, R1 closed and
+348 web tests passed; those reviewer-local measurements remain attributed.
+No M3 rollout is claimed.
+
+David's #3440 assigns Claude the X-primary migration blockers, while Codex
+keeps the web console. Claude opened #158 and owns scoped planning then the
+incremental catalog. Writer coordination across watcher/decensor/apply needs a
+shared contract before enabling writing tools. #108 remains the separate
+read-only transfer preview/post-sync verifier and later cutover track.
+[Coordination and fixture requirements](https://github.com/Decksx/cbz-automation-suite/issues/158#issuecomment-6586314379);
+confirmed hive #3447. No live library or sync control was changed.
+
+M3c plan-first draft [Comic #160](https://github.com/Decksx/cbz-automation-suite/pull/160)
+is at **7536e031529c01bb0ad2ba5aeb44826b3fa7587e**, two single-file doc
+commits from b127b4f. Claude agreed all four decisions at original
+**3d9b5cc1b809aca8b7ffa69b867ecb454f0073fc** (#3454 and PR comment).
+The follow-up folds in its required invariants: a failed writer cannot stop
+pipe draining/discarding while a writing tool continues, with a slice-2
+more-than-pipe-buffer witness; read-only log/drain uncertainty still blocks
+admission until M3d's explicit acknowledgement/recheck with fresh proof.
+M3c supplies native ownership/evidence and conditional store APIs; M3d owns
+orchestration/routes, M4 production adapters. Named collisions remain uncertain
+and log failures cannot bypass writing-tool interruption gates. Completion
+ports are optional; bounded polling remains v1. No native code/probe acceptance
+or production route is claimed. Diff-check passes; latest doc-head CI is
+pending at this checkpoint, with final receipts on #160. Codex's next work is
+slice1 native adapter/fixture probes; Claude reviews each exact code head.
+
+Codex reviewed draft [Comic #159](https://github.com/Decksx/cbz-automation-suite/pull/159)
+at exact **e7f3cc934c9eb254c4d672bce5654ba4d7ebc8f3** (base b127b4f):
+**CHANGES REQUESTED**, R1 enumeration races still abort unrelated scopes, R2
+family-drop/unchanged-drop correctness filters lack direct scoped witnesses.
+Actionable [review](https://github.com/Decksx/cbz-automation-suite/pull/159#issuecomment-6587074606)
+and confirmed hive **#3455** name Claude as next owner. No merge until agreement.
+
+Independent evidence: planner/executor172 passed in126.41s. Strict-mode complete
+JSON matches the base byte-for-byte on one three-book fixture (9,411bytes,
+ordinary rename plus a family); not a universal equivalence claim. Both
+pinned-head CI runs41512146589/41512137498 were green. No independent full
+repository rerun: author4724passed/10skipped remains attributed. Six new
+fixture probes give4passed/2failed in4.61s: actual file/folder moves between
+the final enumeration and lstat produce WinError2 rather than only skipping
+Beta. Family/unchanged filters each survive all18 existing scope-selected
+cases; each new direct witness fails under its corresponding mutation.
+Root-refusal and named-walk bypasses are independently killed (3 and1 failures).
+Sources restored clean. Conservative root refusal and collision-before-drop
+are accepted; explicit-root and retained collision-hold probes pass. Global
+WAL commit refusal remains an explicit B2 limitation, not relaxed here.
+
+[Maintained review detail](../../reviews/2026-11-02-comic159-scoped.md).
+The review scratch is pinned under Codex worktrees; it can be removed once
+the review is complete and the copy is clean, inactive and unbound. No merge,
+rollout, production data operation, relay or Codex-state change by Codex.
+
 ## M3b R1 writer-validation follow-up (2026-11-02)
 
 This supersedes the pending review at 9b8a938 below. Claude requested changes
