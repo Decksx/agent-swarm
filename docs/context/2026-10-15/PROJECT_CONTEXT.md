@@ -1,5 +1,114 @@
 # Agent Swarm imported project context
 
+## Missing-child merge, M3d contract and D1 draft (2026-11-03)
+
+Codex accepted3754, ACK confirmed3756/start3759. Comic165 approved exact
+89f205a15bf483c79512b0bc0116a85468bf0d2d merged as
+**a401db054c7e1d2a784792b71184a37b0ac5f004**; API verifies parents4f9893a+89f
+and treeb71beb2a557055d74770131b059a1dd47c890b16 equals approved/tested source.
+Claude reported198 checks and3 mutants in3754/PR; those remain attributed
+reviewer evidence. This supersedes165's pending status below.
+
+[Comic166](https://github.com/Decksx/cbz-automation-suite/pull/166) approved
+at exact **571f74536561e35d74da8a8f51e528b326d6dda0**, four one-file commits
+froma401db0 (code/test/protocol91b5ac88083a00312d00c91d0c3bc3fc623b1560).
+Explicit attributed recheck now accepts wholly unrecorded child identity only
+with exact runner gone and deterministic same-session job absent. Partial
+identity, live/empty present job, denied/wrong session/foreign name remain
+uncertain. Automatic reconcile remains sticky; receipt import still requires
+a recorded child. Expected nonce/version, actor/note and lost/unknown-only
+outcome remain required. The earlier missing-child limitation is superseded.
+[Actionable handoff](https://github.com/Decksx/cbz-automation-suite/pull/166#issuecomment-6613246772),
+wake confirmed3761. Merged as **55e0cd8bffb8b854d50bf712f997d32e88911e43**;
+API verifies parentsa401db0+571f745 and merge/source treee777d772. This
+supersedes166's pending status below.
+
+Recovery81 passed40.13s (+12 new cases); new cases on unchangeda401db0
+implementation10 failed/2 passed6.66s. Nine selected mutation groups killed /
+13 failing executions with overlap, restored bytes. Real present live/empty
+jobs, wrong-session native query and owner death before child persistence are
+witnessed. Full clean571f745 **4983 passed/10 skipped/1 failed346.07s**;
+sole failure zero-write log-index replace WinError5. Exact test on untouched
+mastera401db0 reproduced same error on bounded third attempt (pass2.08s,
+pass1.44s, fail1.60s); candidate targeted rerun passed28.14s. These are partial
+reruns, not replacement full results or proof of OS cause. Tracked separately
+as [168](https://github.com/Decksx/cbz-automation-suite/issues/168); no retry or
+log-core fix bundled. Final166 CI BOTH GREEN **4991/3**: push41700387140
+448.87s, PR41700398567 479.83s. Actual checkout
+96204853fdfa5d0e0528b0fe173a970372d2637b parentsa401db0+571f745, tree
+**e777d772ec84924a7a0c8f93273fbf405848951e** equals source by API/log.
+
+[M3d plan167](https://github.com/Decksx/cbz-automation-suite/pull/167) had all
+four decisions AGREED by Claude at5517c7913fa8ab6597cbe9591fb454e2addddea9
+(PR comment6613486413, hive3766/3784). Codex resumed after usage reset3784,
+ACK confirmed3786, admin operational status3788. Notes folded at exact
+**bc9a7e73864a5a2e12919fc72e5508177728f32a**: one shared reader per job, bounded
+subscriber queues/resume, admission-lock acquisition witness and ~1s idle/cold
+cadence; request headroom beyond8streams with ninth JSON-client witness; shared
+startup/30s reconciliation pass guard; measured parent/launcher kill-on-close
+containment. Additive schema-v1 progress table compatibility must be witnessed
+in D3. [Exact notes handoff](https://github.com/Decksx/cbz-automation-suite/pull/167#issuecomment-6615445413),
+hive confirmed3789. Relative links/whitespace pass. PR41718759714 green4991/3 in612.56s. Source push41718751020 attempt1
+failed4978/3/1 in1055.98s: stalled-running-commit witness expected succeeded,
+got uncertain with runner.reason hidden; cause unproved. PR integration includes
+166's12 tests while source basea401db0 does not. Attempt2 already in progress
+at21:28Z. [CI qualification](https://github.com/Decksx/cbz-automation-suite/pull/167#issuecomment-6615839072),
+hive3795; [separate follow-up171](https://github.com/Decksx/cbz-automation-suite/issues/171)
+records missing diagnostics/load reproduction, distinct from164/168. No passing
+companion or rerun is treated as diagnosis or replacement for failed evidence.
+Claude verifies/pinned-merges on green exact-head CI. D1 authorized by agreement
+and3784; M4/M6 production submission/interruption gates remain closed.
+
+[D1 draft170](https://github.com/Decksx/cbz-automation-suite/pull/170) exact
+**50c504c5fe79d5094c000156eb20d994dfaecf2d**, eight one-file commits from55e0cd8,
+branch feat/web-m3d-supervisor in own comic-web-m3d-supervisor worktree. Service
+reconciles before new session publication, sequences bounded snapshot pages
+without outer admission/native transaction, shares startup/scheduler pass guard,
+retains uncertain and never adopts/stops/relaunches. Missing verifier refuses;
+internal submit commits once then attempts one fixed runner command using parent
+pinned home identity, allowlisted environment and trusted interpreter/repo cwd.
+Unconfirmed spawn retains admission/deadline; admitted version stays1. Shutdown
+closes admission, bounded-waits actual work and retains server/console guard
+until actual worker settlement. Protocol/audit on the comic branch explain limits.
+
+Full clean99e89532c679c6779740820dae7ccfe67004b608: **5004 passed/12 skipped315.36s**,
+-n4 --dist loadfile, translation off; baseline4994 cases plus22=5016. Follow-up
+41213248c2fefe17dd1e7404befe68141cc61c23 adds one server-close witness only;
+latest broader focused **164 passed/2 skipped88.24s**, same code/tests as final
+head (final commit appends audit). Local full not repeated after that test-only
+addition; final-head CI runs complete candidate. Eleven selected mutation groups
+killed/12 failed executions with overlap, source restored byte-equal; includes
+readiness, expiry, sequence/cutoff, parent native query, pinned context, pass guard,
+unsettled service/server ownership and publication ordering. Final push41721683977
+and PR41721694891 pending at this checkpoint; earlier99e8953 checks are historical.
+
+Native host measured in_job=true/current flags0x2800 (kill-on-close/BREAKAWAY_OK).
+A real contained-parent fixture refuses before admission and passes. Even a
+test-only permitted breakaway leaves a measured outer job; the two positive
+clean/abrupt server-death lifetime witnesses therefore skip. Production never
+breaks away and refuses any parent job/unknown. Positive proof in a genuinely
+uncontained supported fixture context remains required before D1 completion;
+no skipped witness is counted as that proof.
+[Actionable draft review/native evidence handoff](https://github.com/Decksx/cbz-automation-suite/pull/170#issuecomment-6615852598),
+hive confirmed3796; first pushed checkpoint/admin status3793 before40min. Claude
+owns independent exact-head review/native-context evidence, Codex findings and
+remaining D1 work. D2-D4, M4 registry/admission and M6 controls remain separate.
+
+Independent comic169 review: CHANGES REQUESTED at9062d2c61040d8a9f79fc2a9a31c303538920bae,
+R1 tagged literal TPB/year-qualified TPB series become collections. Candidate
+104 passed/3 failed54.71s; untouched55e0cd8 all4probes passed0.73s. Submitted
+CI41710167235/41710211461 green but missing those boundaries.
+[Actionable finding](https://github.com/Decksx/cbz-automation-suite/pull/169#issuecomment-6615495187),
+hive3792; [durable replay](../../reviews/2026-11-03-comic169-tpb.md). Claude owns
+correction/new exact head, Codex re-review; no merge/deployment approval.
+
+Swarm193 exact595a85c38b6325976c37febbd485d2b7fdf353ef merged as
+**8f84c3795d4e174c3d32b110deb53ac8ecd5f017**, parents5b961c2+595a85c;
+merge/source tree3190d9f6a0d3831d035fe730e5bad5723d13d7bf matches, API verified.
+Exact run41698397725 green. Neither follow-up nor plan performs a rollout,
+live-library operation or production process restart. D1 remains draft pending native acceptance;
+backup164 and suite-wide Translate stubbing remain separate unstarted extras.
+
 ## M3c slice 3 recovery candidate (2026-11-03)
 
 Codex accepted delivery3742, ACK confirmed3746/start status3747. Comic
