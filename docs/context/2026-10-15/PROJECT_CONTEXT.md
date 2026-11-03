@@ -1,5 +1,57 @@
 # Agent Swarm imported project context
 
+## M3c slice 2B supervision candidate (2026-11-03)
+
+David restarted work through delivery #3636, ACK confirmed **#3639**;
+Codex plan confirmed #3641. Slice 2A [comic #162](https://github.com/Decksx/cbz-automation-suite/pull/162)
+approved head **e07b94dd60eb5ebecb03826e62eb8e215a2ce869** is merged as
+**36a1b82cb9dbdd3d890e55b95fec6d1159592de7**, tree
+**93d066975832d0ed27d474db4b2177a6db6f5e30** equal the approved source.
+Context [#188](https://github.com/Decksx/agent-swarm/pull/188) head
+00e0a41512d05c301466d7e8d74fff00a4d526a0 is merged as
+**5e6c14a8c17d9020e7059ec0bd6e6049635c21e8**, previously verified tree parity
+and all four checks green. These receipts supersede pending wording below.
+
+[Comic #163](https://github.com/Decksx/cbz-automation-suite/pull/163) is ready
+for Claude's independent review at exact
+**250f135f19a7bb17955a617d9011635c82f62ff9**, nine one-file commits from36a1b82.
+Implementation/test/protocol checkpoint **a18ae548266259e02918658c31364385bd10490b**
+is unchanged afterward; only its dated evidence record was added. Codex owns
+findings, Claude owns exact-head review/pinned merge after final-head CI.
+[Actionable handoff](https://github.com/Decksx/cbz-automation-suite/pull/163#issuecomment-6609604873)
+names the exact head and checks. Branch feat/web-m3c-supervision, isolated
+worktree comic-web-m3c-supervision; checkpoint pushed and confirmed hive
+#3654 before the relay deadline.
+
+The runner claims/launches once from trusted reconstructed and freshly hashed
+interpreter/source/registry seals; no production registry exists. Post-birth
+ledger/receipt I/O runs off the native poller. Root exit starts descendant
+10-second grace independently of EOF, followed by a 30-second zero-proof bound;
+reader drain and cleanup have separate 5-second budgets. Unsettled I/O retains
+claim/handles. Failed writers keep the reader draining/discarding; recovered
+writes cannot clear uncertainty or restore EOF. Stop policy is wait-only;
+requests/log errors cannot force-kill a live writing root. Native job names
+use the shared helper. The CLI takes only job ID/nonce, no argv/registry option.
+
+Focused **42 passed in26.64s**. Full local on clean a18ae54:
+**4,874 passed /10 skipped in376.92s**, +42 cases over prior product/test baseline.
+Nineteen selected mutants killed, **22 failing executions with overlap**;
+source restored byte-equal. Real disposable Windows witnesses include 4MiB
+written after writer failure and owner death after claim, after birth/before
+running commit and after receipt/before terminal commit. Push CI41673108329
+at exact a18ae54 is SUCCESS: **4,881 passed /3 skipped in417.04s**. Final-head
+push/PR CI remains separate; the PR comment will carry completion receipts.
+
+An earlier related focused run hit log-index replace WinError5. Unchanged base
+reproduced it on bounded rerun4 (same tree e07b94d/36a1b82); cause remains
+unknown. It did not occur in the final local full run; no diagnosis/fix claimed.
+[Protocol](https://github.com/Decksx/cbz-automation-suite/blob/250f135f19a7bb17955a617d9011635c82f62ff9/docs/web_console_m3c_runner.md)
+and [evidence](https://github.com/Decksx/cbz-automation-suite/blob/250f135f19a7bb17955a617d9011635c82f62ff9/docs/development_log_2026-11-03_m3c_supervision.md)
+record limits and external replay paths. Slice3 recovery/import/orphan temp
+handling, M3d server/recheck/routes and M4 production adapters/stop gates remain
+separate. Board98 stays in progress. No live library action, deployment,
+production tool launch or relay/Codex-state change; no operator input needed.
+
 ## M3c slice2A live-owner receipt candidate (2026-11-02)
 
 Delivery #3495 acknowledged as confirmed hive **#3497**. Comic #159 approved
