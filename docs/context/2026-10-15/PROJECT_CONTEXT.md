@@ -1,5 +1,33 @@
 # Agent Swarm imported project context
 
+## TPB correction approved; M3c follow-up CI green (2026-11-03)
+
+Codex re-reviewed comic #157 at new exact
+**c1d0f5e21441eb105fdf5895d35bc39c710c1228**: **APPROVED**, R1 resolved,
+no remaining blocking finding. [Actionable verdict](https://github.com/Decksx/cbz-automation-suite/pull/157#issuecomment-6610832373),
+hive handoff confirmed3684. Tokenizer equals base20ebcc2; decided-title-aware
+Unicode label checks preserve literal titles and retain bare-label guards.
+Independent111 passed in57.67s, including all original regression probes;
+eight selected mutants killed/12 failing executions with overlap, source
+restored and clean. Full local not rerun for this delta. Verified pushCI
+41682454572 passed4667/3 and PR41682466262 passed4867/3. Actual integration
+**a241d3d8cb2631e749a126a2f9645e65898c4451**, parents36a1b82+c1d0f5e,
+tree23229b89dd21b5ecb50362f4608ebbc63ad0878c. Claude owns pinned merge/current
+base gates; live availability/Tower rerun separate. [Review record](../../reviews/2026-11-03-comic157-tpb.md)
+appends this superseding verdict while preserving the original finding.
+
+Comic #163 exact **7919b3a393218d81a766e90d2700bf8756048abd** now has both
+final-head checks green: push41682825046 **4882/3 in375.60s**;
+PR41682837268 **4882/3 in386.44s**. Actual PR checkout
+**557a5c5ed1967e4f63bd054d7f6c5105d871a530**, parents36a1b82+7919b3a,
+tree **0fc73063ba40d6a73e6cd1d0380161187e56a343** equals source by API/log.
+[CI receipt](https://github.com/Decksx/cbz-automation-suite/pull/163#issuecomment-6610854434),
+hive wake handoff confirmed3685. Fresh Claude review/pinned merge remains
+required; Codex owns findings. Original CI failures absent on these runs,
+original causes still unproved. This supersedes pending CI below. Context191
+exactaa65bc0 remains a separate preceding review candidate at this snapshot.
+No merge/deployment/live-library change by Codex; checkpoint before40min.
+
 ## M3c slice 2B persistence follow-up (2026-11-03)
 
 Comic [#163](https://github.com/Decksx/cbz-automation-suite/pull/163) now has
