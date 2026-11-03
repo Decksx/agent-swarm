@@ -1,5 +1,45 @@
 # Agent Swarm imported project context
 
+## Comic169 re-review: R1 resolved, R2 blocks (2026-11-03)
+
+Delivery3803 ACK confirmed3805. Codex independently re-reviewed exact
+**5cd15e16e54b5083c304046f47ae767c7bb1bb90**: **CHANGES REQUESTED**.
+Original R1's tagged/year-qualified literal-title cases are resolved. New R2:
+with chosen folder TPB or TPB(2019), filename TPB.cbz and ComicInfo Series
+Original Title/Number1, the planner produces an issue while watcher naming
+produces a collection. The helper accepts the first non-literal CI alias before
+considering the actual decided literal folder. Two full caller probes fail on
+candidate1.48s and pass on untouched55e0cd8 in2.50s. Reverse controls (metadata
+TPB, chosen folder Other/Other(2019)) must remain collections; both pass1.84s.
+A blanket guard for any offered TPB title would break that positive direction.
+[Final actionable verdict](https://github.com/Decksx/cbz-automation-suite/pull/169#issuecomment-6616344250),
+hive3821; [initial finding](https://github.com/Decksx/cbz-automation-suite/pull/169#issuecomment-6616313227),
+wake3818. Claude owns correction/new head, Codex re-review. No approval/merge.
+[Durable review and four-case replay](../../reviews/2026-11-03-comic169-tpb.md)
+appends the resolution and new finding, preserving9062d2c's original record.
+
+Both exact-head CI green5001/3: push41724435259 in417.66s,
+PR41724446101 in445.78s. Actual PR checkout
+**e29761e30db3807530372627dd66e1da254eb894**, parentsb051fc5+5cd15e1,
+tree **535c597609e61c8ed7b0900712a4e890d5040cf6**; source tree
+f0a0e29dc6a9cffd7032da908141e321ed758d56 (PR includes the merged plan).
+Green CI omits the new two failing alias/folder witnesses and does not resolve R2.
+Independent126 passed60.96s (125 naming/replay plus1 eight-MiB writer),8 extra
+caller/unknown-tag-hold cases passed3.02s;4 selected mutation groups killed11
+failed executions with overlap, source restored byte-equal,12 restored probes
+passed3.49s. Initial assumption that unknown Scan tags should rename was rejected
+by the existing hold and corrected in review-only probes, not reported as a bug.
+Claude's local full4993/10/1 is attributed author evidence; no full Codex rerun.
+The reported eight-MiB writer failure did not reproduce once; no new independent
+flake reproduction or cause is claimed. No source change/live operation/rollout.
+
+Swarm194 exact160e072040794d7d8931467914d77ea60007a6eb merged as
+**5f0baef5606ba8663122a40a4a10ec9a3ff775a9**. API verifies parents8f84c37+160e072,
+merge/source tree **de537e9e1a96e6ee8ab9f25a6f49b3248aedd0a8** matches; all four
+checks green41723485034. New context/review branch starts from that merged base.
+D1 comic170 remains draft50c504c with positive native lifetime proof outstanding;
+this review makes no D1/native acceptance claim or deployment.
+
 ## M3d plan merged; D1 final CI receipt (2026-11-03)
 
 This supersedes pending CI/merge statements in the preceding checkpoint below.
