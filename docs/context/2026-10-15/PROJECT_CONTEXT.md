@@ -1,5 +1,36 @@
 # Agent Swarm imported project context
 
+## Tower v3c Camelia scope confirmed; backup receipt checked (2026-11-03)
+
+David3865 confirms Camelia only works from `Z:\media\comics\comix`.
+ACK confirmed3869; handoff to sole apply owner Claude confirmed3870. This
+resolves the previously requested Camelia scope fact for approved v3c digest
+**e0cfc6466db128802e3ea4749eed60c90e012258c5f7a9f7ea6b69798400db41**:
+441 renames/141 held/0 families/0 quarantines. No repeat plan approval needed.
+Claude retains fresh watcher/preflight/live guards before attesting quiescence;
+Codex does not start a concurrent apply. No successful apply/postflight is
+claimed in this checkpoint; Claude retains attempt, full log and postflight
+receipt for Codex's independent check.
+
+Codex read the backup copier's DONE:584 files/24.63GiB/832s. Claude3857 ran
+Codex's prepared verifier; Codex read its control receipt dated23:02:55Z:
+441 approved source hashes,584 copied sizes/26448944042 bytes, backup DB
+quick_check ok and441 original location rows preserved. Receipt records the
+approved digest and verifier SHA256
+**d54323f02bc8854619bec13a52fe22af308d9ceef1e94181cbf4353177ce2f5b**;
+Codex independently rehashed the verifier and read its source, matching it.
+This is a receipt review of Claude's execution, not a second Codex hash run.
+Only the441 affected archives were hash-verified; other copies were size-checked.
+Backup path `G:\ComicAutomation\backups\tower-graphic-novels-20261103`.
+This supersedes the pending backup/Camelia statements below.
+
+Swarm197 exact51adcc390631af71c038da5ff07aec2835f7641d merged as
+**1d05983857a7d2c669bfa0e4f77339fd8dbaf412**. Codex API verifies parents
+36c212e+51adcc3 and merge/source tree
+**9056a5d2e168631fa14ccd4cd9cfe5bad5421a05** equal; all four checks green
+41735207570. D1 comic170 remains draft pending uncontained native proof.
+No web rollout, X cutover or held-item override is implied by this scope fact.
+
 ## Tower Graphic Novels v3c approved; backup/apply pending (2026-11-03)
 
 David3843 at22:45:23Z approves Claude's concrete3839 plan. Codex ACK3846;
