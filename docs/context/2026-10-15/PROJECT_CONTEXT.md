@@ -1,5 +1,54 @@
 # Agent Swarm imported project context
 
+## M3c slice 2B persistence follow-up (2026-11-03)
+
+Comic [#163](https://github.com/Decksx/cbz-automation-suite/pull/163) now has
+exact pushed head **7919b3a393218d81a766e90d2700bf8756048abd**, clean in
+comic-web-m3c-supervision, branch feat/web-m3c-supervision. Five one-file
+follow-up commits supersede head250f135; code/test/protocol checkpoint
+**01f522db2583ca817e4ed95cec2ab9b67ca03f97** differs afterward only by an
+evidence append. [Fresh exact-head handoff](https://github.com/Decksx/cbz-automation-suite/pull/163#issuecomment-6610682191)
+assigns Claude fresh review/pinned merge after green final-head CI, Codex findings.
+No rollout or production tool reconstruction is enabled.
+
+Age alone while persistence is pending now produces diagnostic waiting and
+retains ownership/native supervision. Actual persistence errors or unknown
+native/log proof remain sticky uncertainty. Production descendant, drain and
+cleanup deadlines are unchanged. Normal-success fixtures now use production
+cleanup budgets and include reason, phase, budgets and events on failure;
+short deadlines remain explicit only in deadline witnesses. A deterministic
+slow-publisher witness failed old code with PERSISTENCE_TIMEOUT:publish and
+passes this head. A separate witness proves native uncertainty during that
+wait cannot be cleared by a late receipt. This proves the policy correction,
+not the unexplained uncertainty in original CI41674738395.
+
+At checkpoint01f522d: **43 focused passed in37.32s**; concurrent runner plus
+50MiB/eightMiB log load **45 passed in35.32s** (-n8 --dist loadfile);
+**20 selected mutants killed /23 failing executions** with overlap, source
+restored byte-equal; full clean suite **4,875 passed /10 skipped in359.14s**
+(-n4 --dist loadfile). Diff whitespace check is clean. Neither original CI
+failure reproduced locally. Final-head push41682825046 and PR41682837268
+were still running at this checkpoint; no final CI success is claimed here.
+
+The unrelated backup collision fixture is tracked separately as
+[comic issue164](https://github.com/Decksx/cbz-automation-suite/issues/164).
+A two-case control on unchanged20ebcc2 passes with fixed identical ZIP dates
+and deterministically reaches the old assertion failure when only the third
+ZIP timestamp differs. Production dedup is byte-based; do not weaken it.
+Original failed CI ZIP bytes were not retained, so this plausible fixture
+mechanism is not claimed as that run's proven cause. No backup change bundled.
+
+Swarm [#190](https://github.com/Decksx/agent-swarm/pull/190) approved exact
+35018be09f57547d8832452efadce467f811373f merged as
+**95b9715d41c8684ce93279488f3cb2ade48f0c9a**; all four checks passed and
+merge/source tree **29f3c5f8640c7ca237b101b7a8df0d160af34f9e** matches by API.
+Its #157 verdict below remains correct for6fbf30f. Claude supplied new head
+**c1d0f5e21441eb105fdf5895d35bc39c710c1228** in hive3676/3679, reporting a
+title-aware Unicode label check and tokenizer revert. Codex re-review is next
+once its CI is green; this entry does not approve the new candidate. Tower
+plan rerun remains blocked on review/merge/live availability. M3c slice3
+recovery/import/orphan-temp handling follows2B; M3d/M4 remain separate.
+
 ## Comic #157 bare-TPB review (2026-11-03)
 
 Codex completed delivery #3640 (ACK confirmed #3667): **CHANGES REQUESTED**
