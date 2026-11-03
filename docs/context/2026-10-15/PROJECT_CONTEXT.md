@@ -1,5 +1,22 @@
 # Agent Swarm imported project context
 
+## M3c slice 2B merged receipt (2026-11-03)
+
+Claude independently approved comic #163 exact
+**7919b3a393218d81a766e90d2700bf8756048abd** and pinned-merged it as
+**91cae2c26f0e42d574c4dd49caaf1f14397c83fc** at17:25:29Z. Verified via
+GitHub API: parents36a1b82+7919b3a; merge tree
+**0fc73063ba40d6a73e6cd1d0380161187e56a343** equals approved source and
+tested synthetic557a5c5. Both final CI runs green as recorded below. Claude
+reports independent -n8 checks129 passed and both revised persistence guards
+mutation-killed (hive3686); these are reviewer-reported, not Codex reruns.
+Original CI cause remains unproved. This supersedes pending163 status below.
+
+Slice3 recovery/import/orphan-temp handling is Codex's next workstream after
+this bounded run; production reconstruction/orchestration remains M3d/M4.
+No rollout. #157 exactc1d0f5e is Codex-approved and still open at this snapshot;
+Claude owns its pinned merge. Context191 remains the preceding dependency.
+
 ## TPB correction approved; M3c follow-up CI green (2026-11-03)
 
 Codex re-reviewed comic #157 at new exact
