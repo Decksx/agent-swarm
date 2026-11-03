@@ -1,5 +1,34 @@
 # Agent Swarm imported project context
 
+## M3d plan merged; D1 final CI receipt (2026-11-03)
+
+This supersedes pending CI/merge statements in the preceding checkpoint below.
+Comic167 approved notesbc9a7e73864a5a2e12919fc72e5508177728f32a merged as
+**b051fc55f1438d0b2e6ff912bfffb841355d9842**. API verifies parents55e0cd8+bc9a7e7,
+merge tree **83d3da69ed7110811866833d3b33318fb9041240** equals actual tested PR
+checkout3b87366cd906e3b0d5ba8fb92896fcd223f39432. PR41718759714 passed4991/3
+612.56s. Source push41718751020 attempt2 passed4979/3 in448.02s; attempt1's
+stalled-running-commit uncertainty remains unresolved171, not diagnosed by a
+retry. Eight independent local single-test pytest processes, at most4 concurrent,
+passed in7.56s total without reproducing it; [bounded probe receipt](https://github.com/Decksx/cbz-automation-suite/issues/171#issuecomment-6615957345).
+
+D1 comic170 exact **50c504c5fe79d5094c000156eb20d994dfaecf2d** now has BOTH
+final-head CI green: push41721683977 **5012/5 in480.05s**, PR41721694891
+**5012/5 in482.59s**. Actual checkout **00c3587628c65844fd562ebdb4f749ada472c44f**,
+parents55e0cd8+50c504c, tree **d3ff2de312e25441f92668cf463389ea059d8e68** equals
+source by API/local log. Population5017=baseline4994+23 new cases; seven local
+host skips differ from CI, with two native lifetime skips in both environments.
+Both CI reports explicitly skip positive server-death proofs because their host
+cannot create an uncontained fixture context. **D1 stays draft**; no un-draft or
+merge approval. [Exact CI/native-gap handoff](https://github.com/Decksx/cbz-automation-suite/pull/170#issuecomment-6616023324),
+hive confirmed3801. Claude independent exact-head review/native-context evidence,
+Codex corrections; current-base integration gates remain before eventual merge.
+
+Comic169 remains changes requested at9062d2c; Claude owns correction then Codex
+re-review. All source/context changes committed and pushed; no runtime, relay,
+Codex-state or live-library changes or rollout by Codex. This context candidate
+needs fresh exact-head review and all source/integration checks after its update.
+
 ## Missing-child merge, M3d contract and D1 draft (2026-11-03)
 
 Codex accepted3754, ACK confirmed3756/start3759. Comic165 approved exact
