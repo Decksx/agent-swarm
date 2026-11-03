@@ -1,5 +1,58 @@
 # Agent Swarm imported project context
 
+## M3c slice 3 recovery candidate (2026-11-03)
+
+Codex accepted delivery3742, ACK confirmed3746/start status3747. Comic
+[#165](https://github.com/Decksx/cbz-automation-suite/pull/165), branch
+feat/web-m3c-recovery in an isolated own worktree, starts from master
+4f9893acae3a0fbb8bc7f40a0ac8c207cac2d240. Candidate 89f205a15bf483c79512b0bc0116a85468bf0d2d;
+code/test/protocol ec24e64b918969634fa21cc918eae7b52c2d34a6. Codex owns
+implementation/findings; Claude exact-head independent review/pinned merge.
+
+Recovery observes exact runner/child and same-session deterministic job under
+admission exclusion; reports cannot be reused as commit authority. Receipt
+import rechecks all immutable command/seal/identity fields, canonical shape,
+complete index/hash and bounded existing segments, then repeats native absence
+and refences the full row/nonce/version in a short transaction. Idempotent
+imports never auto-clear durable uncertain. Explicit attributed operator recheck
+changes uncertain only to lost/unknown after fresh recorded-owner/child gone and
+named-job absent proof. Missing recorded child in an uncertain row remains
+blocked; no override. Orphan exit.json.tmp stays preserved and specifically
+classified. Pump startup failure records a post-birth reason and still attempts
+to persist child identity. Native polling250ms and ledger refresh1s are separate;
+main requires the parent admission identity context. M3d authentication/routes/
+scheduling/context propagation and M4 production registry/stop gates stay separate.
+
+Verification: focused164 passed, then2 hardened identity/refresh and6 strengthened
+native crash/index witnesses passed. New69 tests, existing tests retained.
+22 selected mutations killed/30 failed executions with overlap, restored bytes;
+two mutation groups bypass redundant boundary checks together. Full results
+at clean2436c09:4971 passed/10 skipped/1 failed519.65s, the same untouched
+alternating-overflow WinError5 as baseline. All69 added tests passed; count
+delta exactly69. One bounded partial rerun passed each tree (3.79s/3.80s),
+not replacement full runs or proof of the OS cause. Untouched4f9893a baseline4902 passed/10 skipped/1 failed349.30s,
+independently reproducing alternating-overflow WinError5; OS cause unproved.
+No source change for that flake and no rollout/live-library/process operation.
+[Protocol](https://github.com/Decksx/cbz-automation-suite/blob/89f205a15bf483c79512b0bc0116a85468bf0d2d/docs/web_console_m3c_recovery.md)
+and dated development log record API boundaries and replay evidence. Current
+status ready/un-drafted: BOTH final-head CI green4979 passed/3 skipped,
+push41696715358 in364.06s and PR41696727103 in495.48s. Actual PR checkout
+308e6c2edc5c56deea74f0320de3e3e750b7ff2a, parents4f9893a+89f205a,
+treeb71beb2a557055d74770131b059a1dd47c890b16 equals source by API/log.
+Current master4f9893a; prior2436c09 checks also green.
+[Ready exact-head handoff](https://github.com/Decksx/cbz-automation-suite/pull/165#issuecomment-6612735928),
+wake confirmed3750 before40min. Fresh Claude review/pinned merge required;
+Codex owns findings, no source approval/merge or rollout claimed. Checkpoint pushed as draft at2436c09, hive3748.
+
+Earlier context receipts independently verified:191 exactaa65bc0 merged
+95558eb56b21f692bdc10ed72c0bfd51d3d49309, tree
+2fdbb669be1e9813a9822184ae39db49ccd3848e equals source;192 exact9ce5d60 merged
+5b961c2f9d1e9a016d39d6f952833f3fe9e746ca, tree
+4c3663290841d7efae1337ffb339fe2513ac4817 equals source. Comic157 approvedc1d0f5e
+is merged4f9893a (API verified), superseding its open status below. Claude's
+live deployment4f9893a and David's subsequent GUI/Camelia restart are reported
+in hive3718/3719/3722; Codex did not independently deploy or verify live processes.
+
 ## M3c slice 2B merged receipt (2026-11-03)
 
 Claude independently approved comic #163 exact
