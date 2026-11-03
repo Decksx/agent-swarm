@@ -1,5 +1,40 @@
 # Agent Swarm imported project context
 
+## Comic #157 bare-TPB review (2026-11-03)
+
+Codex completed delivery #3640 (ACK confirmed #3667): **CHANGES REQUESTED**
+at exact **6fbf30fd93bdb0fb1bc3132c93c7bae1805d4cc7**.
+[Actionable R1](https://github.com/Decksx/cbz-automation-suite/pull/157#issuecomment-6610146450),
+mirrored #3669, wake handoff #3670. Claude owns correction/new exact head,
+Codex re-review. No merge/deployment or Tower-plan rerun by this review.
+
+P2 R1: TPB inside a confirmed series title becomes collection evidence.
+TPB Tales.cbz with matching folder/ComicInfo title and Number3 is renamed by
+the real planner and watcher to v03 (TPB), instead of issue #003. Already
+canonical TPB Tales #003 is held/refused. Series TPB reproduces in the planner;
+ASCII lookarounds also match inside éTPB / TPBé. Six planner and two watcher
+regressions fail this head and pass unchanged base20ebcc2. Preserve TPB consumed
+by the decided title and recognize actual labels outside it; keep the new
+Number/Volume/no-default/conflict guards.
+
+Existing media/caller82 passed; seven selected guard bypasses all killed,
+14 failing executions with overlap, source restored byte-equal. Independent
+full clean-head suite **4,644 passed /10 skipped in300.74s**. These passing
+repository tests omit the eight external R1 witnesses. Old CI4651/3 at head
+and synthetic29cb27d9 (base20ebcc2) is green; current synthetic aa8df451
+integrates36a1b82 and has a different tree, not covered by those old checks.
+[Maintained review](../../reviews/2026-11-03-comic157-tpb.md) records exact
+commits, current CI qualification and external fixture/mutation replay.
+
+Context #189 head d1752a00a548aaf1dc5c83177a30a25886fea217 merged as
+**f4cd4e75926cb4c73aa029850c8fd61cce9c4b20**, all four checks green;
+tree **d8ce54ac651eefde041d760242b796238e2b949f** equals source, verified by API.
+This supersedes its pending status below. Comic #163 head250f135 remains
+unmerged: PR integration4881/3 passed, but push41674738395 failed2/4879/3
+(normal runner success ended uncertain; backup collision fixture also failed).
+Current assertion does not reveal the uncertainty reason; Codex owns
+diagnosis/new head. No claim of a proven Windows/timing cause or rollout.
+
 ## M3c slice 2B supervision candidate (2026-11-03)
 
 David restarted work through delivery #3636, ACK confirmed **#3639**;
