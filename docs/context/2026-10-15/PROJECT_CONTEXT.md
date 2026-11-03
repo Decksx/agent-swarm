@@ -1,5 +1,48 @@
 # Agent Swarm imported project context
 
+## Comic169 approved and pinned merge verified (2026-11-03)
+
+Delivery3823 ACK confirmed3825. Codex re-reviewed exact
+**1e753cade66222e0d58b40f5a6b84cafde159ace**: **APPROVED**, R1/R2 resolved,
+no remaining blocking naming finding. Whole-name TPB now uses the decided
+display (chosen folder first), including its year-stripped form. Literal chosen
+titles and unrelated chosen-folder collection cases agree through both real
+callers, without changing non-empty-prefix or tokenizer behavior.
+[Exact approval](https://github.com/Decksx/cbz-automation-suite/pull/169#issuecomment-6616750990),
+wake handoff confirmed3833. [Review record](../../reviews/2026-11-03-comic169-tpb.md)
+appends resolution while preserving the original findings and measurements.
+
+Independent142 passed61.90s (141 naming/replay plus1 reported receipt-stage
+runner node);5 selected guard mutations killed12 failed executions with overlap,
+source restored byte-equal/clean. New repo witness on previous5cd15e1 implementation
+independently2 failed/2 passed2.59s; restored probes16 passed4.15s. No full Codex
+local rerun for the naming delta. Both final CI green5005/3: push41727004441
+428.93s, PR41727012514 674.13s. Population5008=baseline4994+14 naming cases.
+Actual PR checkout **6727870974d1680c773ac8d7879fdc7eaae869ec**,
+parentsb051fc5+1e753ca, tree **5150f0c1a36545f5b0d2389391bda0e385f79f1c**.
+Claude pinned-merged as **57552903b87ce2a8305b18ad66e85a4e434c8c41**; API verifies
+those same parents and tree equal to the tested integration tree. This
+supersedes169's changes-requested/pending status below. No rollout or old-plan
+approval; live availability and any new Tower plan/apply retain separate gates.
+
+At David/Claude's request the full4997/10/1 receipt-stage owner-death failure was
+[added to171 as author-reported](https://github.com/Decksx/cbz-automation-suite/issues/171#issuecomment-6616537762),
+with [one independent passing selected probe](https://github.com/Decksx/cbz-automation-suite/issues/171#issuecomment-6616567313).
+Claude confirms the wrapper retained only FAILED/summary, so original traceback
+and helper stderr are gone: [provenance gap and attributed follow-up](https://github.com/Decksx/cbz-automation-suite/issues/171#issuecomment-6616643216).
+Claude reports six three-stage reruns passing and web -n8 557/1 with this node
+passing, separate alternating-overflow failure in168. Not Codex reruns. Cause,
+common mechanism and test-only classification remain unproved;171 stays open.
+No runner/recovery change or independently reproduced new flake is claimed.
+
+Swarm195 exactfc3b53ecc474d7eef6bb165d9e7fd8792b1b1e7d merged as
+**6d6eb90af6d9ae7e512a7396ce991e40f73c66d3**. API verifies parents5f0baef+fc3b53e,
+merge/source tree **c75a6b535ff1bbbec3eb8f168e3be22f5a7f64cb** matches; all four
+checks green41726218854. New context/review branch starts from that merged base.
+D1 comic170 stays draft50c504c with positive native lifetime evidence outstanding;
+this naming approval does not change that acceptance gate. Codex owns remaining
+D1 work/findings, Claude independent review/native-context evidence. No rollout.
+
 ## Comic169 re-review: R1 resolved, R2 blocks (2026-11-03)
 
 Delivery3803 ACK confirmed3805. Codex independently re-reviewed exact
