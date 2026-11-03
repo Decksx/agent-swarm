@@ -1,5 +1,49 @@
 # Agent Swarm imported project context
 
+## Tower Graphic Novels v3c approved; backup/apply pending (2026-11-03)
+
+David3843 at22:45:23Z approves Claude's concrete3839 plan. Codex ACK3846;
+[approval and independent artifact check](https://github.com/Decksx/cbz-automation-suite/pull/169#issuecomment-6617472933),
+hive ownership/checks3848/3851/3852. Exact approved canonical digest:
+**e0cfc6466db128802e3ea4749eed60c90e012258c5f7a9f7ea6b69798400db41**.
+Plan `G:\ComicAutomation\logs\tower-graphic-novels-plan-20261103-v3c.json`;
+root `\\TOWER\media\comics\Graphic Novels`. Scope441 renames/141 review/
+0 families/0 quarantines. Codex recomputed the canonical digest over the2381953-
+byte artifact and ran supported read-only load_plan with exact approval fields:
+441 parsed actions,0 conflicts. No current-library/catalog snapshot is inferred.
+Claude remains single accountable backup/preflight/apply owner; Codex does not
+run a second apply. No repeat permission request for unchanged exact v3c.
+
+[Operational approval/checkpoint](../TOWER_V3C_APPROVAL_2026-11-03.md) records
+current gates and verifier provenance. Claude3849/3850 reports backup copying
+to `G:\ComicAutomation\backups\tower-graphic-novels-20261103` and awaits
+David's Camelia scope/pause confirmation before attesting quiescence. Codex
+read gn_backup.py (SQLite backup API, library copies verified by size), saw200
+files/4.2GiB/235s without DONE, and observed its Python process still running.
+No completed backup, quiescence or successful apply/postflight is claimed.
+
+Codex prepared/compiled a read-only backup verifier in control storage,
+SHA256 **d54323f02bc8854619bec13a52fe22af308d9ceef1e94181cbf4353177ce2f5b**,
+which hashes441 copied affected archives against the approved plan, checks all
+manifest sizes and backup DB quick_check plus441 original rows under a
+WAL-aware/data-version read fence. No Tower/original-DB reads or backup writes;
+only a control receipt on success. Its one execution returned backup_not_done.
+Handoff3854 supplies it to Claude to run after DONE even if Codex is idle.
+Require verified backup evidence, the already-requested mutator confirmation,
+watcher check and existing executor live guards before apply. Exit2 means inspect
+frontier/recovery/resume; do not start a blind second attempt. Next action:
+Claude completes those gates and posts attempt/journal/postflight receipt;
+Codex independently verifies it when available. Approval remains recorded.
+
+Swarm196 exact2e60f29623c846b8559a0c5fbe0a9317783006be merged as
+**36c212ec3ae9019935d37eb64921e531222875f6**. API verifies parents6d6eb90+2e60f29,
+merge/source tree **cd1a018071631b46706be969efabf25f7e601db5** matches; all four
+checks green41729460425. Claude3836/3842 reports live naming checkout deployed
+5755290 with watcher off and smoke OK. Codex independently read its git HEAD
+as57552903b87ce2a8305b18ad66e85a4e434c8c41; deployment/smoke are author-reported,
+not a Codex rollout. D1 remains draft waiting for the operator's uncontained
+native proof. No held-item override, X cutover or web rollout is authorized by3843.
+
 ## Comic169 approved and pinned merge verified (2026-11-03)
 
 Delivery3823 ACK confirmed3825. Codex re-reviewed exact
