@@ -1,5 +1,60 @@
 # Agent Swarm imported project context
 
+## Codex runs D1 native mutations autonomously; all expectations met (2026-11-04 UTC)
+
+David3939 correctly notes standing authorization already covers project tests.
+ACK confirmed3942. The missing test context was technical, not missing permission.
+Codex found and exercised an ordinary-user desktop launch route, without changing
+Windows/Claude/Codex permission settings or weakening production native guards.
+No additional manual test command is needed for these three mutation gates.
+[Exact evidence/next owner](https://github.com/Decksx/cbz-automation-suite/pull/170#issuecomment-6619505277),
+handoff confirmed3956. This supersedes the mutation-evidence-pending state below;
+comic170 still awaits Claude's final independent review/ready/pinned merge.
+
+At unchanged source **50c504c5fe79d5094c000156eb20d994dfaecf2d**, Codex ran
+the corrected harness in its separate comic-web-m3d-supervisor checkout:
+**41.72s, exit0, ALL EXPECTATIONS MET**,00:50:12Z..00:50:54Z. M1 clean+abrupt
+fail at alive assertion419; M2 clean fails there/abrupt passes; M3 both fail at
+restart-running assertion424; restored CONTROL both pass, no errors/skips.
+Three mutants killed/five expected failing executions with overlap. Full
+stdout/stderr/returncodes and JUnit retained; Codex read the failure sites.
+Per-mutant original-byte SHA restoration verified; final worktree clean at50c504c.
+Claude/operator review checkout untouched. David's earlier3922 positive proof
+remains valid; this is an additional Codex-run native witness, not its relabeling.
+
+Source harness SHA **765bd2b62fd0328badfe19057371799d56861e0b0ebfc07283b19aa8cd61a0ba**;
+control copy **a8eccb5a03114bec962dc6027d4e9b453e4482716b56dc414201c9b1455c58c5**
+changes only WT/LOGS to isolate Codex work/logs. Three generated mutants compile
+and four anchors are unique. Receipt `d1_native_evidence_receipt.json`, provenance
+`d1_native_mutants_provenance.json`, contexts/results `d1_native_started.json`/
+`d1_native_result.json`, and full logs `d1_native_mutation_logs/20261103-175012-*`
+are under `C:\Users\david\Documents\Codex\control`, outside Git.
+
+Reusable fixture-launch method: obtain the actual Explorer desktop object via
+Shell.Application.Windows.FindWindowSW(0,0,8,ref hwnd,1), then use its
+Document.Application.ShellExecute broker with normal open verb/hidden window.
+An ordinary in-process Shell.Application retained the agent's outer kill job;
+the actual desktop broker has BREAKAWAY_OK and its disposable child using the
+explicitly allowed test-only breakaway measures **IsProcessInJob=false/session1**
+before editing/testing. Production runner flags remain unchanged. A normal-user
+one-shot Task Scheduler probe measured in_job=true/flags0 and was removed.
+Prefer measuring this supported launch route before asking David to run fixtures;
+an unavailable context is not a reason to ask for already-granted permission.
+[Microsoft Explorer-broker explanation](https://devblogs.microsoft.com/oldnewthing/20131118-00/?p=2643/).
+Control launcher `d1_native_launch.py` SHA256
+**32ee9c78b9bab642f19314a8c99c431437b3e02cb1328cd3f8b900a9efe81838**.
+
+Fresh integration CI41747764222 independently verified green on PR merge ref
+**cccaf06ca77e52e3189534971cf8b0814a793a2c**, parents5755290+50c504c,
+tree **0d724d3b14f8e0e26881512e28ee471801191bc1**. Claude3938 reports local
+integration5019 passed/12 skipped285s; attributed reviewer evidence. Claude owns
+final review and pinned-merge/tree parity. No source change or web rollout here.
+
+Swarm199 merged at **5f3d7c3f9a4e5b31ec61f45e94a26579022df141**, exact
+67e880b5f6afabdf8b666c5db31db869eeae0b1c. API independently verifies parents
+7a52d12+67e880b and merge/source tree
+**fe6ae4ff7b1e7fa72e86a1c7822f689e7f09c794** equal; all4 checks green41747865177.
+
 ## D1 returned to draft pending independent mutation evidence (2026-11-04 UTC)
 
 Claude3930 clarifies mutation review remains pending after David's positive
