@@ -1,5 +1,56 @@
 # Agent Swarm imported project context
 
+## D1 returned to draft pending independent mutation evidence (2026-11-04 UTC)
+
+Claude3930 clarifies mutation review remains pending after David's positive
+3922 run. Codex ACK confirmed3933, returned comic170 to draft (source still
+50c504c5fe79d5094c000156eb20d994dfaecf2d), and notified Claude confirmed3935.
+This supersedes the ready status below; the positive2/21/7.90s proof remains
+valid and operator-attributed. No final independent approval or merge yet.
+
+[Harness review](https://github.com/Decksx/cbz-automation-suite/pull/170#issuecomment-6619195209)
+checks external script SHA256
+**0ca84d5cef40f01de6ee1c9a9560f074cd8ebf5e12f40c14a848a23cdd48b8a9**.
+Codex in-memory checks:4 replacement anchors each occur once,3 generated mutants
+compile; no mutation execution or review-worktree edits. Finally restoration
+and SHA checks exist. Review requires full pytest stdout/stderr/return codes,
+expected named failures at intended assertions and a passing2-test control;
+the current helper drops full traces and prints rather than enforces outcomes.
+Also pin clean exact originals/anchor counts before editing. Claude owns harness
+correction/operator mutation evidence, final review and current-master CI before
+pinned merge. No code change, native guard weakening or web rollout by Codex.
+
+## D1 positive lifetime proof received; comic170 ready for review (2026-11-04 UTC)
+
+David3922 at00:28:46Z reports the manual PowerShell run of
+`C:\Python311\python.exe -m pytest -q tests\web\test_web_supervisor.py -k server_death -rs`
+with CBZ_TRANSLATION_ENABLED=0: **2 passed,21 deselected in7.90s**, no skips.
+Codex ACK confirmed3925; [operator-attributed receipt and review handoff](https://github.com/Decksx/cbz-automation-suite/pull/170#issuecomment-6619129248),
+hive confirmed3927. His named wt-170 checkout was independently checked clean
+at exact **50c504c5fe79d5094c000156eb20d994dfaecf2d** before and after the
+reported run; PR head also matches. This is David's execution, not a Codex rerun.
+
+The two cases cover clean and abrupt server death. Each asserts measured
+fixture-server parent_in_job=False, survival of the exact runner and child,
+restart observing the same running owner, then natural successful completion
+and runner exit. Their positive lifetime acceptance gap is now resolved;
+production containment refusal and all source bytes remain unchanged. Codex
+marked170 ready for review. This supersedes the draft/native-proof-pending
+statements below, without claiming final independent approval or merge.
+
+Claude owns final exact-head review and current-master integration/CI before
+pinned merge. Prior source/PR CI41721683977/41721694891 are green, but the
+current API pull/170/merge ref still resolves to old tested00c3587 with parent
+55e0cd8; master is now57552903b87ce2a8305b18ad66e85a4e434c8c41. Those old
+checks alone do not establish the new integration tree. No web rollout;
+D2-D4, production registry/M4 and unrelated flake issues remain separate.
+
+Swarm198 is merged as **7a52d12f4ca4de48f70ef8a98daa510ba567d111** at exact
+5c15e7feb2293ee0054724acf701c9d2f10a5df6. Codex API verifies parents1d05983+
+5c15e7f and merge/source tree **eb9163bdb9e188131b7843a04bc269c5f95925ae**
+equal; all4 checks green41744764504, which names exact5c15e7f. [Merge receipt](https://github.com/Decksx/agent-swarm/pull/198#issuecomment-6618966286),
+hive confirmed3901. Tower v3c operation/evidence closed; no apply/resume needed.
+
 ## Tower v3c complete; independent postflight passed (2026-11-04 UTC)
 
 David3875 asks whether the run finished; ACK confirmed3877. **Yes: all441
