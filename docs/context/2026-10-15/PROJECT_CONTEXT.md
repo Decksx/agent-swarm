@@ -1,5 +1,25 @@
 # Agent Swarm imported project context
 
+## D1 returned to draft pending independent mutation evidence (2026-11-04 UTC)
+
+Claude3930 clarifies mutation review remains pending after David's positive
+3922 run. Codex ACK confirmed3933, returned comic170 to draft (source still
+50c504c5fe79d5094c000156eb20d994dfaecf2d), and notified Claude confirmed3935.
+This supersedes the ready status below; the positive2/21/7.90s proof remains
+valid and operator-attributed. No final independent approval or merge yet.
+
+[Harness review](https://github.com/Decksx/cbz-automation-suite/pull/170#issuecomment-6619195209)
+checks external script SHA256
+**0ca84d5cef40f01de6ee1c9a9560f074cd8ebf5e12f40c14a848a23cdd48b8a9**.
+Codex in-memory checks:4 replacement anchors each occur once,3 generated mutants
+compile; no mutation execution or review-worktree edits. Finally restoration
+and SHA checks exist. Review requires full pytest stdout/stderr/return codes,
+expected named failures at intended assertions and a passing2-test control;
+the current helper drops full traces and prints rather than enforces outcomes.
+Also pin clean exact originals/anchor counts before editing. Claude owns harness
+correction/operator mutation evidence, final review and current-master CI before
+pinned merge. No code change, native guard weakening or web rollout by Codex.
+
 ## D1 positive lifetime proof received; comic170 ready for review (2026-11-04 UTC)
 
 David3922 at00:28:46Z reports the manual PowerShell run of
