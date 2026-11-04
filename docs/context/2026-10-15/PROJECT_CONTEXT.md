@@ -1,5 +1,24 @@
 # Agent Swarm imported project context
 
+## D1 comic170 merged; integration tree verified (2026-11-04 UTC)
+
+Delayed relay3945 ACK confirmed3969; its pending-manual-test state and1d36e495
+harness are superseded by the completed765bd2b6 native evidence below.
+Comic170 exact **50c504c5fe79d5094c000156eb20d994dfaecf2d** merged as
+**ab5eb500015533a62b458184448a9364d2b5ef6b**. Codex API verifies parents
+57552903b87ce2a8305b18ad66e85a4e434c8c41+50c504c and merge tree
+**0d724d3b14f8e0e26881512e28ee471801191bc1**, equal to previously verified
+current-master PR integrationcccaf06 and Claude's local merge. Fresh integration
+run41747764222 is green. [Independent merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/170#issuecomment-6619563685).
+
+Claude's [pinned-merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/170#issuecomment-6619522656)
+records the additional operator mutation run and restored control, with full
+logs in his175207 batch. Codex's separate175012 batch below already supplies
+independent native mutant/control evidence; neither needs repeating for D1.
+This supersedes final-review/ready/merge-pending statements below. D2-D4 and
+production registry remain separate. No web rollout; live5755290 is reported
+by Claude's receipt, not a Codex deployment/current-runtime verification.
+
 ## Codex runs D1 native mutations autonomously; all expectations met (2026-11-04 UTC)
 
 David3939 correctly notes standing authorization already covers project tests.
