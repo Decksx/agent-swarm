@@ -1,5 +1,76 @@
 # Agent Swarm imported project context
 
+## Tower v3c complete; independent postflight passed (2026-11-04 UTC)
+
+David3875 asks whether the run finished; ACK confirmed3877. **Yes: all441
+approved renames completed and passed independent Codex postflight** at
+00:08:58Z in349.7s. Status to admin confirmed3883. Exact approved digest
+**e0cfc6466db128802e3ea4749eed60c90e012258c5f7a9f7ea6b69798400db41**;
+attempt **fb1202201f2e4532b4dfff8d716dae28**. No new apply/resume by Codex.
+This supersedes the pending apply/postflight status below.
+
+Codex parsed `C:\git\.claude-tools\apply_v3c_resume.log`:441 units comprising
+314 already_complete/127 completed,441 resolutions, stopped=null, stderr empty.
+The durable attempt journal under Graphic Novels/.cbz-canonical-naming/attempts
+contains1325 consecutive records seq0..1324: one attempt,441 intents,441 done,
+441 confirmed, and run_finished stopped=null. All confirmed actions match the
+approved plan. Journal SHA256
+**eb1d49f51fa815f5ed172dd6db1ec9a4ad6416d97934e0c885d2ce453d951c9b**.
+Claude3882 reports the original process was cut at314, no concurrent process
+remained and the SAME attempt resumed once. Its first wrapper log was not saved;
+the durable journal and complete resume report survive. Codex did not witness
+the original launch, process check or resume exit code; it verified their
+resulting log and durable evidence rather than reconstructing a missing receipt.
+
+Independent read-only postflight hashes441 destination archives against the
+approved plan, checks441 original paths absent and441 catalog rows at the
+matching destination/archive id. All passed; catalog quick_check ok. SQLite
+mode=ro/query_only used data_version before, one deferred transaction and
+post-commit data_version after:2->2. Plan/journal bytes unchanged across the
+check; each hashed file's open-handle/path identity,size,mtime stable during
+its read. No global filesystem snapshot or unrelated-library audit is claimed.
+The141 held items were outside the approved apply; no held-item override or
+quarantine was performed by this plan. Backup evidence remains as below.
+
+Control helper `C:\Users\david\Documents\Codex\control\verify_tower_v3c_postflight.py`
+SHA256 **b4259d1b013e7783baf81e62d98953cbe24c3b02dd3579c1f6beaa4803cc2064**;
+receipt `tower_v3c_postflight_verification.json` in the same control directory.
+The successful invocation exited0. No production file or DB writes by this
+verifier; only its control receipt. Claude remains operation owner; Codex has
+handed off completion evidence, not started another execution. D1 comic170
+remains draft pending positive uncontained native proof; no web rollout.
+
+## Tower v3c Camelia scope confirmed; backup receipt checked (2026-11-03)
+
+David3865 confirms Camelia only works from `Z:\media\comics\comix`.
+ACK confirmed3869; handoff to sole apply owner Claude confirmed3870. This
+resolves the previously requested Camelia scope fact for approved v3c digest
+**e0cfc6466db128802e3ea4749eed60c90e012258c5f7a9f7ea6b69798400db41**:
+441 renames/141 held/0 families/0 quarantines. No repeat plan approval needed.
+Claude retains fresh watcher/preflight/live guards before attesting quiescence;
+Codex does not start a concurrent apply. No successful apply/postflight is
+claimed in this checkpoint; Claude retains attempt, full log and postflight
+receipt for Codex's independent check.
+
+Codex read the backup copier's DONE:584 files/24.63GiB/832s. Claude3857 ran
+Codex's prepared verifier; Codex read its control receipt dated23:02:55Z:
+441 approved source hashes,584 copied sizes/26448944042 bytes, backup DB
+quick_check ok and441 original location rows preserved. Receipt records the
+approved digest and verifier SHA256
+**d54323f02bc8854619bec13a52fe22af308d9ceef1e94181cbf4353177ce2f5b**;
+Codex independently rehashed the verifier and read its source, matching it.
+This is a receipt review of Claude's execution, not a second Codex hash run.
+Only the441 affected archives were hash-verified; other copies were size-checked.
+Backup path `G:\ComicAutomation\backups\tower-graphic-novels-20261103`.
+This supersedes the pending backup/Camelia statements below.
+
+Swarm197 exact51adcc390631af71c038da5ff07aec2835f7641d merged as
+**1d05983857a7d2c669bfa0e4f77339fd8dbaf412**. Codex API verifies parents
+36c212e+51adcc3 and merge/source tree
+**9056a5d2e168631fa14ccd4cd9cfe5bad5421a05** equal; all four checks green
+41735207570. D1 comic170 remains draft pending uncontained native proof.
+No web rollout, X cutover or held-item override is implied by this scope fact.
+
 ## Tower Graphic Novels v3c approved; backup/apply pending (2026-11-03)
 
 David3843 at22:45:23Z approves Claude's concrete3839 plan. Codex ACK3846;
