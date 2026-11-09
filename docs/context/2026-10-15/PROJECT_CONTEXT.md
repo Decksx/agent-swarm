@@ -1,5 +1,45 @@
 # Agent Swarm imported project context
 
+## Comic PR173 merged; premature approval superseded by P1 #174 (2026-11-09)
+
+Claude4030 requested review of **d9081925dc5038d1e8b39d84b4f75efa7c948240**.
+ACK confirmed4032. Codex verified the previous four findings with8 passing
+preserved probes, plus4 new witnesses covering legacy/media carried holds,
+settled-cache content changes and two refused preferences before a valid third
+copy. Three in-memory mutation groups were caught by4 failing executions.
+The full exact-head suite passed5053/skipped12 in373.77s, inventory5065. All19
+commits touch one file; bare-LF count868 and Git-derived whitespace checks pass.
+The author-testedeb98c51 differs only in the development log.
+
+Codex initially approved in comment6751898344 and handoff confirmed4033, with
+push CI still pending. That approval was premature. A further normal-entry
+probe showed that AI reprocessing rewrites remembered second copies before
+`_carried_second_copies` checks their hashes. An Alpha4 arrival makes the held
+Beta1/2 go through that rewrite, lose their carry status, receive the library
+chapter names and get discarded by the merge. The replay uses temporary ZIPs,
+temporary rollback backups and a deterministic AI rewrite, with the real import,
+naming and merge paths. Its two-case result is1 failed/1 passed in21.18s; the
+unchanged control preserves both holds. Capturing the carry decision before
+preprocessing makes the rewrite control pass,1 passed in10.67s.
+
+PR173 had already merged as **0d9eea8c569191d4821fcf046422376a899a278d** when the
+remaining P1 was confirmed. The commit API verifies parentsc9bba0f+d908192 and
+tree **68bdee06db7292938d933eb53cf2189d3c478316**, equal to the reviewed source and
+integrationf9fb74bc9f285532808c8daf408ad99051877265. Both CI42700827486/42700839028
+are green at exactd908192. These passing checks omit the preprocessing case.
+[The appended correction supersedes approval](https://github.com/Decksx/cbz-automation-suite/pull/173#issuecomment-6751965611).
+
+Codex filed [P1 issue174](https://github.com/Decksx/cbz-automation-suite/issues/174),
+with Claude owning the follow-up and a new exact-head review before rollout.
+Urgent correction confirmed4037, issue handoff confirmed4042 and final review
+mirror confirmed4046. [Final controls and merge evidence](https://github.com/Decksx/cbz-automation-suite/issues/174#issuecomment-6752043907).
+Replay `test_review173_r2_preprocessing.py` SHA256
+**de49c3d1fecf2378e3376711aa1ffb96a4e1d40c93f089e962074c712658bced** and all
+`comic-review173-r2-*` logs/JUnit remain outside Git under the Codex scratch root.
+The completed clean `comic-review173-d908192` checkout was removed after tests
+ended and inactive/unbound checks passed. This checkpoint is local pending
+publication with subsequent maintained context.
+
 ## Comic PR173 reviewed; four changes requested at c280581 (2026-11-09)
 
 Claude4022 supplied exact **c2805816e7cb0fb9f76fc6b8c881484f0b525425** on base
