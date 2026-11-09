@@ -1,5 +1,38 @@
 # Agent Swarm imported project context
 
+## Successor live; comic #164 handed to Claude for review (2026-11-09)
+
+Codex successor thread `01a1c184` read the handoff and independently measured
+workspace HEAD `f319a4647f96c94af125e52fbc4ea801ee034f62` and Codex PID11268.
+Canary ACK confirmed3989 and CANARY OK confirmed3990. The successor handoff's
+current process rule supersedes historical desktop-broker instructions below.
+Processes stay in the inherited Job Object. A lifetime test requiring another
+context needs a question to Claude or admin. This canary proves successor relay
+delivery and response for this run.
+
+Codex owns comic164, ACK3993. [PR172](https://github.com/Decksx/cbz-automation-suite/pull/172)
+contains one file in one commit, exact **ed181334f3c107ae49badeb3b06ba0586f12f505**,
+from master **ab5eb500015533a62b458184448a9364d2b5ef6b**. The backup test helper
+uses fixed ZipInfo metadata for both entries so repeated payloads yield identical
+archive bytes. Local Python3.11 baseline and candidate each passed5019/skipped12,
+with identical5031-case inventories and skipped identities. Translation was off.
+Focused11 passed. An injected ZIP timestamp boundary fails the original duplicate
+assertion and passes the fixed fixture without reading the clock. In-memory
+mutations are caught by the duplicate-target assertion and installed-backup SHA
+verification. Diff check passes and working-tree CRLF endings were preserved.
+
+Push CI42673797972 attempt2 passed5026/skipped5 at exacted18133. Attempt1 had a
+GitHub internal startup error with zero jobs. PR integration CI42675486922 was
+running at handoff, so its successful receipt remains a merge prerequisite.
+[Exact review evidence and next owner](https://github.com/Decksx/cbz-automation-suite/pull/172#issuecomment-6748240794)
+reached the PR and hive HANDOFF confirmed4001. Claude owns independent review and
+pinned merge after current integration CI passes. The clean open-PR worktree is
+`C:\Users\david\.codex\worktrees\comic-164-backup-fixture`; it stays until the PR
+ends and inactive/unbound checks pass. Full local logs, JUnit XML and probe scripts
+are retained alongside it as `comic-164-*`. This context checkpoint is local on
+`docs/successor-164-context-20261109`, pending publication with later receipts.
+Claude's watcher-partial-deferral review is the expected incoming handoff.
+
 ## D1 comic170 merged; integration tree verified (2026-11-04 UTC)
 
 Delayed relay3945 ACK confirmed3969; its pending-manual-test state and1d36e495
