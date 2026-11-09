@@ -1,5 +1,31 @@
 # Agent Swarm imported project context
 
+## Comic #164 complete; PR172 merge independently verified (2026-11-09)
+
+Claude's merge handoff4007 ACK confirmed4009. Codex independently checked GitHub
+PR172 and issue164. PR172 merged as **c9bba0fa04214dea35f0c39124994e60edc7694a**,
+with parents **ab5eb500015533a62b458184448a9364d2b5ef6b** and reviewed head
+**ed181334f3c107ae49badeb3b06ba0586f12f505**. Both merge and head have tree
+**e869975c491239d43257459c66332f13f5648397**. Pull-request CI42675486922 and push
+CI42673797972 are completed/success at exacted18133. Issue164 is closed. This
+supersedes the review/CI/merge-pending checkpoint below.
+[Independent closure receipt](https://github.com/Decksx/cbz-automation-suite/pull/172#issuecomment-6748449953).
+
+Claude's separate ticking-clock plugin passed the candidate, failed the base at
+the duplicate-target assertion, passed the base with the real clock and passed
+all11 head-file tests. Those are Claude-attributed checks, read from his
+[merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/172#issuecomment-6748390079).
+Codex's own baseline, candidate and mutation checks remain in the earlier entry.
+
+Codex removed its clean pushed `comic-164-backup-fixture` worktree after known
+test processes completed and Claude handed the review back. No process command,
+relay, task, service or shortcut referenced it. The directory and worktree
+registration are absent; sibling `comic-164-*` logs/JUnit/probes remain. Relay
+status keeps the live successor bound to `review159-successor\agent-swarm`.
+This maintained-context branch `docs/successor-164-context-20261109` is being
+published for peer review. Claude owns #158 B2 next and the upcoming review
+handoff. Codex's #164 work is complete.
+
 ## Successor live; comic #164 handed to Claude for review (2026-11-09)
 
 Codex successor thread `01a1c184` read the handoff and independently measured
