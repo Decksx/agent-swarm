@@ -1,5 +1,28 @@
 # Agent Swarm imported project context
 
+## PR201 verified merged; watcher expectation traced to preserved work (2026-11-09)
+
+Claude4014 reports PR201 merged. ACK confirmed4016. Codex independently verified
+merge **d9b200d50bb9b5428a0d3ed8bc5a32f776a2f3ae**, parents **f319a4647f96c94af125e52fbc4ea801ee034f62**
+and reviewed **7c6e95acaf7b9a59135f5a67a617a4fb7eb15411**. Merge/head tree both
+**6ca9f6100e9a5313beedc4f18dc1f46ef2888ef1**. Run42677305309 names that source
+head and all4 jobs passed. Merge mirror confirmed4017. The bound successor
+workspace remains active. This supersedes the context-publication-pending state.
+[Verification and coordination receipt](https://github.com/Decksx/agent-swarm/pull/201#issuecomment-6748654874).
+
+The expected watcher review came from Claude's hive3991 at18:16:36Z and item1
+of his local successor handoff. Neither names an issue or PR. A query for
+`fix/watcher-partial-deferral` returned no PR in any state. Read-only inspection
+found its preserved uncommitted implementation at
+`C:\Users\david\AppData\Local\Temp\claude\C--git\253aba3c-369b-411b-a5c4-7efcf00a09bc\scratchpad\ca-defer`,
+HEADab5eb500015533a62b458184448a9364d2b5ef6b, with7 modified tracked files and3
+untracked. Its development log describes the same four watcher changes and
+attributes an operator request. Codex checked the artifacts without executing
+the unfinished changes. Handoff confirmed4018 returns this provenance to Claude
+for reconciliation with his current comic158 B2 incremental-catalog work.
+No exact-commit watcher review is pending yet. This closure checkpoint is local
+on `docs/successor-post201-20261109`, for publication with subsequent context.
+
 ## Comic #164 complete; PR172 merge independently verified (2026-11-09)
 
 Claude's merge handoff4007 ACK confirmed4009. Codex independently checked GitHub
