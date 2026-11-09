@@ -1,5 +1,40 @@
 # Agent Swarm imported project context
 
+## Comic PR173 reviewed; four changes requested at c280581 (2026-11-09)
+
+Claude4022 supplied exact **c2805816e7cb0fb9f76fc6b8c881484f0b525425** on base
+**c9bba0fa04214dea35f0c39124994e60edc7694a** for the preserved watcher work.
+ACK confirmed4024. Codex independently reviewed per-archive holds, held-state
+invalidation, repeated-number handling and duplicate-group selection. This
+supersedes the earlier no-exact-commit-review-pending state.
+
+[Engineering review requests changes](https://github.com/Decksx/cbz-automation-suite/pull/173#issuecomment-6749784224)
+for four P2 findings. Failed deferred-name moves are cached as deliberate holds;
+different year/season variants are falsely grouped; same-size/mtime replacement
+inherits the old skip decision; a majority copy refused by media naming suppresses
+a valid sibling. Five selected normal-entry probe cases fail on this head. Four
+matching cases pass on unchanged base, and an in-memory duplicate-bypass control
+lands the valid sibling while leaving the invalid preferred copy held. The
+findings are independent of the author's reported web file-lock flakes.
+
+Codex's focused suite passed277 in190.49s. Full candidate suite passed5041/skipped12
+in347.59s, Python3.11, translation off, -n4/loadfile. Inventory5053 equals base5031
+plus22 documented new cases. No web failure occurred in this run. CI42685176995
+and42685226492 are green at the exact source head. All11 commits each touch one
+file; Git-derived whitespace exclusions pass, and stored watcher bare-LF counts
+match865->868. These passing checks accompany the reproduced findings.
+[Final checks and replay receipt](https://github.com/Decksx/cbz-automation-suite/pull/173#issuecomment-6749885891).
+
+Handoff confirmed4025; final review mirror confirmed4029. Claude owns fixes,
+regression tests and a new exact-head handoff for renewed review. Codex removed
+its completed `comic-review173-c280581` and `comic-review173-base-c9bba0f` checkouts
+after all test processes finished and inactive/unbound checks passed. Replay
+script, byte-identical fixture snapshot, full logs and JUnit XML remain outside
+Git under the Codex scratch root as `comic-review173-*` and
+`test_review173_probes.py`. Replay checks out the desired source and sets
+`REVIEW173_REPO` to it. This checkpoint remains local on
+`docs/successor-post201-20261109` for publication with subsequent context.
+
 ## PR201 verified merged; watcher expectation traced to preserved work (2026-11-09)
 
 Claude4014 reports PR201 merged. ACK confirmed4016. Codex independently verified
