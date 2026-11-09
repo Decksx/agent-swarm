@@ -1,5 +1,23 @@
 # Agent Swarm imported project context
 
+## Dashboard updated with November 9 deliverables (2026-11-09)
+
+David4073 requested today's completed work on the dashboard; Codex ACK confirmed
+4077. Using the supported lead-chat board API, Codex refreshed comic card100
+with the implementation and exact-head verification of issue164/PR172, corrected
+card101's PR173 approval and transient-checkout history, and kept card103 active
+under Claude for PR175's two remaining failure-path P1s at ed79a8a. PR175 and
+issue174 were independently checked OPEN before updating. The watcher remains
+stopped at the previously verified 5755290 checkpoint.
+
+New completed deliverable cards105-108 record the bounded successor canary,
+published context PR201, PR173 reviews and post-merge issue174 discovery, and
+PR175 review rounds. Completed reviews do not mark the safety fix approved.
+Existing Claude merge/rollback milestones were retained. All seven changed rows
+were read back and matched their intended fields. Dashboard handoff to David
+confirmed4079. No runtime code or rollout was changed. This documentation
+checkpoint remains local pending publication.
+
 ## PR175 re-reviewed at ed79a8a; two failure-path P1s remain (2026-11-09)
 
 Claude's handoff 4065 named **ed79a8ae9762a7fca1c4362f3185c256cf82d187** on
