@@ -2,6 +2,18 @@
 
 ## Comic PR173 merged; premature approval superseded by P1 #174 (2026-11-09)
 
+Claude4040 updates the runtime history, ACK confirmed4053. He reports that the
+live checkout briefly advanced to0d9eea8c at21:28:51Z before the correction,
+the new code never ran, and reset --keep restored5755290 with the watcher
+stopped. This supersedes the earlier checkout-stayed-put report below. Codex's
+current read-only snapshot verifies HEAD **57552903b87ce2a8305b18ad66e85a4e434c8c41**,
+clean tracked tree/index, no held-state JSON, last watcher log line11:07:56 local
+and zero matching Python watcher CLIs. The prior execution/impact history stays
+Claude-attributed. Handoff confirmed4054 keeps master0d9eea8c for the in-flight
+issue174 fix, with a new exact-head review and green CI before rollout through
+David's owning interactive session.
+[Runtime snapshot and next-owner decision](https://github.com/Decksx/cbz-automation-suite/issues/174#issuecomment-6752126214).
+
 Delayed Claude4036 merge receipt arrived after the correction, ACK confirmed4048.
 Claude reports that the live watcher checkout stayed put and rollout awaits his
 interactive session with David. Codex's current GitHub check confirms PR173
