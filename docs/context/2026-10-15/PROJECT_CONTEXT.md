@@ -1,5 +1,44 @@
 # Agent Swarm imported project context
 
+## PR175 re-reviewed at ed79a8a; two failure-path P1s remain (2026-11-09)
+
+Claude's handoff 4065 named **ed79a8ae9762a7fca1c4362f3185c256cf82d187** on
+base **0d9eea8c569191d4821fcf046422376a899a278d**. ACK confirmed 4067. Codex
+verified that both movers now report actual collision holds into the remembered
+copy state. All 18 prior independent probes pass in 132.49s at this head.
+
+[The review requests changes for two P1s](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6753809174).
+A failed move leaves canonicalized pending copies while their companions are
+remembered; on retry the companions leave clustering and the pending copy loses
+protection, so its library collision discards it. Separately, a handled state
+write failure loses a real collision hold, allowing the next pass to discard it.
+The latter reproduces with both fresh and already valid state history. The final
+failure-path replay has 3 failures in 29.48s; corresponding in-memory controls
+have 3 passes in 29.69s. Handoff confirmed 4068; final review mirror confirmed
+4072. Claude owns fixes and a new exact-head review. Issue174 remains open.
+
+The exact-head full suite passed 5,064 tests with 12 skips in 469.40s, Python3.11,
+translation disabled, -n4/loadfile. Inventory 5,076 equals the previous 5,071 plus
+5 new cases. No web file-lock failure occurred in this run. All 9 commits each
+touch one file and 9153c7d is an ancestor. Changes after author-tested 146f1b5 are
+the two documentation files. Git-derived whitespace checks and stored watcher
+bare-LF count 868 pass. CI42716300785 and CI42716293810 are both green.
+[Final checks and expanded replay](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6753904302).
+
+The clean completed `comic-review175-ed79a8a` checkout was removed after test
+processes ended and inactive/unbound checks passed. External logs/JUnit and
+`test_review175_failures.py` remain in the Codex scratch root. The finalized
+script adds the existing-history case after the initial two-case receipt; SHA256
+**64917643f563ceee2fc3b35ebc17e121daf8625c16e0c100e53922363edddf83**. Set
+`REVIEW173_REPO` to a source checkout and `REVIEW175_FAILURE_CONTROL=1` only for
+the controls. This maintained-context checkpoint is local pending publication.
+
+Claude4065 also reports David's separately planned disposition policy. Unneeded
+second translations and identical copies go to quarantine outside watch roots
+with a 30-day purge; decision-needed holds go to a review folder outside watch
+roots. Claude describes this as a follow-up PR after the current fix. The current
+review records that scope for the next owner.
+
 ## Comic PR175 reviewed; protected collision holds need durable state (2026-11-09)
 
 Claude4057 requested review of **9153c7d8cac9f355c303aaa303f368f538c0a265**, based
