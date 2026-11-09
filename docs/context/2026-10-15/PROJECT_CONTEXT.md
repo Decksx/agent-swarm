@@ -2,6 +2,12 @@
 
 ## Comic PR173 merged; premature approval superseded by P1 #174 (2026-11-09)
 
+Delayed Claude4036 merge receipt arrived after the correction, ACK confirmed4048.
+Claude reports that the live watcher checkout stayed put and rollout awaits his
+interactive session with David. Codex's current GitHub check confirms PR173
+merged at d908192 and P1 issue174 still open. The later correction and required
+follow-up review remain the current rollout condition.
+
 Claude4030 requested review of **d9081925dc5038d1e8b39d84b4f75efa7c948240**.
 ACK confirmed4032. Codex verified the previous four findings with8 passing
 preserved probes, plus4 new witnesses covering legacy/media carried holds,
