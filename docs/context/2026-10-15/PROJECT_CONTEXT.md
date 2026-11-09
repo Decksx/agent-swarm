@@ -1,5 +1,64 @@
 # Agent Swarm imported project context
 
+## Comic #164 complete; PR172 merge independently verified (2026-11-09)
+
+Claude's merge handoff4007 ACK confirmed4009. Codex independently checked GitHub
+PR172 and issue164. PR172 merged as **c9bba0fa04214dea35f0c39124994e60edc7694a**,
+with parents **ab5eb500015533a62b458184448a9364d2b5ef6b** and reviewed head
+**ed181334f3c107ae49badeb3b06ba0586f12f505**. Both merge and head have tree
+**e869975c491239d43257459c66332f13f5648397**. Pull-request CI42675486922 and push
+CI42673797972 are completed/success at exacted18133. Issue164 is closed. This
+supersedes the review/CI/merge-pending checkpoint below.
+[Independent closure receipt](https://github.com/Decksx/cbz-automation-suite/pull/172#issuecomment-6748449953).
+
+Claude's separate ticking-clock plugin passed the candidate, failed the base at
+the duplicate-target assertion, passed the base with the real clock and passed
+all11 head-file tests. Those are Claude-attributed checks, read from his
+[merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/172#issuecomment-6748390079).
+Codex's own baseline, candidate and mutation checks remain in the earlier entry.
+
+Codex removed its clean pushed `comic-164-backup-fixture` worktree after known
+test processes completed and Claude handed the review back. No process command,
+relay, task, service or shortcut referenced it. The directory and worktree
+registration are absent; sibling `comic-164-*` logs/JUnit/probes remain. Relay
+status keeps the live successor bound to `review159-successor\agent-swarm`.
+This maintained-context branch `docs/successor-164-context-20261109` is being
+published for peer review. Claude owns #158 B2 next and the upcoming review
+handoff. Codex's #164 work is complete.
+
+## Successor live; comic #164 handed to Claude for review (2026-11-09)
+
+Codex successor thread `01a1c184` read the handoff and independently measured
+workspace HEAD `f319a4647f96c94af125e52fbc4ea801ee034f62` and Codex PID11268.
+Canary ACK confirmed3989 and CANARY OK confirmed3990. The successor handoff's
+current process rule supersedes historical desktop-broker instructions below.
+Processes stay in the inherited Job Object. A lifetime test requiring another
+context needs a question to Claude or admin. This canary proves successor relay
+delivery and response for this run.
+
+Codex owns comic164, ACK3993. [PR172](https://github.com/Decksx/cbz-automation-suite/pull/172)
+contains one file in one commit, exact **ed181334f3c107ae49badeb3b06ba0586f12f505**,
+from master **ab5eb500015533a62b458184448a9364d2b5ef6b**. The backup test helper
+uses fixed ZipInfo metadata for both entries so repeated payloads yield identical
+archive bytes. Local Python3.11 baseline and candidate each passed5019/skipped12,
+with identical5031-case inventories and skipped identities. Translation was off.
+Focused11 passed. An injected ZIP timestamp boundary fails the original duplicate
+assertion and passes the fixed fixture without reading the clock. In-memory
+mutations are caught by the duplicate-target assertion and installed-backup SHA
+verification. Diff check passes and working-tree CRLF endings were preserved.
+
+Push CI42673797972 attempt2 passed5026/skipped5 at exacted18133. Attempt1 had a
+GitHub internal startup error with zero jobs. PR integration CI42675486922 was
+running at handoff, so its successful receipt remains a merge prerequisite.
+[Exact review evidence and next owner](https://github.com/Decksx/cbz-automation-suite/pull/172#issuecomment-6748240794)
+reached the PR and hive HANDOFF confirmed4001. Claude owns independent review and
+pinned merge after current integration CI passes. The clean open-PR worktree is
+`C:\Users\david\.codex\worktrees\comic-164-backup-fixture`; it stays until the PR
+ends and inactive/unbound checks pass. Full local logs, JUnit XML and probe scripts
+are retained alongside it as `comic-164-*`. This context checkpoint is local on
+`docs/successor-164-context-20261109`, pending publication with later receipts.
+Claude's watcher-partial-deferral review is the expected incoming handoff.
+
 ## D1 comic170 merged; integration tree verified (2026-11-04 UTC)
 
 Delayed relay3945 ACK confirmed3969; its pending-manual-test state and1d36e495
