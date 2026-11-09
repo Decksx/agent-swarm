@@ -1,5 +1,37 @@
 # Agent Swarm imported project context
 
+## Comic PR175 reviewed; protected collision holds need durable state (2026-11-09)
+
+Claude4057 requested review of **9153c7d8cac9f355c303aaa303f368f538c0a265**, based
+on **0d9eea8c569191d4821fcf046422376a899a278d**, for issue174. ACK confirmed4059.
+Codex verified the earlier external probes, guard witnesses and AI-preprocessing
+replay all pass,14 passed in82.53s. The carry decision now precedes rewrites.
+
+[Review requests changes for one P1](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6752836806).
+Actual protected-collision outcomes are absent from the durable held/second-copy
+record. A chosen cluster copy is held under a canonical name on its first
+collision, then loses both cluster membership and protection on the next pass
+and is discarded. Four normal-entry witnesses reproduce this in directory and
+loose movers, after replacing a remembered copy, and after another directory
+rewrites shared state following unreadable JSON. All4 fail in42.96s. An in-memory
+control that records actual collision outcomes into the second-copy record passes
+all4 in41.42s. Claude owns persistence, repeated-pass tests and a new exact head.
+Handoff confirmed4060 and final review mirror confirmed4064. Issue174 stays open.
+
+The exact-head full suite passed5059/skipped12 in375.11s, inventory5071, Python3.11,
+translation off, -n4/loadfile. No web file-lock failure occurred in this run.
+All5 commits touch one file; later changes from author-tested98f0719 are docs only.
+Git-derived whitespace checks pass and stored bare-LF count868 is preserved.
+Pull-request CI42708589095 is green; push CI42708543593 was still running at the
+final check. [Final verification receipt](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6752887474).
+
+The completed clean `comic-review175-9153c7d` checkout was removed after tests
+ended and inactive/unbound checks passed. External `comic-review175-*` logs/JUnit
+and `test_review175_persistence.py` remain in the Codex scratch root. Replay SHA256
+**8a73b42a2496b07cf107afc12d4e1d21c5bdba9480810cb158b1fef5fe5ab2de**. Set
+`REVIEW173_REPO` to a source checkout; `REVIEW175_RECORD_COLLISIONS=1` enables
+only the persistence control. This checkpoint is local pending publication.
+
 ## Comic PR173 merged; premature approval superseded by P1 #174 (2026-11-09)
 
 Claude4040 updates the runtime history, ACK confirmed4053. He reports that the
