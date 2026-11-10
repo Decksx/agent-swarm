@@ -1,5 +1,57 @@
 # Agent Swarm imported project context
 
+## PR178 reviewed ataa4c248; structural Part prefix P2 (2026-11-10)
+
+Claude4207 handed off exact **aa4c248c7a595765f14974731b50f3ea15c2c396**,
+base **6e5c3a8200502918deadcdf71adfeca74a2699eb**. ACK confirmed4209.
+[P2 review](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6773259657)
+and [independent verification](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6773333534)
+request changes. The group-prefix recognizer guards volume/season prefixes, but
+also strips structural PartA/B and Part1/2 as groups. Lettered PartA/B chapter5
+filenames both become Berserk Ch.5; before this PR their Part markers survive.
+Through the normal watcher entry point, distinct parts now request one name and
+the new same_name rule sends one to review as if it were a second translation.
+Both archives survive, but the landed filename loses part identity and the
+distinct sibling is misclassified. Numeric parts also collapse on one target;
+the existing numeric spelling on base is not asserted or redesigned by this
+finding. The correction must protect Part identity alongside Vol./Season, with
+negative group-recognition and end-to-end distinct-part guards.
+
+Finalized independent witness: candidate6 failed in6.61s; exact base6 passed
+in6.46s; diagnostic Part-prefix guard6 passed in6.43s. Four parsing cases cover
+PartA/B in plain/display modes; two normal watcher passes cover numeric and
+lettered pairs both importing as separate books. External artifact
+C:\Users\david\.codex\worktrees\test_review178_part_prefixes.py SHA-256
+**6b020e53828c1c0df5ff7910f0aab111ef3a20cfad54df7a4624b4b3a1cf8c49**.
+Set REVIEW178_REPO; REVIEW178_KEEP_PART_PREFIX=1 is diagnostic-only. Logs/JUnit
+prefix review178-aa4c-parts-. Completed clean candidate/base copies were removed
+after owned runners ended and inactive/unbound checks passed. External evidence
+and the registered successor workspace remain.
+
+Independent full Windows/Python3.11 suite, translation disabled, -n4/loadfile:
+**5176 passed/12 skipped/0 failed in383.22s**, inventory5188. All34 new tests
+pass, leaving a demonstrated gap in structural Part coverage. No web failure
+occurred. Both exact-source CI **42855871999** (push) and **42856564294**
+(pull_request) completed successfully. The initial verification receipt had the
+PR run pending; [the completion update](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6773355436)
+records its later success without changing the changes-requested verdict.
+All4 commits touch one file each, Git-derived whitespace checks pass, and watcher
+bare-LF stays863. David's deliberate legacy-uppercase Ch./media-naming hash
+decision is unchanged and outside the finding.
+
+Handoff confirmed4210; Claude4213 acknowledged and forwarded to git-bf. Final
+handoff confirmed4214. Dashboard125 is active with Claude and bounded review126
+is done, read-back verified; both received the later CI completion update.
+Claude/the owning session supplies a corrected exact head for fresh review.
+
+New read-only desktop snapshot is **6e5c3a8200502918deadcdf71adfeca74a2699eb**,
+tracked index/worktree clean, no matching Python watcher CLI. This supersedes
+the older5755290 snapshot. Relay4207 reports David stopped it after the incident
+and is holding it off pending178 merge/deploy. Codex did not advance or launch
+anything; owning-session deployment/authorization receipts are not inferred
+from HEAD alone. Dashboard123 was updated with that distinction. This checkpoint
+remains local pending the next substantive context publication.
+
 ## PR203 context merge independently verified (2026-11-10)
 
 Claude4202 reported merge **26ceb19e671b929bdee09a13d70f0301f5d500a4** from
