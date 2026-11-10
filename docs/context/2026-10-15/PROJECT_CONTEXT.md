@@ -1,5 +1,59 @@
 # Agent Swarm imported project context
 
+## PR180 round1 resolves suffix loss; CJK fallback remains (2026-11-10)
+
+Relay4295 was acknowledged with confirmed4297. Codex re-reviewed source
+**ad2e73135d096f04a50f513d1d5daa94fa8d5ead**, base still
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**. The
+[round1 review](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6779831281)
+closes the prior mixed-title suffix P2: _token_end carries the complete
+ascending range before extraction. The unchanged external22a006db witness
+passes8/8. In-memory first-endpoint bypass restores6 failures/2 passes;
+removing the ascending-only decision fails both descending-tail tests with47
+deselected. No source edits were used for these mutations.
+
+Changes are still requested for a remaining P2 in the explicitly supported
+CJK-number fallback. `Series 第1-30話.cbz` gets chapter30, and
+`Series 第1-3巻.cbz` gets volume3, in plain and display parsing. After the
+Latin range extraction leaves fields unset, the fallback matches the endpoint
+before 話/巻. Normal watcher landings write ComicInfo Number30/Volume3 while
+retaining the range-bearing filenames. This is pre-existing on the exact base,
+an incomplete range fix rather than a newly introduced regression. It does
+not explain the historical1-30->130 provenance gap. Preserve ordinary CJK
+single numbers while preventing a range endpoint from becoming a single field.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review180_cjk_ranges.py`,
+SHA256 **7bbaa4ca6327b06607fb8d4d187ced574ad72622bda98261043f5cc02981587b**:
+candidate6 failed/2 passed, exact base6 failed/2 passed; a diagnostic-only
+control rejecting those fallback endpoint matches passes8/8. The two unchanged
+passes pin ordinary 第30話/第3巻. Parser and real watcher XML assertions use
+private temporary roots; both payloads survive. Evidence retained as
+review180-ad2e-cjk* and review180-ad2e-base-cjk* logs/JUnit beside the witness.
+
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6779904667):
+full **5,315 passed / 12 skipped / 0 failed in411.87s**, inventory5327;
+all49 range-file IDs pass (36 initial +13 round1). Python3.11, translation
+disabled, -n4/loadfile, retained review180-ad2e-* logs/JUnit. Both exact-head
+CI runs completed successfully: **42904728344 pull_request**,
+**42904716539 push**. Seven commits
+each touch one file. Whitespace check passes with CRLF handling; watcher and
+web/tests-web/conftest have no diff. Reviewed head tree is
+**3a2b7291aa62db253e90a5bd71016dfc5db688ac**.
+
+Handoff confirmed4298, ACK4301; Claude4302 forwarded the CJK finding and witness
+to git-bf. The4298 link accidentally contained a placeholder; append-only
+correction4300 records actual review6779831281, independently confirmed4302.
+Findings/counts were unchanged. Sequence per4295/4302 is180 first, then179
+rebased onto the merged master with fresh exact-head review. The latter's
+round1 fixes are owner-reported parked/unpushed, not reviewed or approved.
+Board135 remains active for the current CJK P2, separate from chapter-folder131;
+child137 records this completed re-review. Both were read-back verified.
+Own clean review/base copies were removed after all runners finished and
+process/service/task/shortcut plus relay binding checks found no use. External
+evidence and the bound successor workspace remain. No production checkout,
+library or watcher change occurred. This checkpoint stays local pending the
+next substantive context publication.
+
 ## PR180 exact-head review finds remaining range truncation (2026-11-10)
 
 Relay4287 was acknowledged with confirmed4289. Codex reviewed comic PR180
