@@ -1,5 +1,59 @@
 # Agent Swarm imported project context
 
+## PR178 approved at3667c22; pinned merge and owning-session rollout next (2026-11-10)
+
+Claude4240 handed off exact **3667c22e12a1b717c7815e5f92ecb94e5bf2ea90**,
+base **6e5c3a8200502918deadcdf71adfeca74a2699eb**. ACK confirmed4242.
+[Codex approves this exact head](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6776283966),
+tree **75a825569e0a2064924717612ac885907059b5a6**, with no remaining blocking
+finding in the reviewed downloader-name and conservative identity policy.
+This supersedes earlier changes-requested verdicts on prior PR178 candidates.
+
+The prefix classifier now combines digits, the unchanged shared Part grammar,
+canonical special words, and the complete earlier structural word contract,
+including part/side/plural aliases. Compact and separator-tolerant spellings
+remain covered. All previously reported P2 cases are closed. Partners Scans
+and digit-bearing group names keeping legacy names remain accepted conservative
+behavior; the reported69/70 live-prefix sample is attributed author evidence.
+The regex-cache limitation on mutation-proving object identity remains
+non-blocking; source inspection confirms the direct shared reference.
+
+Independent full Windows/Python3.11 suite, translation disabled, -n4/loadfile:
+**5266 passed/12 skipped/0 failed in377.98s**, inventory5278. All124 added tests
+pass (34+28+22+40); no web failure. Skips include unchanged host/configuration
+cases and2 native lifetime cases that cannot run inside this Job Object; no
+containment escape was attempted. Exact-source pull_request **42878008234**
+and push **42877998127** both completed successfully.
+
+All three independent replay files pass unmodified:27 passed in16.78s, including
+normal watcher passes importing distinct Part/Side books separately with review
+empty. Disabling _STRUCTURAL_WORD_RE in memory gives14 failures in21.09s,
+reproducing the identity and paired-book failures without source-file mutation.
+New external plugin C:\Users\david\.codex\worktrees\review178_3667_mutant.py,
+SHA-256 **8c8a210f06fb758d97033db6abb1597e3b3c651dc70ab67c0c64b524671fcfa2**.
+Set REVIEW178_REPO, add the scratch root to PYTHONPATH and use
+-p review178_3667_mutant; REVIEW178_DISABLE_STRUCTURAL_GUARD=1 is diagnostic-only.
+Earlier probe files/hashes remain unchanged; logs/JUnit prefix review178-3667-.
+
+All14 commits touch one file; whitespace checks pass. Watcher diff against
+8b3891f is empty, retaining bare-LF863; PART_MARKER_RE is unchanged. Core blobs
+remain LF. The clean completed review copy was removed after owned runners
+ended and inactive/unbound checks passed. External evidence and the registered
+successor workspace remain. Codex refreshed the PR summary to final behavior,
+counts, tradeoffs and review evidence, then read it back with head unchanged.
+
+Preliminary status confirmed4243; approval handoff confirmed4244. Dashboard125
+is in review awaiting pinned merge; completed approval129 was added, read-back
+verified. Claude owns the pinned merge with exact parent/tree and CI receipt.
+Changed candidates need fresh review. Current desktop snapshot remains6e5c3a8,
+tracked index/worktree clean, no matching Python watcher CLI. David's deliberate
+uppercase legacy Ch./media-naming policy remains unchanged. This is code
+approval, not an instruction to start the watcher: the owning interactive
+session retains rollout/authorization receipts and David's operational gate.
+No Codex deployment, live checkout advance or watcher launch. Earlier local
+publication notes retain their original timing; this publication consolidates
+the post203 receipts and all four PR178 review rounds.
+
 ## PR178 round3 at8b3891f; refactor regresses earlier structural guards (2026-11-10)
 
 Claude4229 handed off exact **8b3891f73a40d50e1b57caec23938fdb36f98600**,
