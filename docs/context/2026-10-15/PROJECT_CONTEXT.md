@@ -1,5 +1,546 @@
 # Agent Swarm imported project context
 
+## PR176 pinned merge verified; claim-first/resume and rollout remain pending (2026-11-09)
+
+Claude4152 reported PR176 merged from the approved exact
+**408b10a7922ad5f7878c1ef567dcb112b9c04ea0**. ACK confirmed4154. Codex
+independently verified merge **9c267752754180f048e4bb1f7c333f7e56f24c57**,
+parents **0d9eea8c569191d4821fcf046422376a899a278d** and **408b10a7922ad5f7878c1ef567dcb112b9c04ea0**,
+with merge/head tree **92b27da7d39d67ef63e3463bf6d58a3db43d2522**. Run42754698690
+is a completed successful pull_request run on408b10a;42754689497 is a completed
+successful push run on the same head. Identical tree parity retains the recorded
+full/probe evidence without a redundant suite rerun.
+[Independent merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6759162331).
+
+The desktop checkout remains **57552903b87ce2a8305b18ad66e85a4e434c8c41**;
+tracked worktree/index diffs are clean. The current snapshot has no matching
+Python watcher CLI process and no held-state JSON. Its latest local log batch
+entry is17:36, predating this merge; this records current state rather than
+asserting continuous inactivity since an earlier checkpoint. Codex did not
+advance that checkout or launch the watcher.
+
+Issue174 was independently checked open and received
+[the prerequisite receipt](https://github.com/Decksx/cbz-automation-suite/issues/174#issuecomment-6759162572).
+Claude/the owning interactive session owns the claim-first/resume follow-up,
+which needs a fresh exact-head review before rollout. Status confirmed4155.
+The following November9 entries preserve when checkpoints were still local;
+this publication consolidates them after PR201, including PR173's superseded
+approval, PR175 findings, the accepted replacement design and PR176's final
+review/merge. No controller approval is implied by these lead-run records.
+
+## PR176 approved at408b10a; pinned merge and claim-first follow-up next (2026-11-09)
+
+Claude4145 handed off **408b10a7922ad5f7878c1ef567dcb112b9c04ea0** on base
+**0d9eea8c569191d4821fcf046422376a899a278d**; ACK confirmed4147.
+[Codex approved this exact head](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6759057654),
+tree **92b27da7d39d67ef63e3463bf6d58a3db43d2522**, with no remaining blocking
+findings within the agreed single watcher-owned in-process concurrency scope.
+This supersedes earlier changes-requested verdicts on the prior candidates.
+
+The final whole-folder path uses os.rename only. Rename failure, including EXDEV
+or a destination appearing concurrently, merges files through destination
+ownership. The last demonstrated copytree bypass is closed. Two existing test
+files changed their race injection from shutil.move to os.rename; their archive
+preservation assertions remain. Independent-process writers require external
+serialization under the previously agreed boundary.
+
+Full exact-head suite:5108 passed/12 skipped/0 failed in342.26s, Windows/Python3.11,
+translation disabled, -n4/loadfile. Inventory5120 equals base5065 plus55. Both
+CI42754698690 and CI42754689497 are green. No web failure occurred locally.
+Final applicable/adapted independent probes:31 passed/2 deselected in2.84s.
+Removed marker/copytree hooks were replaced with behavioral ownership tests;
+the two deselected cases have an obsolete concurrent single-destination barrier.
+New coverage includes cross-volume contention/retry, empty/partial outputs,
+actual same-volume rename, destination-appeared merging and a real Windows
+junction alias. Disabling destination ownership gives8 failures/3 deselected
+in11.51s; all failures are contender-deferral/preservation assertions.
+
+All33 commits touch one file each; Git-derived whitespace checks pass and stored
+watcher bare-LF870 is preserved. Code/tests equal2a4b2e2, code finalf274502;
+the final difference is development-log-only. Codex refreshed the PR summary to
+final behavior, scope and verified counts, then read it back with head unchanged.
+External test_review176_rename_merge.py is retained, SHA256
+**1c688a4ca8266f17b23552e79e13e125331470fc639463d8561cde194f5413ac**.
+Set REVIEW176_REPO; REVIEW176_RENAME_NO_LOCK=1 only for the guard bypass.
+Logs/JUnit prefix review176-408b- remain in the scratch root. The clean completed
+review copy was removed after owned processes ended and inactive/unbound checks
+passed.
+
+Preliminary status confirmed4148; approval handoff confirmed4149. Dashboard111
+is in review awaiting the pinned merge receipt, and completed approval116 was
+added, read-back verified. Claude owns the pinned merge with exact parent/tree
+parity receipt and the claim-first/resume follow-up. A changed source candidate
+needs fresh review. Issue174 remains open and the watcher stays stopped at5755290
+pending follow-up review and rollout through the owning interactive session.
+This context checkpoint remains local pending publication.
+
+## PR176 re-reviewed at088f1d0; whole-directory copy bypasses ownership (2026-11-09)
+
+Claude4137 handed off **088f1d0932a43125c20522064475fa8dd6e8656d** on base
+**0d9eea8c569191d4821fcf046422376a899a278d**; ACK confirmed4139. Centralized
+per-file ownership closes the prior marker-observation gap in those paths.
+
+[P1 review](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6758097656):
+the new-series branch of _move_cbz_dir still calls shutil.move on the whole
+directory without participating in destination file ownership. Forcing its
+rename to report EXDEV invokes the real move/copytree fallback. Pause an output
+copy, let a second directory/loose import acquire the unowned filename and land,
+then resume the first real copy: it overwrites the second archive and removes
+its own source. Only the first original survives. Eight variants fail in2.51s;
+controls hold destination ownership during the copy,8 passes in2.39s. This stays
+within the agreed in-process scope. The same8 variants fail at unmodified base
+in1.75s, confirming an existing bypass still needing coverage. The baseline test
+variant only permits installing the unused quarantine fixture attribute absent
+on base; no baseline source was changed.
+
+Old applicable probes pass14/2 deselected in1.61s. The obsolete single-destination
+concurrency barrier cannot run under ownership. Adapted transaction tests pass6
+in1.05s: contenders defer then retry, and independent library destinations share
+quarantine safely. Bypassing exclusive reservation gives2 failures/4 deselected
+in0.93s. Removed marker hooks were replaced with behavioral ownership assertions.
+
+Full suite:5103 passed/12 skipped/1 failed in323.40s, Windows/Python3.11,
+translation disabled, -n4/loadfile; inventory5116 equals prior5110 plus6. The
+overflow web test reports the same WinError5 on index replacement previously
+reproduced at base. Selected candidate/base reruns pass1/1 in3.06s and3.29s
+respectively; these are partial reruns. Both CI42748456784 and CI42748449820
+are green. All26 commits touch one file each; whitespace checks pass; stored
+bare-LF870 matches the import change. Code/tests equaldf2c4b5, tests added at
+d86beef; later changes are the two documentation files.
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6758159668).
+
+External scratch probes retained: test_review176_directory_copy.py, SHA256
+**dc356924b4abdde45c17285c0499891f4c46e8f0f3242a0c8b7cd7b47e845422**;
+test_review176_owned_transactions.py, SHA256
+**1625736c764ef81966a5d249e1f6f31e641a8c83ac770c8d67adace5450648c0**.
+Set REVIEW176_REPO; copy controls additionally set
+REVIEW176_DIRECTORY_COPY_CONTROL=1. The reservation mutant sets
+REVIEW176_DISABLE_EXCLUSIVE_RESERVE=1. Baseline fixture variant, logs and JUnit
+remain alongside them. Clean candidate/base copies were removed after owned
+processes ended and inactive/unbound checks passed. Handoff confirmed4140;
+Claude4143 forwarded the publication/ownership fix to the owning session.
+Final status confirmed4144; dashboard111 stays active and completed review115
+was added, read-back verified. Claude owns fixes and a fresh exact head. Issue174
+and claim-first/resume remain open; watcher stopped at5755290 per Claude4143.
+This context checkpoint remains local pending publication.
+
+## PR176 re-reviewed atd47b7d8; stale marker clearance still loses a copy (2026-11-09)
+
+Claude4119 handed off **d47b7d85dc9ac6d8b7a67acc907d0ba933c9edd0** on base
+**0d9eea8c569191d4821fcf046422376a899a278d**; ACK confirmed4121. All16 earlier
+external probes pass in1.93s, including directory receipt propagation.
+
+[P1 review](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6757518090):
+arrival B observes no marker on a complete library book and pauses. A replaces
+that book with a marked reservation/partial copy. B resumes using stale clearance,
+quarantines A's live reservation and lands its own archive. A then overwrites B
+or deletes B during failed-copy cleanup. Sixteen variants fail in2.50s across
+merge/loose callers, legacy/resolver collision observers, empty/partial output
+and overwrite/cleanup outcomes. Diagnostic controls refresh the observation after
+the pause and defer,16 passes in2.25s. Another check still leaves a check/use
+window; transaction ownership is needed.
+
+Claude4126 asked which writers the repro establishes. Codex verified that these
+are two admitted timer callbacks in one watcher process; the resolver variant is
+a mover branch, not a separate process. M1 owns a Global mutex per physical watch
+root and does not serialize its owner's callbacks. No concurrent planner/apply/
+Camelia library writer was established. [Scope clarification](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6757585360)
+accepts a shared in-process lock per physical destination spanning decision,
+quarantine, landing, rollback and cleanup on all mover paths. Independent-process
+writers require external serialization, outside this guarantee. The earlier
+cross-process implementation requirement was broader than the demonstrated scope
+and is narrowed by this clarification. Handoff confirmed4129; Claude4132 forwarded
+the scoped fix to the owning session. Conservative crash-stale-marker/manual
+recovery can remain documented for this step.
+
+Full exact-head suite passed5098/skipped12 in330.73s, Windows/Python3.11,
+translation disabled, -n4/loadfile. Inventory5110 equals prior5091 plus19. No web
+failure occurred. Both CI42744361664 and CI42744355065 are green. All21 commits
+touch one file each; whitespace checks pass. Bare-LF871 is the documented869+2
+new imports in the LF block. Source/tests equal740b1b3, code final44ef41a;
+subsequent changes are the two documentation files.
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6757620133).
+
+External test_review176_marker_window.py remains in the Codex scratch root,
+SHA256 **bc9ca1e53a0a4890e0ece909e343664f2b0102e45037f662a5acef230823102a**.
+Set REVIEW176_REPO to a source checkout; diagnostic controls additionally set
+REVIEW176_MARKER_CONTROL=1. Logs/JUnit remain alongside it. The clean review copy
+was removed after owned tests ended and inactive/unbound checks passed. Initial
+handoff4122 had an incorrect comment URL, corrected by appended handoff4124.
+Final status confirmed4133; dashboard111 remains active and completed re-review114
+was added, read-back verified. Claude owns fixes and a fresh exact head; issue174
+and claim-first/resume remain open. Watcher stays stopped at5755290 per Claude4132.
+This context checkpoint remains local pending publication.
+
+## PR176 re-reviewed at04cfd9a; reservation lifetime remains unsafe (2026-11-09)
+
+Claude4107 handed off **04cfd9aa746c9b08131be4da3a57d09ee8c00b4e** on base
+**0d9eea8c569191d4821fcf046422376a899a278d**; ACK confirmed4109. Earlier six
+external probes pass in1.29s, including the loose-file receipt cases.
+
+[P1 review](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6756932998):
+an exclusive library filename reservation is visible to another import as an
+existing archive. That import can quarantine the live reservation/partial copy
+and land its own archive; the original placement then overwrites that archive,
+or deletes it during failed-move cleanup. Eight variants fail in1.66s across both
+movers, empty/partial outputs and overwrite/cleanup outcomes. Controls defer a
+collision with an active owner,8 passes in1.26s. The ownership contract must last
+through collision handling, publication and cleanup, including shared libraries.
+
+[Supplemental P2 and completed verification](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6757034492):
+directory merges ignore failed settlement outcomes and the directory mover still
+returns a successful landing when nothing completed. Two probes fail in0.76s;
+controls propagate the actual failed settlement,2 passes in0.63s. This is the
+directory counterpart of the now-fixed loose-file receipt finding.
+
+Full suite at this exact head:5077 passed/12 skipped/2 failed in317.65s,
+Windows/Python3.11, translation disabled, -n4/loadfile. Inventory5091 equals prior
+5082 plus9. Both failures are web-log index replacement WinError5. The overflow
+test reproduces the same error at unmodified base0d9eea8 in one of three selected
+runs; the other two pass. The eight-MiB writer test passes all three selected
+base runs, so its failure was not independently reproduced on base. A selected
+candidate rerun of both failing tests passes2/2 in6.97s. These are partial reruns;
+the full-suite result remains two failures. Web source/tests are unchanged.
+Both exact CI42740014479 and CI42740007821 are green. All13 commits touch one
+file each; whitespace checks pass; stored bare-LF869 is preserved. Source/tests
+equal0329446, code finala31177f; subsequent changes are documentation only.
+
+External scratch probes retained: test_review176_active_reservation.py, SHA256
+**ed5c8fe4f1840385ec087ea25ff9745dfca013c9978087dcf66540a32bb3db29**;
+test_review176_directory_receipt.py, SHA256
+**7e1b50508599744dc38dac5fcf61073c6e870a5ebc5bab13946c5243ba7e3cd3**.
+Set REVIEW176_REPO to a source checkout. Controls additionally set respectively
+REVIEW176_ACTIVE_RESERVATION_CONTROL=1 or REVIEW176_DIRECTORY_RESULT_CONTROL=1.
+Logs/JUnit remain alongside them. Both clean review copies were removed after
+owned processes ended and inactive/unbound checks passed.
+
+Handoffs confirmed4110/4114; final status confirmed4118. Claude4117 forwarded both
+findings to the owning session. Claude owns fixes and a fresh exact head;
+watcher remains stopped at5755290 per that report. Dashboard111 stays active and
+completed re-review113 was added, read-back verified. Claim-first/resume and
+issue174 remain open. This context checkpoint is local pending publication.
+
+## PR176 reviewed; quarantine ownership and failed-landing fixes needed (2026-11-09)
+
+Claude4097 handed off **2b01b791f24d66858d619981d4cd2ba822e0856e** on master
+**0d9eea8c569191d4821fcf046422376a899a278d**. ACK confirmed4099. This is step1
+of the accepted replacement plan: legacy collisions quarantine the losing copy,
+with no purge. Claim-first/resume follows separately; issue174 remains open.
+
+[Review requests changes](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6756380063).
+P1: unique_path selects an unreserved quarantine filename. Two admitted imports
+can choose the same path, then real Windows moves overwrite one distinct copy.
+Failure cleanup can also delete another completed placement at that name because
+existence does not establish ownership of a partial output. Both variants fail
+through both movers,4 failures in0.97s. Diagnostic controls select distinct
+UUID-suffixed targets,4 passes in0.79s. P2: a handled quarantine failure or
+replacement rollback still increments the loose-file moved count and returns a
+successful landing, feeding existing post-move hooks despite the arrival and
+library remaining unchanged. Two independent receipt probes fail in1.08s.
+
+The candidate's17 new tests pass in2.89s. Exact-head full suite passed5070 with
+12 skips in308.84s, Windows/Python3.11, translation disabled, -n4/loadfile.
+Inventory5082 equals base5065 plus17. Both CI42735834620 and CI42735824190 are
+green; no web file-lock failure occurred locally. All6 commits each touch one
+file; Git-derived whitespace checks pass. Stored watcher bare-LF869 matches the
+documented868 plus one added line beside an LF global declaration. Source/tests
+equal author-testedcc92cd9; the final change is development-log-only.
+[Final evidence](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6756416814).
+
+External scratch repros are test_review176_quarantine_race.py, SHA256
+**f016d3498fdd128d87036f3f76dd51b0675037589b5aaff58f22f6d10405d29f**, and
+test_review176_failed_landing.py, SHA256
+**139c9e2114b3816e528bf8d71729af5ad580b8ee37e0c2dbc60203e2c917f332**.
+Set REVIEW176_REPO to a source checkout; race controls additionally set
+REVIEW176_RACE_CONTROL=1. Logs/JUnit remain beside them. The clean completed
+review copy was removed after owned processes ended and inactive/unbound checks
+passed. Handoffs confirmed4100 and4104. Claude4103 forwarded findings to the
+owning session; Claude owns fixes and a fresh exact head. Watcher remains stopped
+at5755290 per that handoff. Dashboard111 remains active; completed review112 was
+added and read back. This context checkpoint is local pending publication.
+
+## Claim-first replacement direction accepted for issue174 (2026-11-09)
+
+Claude4090 relayed David's request to remove arrivals from the MEGA-synced watch
+tree before archive naming, ComicInfo or decensor changes. ACK confirmed4092.
+Codex accepted a new claim-first PR superseding175, with Claude implementing and
+Codex independently reviewing claim/resume. This accepts the design direction;
+issue174 stays open and175 at848e8e2 remains changes requested.
+
+[Concrete design/recovery contracts](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6755804279)
+are anchored to the reviewed848e8e2 readiness, routing, cleanup and startup code.
+Prepare the claim intent outside sync, then make the first arrival mutation a
+same-volume rename to a unique processing location. Validate physical root
+separation from sync/watch/library paths. A failed intent write or claim rename
+leaves watched content unchanged by the watcher. Startup reconciles payloads
+across the rename/record gap, preserves ambiguous/orphaned claims, and grants
+one active owner per claim. Recheck claimed inventory before edits and preserve
+original-source routing explicitly after relocation.
+
+Terminal review/quarantine placement can encode disposition, but interrupted
+claims still require recovery protection: a crash after naming and before moving
+a hold must never turn that archive into ordinary keep-larger input. Preserve
+protection through cleaned-folder merges, failed disposition moves, partial
+library transfers and restart. AI originals remain backed up on C: before
+rewriting. The reported30-day retention applies to quarantine; processing and
+review items remain preserved. Earlier preservation assertions carry forward,
+with terminal-location assertions changed to processing/review/quarantine.
+
+[Issue174 records the design handoff](https://github.com/Decksx/cbz-automation-suite/issues/174#issuecomment-6755808241).
+Implementation handoff confirmed4093. Dashboard103 reflects the replacement
+direction and completed design review110 was added, read-back verified.
+New durable docs, boundary tests and
+mutation-checked guards, exact-head review, green CI and the owning interactive
+session's rollout gate remain required. The watcher stays stopped at5755290.
+This was source-based design review; no implementation tests or runtime changes
+were performed. The context checkpoint remains local pending publication.
+
+## PR175 re-reviewed at 848e8e2; restart and cleanup bypasses remain (2026-11-09)
+
+Claude4080 handed off **848e8e2e9c2c03573873dfd25a6a67b60f38ad6f** on base
+**0d9eea8c569191d4821fcf046422376a899a278d**; Codex ACK confirmed4082.
+All21 earlier independent probes pass in149.39s, including the three previous
+failure-path cases. Protection now survives those failures within one process.
+
+[The review requests changes for two P1s](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6755531658).
+A failed state write leaves the only new hold history in process memory. Losing
+that memory on restart lets the next pass discard a real collision hold, with
+both absent state and valid unrelated history. Same-process controls pass. The
+documented restart gap therefore still permits issue174's data loss.
+Separately, folder-name cleanup merges a tagged directory into its cleaned name
+before loading hold state, using unprotected keep-larger and changing the state
+key. A mixed drop point can durably hold Beta1, land its nested series, then lose
+Beta1 during cleanup when a fresh chapter triggers the next pass. Fresh-cluster
+and remembered-hold variants also fail at base0d9eea8; this is an existing bypass
+left open by the fix. No manual rename or state editing is needed.
+
+Final expanded replay has4 failures/2 passes in52.03s; diagnostic in-memory
+controls have6 passes in52.34s. The two cleanup variants fail at base in16.56s.
+External `test_review175_restart.py` remains in the Codex scratch root, SHA256
+**0ec7fc2876a6665bf14e331212e67dbd3675e2c7ae6dd5de8e47e343d787e48f**.
+Set `REVIEW173_REPO` to a source checkout; diagnostic controls additionally set
+`REVIEW175_RESTART_CONTROL=1` and `REVIEW175_CLEAN_MERGE_CONTROL=1`.
+
+The exact-head full suite passed5074/skipped12 in488.36s, Windows/Python3.11,
+translation disabled, -n4/loadfile. Inventory5086 equals prior5076 plus10 new
+cases. Both CI42728994944 and CI42728988443 are green. All15 commits each touch
+one file; Git-derived whitespace checks pass and stored watcher bare-LF count868
+is preserved. Source/tests equal author-tested004d728, with a later dev-log-only
+commit. [Final verification receipt](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6755571249).
+
+Handoffs confirmed4083 and4087. Claude4086 forwarded the findings to the owning
+interactive session and reports the watcher still stopped at5755290. Claude
+owns fixes and fresh exact-head review; issue174/PR175 remain open. Dashboard
+card103 stays active and completed review card109 was added, read-back verified.
+Both clean review copies were removed after completed processes and unbound
+checks; external evidence remains. This context checkpoint is local pending
+publication.
+
+## Dashboard updated with November 9 deliverables (2026-11-09)
+
+David4073 requested today's completed work on the dashboard; Codex ACK confirmed
+4077. Using the supported lead-chat board API, Codex refreshed comic card100
+with the implementation and exact-head verification of issue164/PR172, corrected
+card101's PR173 approval and transient-checkout history, and kept card103 active
+under Claude for PR175's two remaining failure-path P1s at ed79a8a. PR175 and
+issue174 were independently checked OPEN before updating. The watcher remains
+stopped at the previously verified 5755290 checkpoint.
+
+New completed deliverable cards105-108 record the bounded successor canary,
+published context PR201, PR173 reviews and post-merge issue174 discovery, and
+PR175 review rounds. Completed reviews do not mark the safety fix approved.
+Existing Claude merge/rollback milestones were retained. All seven changed rows
+were read back and matched their intended fields. Dashboard handoff to David
+confirmed4079. No runtime code or rollout was changed. This documentation
+checkpoint remains local pending publication.
+
+## PR175 re-reviewed at ed79a8a; two failure-path P1s remain (2026-11-09)
+
+Claude's handoff 4065 named **ed79a8ae9762a7fca1c4362f3185c256cf82d187** on
+base **0d9eea8c569191d4821fcf046422376a899a278d**. ACK confirmed 4067. Codex
+verified that both movers now report actual collision holds into the remembered
+copy state. All 18 prior independent probes pass in 132.49s at this head.
+
+[The review requests changes for two P1s](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6753809174).
+A failed move leaves canonicalized pending copies while their companions are
+remembered; on retry the companions leave clustering and the pending copy loses
+protection, so its library collision discards it. Separately, a handled state
+write failure loses a real collision hold, allowing the next pass to discard it.
+The latter reproduces with both fresh and already valid state history. The final
+failure-path replay has 3 failures in 29.48s; corresponding in-memory controls
+have 3 passes in 29.69s. Handoff confirmed 4068; final review mirror confirmed
+4072. Claude owns fixes and a new exact-head review. Issue174 remains open.
+
+The exact-head full suite passed 5,064 tests with 12 skips in 469.40s, Python3.11,
+translation disabled, -n4/loadfile. Inventory 5,076 equals the previous 5,071 plus
+5 new cases. No web file-lock failure occurred in this run. All 9 commits each
+touch one file and 9153c7d is an ancestor. Changes after author-tested 146f1b5 are
+the two documentation files. Git-derived whitespace checks and stored watcher
+bare-LF count 868 pass. CI42716300785 and CI42716293810 are both green.
+[Final checks and expanded replay](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6753904302).
+
+The clean completed `comic-review175-ed79a8a` checkout was removed after test
+processes ended and inactive/unbound checks passed. External logs/JUnit and
+`test_review175_failures.py` remain in the Codex scratch root. The finalized
+script adds the existing-history case after the initial two-case receipt; SHA256
+**64917643f563ceee2fc3b35ebc17e121daf8625c16e0c100e53922363edddf83**. Set
+`REVIEW173_REPO` to a source checkout and `REVIEW175_FAILURE_CONTROL=1` only for
+the controls. This maintained-context checkpoint is local pending publication.
+
+Claude4065 also reports David's separately planned disposition policy. Unneeded
+second translations and identical copies go to quarantine outside watch roots
+with a 30-day purge; decision-needed holds go to a review folder outside watch
+roots. Claude describes this as a follow-up PR after the current fix. The current
+review records that scope for the next owner.
+
+## Comic PR175 reviewed; protected collision holds need durable state (2026-11-09)
+
+Claude4057 requested review of **9153c7d8cac9f355c303aaa303f368f538c0a265**, based
+on **0d9eea8c569191d4821fcf046422376a899a278d**, for issue174. ACK confirmed4059.
+Codex verified the earlier external probes, guard witnesses and AI-preprocessing
+replay all pass,14 passed in82.53s. The carry decision now precedes rewrites.
+
+[Review requests changes for one P1](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6752836806).
+Actual protected-collision outcomes are absent from the durable held/second-copy
+record. A chosen cluster copy is held under a canonical name on its first
+collision, then loses both cluster membership and protection on the next pass
+and is discarded. Four normal-entry witnesses reproduce this in directory and
+loose movers, after replacing a remembered copy, and after another directory
+rewrites shared state following unreadable JSON. All4 fail in42.96s. An in-memory
+control that records actual collision outcomes into the second-copy record passes
+all4 in41.42s. Claude owns persistence, repeated-pass tests and a new exact head.
+Handoff confirmed4060 and final review mirror confirmed4064. Issue174 stays open.
+
+The exact-head full suite passed5059/skipped12 in375.11s, inventory5071, Python3.11,
+translation off, -n4/loadfile. No web file-lock failure occurred in this run.
+All5 commits touch one file; later changes from author-tested98f0719 are docs only.
+Git-derived whitespace checks pass and stored bare-LF count868 is preserved.
+Pull-request CI42708589095 is green; push CI42708543593 was still running at the
+final check. [Final verification receipt](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6752887474).
+
+The completed clean `comic-review175-9153c7d` checkout was removed after tests
+ended and inactive/unbound checks passed. External `comic-review175-*` logs/JUnit
+and `test_review175_persistence.py` remain in the Codex scratch root. Replay SHA256
+**8a73b42a2496b07cf107afc12d4e1d21c5bdba9480810cb158b1fef5fe5ab2de**. Set
+`REVIEW173_REPO` to a source checkout; `REVIEW175_RECORD_COLLISIONS=1` enables
+only the persistence control. This checkpoint is local pending publication.
+
+## Comic PR173 merged; premature approval superseded by P1 #174 (2026-11-09)
+
+Claude4040 updates the runtime history, ACK confirmed4053. He reports that the
+live checkout briefly advanced to0d9eea8c at21:28:51Z before the correction,
+the new code never ran, and reset --keep restored5755290 with the watcher
+stopped. This supersedes the earlier checkout-stayed-put report below. Codex's
+current read-only snapshot verifies HEAD **57552903b87ce2a8305b18ad66e85a4e434c8c41**,
+clean tracked tree/index, no held-state JSON, last watcher log line11:07:56 local
+and zero matching Python watcher CLIs. The prior execution/impact history stays
+Claude-attributed. Handoff confirmed4054 keeps master0d9eea8c for the in-flight
+issue174 fix, with a new exact-head review and green CI before rollout through
+David's owning interactive session.
+[Runtime snapshot and next-owner decision](https://github.com/Decksx/cbz-automation-suite/issues/174#issuecomment-6752126214).
+
+Delayed Claude4036 merge receipt arrived after the correction, ACK confirmed4048.
+Claude reports that the live watcher checkout stayed put and rollout awaits his
+interactive session with David. Codex's current GitHub check confirms PR173
+merged at d908192 and P1 issue174 still open. The later correction and required
+follow-up review remain the current rollout condition.
+
+Claude4030 requested review of **d9081925dc5038d1e8b39d84b4f75efa7c948240**.
+ACK confirmed4032. Codex verified the previous four findings with8 passing
+preserved probes, plus4 new witnesses covering legacy/media carried holds,
+settled-cache content changes and two refused preferences before a valid third
+copy. Three in-memory mutation groups were caught by4 failing executions.
+The full exact-head suite passed5053/skipped12 in373.77s, inventory5065. All19
+commits touch one file; bare-LF count868 and Git-derived whitespace checks pass.
+The author-testedeb98c51 differs only in the development log.
+
+Codex initially approved in comment6751898344 and handoff confirmed4033, with
+push CI still pending. That approval was premature. A further normal-entry
+probe showed that AI reprocessing rewrites remembered second copies before
+`_carried_second_copies` checks their hashes. An Alpha4 arrival makes the held
+Beta1/2 go through that rewrite, lose their carry status, receive the library
+chapter names and get discarded by the merge. The replay uses temporary ZIPs,
+temporary rollback backups and a deterministic AI rewrite, with the real import,
+naming and merge paths. Its two-case result is1 failed/1 passed in21.18s; the
+unchanged control preserves both holds. Capturing the carry decision before
+preprocessing makes the rewrite control pass,1 passed in10.67s.
+
+PR173 had already merged as **0d9eea8c569191d4821fcf046422376a899a278d** when the
+remaining P1 was confirmed. The commit API verifies parentsc9bba0f+d908192 and
+tree **68bdee06db7292938d933eb53cf2189d3c478316**, equal to the reviewed source and
+integrationf9fb74bc9f285532808c8daf408ad99051877265. Both CI42700827486/42700839028
+are green at exactd908192. These passing checks omit the preprocessing case.
+[The appended correction supersedes approval](https://github.com/Decksx/cbz-automation-suite/pull/173#issuecomment-6751965611).
+
+Codex filed [P1 issue174](https://github.com/Decksx/cbz-automation-suite/issues/174),
+with Claude owning the follow-up and a new exact-head review before rollout.
+Urgent correction confirmed4037, issue handoff confirmed4042 and final review
+mirror confirmed4046. [Final controls and merge evidence](https://github.com/Decksx/cbz-automation-suite/issues/174#issuecomment-6752043907).
+Replay `test_review173_r2_preprocessing.py` SHA256
+**de49c3d1fecf2378e3376711aa1ffb96a4e1d40c93f089e962074c712658bced** and all
+`comic-review173-r2-*` logs/JUnit remain outside Git under the Codex scratch root.
+The completed clean `comic-review173-d908192` checkout was removed after tests
+ended and inactive/unbound checks passed. This checkpoint is local pending
+publication with subsequent maintained context.
+
+## Comic PR173 reviewed; four changes requested at c280581 (2026-11-09)
+
+Claude4022 supplied exact **c2805816e7cb0fb9f76fc6b8c881484f0b525425** on base
+**c9bba0fa04214dea35f0c39124994e60edc7694a** for the preserved watcher work.
+ACK confirmed4024. Codex independently reviewed per-archive holds, held-state
+invalidation, repeated-number handling and duplicate-group selection. This
+supersedes the earlier no-exact-commit-review-pending state.
+
+[Engineering review requests changes](https://github.com/Decksx/cbz-automation-suite/pull/173#issuecomment-6749784224)
+for four P2 findings. Failed deferred-name moves are cached as deliberate holds;
+different year/season variants are falsely grouped; same-size/mtime replacement
+inherits the old skip decision; a majority copy refused by media naming suppresses
+a valid sibling. Five selected normal-entry probe cases fail on this head. Four
+matching cases pass on unchanged base, and an in-memory duplicate-bypass control
+lands the valid sibling while leaving the invalid preferred copy held. The
+findings are independent of the author's reported web file-lock flakes.
+
+Codex's focused suite passed277 in190.49s. Full candidate suite passed5041/skipped12
+in347.59s, Python3.11, translation off, -n4/loadfile. Inventory5053 equals base5031
+plus22 documented new cases. No web failure occurred in this run. CI42685176995
+and42685226492 are green at the exact source head. All11 commits each touch one
+file; Git-derived whitespace exclusions pass, and stored watcher bare-LF counts
+match865->868. These passing checks accompany the reproduced findings.
+[Final checks and replay receipt](https://github.com/Decksx/cbz-automation-suite/pull/173#issuecomment-6749885891).
+
+Handoff confirmed4025; final review mirror confirmed4029. Claude owns fixes,
+regression tests and a new exact-head handoff for renewed review. Codex removed
+its completed `comic-review173-c280581` and `comic-review173-base-c9bba0f` checkouts
+after all test processes finished and inactive/unbound checks passed. Replay
+script, byte-identical fixture snapshot, full logs and JUnit XML remain outside
+Git under the Codex scratch root as `comic-review173-*` and
+`test_review173_probes.py`. Replay checks out the desired source and sets
+`REVIEW173_REPO` to it. This checkpoint remains local on
+`docs/successor-post201-20261109` for publication with subsequent context.
+
+## PR201 verified merged; watcher expectation traced to preserved work (2026-11-09)
+
+Claude4014 reports PR201 merged. ACK confirmed4016. Codex independently verified
+merge **d9b200d50bb9b5428a0d3ed8bc5a32f776a2f3ae**, parents **f319a4647f96c94af125e52fbc4ea801ee034f62**
+and reviewed **7c6e95acaf7b9a59135f5a67a617a4fb7eb15411**. Merge/head tree both
+**6ca9f6100e9a5313beedc4f18dc1f46ef2888ef1**. Run42677305309 names that source
+head and all4 jobs passed. Merge mirror confirmed4017. The bound successor
+workspace remains active. This supersedes the context-publication-pending state.
+[Verification and coordination receipt](https://github.com/Decksx/agent-swarm/pull/201#issuecomment-6748654874).
+
+The expected watcher review came from Claude's hive3991 at18:16:36Z and item1
+of his local successor handoff. Neither names an issue or PR. A query for
+`fix/watcher-partial-deferral` returned no PR in any state. Read-only inspection
+found its preserved uncommitted implementation at
+`C:\Users\david\AppData\Local\Temp\claude\C--git\253aba3c-369b-411b-a5c4-7efcf00a09bc\scratchpad\ca-defer`,
+HEADab5eb500015533a62b458184448a9364d2b5ef6b, with7 modified tracked files and3
+untracked. Its development log describes the same four watcher changes and
+attributes an operator request. Codex checked the artifacts without executing
+the unfinished changes. Handoff confirmed4018 returns this provenance to Claude
+for reconciliation with his current comic158 B2 incremental-catalog work.
+No exact-commit watcher review is pending yet. This closure checkpoint is local
+on `docs/successor-post201-20261109`, for publication with subsequent context.
+
 ## Comic #164 complete; PR172 merge independently verified (2026-11-09)
 
 Claude's merge handoff4007 ACK confirmed4009. Codex independently checked GitHub
