@@ -1,5 +1,62 @@
 # Agent Swarm imported project context
 
+## PR178 round3 at8b3891f; refactor regresses earlier structural guards (2026-11-10)
+
+Claude4229 handed off exact **8b3891f73a40d50e1b57caec23938fdb36f98600**,
+unchanged base **6e5c3a8200502918deadcdf71adfeca74a2699eb**. ACK confirmed4231.
+[Round3 P2 review](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6775342217)
+and [final verification](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6775417986)
+request changes. All13 earlier independent probes pass in10.37s: shared Part
+grammar and canonical special vocabulary close the prior reported spellings.
+The replacement, however, re-enables earlier protected structural prefixes.
+
+At d1bc97b the conservative set explicitly guarded part, side, extras and
+specials. The shared Part grammar accepts dot/whitespace but not a hyphen;
+the new list has parts and side story, omitting bare part/side. Canonical
+SPECIAL_WORDS contains singular Extra/Special and the whole-word matcher
+does not accept their plurals. Part-A/B, Side A/B, Extras and Specials now
+classify as groups and lose identity. Paired hyphenated parts or lettered sides
+request one Berserk Ch.5 target, so one is falsely sent to review; both survive,
+but a distinct book is wrongly held. Both pairs import separately at immediate
+predecessor d1bc97b. The correction should combine earlier conservative guards
+with existing grammar and retain the prior protected cases during refactoring.
+
+New independent preservation witness:14 failed in21.77s at head;14 passed
+in7.55s on immediate predecessor d1bc97b;14 passed in6.55s with the diagnostic
+earlier-guard control. Twelve parsing cases cover six prefixes in plain/display
+modes; two normal watcher passes cover hyphenated parts and lettered sides.
+Artifact C:\Users\david\.codex\worktrees\test_review178_preserved_guards.py,
+SHA-256 **8ca5d18dfec3e0873c12d5442b899edefab467b1b5c196685c74d4818bd4d305**.
+It imports the unchanged test_review178_part_prefixes.py helper. Set
+REVIEW178_REPO; REVIEW178_EARLIER_GUARDS_CONTROL=1 is diagnostic-only.
+Logs/JUnit prefix review178-8b389-. Clean completed candidate/predecessor copies
+were removed after owned runners ended and inactive/unbound checks passed.
+External evidence and the bound successor workspace remain.
+
+Independent full Windows/Python3.11 suite, translation disabled, -n4/loadfile:
+**5226 passed/12 skipped/0 failed in364.32s**, inventory5238. All84 added tests
+pass (34+28+22); no web failure. Both exact-source CI **42871231780**
+(pull_request) and **42871217245** (push) completed successfully. All11 commits
+touch one file each; whitespace checks pass. The repaired raw watcher diff
+against d1bc97b is4 added/1 removed lines, all additions CRLF, bare-LF863 on
+both sides; core blobs remain LF. This independently checks the committed
+repair described in the author's bypass-run process note.
+
+Partners Scans keeping its legacy name is accepted conservative behavior;
+the shared Part expression is unchanged and tightening it is outside this fix.
+The shared-reference mutation limitation is accepted: recompiling the same
+expression can hit Python's regex cache, while source inspection verifies the
+direct shared reference. Neither point is the blocking finding.
+
+Handoff confirmed4232; Claude4235 acknowledged, forwarded to git-bf and clarified
+that the intended fix is the union of earlier guards and shared grammar.
+Final handoff confirmed4236. Dashboard125 remains active with Claude; bounded
+review128 is done, read-back verified. Claude supplies a fresh corrected exact
+head. Current desktop snapshot remains6e5c3a8, tracked index/worktree clean,
+no matching Python watcher CLI. David's uppercase Ch./media-naming decision is
+unchanged. No Codex deployment, checkout advance or watcher launch. This
+checkpoint remains local pending the next substantive context publication.
+
 ## PR178 round2 atd1bc97b; compact Part and One-shot P2 remains (2026-11-10)
 
 Claude4218 handed off exact **d1bc97b4fcf7ba91d3f92304ce19c2399c301450**,
