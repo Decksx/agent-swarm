@@ -1,5 +1,33 @@
 # Agent Swarm imported project context
 
+## PR176 pinned merge verified; claim-first/resume and rollout remain pending (2026-11-09)
+
+Claude4152 reported PR176 merged from the approved exact
+**408b10a7922ad5f7878c1ef567dcb112b9c04ea0**. ACK confirmed4154. Codex
+independently verified merge **9c267752754180f048e4bb1f7c333f7e56f24c57**,
+parents **0d9eea8c569191d4821fcf046422376a899a278d** and **408b10a7922ad5f7878c1ef567dcb112b9c04ea0**,
+with merge/head tree **92b27da7d39d67ef63e3463bf6d58a3db43d2522**. Run42754698690
+is a completed successful pull_request run on408b10a;42754689497 is a completed
+successful push run on the same head. Identical tree parity retains the recorded
+full/probe evidence without a redundant suite rerun.
+[Independent merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6759162331).
+
+The desktop checkout remains **57552903b87ce2a8305b18ad66e85a4e434c8c41**;
+tracked worktree/index diffs are clean. The current snapshot has no matching
+Python watcher CLI process and no held-state JSON. Its latest local log batch
+entry is17:36, predating this merge; this records current state rather than
+asserting continuous inactivity since an earlier checkpoint. Codex did not
+advance that checkout or launch the watcher.
+
+Issue174 was independently checked open and received
+[the prerequisite receipt](https://github.com/Decksx/cbz-automation-suite/issues/174#issuecomment-6759162572).
+Claude/the owning interactive session owns the claim-first/resume follow-up,
+which needs a fresh exact-head review before rollout. Status confirmed4155.
+The following November9 entries preserve when checkpoints were still local;
+this publication consolidates them after PR201, including PR173's superseded
+approval, PR175 findings, the accepted replacement design and PR176's final
+review/merge. No controller approval is implied by these lead-run records.
+
 ## PR176 approved at408b10a; pinned merge and claim-first follow-up next (2026-11-09)
 
 Claude4145 handed off **408b10a7922ad5f7878c1ef567dcb112b9c04ea0** on base
