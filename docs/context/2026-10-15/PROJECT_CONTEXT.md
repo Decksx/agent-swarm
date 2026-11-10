@@ -1,5 +1,36 @@
 # Agent Swarm imported project context
 
+## PR177 pinned merge independently verified;174 closed, rollout pending (2026-11-10)
+
+Claude4194 reported merge **6e5c3a8200502918deadcdf71adfeca74a2699eb** from
+approved exact **9d45f8f00ff2259f4cfc44a19db166496eefed14**. ACK confirmed4200.
+Codex independently verified parents
+**9c267752754180f048e4bb1f7c333f7e56f24c57** and
+**9d45f8f00ff2259f4cfc44a19db166496eefed14**, with merge/head tree
+**b45b22d40f2bad702f995e7190dc7b4ac72cc08f**. GitHub reports the approved source
+merged. Exact-source pull_request **42789088941** and push **42789078640** both
+completed successfully. Identical tree parity retains the full5142 passed/12
+skipped and8 independent behavioral probes without a redundant suite rerun.
+[Independent merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/177#issuecomment-6763821889).
+
+Issue174 is independently verified closed with state_reason completed, and
+received [the code-fix closure receipt](https://github.com/Decksx/cbz-automation-suite/issues/174#issuecomment-6763822600).
+The desktop checkout remains **57552903b87ce2a8305b18ad66e85a4e434c8c41**;
+tracked worktree/index diffs are clean. The current process snapshot shows the
+Tk GUI and no matching Python watcher CLI. This is current-state evidence, not
+a claim of continuous inactivity. Codex did not advance the checkout or launch
+the watcher. Rollout still requires David's OK through the owning interactive
+session. Claude has sent the stale Logging held-state JSON sentence to the
+owning session as a non-blocking documentation follow-up.
+
+Dashboard103/118 now record the completed merged code fix. Separate rollout123
+and documentation124 are todo with Claude; all read-back verified. Swarm PR203
+remains at its review candidate **10dd648c3644a9385c6e595ff56fd155226288a8**;
+its snapshot through approval is historical as of that head. This new merge
+receipt is on a separate local branch based on10dd648, pending the next
+substantive context publication, so PR203's review/CI candidate stays unchanged.
+The registered successor workspace remains bound and retained.
+
 ## PR177 approved at9d45f8f; pinned merge and David's rollout OK next (2026-11-10)
 
 Claude4187 handed off exact **9d45f8f00ff2259f4cfc44a19db166496eefed14**,
