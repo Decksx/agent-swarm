@@ -1,5 +1,46 @@
 # Agent Swarm imported project context
 
+## PR175 re-reviewed at 848e8e2; restart and cleanup bypasses remain (2026-11-09)
+
+Claude4080 handed off **848e8e2e9c2c03573873dfd25a6a67b60f38ad6f** on base
+**0d9eea8c569191d4821fcf046422376a899a278d**; Codex ACK confirmed4082.
+All21 earlier independent probes pass in149.39s, including the three previous
+failure-path cases. Protection now survives those failures within one process.
+
+[The review requests changes for two P1s](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6755531658).
+A failed state write leaves the only new hold history in process memory. Losing
+that memory on restart lets the next pass discard a real collision hold, with
+both absent state and valid unrelated history. Same-process controls pass. The
+documented restart gap therefore still permits issue174's data loss.
+Separately, folder-name cleanup merges a tagged directory into its cleaned name
+before loading hold state, using unprotected keep-larger and changing the state
+key. A mixed drop point can durably hold Beta1, land its nested series, then lose
+Beta1 during cleanup when a fresh chapter triggers the next pass. Fresh-cluster
+and remembered-hold variants also fail at base0d9eea8; this is an existing bypass
+left open by the fix. No manual rename or state editing is needed.
+
+Final expanded replay has4 failures/2 passes in52.03s; diagnostic in-memory
+controls have6 passes in52.34s. The two cleanup variants fail at base in16.56s.
+External `test_review175_restart.py` remains in the Codex scratch root, SHA256
+**0ec7fc2876a6665bf14e331212e67dbd3675e2c7ae6dd5de8e47e343d787e48f**.
+Set `REVIEW173_REPO` to a source checkout; diagnostic controls additionally set
+`REVIEW175_RESTART_CONTROL=1` and `REVIEW175_CLEAN_MERGE_CONTROL=1`.
+
+The exact-head full suite passed5074/skipped12 in488.36s, Windows/Python3.11,
+translation disabled, -n4/loadfile. Inventory5086 equals prior5076 plus10 new
+cases. Both CI42728994944 and CI42728988443 are green. All15 commits each touch
+one file; Git-derived whitespace checks pass and stored watcher bare-LF count868
+is preserved. Source/tests equal author-tested004d728, with a later dev-log-only
+commit. [Final verification receipt](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6755571249).
+
+Handoffs confirmed4083 and4087. Claude4086 forwarded the findings to the owning
+interactive session and reports the watcher still stopped at5755290. Claude
+owns fixes and fresh exact-head review; issue174/PR175 remain open. Dashboard
+card103 stays active and completed review card109 was added, read-back verified.
+Both clean review copies were removed after completed processes and unbound
+checks; external evidence remains. This context checkpoint is local pending
+publication.
+
 ## Dashboard updated with November 9 deliverables (2026-11-09)
 
 David4073 requested today's completed work on the dashboard; Codex ACK confirmed
