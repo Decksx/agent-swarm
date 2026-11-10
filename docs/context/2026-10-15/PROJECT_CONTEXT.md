@@ -1,5 +1,275 @@
 # Agent Swarm imported project context
 
+## PR178 approved at3667c22; pinned merge and owning-session rollout next (2026-11-10)
+
+Claude4240 handed off exact **3667c22e12a1b717c7815e5f92ecb94e5bf2ea90**,
+base **6e5c3a8200502918deadcdf71adfeca74a2699eb**. ACK confirmed4242.
+[Codex approves this exact head](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6776283966),
+tree **75a825569e0a2064924717612ac885907059b5a6**, with no remaining blocking
+finding in the reviewed downloader-name and conservative identity policy.
+This supersedes earlier changes-requested verdicts on prior PR178 candidates.
+
+The prefix classifier now combines digits, the unchanged shared Part grammar,
+canonical special words, and the complete earlier structural word contract,
+including part/side/plural aliases. Compact and separator-tolerant spellings
+remain covered. All previously reported P2 cases are closed. Partners Scans
+and digit-bearing group names keeping legacy names remain accepted conservative
+behavior; the reported69/70 live-prefix sample is attributed author evidence.
+The regex-cache limitation on mutation-proving object identity remains
+non-blocking; source inspection confirms the direct shared reference.
+
+Independent full Windows/Python3.11 suite, translation disabled, -n4/loadfile:
+**5266 passed/12 skipped/0 failed in377.98s**, inventory5278. All124 added tests
+pass (34+28+22+40); no web failure. Skips include unchanged host/configuration
+cases and2 native lifetime cases that cannot run inside this Job Object; no
+containment escape was attempted. Exact-source pull_request **42878008234**
+and push **42877998127** both completed successfully.
+
+All three independent replay files pass unmodified:27 passed in16.78s, including
+normal watcher passes importing distinct Part/Side books separately with review
+empty. Disabling _STRUCTURAL_WORD_RE in memory gives14 failures in21.09s,
+reproducing the identity and paired-book failures without source-file mutation.
+New external plugin C:\Users\david\.codex\worktrees\review178_3667_mutant.py,
+SHA-256 **8c8a210f06fb758d97033db6abb1597e3b3c651dc70ab67c0c64b524671fcfa2**.
+Set REVIEW178_REPO, add the scratch root to PYTHONPATH and use
+-p review178_3667_mutant; REVIEW178_DISABLE_STRUCTURAL_GUARD=1 is diagnostic-only.
+Earlier probe files/hashes remain unchanged; logs/JUnit prefix review178-3667-.
+
+All14 commits touch one file; whitespace checks pass. Watcher diff against
+8b3891f is empty, retaining bare-LF863; PART_MARKER_RE is unchanged. Core blobs
+remain LF. The clean completed review copy was removed after owned runners
+ended and inactive/unbound checks passed. External evidence and the registered
+successor workspace remain. Codex refreshed the PR summary to final behavior,
+counts, tradeoffs and review evidence, then read it back with head unchanged.
+
+Preliminary status confirmed4243; approval handoff confirmed4244. Dashboard125
+is in review awaiting pinned merge; completed approval129 was added, read-back
+verified. Claude owns the pinned merge with exact parent/tree and CI receipt.
+Changed candidates need fresh review. Current desktop snapshot remains6e5c3a8,
+tracked index/worktree clean, no matching Python watcher CLI. David's deliberate
+uppercase legacy Ch./media-naming policy remains unchanged. This is code
+approval, not an instruction to start the watcher: the owning interactive
+session retains rollout/authorization receipts and David's operational gate.
+No Codex deployment, live checkout advance or watcher launch. Earlier local
+publication notes retain their original timing; this publication consolidates
+the post203 receipts and all four PR178 review rounds.
+
+## PR178 round3 at8b3891f; refactor regresses earlier structural guards (2026-11-10)
+
+Claude4229 handed off exact **8b3891f73a40d50e1b57caec23938fdb36f98600**,
+unchanged base **6e5c3a8200502918deadcdf71adfeca74a2699eb**. ACK confirmed4231.
+[Round3 P2 review](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6775342217)
+and [final verification](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6775417986)
+request changes. All13 earlier independent probes pass in10.37s: shared Part
+grammar and canonical special vocabulary close the prior reported spellings.
+The replacement, however, re-enables earlier protected structural prefixes.
+
+At d1bc97b the conservative set explicitly guarded part, side, extras and
+specials. The shared Part grammar accepts dot/whitespace but not a hyphen;
+the new list has parts and side story, omitting bare part/side. Canonical
+SPECIAL_WORDS contains singular Extra/Special and the whole-word matcher
+does not accept their plurals. Part-A/B, Side A/B, Extras and Specials now
+classify as groups and lose identity. Paired hyphenated parts or lettered sides
+request one Berserk Ch.5 target, so one is falsely sent to review; both survive,
+but a distinct book is wrongly held. Both pairs import separately at immediate
+predecessor d1bc97b. The correction should combine earlier conservative guards
+with existing grammar and retain the prior protected cases during refactoring.
+
+New independent preservation witness:14 failed in21.77s at head;14 passed
+in7.55s on immediate predecessor d1bc97b;14 passed in6.55s with the diagnostic
+earlier-guard control. Twelve parsing cases cover six prefixes in plain/display
+modes; two normal watcher passes cover hyphenated parts and lettered sides.
+Artifact C:\Users\david\.codex\worktrees\test_review178_preserved_guards.py,
+SHA-256 **8ca5d18dfec3e0873c12d5442b899edefab467b1b5c196685c74d4818bd4d305**.
+It imports the unchanged test_review178_part_prefixes.py helper. Set
+REVIEW178_REPO; REVIEW178_EARLIER_GUARDS_CONTROL=1 is diagnostic-only.
+Logs/JUnit prefix review178-8b389-. Clean completed candidate/predecessor copies
+were removed after owned runners ended and inactive/unbound checks passed.
+External evidence and the bound successor workspace remain.
+
+Independent full Windows/Python3.11 suite, translation disabled, -n4/loadfile:
+**5226 passed/12 skipped/0 failed in364.32s**, inventory5238. All84 added tests
+pass (34+28+22); no web failure. Both exact-source CI **42871231780**
+(pull_request) and **42871217245** (push) completed successfully. All11 commits
+touch one file each; whitespace checks pass. The repaired raw watcher diff
+against d1bc97b is4 added/1 removed lines, all additions CRLF, bare-LF863 on
+both sides; core blobs remain LF. This independently checks the committed
+repair described in the author's bypass-run process note.
+
+Partners Scans keeping its legacy name is accepted conservative behavior;
+the shared Part expression is unchanged and tightening it is outside this fix.
+The shared-reference mutation limitation is accepted: recompiling the same
+expression can hit Python's regex cache, while source inspection verifies the
+direct shared reference. Neither point is the blocking finding.
+
+Handoff confirmed4232; Claude4235 acknowledged, forwarded to git-bf and clarified
+that the intended fix is the union of earlier guards and shared grammar.
+Final handoff confirmed4236. Dashboard125 remains active with Claude; bounded
+review128 is done, read-back verified. Claude supplies a fresh corrected exact
+head. Current desktop snapshot remains6e5c3a8, tracked index/worktree clean,
+no matching Python watcher CLI. David's uppercase Ch./media-naming decision is
+unchanged. No Codex deployment, checkout advance or watcher launch. This
+checkpoint remains local pending the next substantive context publication.
+
+## PR178 round2 atd1bc97b; compact Part and One-shot P2 remains (2026-11-10)
+
+Claude4218 handed off exact **d1bc97b4fcf7ba91d3f92304ce19c2399c301450**,
+unchanged base **6e5c3a8200502918deadcdf71adfeca74a2699eb**. ACK confirmed4220.
+[Round2 review](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6774157145)
+and [verification](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6774239653)
+request changes. The original unmodified6 Part probes pass in7.52s; the spaced
+and numeric Part cases are fixed. The same P2 remains for known marker grammar
+that does not form one complete letter word in the new _is_group_prefix guard.
+
+PartA/PartB become words parta/partb, missing part. Existing watcher _PART_RE at
+line2834 explicitly accepts optional whitespace and recognizes both compact
+markers; they enter the duplicate identity key at line2881. Canonical One-shot
+is listed in cbz_canonical_name.py:116, but the guard splits it into one+shot,
+missing oneshot. Such identities are still dropped as group names. A normal
+watcher pass sends one compact part to review after both request Berserk Ch.5;
+both books survive, but the landed part identity is lost and its distinct
+sibling is misclassified. The correction should use established marker grammar
+before group classification, including compact Parts and punctuated/spaced
+one-shot spelling. This is the remaining identity-preservation P2, not a change
+to David's legacy-uppercase Ch./media-naming decision.
+
+Expanded independent witness:7 failed in17.36s at head;7 passed in4.37s on exact
+base;7 passed in3.49s with a diagnostic existing-grammar guard. Six parsing cases
+cover PartA/PartB/One-shot in plain/display modes; one normal watcher pass checks
+both compact parts reach the library with nothing reviewed. External artifact
+C:\Users\david\.codex\worktrees\test_review178_known_prefixes.py SHA-256
+**602a1cb80a84d42226880334c486b397c2c08f471356598e98cab8229d538a10**.
+It imports the unchanged earlier test_review178_part_prefixes.py helper. Set
+REVIEW178_REPO; REVIEW178_KNOWN_MARKER_CONTROL=1 is diagnostic-only. Logs/JUnit
+prefix review178-d1bc-known-. Clean completed candidate/base copies were removed
+after owned runners ended and inactive/unbound checks passed. External evidence
+and the registered successor workspace remain.
+
+Independent full Windows/Python3.11 suite, translation disabled, -n4/loadfile:
+**5204 passed/12 skipped/0 failed in376.82s**, inventory5216. All62 added tests
+pass (34 initial+28 round1); no web failure. The full-suite receipt recorded both
+exact-source CI42863030363 (pull_request) and42863016140 (push) still running.
+At checkpoint preparation the push had succeeded and the PR run was still
+pending. The reproduced P2 blocks approval regardless of a later green result.
+All7 commits touch one file each; whitespace checks pass; cbz_watcher.py is
+byte-identical to aa4c248 in this round, retaining bare-LF863.
+
+Handoff confirmed4221; Claude4224 acknowledged and forwarded the remaining P2
+and repro to git-bf, suggesting shared marker grammar to avoid divergence.
+Final handoff confirmed4225. Dashboard125 remains active with Claude; bounded
+review127 is done, read-back verified. Claude supplies a corrected exact head
+for fresh review. New read-only desktop snapshot remains6e5c3a8, tracked index
+and worktree clean, no matching Python watcher CLI. No Codex checkout advance,
+deployment or watcher launch. This checkpoint remains local pending the next
+substantive context publication.
+
+## PR178 reviewed ataa4c248; structural Part prefix P2 (2026-11-10)
+
+Claude4207 handed off exact **aa4c248c7a595765f14974731b50f3ea15c2c396**,
+base **6e5c3a8200502918deadcdf71adfeca74a2699eb**. ACK confirmed4209.
+[P2 review](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6773259657)
+and [independent verification](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6773333534)
+request changes. The group-prefix recognizer guards volume/season prefixes, but
+also strips structural PartA/B and Part1/2 as groups. Lettered PartA/B chapter5
+filenames both become Berserk Ch.5; before this PR their Part markers survive.
+Through the normal watcher entry point, distinct parts now request one name and
+the new same_name rule sends one to review as if it were a second translation.
+Both archives survive, but the landed filename loses part identity and the
+distinct sibling is misclassified. Numeric parts also collapse on one target;
+the existing numeric spelling on base is not asserted or redesigned by this
+finding. The correction must protect Part identity alongside Vol./Season, with
+negative group-recognition and end-to-end distinct-part guards.
+
+Finalized independent witness: candidate6 failed in6.61s; exact base6 passed
+in6.46s; diagnostic Part-prefix guard6 passed in6.43s. Four parsing cases cover
+PartA/B in plain/display modes; two normal watcher passes cover numeric and
+lettered pairs both importing as separate books. External artifact
+C:\Users\david\.codex\worktrees\test_review178_part_prefixes.py SHA-256
+**6b020e53828c1c0df5ff7910f0aab111ef3a20cfad54df7a4624b4b3a1cf8c49**.
+Set REVIEW178_REPO; REVIEW178_KEEP_PART_PREFIX=1 is diagnostic-only. Logs/JUnit
+prefix review178-aa4c-parts-. Completed clean candidate/base copies were removed
+after owned runners ended and inactive/unbound checks passed. External evidence
+and the registered successor workspace remain.
+
+Independent full Windows/Python3.11 suite, translation disabled, -n4/loadfile:
+**5176 passed/12 skipped/0 failed in383.22s**, inventory5188. All34 new tests
+pass, leaving a demonstrated gap in structural Part coverage. No web failure
+occurred. Both exact-source CI **42855871999** (push) and **42856564294**
+(pull_request) completed successfully. The initial verification receipt had the
+PR run pending; [the completion update](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6773355436)
+records its later success without changing the changes-requested verdict.
+All4 commits touch one file each, Git-derived whitespace checks pass, and watcher
+bare-LF stays863. David's deliberate legacy-uppercase Ch./media-naming hash
+decision is unchanged and outside the finding.
+
+Handoff confirmed4210; Claude4213 acknowledged and forwarded to git-bf. Final
+handoff confirmed4214. Dashboard125 is active with Claude and bounded review126
+is done, read-back verified; both received the later CI completion update.
+Claude/the owning session supplies a corrected exact head for fresh review.
+
+New read-only desktop snapshot is **6e5c3a8200502918deadcdf71adfeca74a2699eb**,
+tracked index/worktree clean, no matching Python watcher CLI. This supersedes
+the older5755290 snapshot. Relay4207 reports David stopped it after the incident
+and is holding it off pending178 merge/deploy. Codex did not advance or launch
+anything; owning-session deployment/authorization receipts are not inferred
+from HEAD alone. Dashboard123 was updated with that distinction. This checkpoint
+remains local pending the next substantive context publication.
+
+## PR203 context merge independently verified (2026-11-10)
+
+Claude4202 reported merge **26ceb19e671b929bdee09a13d70f0301f5d500a4** from
+reviewed exact **10dd648c3644a9385c6e595ff56fd155226288a8**. ACK confirmed4205.
+Codex verified parents **a2bee8348fd70c2912c686e30d1b272cef70f12a** and
+**10dd648c3644a9385c6e595ff56fd155226288a8**, with merge/head tree
+**cfc2fb03d3c1a44b6050df8f5d6a1643a3aa695c**. GitHub independently reports
+the reviewed source merged. Pull_request run **42790679734** completed
+successfully on10dd648; pytest-core, pytest-hub, pytest-bypass and aggregate
+pytest-unit all succeeded. Identical tree parity retains the reviewed context
+without a redundant suite rerun.
+[Independent receipt](https://github.com/Decksx/agent-swarm/pull/203#issuecomment-6763922639).
+
+The post202 receipt and all three PR177 rounds through exact-head approval are
+now on main. The later PR177 pinned merge and174 closed/completed receipt is
+already in local **0249e6a8e900e89ea43852526b3f354f5eb53a40**, immediately below.
+That commit preserved PR203's review candidate; the historical publication notes
+retain their original timing. Dashboard122 is done, read-back verified. This
+checkpoint and0249e6a remain local pending the next substantive publication.
+Rollout123 still requires David's OK, and stale Logging documentation124 remains
+with Claude/the owning session. No deployment or production launch occurred in
+this documentation verification. The registered successor workspace stays bound
+and retained.
+
+## PR177 pinned merge independently verified;174 closed, rollout pending (2026-11-10)
+
+Claude4194 reported merge **6e5c3a8200502918deadcdf71adfeca74a2699eb** from
+approved exact **9d45f8f00ff2259f4cfc44a19db166496eefed14**. ACK confirmed4200.
+Codex independently verified parents
+**9c267752754180f048e4bb1f7c333f7e56f24c57** and
+**9d45f8f00ff2259f4cfc44a19db166496eefed14**, with merge/head tree
+**b45b22d40f2bad702f995e7190dc7b4ac72cc08f**. GitHub reports the approved source
+merged. Exact-source pull_request **42789088941** and push **42789078640** both
+completed successfully. Identical tree parity retains the full5142 passed/12
+skipped and8 independent behavioral probes without a redundant suite rerun.
+[Independent merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/177#issuecomment-6763821889).
+
+Issue174 is independently verified closed with state_reason completed, and
+received [the code-fix closure receipt](https://github.com/Decksx/cbz-automation-suite/issues/174#issuecomment-6763822600).
+The desktop checkout remains **57552903b87ce2a8305b18ad66e85a4e434c8c41**;
+tracked worktree/index diffs are clean. The current process snapshot shows the
+Tk GUI and no matching Python watcher CLI. This is current-state evidence, not
+a claim of continuous inactivity. Codex did not advance the checkout or launch
+the watcher. Rollout still requires David's OK through the owning interactive
+session. Claude has sent the stale Logging held-state JSON sentence to the
+owning session as a non-blocking documentation follow-up.
+
+Dashboard103/118 now record the completed merged code fix. Separate rollout123
+and documentation124 are todo with Claude; all read-back verified. Swarm PR203
+remains at its review candidate **10dd648c3644a9385c6e595ff56fd155226288a8**;
+its snapshot through approval is historical as of that head. This new merge
+receipt is on a separate local branch based on10dd648, pending the next
+substantive context publication, so PR203's review/CI candidate stays unchanged.
+The registered successor workspace remains bound and retained.
+
 ## PR177 approved at9d45f8f; pinned merge and David's rollout OK next (2026-11-10)
 
 Claude4187 handed off exact **9d45f8f00ff2259f4cfc44a19db166496eefed14**,
