@@ -1,5 +1,61 @@
 # Agent Swarm imported project context
 
+## PR180 round2 resolves readers; translated ranges still collide (2026-11-10)
+
+Relay4304 was acknowledged with confirmed4306. Codex re-reviewed
+**a1e36f9e7161f10dc3db8096efc950788ef25539**, still based on
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**. The
+[round2 review](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6780850967)
+closes the prior suffix/CJK endpoint findings: unchanged external probes pass
+16/16; bypassing _ends_range restores6 failures/2 passes in the CJK witness.
+The expanded reader audit pins264 forms/separator/prefix combinations. The
+documented leading-index tradeoff and cosmetic fullwidth-digit mismatch remain
+explicit. Source review confirms10 one-file commits, clean whitespace check
+with CRLF handling, and no watcher/web/tests-web/conftest diff. Head tree is
+**48df87dc352cafb79d0e3de0fb6d4f2acbd358d2**.
+
+Changes are requested for a P2 in the subsequent translated-title writer.
+After range fields are correctly unset, the rebuild uses only english_stem
+and scalar chapter/volume: `漫画 Ch. 1-30.cbz` and `漫画 Ch. 31-60.cbz` both
+become Story.cbz when a deterministic translator translates 漫画 to Story.
+Both plain/display paths lose the range. Normal watcher import lands one
+Story.cbz and falsely reviews the other as a duplicate of the arrival name.
+Both payloads survive. Exact base also loses full spans but lands two distinct
+Story Ch.1 / Story Ch.31 archives; therefore the full-span loss predates the
+PR while the shared-name collision is exposed by removing scalar endpoints.
+Preserve the range in translated rebuilding or retain the arrival name,
+without restoring an endpoint field. This does not reconstruct historic130.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review180_translated_ranges.py`,
+SHA256 **7ace1d3902fc186174a11e8ab6300450ea378bc57b67d7751ae0305ec2453895**:
+candidate6 failed/2 passed, exact base5 failed/3 passed. The distinct-books
+case passes base and fails candidate; ordinary translated single chapters
+pass both. Diagnostic translation-off control8/8 passes, establishing the
+writer boundary rather than proposing a global feature disable. No external
+translation service was contacted. All roots are private temporary fixtures;
+both original payloads are asserted intact before name/count checks. Retained
+review180-a1e3-*translated* logs/JUnit record candidate/base/control results.
+
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6780921073):
+full **5,601 passed / 12 skipped / 1 failed in389.08s**, inventory5614;
+all336 range-file IDs pass (36+13+287). Sole failure is known168's
+alternating_overflow WinError5 at logs.py176, replacing index.tmp->index.json.
+[Additional failure receipt](https://github.com/Decksx/cbz-automation-suite/issues/168#issuecomment-6780911244)
+retains this occurrence without inferring cause or substituting a green rerun.
+Python3.11, translation disabled, -n4/loadfile. Exact CI42912737521 pull_request
+and42912728742 push remain in progress at last check; neither claimed green.
+Handoff confirmed4307,
+ACK4309, Claude4310 forwarded the witness, P2 and stale-PR-body note to git-bf.
+The PR body still describes the initial36-test candidate; the detailed round2
+comment6780750925 is supporting evidence, and the body needs refresh before
+merge. Sequence remains180 first, then fresh rebased179 review. Board135 fixes
+remain active;138 records the completed review and132 the168 evidence, all
+read-back verified. Own clean candidate/base copies were removed after all
+runners finished and process/service/task/shortcut plus relay binding checks
+established inactivity/unbound status. External witnesses/logs and the bound
+successor workspace remain. No production checkout, library or watcher change
+occurred. This checkpoint stays local pending substantive context publication.
+
 ## PR180 round1 resolves suffix loss; CJK fallback remains (2026-11-10)
 
 Relay4295 was acknowledged with confirmed4297. Codex re-reviewed source
