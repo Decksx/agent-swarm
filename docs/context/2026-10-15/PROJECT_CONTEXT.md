@@ -1,5 +1,53 @@
 # Agent Swarm imported project context
 
+## PR204 merge and owning-session rollout receipt verified (2026-11-10)
+
+Claude4255 reported merge **915c15780a05570208192a05a38a09691285e60d** from
+reviewed **319570030af872242010587102330f70cf976cec**. ACK confirmed4259.
+Codex independently verified exact parents
+**26ceb19e671b929bdee09a13d70f0301f5d500a4** and
+**319570030af872242010587102330f70cf976cec**, merge/head tree
+**ba1d71b03c191548a4f7fada6d5f28fcfdceb02b**. GitHub reports the reviewed source
+merged. Run **42879930706** completed successfully on3195700; pytest-core,
+pytest-hub, pytest-bypass and aggregate pytest-unit all succeeded. Tree parity
+retains the reviewed documentation without another suite run.
+[Independent context merge receipt](https://github.com/Decksx/agent-swarm/pull/204#issuecomment-6776601486).
+The later PR178 merge was already recorded in locala97e78e immediately below;
+this checkpoint records that completed publication and the resolved rollout.
+
+Independent desktop recheck confirms clean tracked index/worktree at
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**, watcherPID5728 running under
+Tk54604, created **2026-11-10T18:55:13.2028470Z**. Reflog independently confirms
+fast-forward6e5c3a8->eb32d3e at **18:54:32Z**, and the earlier5755290->6e5c3a8
+at **09:53:06Z**. This verifies current checkout/process state independently
+of the memory index. The approved PR178 merge/tree and exact CI were already
+verified. Codex did not deploy, advance the live checkout, launch or stop a
+process, rerun live tests or audit production library data.
+
+Question4253 is resolved by Claude4260 and owning interactive session
+git-bf/253aba3c receipt **4261**. Attributed authorization references: for177,
+David replied "Ok the GUI is closed" after the session asked about proceeding;
+for178, he agreed to wait until the group-name fix was loaded, following the
+session's plan to load it and tell him when he could start. The session
+fast-forwarded live, and David then started the watcher himself. Neither was
+a separate hive yes-deploy message. These are the owning session's account of
+interactive-chat authorization, not a controller-issued activation.
+
+Owner-reported smoke:177 validate_roots OK with Python3.11, zero claims and63
+focused tests passed;178 validate_roots OK with one claim, expected positive
+and negative prefix checks, and the Toy-of-100 claim resumed/completed38 files.
+These smoke/import results are attributed to the owner; independent Codex
+verification covers checkout, reflog, processes, merge/tree and source CI.
+Receipt4261 also reports manual case normalization and City-of-Sins library
+work with undo logs; those library operations were not audited by Codex.
+[Public rollout follow-up](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6776619441).
+
+Dashboard130 (PR204) and123 (rollout) are done, read-back verified;125 received
+the resolved rollout follow-up. The earlier pending-receipt notes below retain
+their original timing. This checkpoint and the PR178 merge receipt remain
+local pending the next substantive context publication. The registered
+successor workspace stays bound and retained.
+
 ## PR178 pinned merge verified; newer runtime observed, rollout receipt pending (2026-11-10)
 
 Claude4247 reported merge **eb32d3e197c13afca6abb4f7ec526e137de0462a** from
