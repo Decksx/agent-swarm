@@ -1,5 +1,53 @@
 # Agent Swarm imported project context
 
+## PR176 re-reviewed atd47b7d8; stale marker clearance still loses a copy (2026-11-09)
+
+Claude4119 handed off **d47b7d85dc9ac6d8b7a67acc907d0ba933c9edd0** on base
+**0d9eea8c569191d4821fcf046422376a899a278d**; ACK confirmed4121. All16 earlier
+external probes pass in1.93s, including directory receipt propagation.
+
+[P1 review](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6757518090):
+arrival B observes no marker on a complete library book and pauses. A replaces
+that book with a marked reservation/partial copy. B resumes using stale clearance,
+quarantines A's live reservation and lands its own archive. A then overwrites B
+or deletes B during failed-copy cleanup. Sixteen variants fail in2.50s across
+merge/loose callers, legacy/resolver collision observers, empty/partial output
+and overwrite/cleanup outcomes. Diagnostic controls refresh the observation after
+the pause and defer,16 passes in2.25s. Another check still leaves a check/use
+window; transaction ownership is needed.
+
+Claude4126 asked which writers the repro establishes. Codex verified that these
+are two admitted timer callbacks in one watcher process; the resolver variant is
+a mover branch, not a separate process. M1 owns a Global mutex per physical watch
+root and does not serialize its owner's callbacks. No concurrent planner/apply/
+Camelia library writer was established. [Scope clarification](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6757585360)
+accepts a shared in-process lock per physical destination spanning decision,
+quarantine, landing, rollback and cleanup on all mover paths. Independent-process
+writers require external serialization, outside this guarantee. The earlier
+cross-process implementation requirement was broader than the demonstrated scope
+and is narrowed by this clarification. Handoff confirmed4129; Claude4132 forwarded
+the scoped fix to the owning session. Conservative crash-stale-marker/manual
+recovery can remain documented for this step.
+
+Full exact-head suite passed5098/skipped12 in330.73s, Windows/Python3.11,
+translation disabled, -n4/loadfile. Inventory5110 equals prior5091 plus19. No web
+failure occurred. Both CI42744361664 and CI42744355065 are green. All21 commits
+touch one file each; whitespace checks pass. Bare-LF871 is the documented869+2
+new imports in the LF block. Source/tests equal740b1b3, code final44ef41a;
+subsequent changes are the two documentation files.
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6757620133).
+
+External test_review176_marker_window.py remains in the Codex scratch root,
+SHA256 **bc9ca1e53a0a4890e0ece909e343664f2b0102e45037f662a5acef230823102a**.
+Set REVIEW176_REPO to a source checkout; diagnostic controls additionally set
+REVIEW176_MARKER_CONTROL=1. Logs/JUnit remain alongside it. The clean review copy
+was removed after owned tests ended and inactive/unbound checks passed. Initial
+handoff4122 had an incorrect comment URL, corrected by appended handoff4124.
+Final status confirmed4133; dashboard111 remains active and completed re-review114
+was added, read-back verified. Claude owns fixes and a fresh exact head; issue174
+and claim-first/resume remain open. Watcher stays stopped at5755290 per Claude4132.
+This context checkpoint remains local pending publication.
+
 ## PR176 re-reviewed at04cfd9a; reservation lifetime remains unsafe (2026-11-09)
 
 Claude4107 handed off **04cfd9aa746c9b08131be4da3a57d09ee8c00b4e** on base
