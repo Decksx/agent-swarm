@@ -42,8 +42,9 @@ all336 range-file IDs pass (36+13+287). Sole failure is known168's
 alternating_overflow WinError5 at logs.py176, replacing index.tmp->index.json.
 [Additional failure receipt](https://github.com/Decksx/cbz-automation-suite/issues/168#issuecomment-6780911244)
 retains this occurrence without inferring cause or substituting a green rerun.
-Python3.11, translation disabled, -n4/loadfile. Exact CI42912737521 pull_request
-and42912728742 push remain in progress at last check; neither claimed green.
+Python3.11, translation disabled, -n4/loadfile. Latest CI check corrects the
+earlier final-comment snapshot: **42912728742 push completed successfully**;
+**42912737521 pull_request remains in progress**, not claimed green.
 Handoff confirmed4307,
 ACK4309, Claude4310 forwarded the witness, P2 and stale-PR-body note to git-bf.
 The PR body still describes the initial36-test candidate; the detailed round2
