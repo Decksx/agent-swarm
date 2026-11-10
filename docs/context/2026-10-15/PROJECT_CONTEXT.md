@@ -1,5 +1,69 @@
 # Agent Swarm imported project context
 
+## PR177 approved at9d45f8f; pinned merge and David's rollout OK next (2026-11-10)
+
+Claude4187 handed off exact **9d45f8f00ff2259f4cfc44a19db166496eefed14**,
+base **9c267752754180f048e4bb1f7c333f7e56f24c57**. ACK confirmed4189.
+[Codex approves this exact head](https://github.com/Decksx/cbz-automation-suite/pull/177#issuecomment-6763735015),
+tree **b45b22d40f2bad702f995e7190dc7b4ac72cc08f**, with no remaining blocking
+finding in the inherited single watcher-owned in-process destination concurrency
+scope. This supersedes earlier PR177 changes-requested verdicts. Independent
+processes writing the library still require external serialization.
+
+Resume now owns a claim before reading or judging its record, then hands that
+same ownership and current record directly to processing. Processing refuses
+unowned claims. Creator ownership and owner-only retirement remain. This closes
+the last demonstrated stale-record overwrite of completed AI custody. The old
+probe's intermediate timing assertion is obsolete because the competing pass now
+skips the owned claim; the adapted probe preserves the final one-rewrite assertion.
+
+Full Windows/Python3.11 suite, translation disabled, -n4/loadfile: **5142 passed/12
+skipped/0 failed in333.53s**, inventory5154. No web failure occurred. Skips include
+local routing configuration, deliberately unreadable cases, unavailable symlink
+privileges and2 native lifetime cases that cannot run inside this Job Object.
+No attempt was made to escape containment. Exact-head pull_request
+**42789088941** and push **42789078640** both completed successfully.
+
+Independent behavioral probes:8 passed in7.67s, covering the adapted stale-record
+race, AI rename/retry, owned reads for valid/missing/corrupt/foreign/empty records
+with final dispositions, and closing a suspended resume before a successful fresh
+pass. Moving the read before ownership in memory gives1 failure in3.16s with two
+AI rewrites. Source files were unchanged. All25 commits touch one file each;
+whitespace checks pass and watcher bare-LF remains863. The clean completed review
+copy was removed after owned runners ended and inactive/unbound checks passed.
+
+External artifacts in C:\Users\david\.codex\worktrees:
+test_review177_r3_record_snapshot.py SHA-256
+**d6c65f7132e0a28603979a6fc74b8addae243b18948d0154b08a05802579d8ea**;
+test_review177_r3_ownership.py SHA-256
+**870bd6e4152f7ce6bf4f715684cbb3095124b7c6e4a3d337a3ffe6739c840dd5**.
+The previously recorded r2 AI identity witness remains unchanged. Set
+REVIEW177_REPO; REVIEW177_PRELOCK_READ=1 is diagnostic-only. Logs/JUnit prefix
+review177-9d45-. Registered successor workspace and external evidence remain.
+
+Claude's reported alternating isolated web-overflow A/B sample is base13/30
+failed, head9/30 failed. This is attributed author evidence, not Codex's own
+sample. Earlier independent baseline reproduction, unchanged web implementation
+and tests, the bounded round2 results and this passing full run do not establish
+a new watcher regression. Author guard accounting is26 initial+10 round1+3
+load-bearing round2 bypasses. The explicit foreign-root release is retained but
+its removal is redundant on CPython because object destruction closes the lock;
+it is not claimed as a load-bearing bypass.
+
+Codex refreshed the PR summary to final behavior, scope and test accounting,
+then read it back with the source head unchanged. Inventory5120->5154 is+42 new
+claim test IDs minus8 held-state IDs; parametrized IDs are counted correctly.
+One non-blocking documentation follow-up remains: the final Logging paragraph
+in docs/cbz_watcher.md still names the deleted held-state JSON, contradicting its
+updated claim-first section. Preliminary status confirmed4190; approval handoff
+confirmed4191. Dashboard118 is in review awaiting pinned merge, completed
+approval121 was added, read-back verified. Claude owns the pinned merge with exact
+parent/tree receipt and174 closure record. Changed candidates need fresh review.
+This code approval is not rollout approval: live stays5755290 with watcher stopped
+until David's OK through the owning interactive session. The earlier local
+checkpoint notes below retain their original timing; this publication collects
+the post202 receipt and all three PR177 review rounds.
+
 ## PR177 round2 atb979fd6; stale resume record still repeats AI (2026-11-10)
 
 Claude4174 handed off exact **b979fd6086b2660c8a88673ef2ef9d5ed6d20afe**,
