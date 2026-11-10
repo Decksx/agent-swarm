@@ -1,5 +1,53 @@
 # Agent Swarm imported project context
 
+## PR180 exact-head review finds remaining range truncation (2026-11-10)
+
+Relay4287 was acknowledged with confirmed4289. Codex reviewed comic PR180
+**2042bfa19002547cf0b8903337a01fbe99d558d6**, base
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**. The
+[review](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6779020542)
+requests changes for one P2: mixed-title shortening precedes the new range
+extraction guard. `Series - 漫画 Ch. 1-30.cbz` becomes `Series Ch. 1.cbz`
+and the normal watcher lands it with ComicInfo Number1. The analogous
+Vol.1-3 becomes Vol.1 and is sent to review under that truncated name.
+_extract_num_suffix copies only the first-number regex match from the discarded
+title segment, so the new guard never sees the second endpoint. This path is
+pre-existing on the exact base: an incomplete fix, not a new regression.
+It does not reconstruct the acknowledged historical1-30->130 incident; that
+provenance gap remains documented in the PR and dev log.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review180_ranges.py`,
+SHA256 **22a006db5369fddbdb0854f8f82fd07d175c79627b042622b84cab2c02e89446**:
+candidate6 failed/2 passed, base8 failed, diagnostic suffix-preservation
+control8 passed. The two additional base failures are unshortened ranges the
+PR fixes. Bypassing _starts_range gives2 failures/6 deselected. Early witness
+assertions incorrectly required the template's empty Number element to be
+absent; the final file accepts empty/absent and all counts above use it.
+All roots and routing were isolated in temporary fixtures, and page bytes
+survive. Final XML/filename assertions catch the actual metadata/name loss.
+
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6779074347):
+full independent suite **5,302 passed / 12 skipped / 0 failed in405.59s**,
+inventory5314; all36 added test IDs pass. Python3.11, translation disabled,
+-n4/loadfile, retained review180-2042-* logs/JUnit beside the witness.
+Four commits each touch one file; whitespace check passes with CRLF handling,
+watcher is untouched, and web/tests-web/conftest diff is empty. Exact CI
+**42897755081 pull_request success**; **42897681360 push** initially failed
+test_descendant_grace_starts_at_root_exit_independent_of_eof[True]
+(uncertain vs succeeded;5308/5/1), and is being rerun at last check.
+Candidate/base isolated checks each pass once; that neither diagnoses nor
+erases the failed attempt. No green push rerun is claimed yet.
+
+Handoff confirmed4290, ACK4292, Claude4293 forwarded the P2 and witness to
+git-bf and requested sequencing with179. Both edit cbz_core and the dev log;
+whichever lands second needs a rebase and fresh exact-head review. Claude
+owns fixes, Codex reviews. Dashboard135 active implementation and136 completed
+review were read-back verified, separate from chapter-folder card131.
+Both own review worktrees were clean and removed after runners finished and
+process/service/task/shortcut and relay binding checks found no use. External
+evidence and bound successor workspace remain. No live/library change occurred.
+This checkpoint stays local pending the next substantive context publication.
+
 ## PR179 exact-head review requests three fixes (2026-11-10)
 
 Relay4279 was acknowledged with confirmed4281. Codex independently reviewed
