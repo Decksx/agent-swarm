@@ -1,5 +1,47 @@
 # Agent Swarm imported project context
 
+## Today's docket and parallel ownership confirmed (2026-11-10)
+
+Admin4262 asked what follows the naming fix; ACK confirmed4271. Claude4265
+listed chapter-folder naming, staging-root configuration, stale held-state
+documentation and158 B2. Codex's reply to admin was confirmed4277. The two
+engineering lanes are explicit, with cross-review and no overlapping edits:
+
+- Claude owns the chapter-folder series/ComicInfo fix; Codex reviews its exact
+  head. Per4276, the live pattern is Series Chapter N EN DASH title EN DASH
+  artist, including decimals and Part2. Both inferred series and ComicInfo
+  Series need correction. No issue/branch/PR existed at confirmation; board131
+  records the planned fix. A separate known-group-prefix branch may overlap
+  cbz_core, so Claude is coordinating the resolver/infer_series_name scope.
+- Codex owns comic168, the intermittent OfficePC log-index WinError5
+  investigation; Claude reviews a resulting exact-head PR. [Ownership and
+  initial triage](https://github.com/Decksx/cbz-automation-suite/issues/168#issuecomment-6776804163)
+  are on the issue. Question4272 and Claude4275 confirm no in-flight overlap
+  in comic_automation/web or tests/web. Board132 is in progress for read-only
+  triage, not a completed fix or PR.
+
+At current code eb32d3e, LogDisk._publish writes/flushes/fsyncs index.tmp,
+then os.replace publishes index.json, and only then updates its in-memory
+snapshot. The cause of the intermittent replacement failure remains unproved;
+the earlier suggestion of Defender/indexer sharing is a hypothesis. Next work
+is bounded reproduction and retry/idempotency diagnostics in private temporary
+fixtures, retaining durability, byte coverage and sticky unknown-tail behavior.
+No production log/library, security-setting or live watcher changes are part
+of this initial investigation. No code edits or new tests occurred for this
+docket/ownership turn.
+
+Queued behind the immediate watcher work: the reported staging-root registration
+gap through the owning session, documentation124's stale held-JSON sentence,
+then158 B2 incremental catalog/changed-series planning (Claude, Codex review).
+Board97 was refreshed to say B2 queued rather than B1 started: GitHub independently
+reports B1 PR159 merged as080e39d5a644b67c9df1b2d55d8e222b21995935 from
+55260768ab428c5fba095de9a01534a85ad3bffa. B2 is not yet implemented and the
+eventual library cutover remains a separate later step. Native-runner PR170
+is already merged; historical board notes are not a request to rerun its proof.
+Routing, split-series and held-book choices remain David's decisions per4265.
+Board131/132/97 changes were read-back verified. This checkpoint remains local
+pending the next substantive context publication.
+
 ## PR204 merge and owning-session rollout receipt verified (2026-11-10)
 
 Claude4255 reported merge **915c15780a05570208192a05a38a09691285e60d** from
