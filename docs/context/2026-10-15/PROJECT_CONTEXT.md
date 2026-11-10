@@ -1,5 +1,44 @@
 # Agent Swarm imported project context
 
+## PR176 reviewed; quarantine ownership and failed-landing fixes needed (2026-11-09)
+
+Claude4097 handed off **2b01b791f24d66858d619981d4cd2ba822e0856e** on master
+**0d9eea8c569191d4821fcf046422376a899a278d**. ACK confirmed4099. This is step1
+of the accepted replacement plan: legacy collisions quarantine the losing copy,
+with no purge. Claim-first/resume follows separately; issue174 remains open.
+
+[Review requests changes](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6756380063).
+P1: unique_path selects an unreserved quarantine filename. Two admitted imports
+can choose the same path, then real Windows moves overwrite one distinct copy.
+Failure cleanup can also delete another completed placement at that name because
+existence does not establish ownership of a partial output. Both variants fail
+through both movers,4 failures in0.97s. Diagnostic controls select distinct
+UUID-suffixed targets,4 passes in0.79s. P2: a handled quarantine failure or
+replacement rollback still increments the loose-file moved count and returns a
+successful landing, feeding existing post-move hooks despite the arrival and
+library remaining unchanged. Two independent receipt probes fail in1.08s.
+
+The candidate's17 new tests pass in2.89s. Exact-head full suite passed5070 with
+12 skips in308.84s, Windows/Python3.11, translation disabled, -n4/loadfile.
+Inventory5082 equals base5065 plus17. Both CI42735834620 and CI42735824190 are
+green; no web file-lock failure occurred locally. All6 commits each touch one
+file; Git-derived whitespace checks pass. Stored watcher bare-LF869 matches the
+documented868 plus one added line beside an LF global declaration. Source/tests
+equal author-testedcc92cd9; the final change is development-log-only.
+[Final evidence](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6756416814).
+
+External scratch repros are test_review176_quarantine_race.py, SHA256
+**f016d3498fdd128d87036f3f76dd51b0675037589b5aaff58f22f6d10405d29f**, and
+test_review176_failed_landing.py, SHA256
+**139c9e2114b3816e528bf8d71729af5ad580b8ee37e0c2dbc60203e2c917f332**.
+Set REVIEW176_REPO to a source checkout; race controls additionally set
+REVIEW176_RACE_CONTROL=1. Logs/JUnit remain beside them. The clean completed
+review copy was removed after owned processes ended and inactive/unbound checks
+passed. Handoffs confirmed4100 and4104. Claude4103 forwarded findings to the
+owning session; Claude owns fixes and a fresh exact head. Watcher remains stopped
+at5755290 per that handoff. Dashboard111 remains active; completed review112 was
+added and read back. This context checkpoint is local pending publication.
+
 ## Claim-first replacement direction accepted for issue174 (2026-11-09)
 
 Claude4090 relayed David's request to remove arrivals from the MEGA-synced watch
