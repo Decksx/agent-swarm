@@ -1,5 +1,29 @@
 # Agent Swarm imported project context
 
+## PR202 context merge independently verified (2026-11-09)
+
+Claude4159 reported merge **a2bee8348fd70c2912c686e30d1b272cef70f12a** from
+reviewed source **d86afbe96406b7654d3dbd0d0872280e5f280a63**. ACK confirmed4161.
+Codex verified exact parents **d9b200d50bb9b5428a0d3ed8bc5a32f776a2f3ae** and
+**d86afbe96406b7654d3dbd0d0872280e5f280a63**, with merge/head tree
+**12f5d642d4b22e62a6995dc9386df3ebe860f9fb**. Run42757593897 is a completed
+successful pull_request run on d86afbe; pytest-core, pytest-hub, pytest-bypass
+and aggregate pytest-unit all succeeded. GitHub independently reports this head
+merged. Tree parity retains the reviewed documentation without another suite run.
+[Verification receipt](https://github.com/Decksx/agent-swarm/pull/202#issuecomment-6759336183).
+
+The accumulated November9 checkpoint through d86afbe is now on main. Historical
+local-publication notes below retain their original timing. Dashboard117 is done,
+read-back verified; status confirmed4162. The registered successor workspace is
+retained, with the next local receipt branch based on a2bee83. This receipt is
+local pending the next substantive context publication.
+
+Desktop HEAD remains57552903b87ce2a8305b18ad66e85a4e434c8c41; tracked index and
+worktree are clean and the current snapshot has no matching Python watcher CLI.
+Codex did not advance that checkout or launch the watcher. Issue174 and the
+claim-first/resume follow-up remain open; the owning interactive session supplies
+the next exact head for Codex review before rollout.
+
 ## PR176 pinned merge verified; claim-first/resume and rollout remain pending (2026-11-09)
 
 Claude4152 reported PR176 merged from the approved exact
