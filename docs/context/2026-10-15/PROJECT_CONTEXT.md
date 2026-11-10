@@ -1,5 +1,57 @@
 # Agent Swarm imported project context
 
+## PR178 round2 atd1bc97b; compact Part and One-shot P2 remains (2026-11-10)
+
+Claude4218 handed off exact **d1bc97b4fcf7ba91d3f92304ce19c2399c301450**,
+unchanged base **6e5c3a8200502918deadcdf71adfeca74a2699eb**. ACK confirmed4220.
+[Round2 review](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6774157145)
+and [verification](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6774239653)
+request changes. The original unmodified6 Part probes pass in7.52s; the spaced
+and numeric Part cases are fixed. The same P2 remains for known marker grammar
+that does not form one complete letter word in the new _is_group_prefix guard.
+
+PartA/PartB become words parta/partb, missing part. Existing watcher _PART_RE at
+line2834 explicitly accepts optional whitespace and recognizes both compact
+markers; they enter the duplicate identity key at line2881. Canonical One-shot
+is listed in cbz_canonical_name.py:116, but the guard splits it into one+shot,
+missing oneshot. Such identities are still dropped as group names. A normal
+watcher pass sends one compact part to review after both request Berserk Ch.5;
+both books survive, but the landed part identity is lost and its distinct
+sibling is misclassified. The correction should use established marker grammar
+before group classification, including compact Parts and punctuated/spaced
+one-shot spelling. This is the remaining identity-preservation P2, not a change
+to David's legacy-uppercase Ch./media-naming decision.
+
+Expanded independent witness:7 failed in17.36s at head;7 passed in4.37s on exact
+base;7 passed in3.49s with a diagnostic existing-grammar guard. Six parsing cases
+cover PartA/PartB/One-shot in plain/display modes; one normal watcher pass checks
+both compact parts reach the library with nothing reviewed. External artifact
+C:\Users\david\.codex\worktrees\test_review178_known_prefixes.py SHA-256
+**602a1cb80a84d42226880334c486b397c2c08f471356598e98cab8229d538a10**.
+It imports the unchanged earlier test_review178_part_prefixes.py helper. Set
+REVIEW178_REPO; REVIEW178_KNOWN_MARKER_CONTROL=1 is diagnostic-only. Logs/JUnit
+prefix review178-d1bc-known-. Clean completed candidate/base copies were removed
+after owned runners ended and inactive/unbound checks passed. External evidence
+and the registered successor workspace remain.
+
+Independent full Windows/Python3.11 suite, translation disabled, -n4/loadfile:
+**5204 passed/12 skipped/0 failed in376.82s**, inventory5216. All62 added tests
+pass (34 initial+28 round1); no web failure. The full-suite receipt recorded both
+exact-source CI42863030363 (pull_request) and42863016140 (push) still running.
+At checkpoint preparation the push had succeeded and the PR run was still
+pending. The reproduced P2 blocks approval regardless of a later green result.
+All7 commits touch one file each; whitespace checks pass; cbz_watcher.py is
+byte-identical to aa4c248 in this round, retaining bare-LF863.
+
+Handoff confirmed4221; Claude4224 acknowledged and forwarded the remaining P2
+and repro to git-bf, suggesting shared marker grammar to avoid divergence.
+Final handoff confirmed4225. Dashboard125 remains active with Claude; bounded
+review127 is done, read-back verified. Claude supplies a corrected exact head
+for fresh review. New read-only desktop snapshot remains6e5c3a8, tracked index
+and worktree clean, no matching Python watcher CLI. No Codex checkout advance,
+deployment or watcher launch. This checkpoint remains local pending the next
+substantive context publication.
+
 ## PR178 reviewed ataa4c248; structural Part prefix P2 (2026-11-10)
 
 Claude4207 handed off exact **aa4c248c7a595765f14974731b50f3ea15c2c396**,
