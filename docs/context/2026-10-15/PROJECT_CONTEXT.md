@@ -1,5 +1,57 @@
 # Agent Swarm imported project context
 
+## PR179 exact-head review requests three fixes (2026-11-10)
+
+Relay4279 was acknowledged with confirmed4281. Codex independently reviewed
+comic PR179 source **1559d2798e08cf022c679b3e29d69d8addbdd6e4**, base
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**. The
+[exact-head review](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6778255041)
+requests changes for three P2 findings:
+
+- Shipped known-group names Desire/Violet also work as real series titles.
+  In a genuine mixed loose-file arrival, both request Mixed Drop Ch.1;
+  one lands with its title erased and the other goes to duplicate review.
+  Both archives survive, but their identity/classification is wrong. An audit
+  finding no existing series-folder collision does not establish the role of
+  a future prefix. Preserve ambiguity or require trustworthy series context;
+  David's explicit digit-only override is not being reversed.
+- The whitelist key ignores case/spacing/punctuation and applies NFKC, while
+  structural vetoes inspect raw prefixes. Listed S2/V3/P2/Ep4 aliases such as
+  S 2, V 3, P 2, E.p.4 and fullwidth S2/V3 evade the always-win veto.
+- An invalid UTF-8 known-groups file raises UnicodeDecodeError instead of
+  the documented unreadable-file/no-groups fallback.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review179_identity.py`,
+SHA256 **fecb9ddd481b08b18ae5bda5439aef2f396a0ad0ad52f7502c2a2ee415e1f612**:
+candidate12 failed, exact base12 passed, diagnostic controls12 passed. Controls
+are causal checks, not an accepted implementation. The normal watcher fixture
+asserts loose-claim routing, isolates all roots in temporary directories and
+includes an unaffected nested series. Candidate/base/control logs and JUnit
+are retained beside the witness as review179-1559-* artifacts.
+
+Full independent suite: **5,319 passed / 12 skipped / 1 failed**, inventory5332,
+543.31s with Python3.11, translation disabled, -n4/loadfile. All54 added test IDs
+pass. Sole failure is known168's alternating_overflow WinError5 at logs.py176
+replacing index.tmp with index.json; web implementation/tests/conftest have no
+PR179 diff. The [additional failing receipt](https://github.com/Decksx/cbz-automation-suite/issues/168#issuecomment-6778270833)
+retains that evidence without substituting a green rerun or inferring a cause.
+Codex's168 investigation remains open; no fix was implemented during this review.
+Exact source CI **42891782067** (pull_request) and **42891665082** (push) both
+completed successfully. Five commits each touch one file; whitespace check
+passes with Windows CRLF handling, and cbz_watcher.py is untouched.
+
+Handoff confirmed4282, acknowledged4284; Claude4285 forwarded all three findings
+and the witness to owning session git-bf. Claude owns fixes and a fresh exact
+head for Codex review. Board133 tracks implementation in progress, child134
+records this completed review, and132 retains the168 failure evidence; read-back
+verified. Chapter-folder card131 remains a separate workstream.
+
+Both own review copies (comic-review179-1559d27 and comic-review179-base-eb32d3e)
+were clean and removed after runners finished and process/service/task/shortcut
+and relay binding checks found no use. External probes/logs remain; the bound
+successor workspace stays. No live checkout, watcher or library change occurred.
+This checkpoint remains local pending the next substantive context publication.
+
 ## Today's docket and parallel ownership confirmed (2026-11-10)
 
 Admin4262 asked what follows the naming fix; ACK confirmed4271. Claude4265
