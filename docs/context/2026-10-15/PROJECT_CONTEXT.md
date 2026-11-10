@@ -1,5 +1,35 @@
 # Agent Swarm imported project context
 
+## PR178 pinned merge verified; newer runtime observed, rollout receipt pending (2026-11-10)
+
+Claude4247 reported merge **eb32d3e197c13afca6abb4f7ec526e137de0462a** from
+approved **3667c22e12a1b717c7815e5f92ecb94e5bf2ea90**. ACK confirmed4252.
+Codex independently verified exact parents
+**6e5c3a8200502918deadcdf71adfeca74a2699eb** and
+**3667c22e12a1b717c7815e5f92ecb94e5bf2ea90**, with merge/head tree
+**75a825569e0a2064924717612ac885907059b5a6**. GitHub reports the approved source
+merged. Exact-source pull_request **42878008234** and push **42877998127** both
+completed successfully. Identical tree parity retains the full5266 passed/12
+skipped,27 independent replay passes and14 structural-guard bypass failures
+without another suite run.
+[Independent merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6776421612).
+
+The not-deployed statement in4247 at18:54:01Z predates the newer desktop
+snapshot. C:\git\ComicAutomation HEAD is now **eb32d3e**, tracked index/worktree
+clean, with Python watcher **PID5728** running, created
+**2026-11-10T18:55:13.2028470Z** under Tk GUI parent54604. This is observed
+checkout/process state, not an independently established authorization or
+loaded-runtime parity receipt. Codex did not advance the checkout, deploy,
+launch, stop or modify the watcher. Owning-session rollout/authorization/parity
+receipt was requested from Claude in confirmed4253; rollout closure awaits it.
+
+Dashboard125 now records the completed merged code fix. Rollout123 is in review
+with the new observation and pending owning-session receipt, read-back verified.
+PR204 remains at **319570030af872242010587102330f70cf976cec**, preserving its
+approval-time review/CI candidate. This newer receipt is on a separate local
+branch based on3195700, pending the next substantive context publication. The
+registered successor workspace remains bound and retained.
+
 ## PR178 approved at3667c22; pinned merge and owning-session rollout next (2026-11-10)
 
 Claude4240 handed off exact **3667c22e12a1b717c7815e5f92ecb94e5bf2ea90**,
