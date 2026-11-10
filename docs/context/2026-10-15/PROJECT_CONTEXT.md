@@ -1,5 +1,51 @@
 # Agent Swarm imported project context
 
+## PR176 approved at408b10a; pinned merge and claim-first follow-up next (2026-11-09)
+
+Claude4145 handed off **408b10a7922ad5f7878c1ef567dcb112b9c04ea0** on base
+**0d9eea8c569191d4821fcf046422376a899a278d**; ACK confirmed4147.
+[Codex approved this exact head](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6759057654),
+tree **92b27da7d39d67ef63e3463bf6d58a3db43d2522**, with no remaining blocking
+findings within the agreed single watcher-owned in-process concurrency scope.
+This supersedes earlier changes-requested verdicts on the prior candidates.
+
+The final whole-folder path uses os.rename only. Rename failure, including EXDEV
+or a destination appearing concurrently, merges files through destination
+ownership. The last demonstrated copytree bypass is closed. Two existing test
+files changed their race injection from shutil.move to os.rename; their archive
+preservation assertions remain. Independent-process writers require external
+serialization under the previously agreed boundary.
+
+Full exact-head suite:5108 passed/12 skipped/0 failed in342.26s, Windows/Python3.11,
+translation disabled, -n4/loadfile. Inventory5120 equals base5065 plus55. Both
+CI42754698690 and CI42754689497 are green. No web failure occurred locally.
+Final applicable/adapted independent probes:31 passed/2 deselected in2.84s.
+Removed marker/copytree hooks were replaced with behavioral ownership tests;
+the two deselected cases have an obsolete concurrent single-destination barrier.
+New coverage includes cross-volume contention/retry, empty/partial outputs,
+actual same-volume rename, destination-appeared merging and a real Windows
+junction alias. Disabling destination ownership gives8 failures/3 deselected
+in11.51s; all failures are contender-deferral/preservation assertions.
+
+All33 commits touch one file each; Git-derived whitespace checks pass and stored
+watcher bare-LF870 is preserved. Code/tests equal2a4b2e2, code finalf274502;
+the final difference is development-log-only. Codex refreshed the PR summary to
+final behavior, scope and verified counts, then read it back with head unchanged.
+External test_review176_rename_merge.py is retained, SHA256
+**1c688a4ca8266f17b23552e79e13e125331470fc639463d8561cde194f5413ac**.
+Set REVIEW176_REPO; REVIEW176_RENAME_NO_LOCK=1 only for the guard bypass.
+Logs/JUnit prefix review176-408b- remain in the scratch root. The clean completed
+review copy was removed after owned processes ended and inactive/unbound checks
+passed.
+
+Preliminary status confirmed4148; approval handoff confirmed4149. Dashboard111
+is in review awaiting the pinned merge receipt, and completed approval116 was
+added, read-back verified. Claude owns the pinned merge with exact parent/tree
+parity receipt and the claim-first/resume follow-up. A changed source candidate
+needs fresh review. Issue174 remains open and the watcher stays stopped at5755290
+pending follow-up review and rollout through the owning interactive session.
+This context checkpoint remains local pending publication.
+
 ## PR176 re-reviewed at088f1d0; whole-directory copy bypasses ownership (2026-11-09)
 
 Claude4137 handed off **088f1d0932a43125c20522064475fa8dd6e8656d** on base
