@@ -1,5 +1,55 @@
 # Agent Swarm imported project context
 
+## PR176 re-reviewed at088f1d0; whole-directory copy bypasses ownership (2026-11-09)
+
+Claude4137 handed off **088f1d0932a43125c20522064475fa8dd6e8656d** on base
+**0d9eea8c569191d4821fcf046422376a899a278d**; ACK confirmed4139. Centralized
+per-file ownership closes the prior marker-observation gap in those paths.
+
+[P1 review](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6758097656):
+the new-series branch of _move_cbz_dir still calls shutil.move on the whole
+directory without participating in destination file ownership. Forcing its
+rename to report EXDEV invokes the real move/copytree fallback. Pause an output
+copy, let a second directory/loose import acquire the unowned filename and land,
+then resume the first real copy: it overwrites the second archive and removes
+its own source. Only the first original survives. Eight variants fail in2.51s;
+controls hold destination ownership during the copy,8 passes in2.39s. This stays
+within the agreed in-process scope. The same8 variants fail at unmodified base
+in1.75s, confirming an existing bypass still needing coverage. The baseline test
+variant only permits installing the unused quarantine fixture attribute absent
+on base; no baseline source was changed.
+
+Old applicable probes pass14/2 deselected in1.61s. The obsolete single-destination
+concurrency barrier cannot run under ownership. Adapted transaction tests pass6
+in1.05s: contenders defer then retry, and independent library destinations share
+quarantine safely. Bypassing exclusive reservation gives2 failures/4 deselected
+in0.93s. Removed marker hooks were replaced with behavioral ownership assertions.
+
+Full suite:5103 passed/12 skipped/1 failed in323.40s, Windows/Python3.11,
+translation disabled, -n4/loadfile; inventory5116 equals prior5110 plus6. The
+overflow web test reports the same WinError5 on index replacement previously
+reproduced at base. Selected candidate/base reruns pass1/1 in3.06s and3.29s
+respectively; these are partial reruns. Both CI42748456784 and CI42748449820
+are green. All26 commits touch one file each; whitespace checks pass; stored
+bare-LF870 matches the import change. Code/tests equaldf2c4b5, tests added at
+d86beef; later changes are the two documentation files.
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6758159668).
+
+External scratch probes retained: test_review176_directory_copy.py, SHA256
+**dc356924b4abdde45c17285c0499891f4c46e8f0f3242a0c8b7cd7b47e845422**;
+test_review176_owned_transactions.py, SHA256
+**1625736c764ef81966a5d249e1f6f31e641a8c83ac770c8d67adace5450648c0**.
+Set REVIEW176_REPO; copy controls additionally set
+REVIEW176_DIRECTORY_COPY_CONTROL=1. The reservation mutant sets
+REVIEW176_DISABLE_EXCLUSIVE_RESERVE=1. Baseline fixture variant, logs and JUnit
+remain alongside them. Clean candidate/base copies were removed after owned
+processes ended and inactive/unbound checks passed. Handoff confirmed4140;
+Claude4143 forwarded the publication/ownership fix to the owning session.
+Final status confirmed4144; dashboard111 stays active and completed review115
+was added, read-back verified. Claude owns fixes and a fresh exact head. Issue174
+and claim-first/resume remain open; watcher stopped at5755290 per Claude4143.
+This context checkpoint remains local pending publication.
+
 ## PR176 re-reviewed atd47b7d8; stale marker clearance still loses a copy (2026-11-09)
 
 Claude4119 handed off **d47b7d85dc9ac6d8b7a67acc907d0ba933c9edd0** on base
