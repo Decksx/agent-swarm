@@ -1,5 +1,69 @@
 # Agent Swarm imported project context
 
+## PR177 round2 atb979fd6; stale resume record still repeats AI (2026-11-10)
+
+Claude4174 handed off exact **b979fd6086b2660c8a88673ef2ef9d5ed6d20afe**,
+unchanged base **9c267752754180f048e4bb1f7c333f7e56f24c57**. ACK confirmed4176.
+[Round2 review](https://github.com/Decksx/cbz-automation-suite/pull/177#issuecomment-6762920408)
+and [final verification](https://github.com/Decksx/cbz-automation-suite/pull/177#issuecomment-6763022825)
+request changes. Creation-time ownership, owner-only retirement and non-recursive
+final folder removal close the original P1; persisted naming markers and custody
+rekeying close the original single-pass rename/retry P2. The original probes'
+mechanism preconditions are obsolete; their behavioral assertions were retargeted.
+
+New P2: _resumed_items reads claim.json before _claim_item acquires ownership.
+Its stale record is saved after acquisition, overwriting newer custody. Two
+process_and_move_directory callbacks for disjoint existing sibling folders are
+allowed by the directory guard, and both resume unfinished claims first. CallbackA
+reads an old no-custody record and pauses. CallbackB owns the claim, rewrites AI
+once, saves completion, then a refused final landing leaves its archive in
+processing. A resumes after B releases ownership, saves its old snapshot and
+rewrites the same archive again. The fake AI makes unique original backups and
+changes page bytes on each invocation. The diagnostic control acquires ownership
+and reloads the record before entering _claim_item; the same probe then passes.
+Record observation/validation, including unreadable records and watch-root
+filtering, must participate in the ownership protocol through processing and
+retirement. The diagnostic wrapper demonstrates this instance, not a complete fix.
+
+Independent stale probe:1 failed in3.41s; ownership/reload control:1 passed in3.13s.
+Adapted original AI rename/retry witness:1 passed in2.98s, retaining the call-count
+assertion and requiring completed custody under the canonical filename. Full
+Windows/Python3.11 suite, translation disabled, -n4/loadfile: **5139 passed/12
+skipped/1 failed in437.18s**, inventory5152. All9 newly added round1 test IDs pass.
+Both exact-head CI **42783695704** and **42783687254** completed successfully.
+
+The sole full failure is tests/web/test_web_logs.py::
+test_alternating_overflow_compacts_map_and_physical_files, WinError5 at
+comic_automation/web/jobs/logs.py:176 replacing index.tmp with index.json.
+Candidate selected reruns:2 failed/1 passed with that same error; exact base9c26775
+selected reruns:3 passed. This turn did not reproduce that failure on current
+base. Earlier PR176 base testing reproduced the same error; web implementation
+and test files are unchanged from that earlier base through this head. The
+changed autouse fixture isolates claim roots instead of held-state JSON. No new
+watcher finding is inferred from the web results; these are bounded rerun results,
+not a claim that the current base always passes. All5 new commits touch one file;
+Git-derived whitespace checks pass and watcher bare-LF remains863.
+
+External test_review177_r2_record_snapshot.py SHA-256
+**70f66c033660766a388cfab3248264b258691cc07b92d85a2fe51693a9faef0a**;
+test_review177_r2_ai_identity.py SHA-256
+**d0e46b95d3d8eb7c5fad403777638cff69d8446f9dc739e0a1548b4f63a4e299**,
+both in C:\Users\david\.codex\worktrees beside earlier evidence. Set
+REVIEW177_REPO; diagnostic-only REVIEW177_FRESH_RECORD_CONTROL=1 reloads the
+record under ownership. Logs/JUnit prefix review177-b979-. Completed clean
+candidate/base copies were removed after owned runners ended and inactive/unbound
+checks passed. Registered successor workspace and external evidence remain.
+
+Handoff confirmed4177 accidentally carried a placeholder comment URL; correction
+confirmed4179 names the actual6762920408 comment. Claude4181 acknowledged and
+forwarded the correct finding/link to git-bf. Final handoff confirmed4182.
+Dashboard103/118 remain active with Claude, title118 reflects the stale-record
+fix; completed review120 was added, all read-back verified. Claude/the owning
+session supplies a fresh corrected exact head. Live stays5755290 with watcher
+stopped per the owning session; Codex did not advance it or launch the watcher.
+No rollout approval: corrected-head review and David's OK remain required.
+This checkpoint is local pending the next substantive context publication.
+
 ## PR177 reviewed at172d064; claim retirement P1 and AI custody P2 (2026-11-10)
 
 Claude4163 handed off exact **172d0642a7ee08d2024aebbdab2151f32739c907**,
