@@ -1,5 +1,225 @@
 # Agent Swarm imported project context
 
+## PR177 approved at9d45f8f; pinned merge and David's rollout OK next (2026-11-10)
+
+Claude4187 handed off exact **9d45f8f00ff2259f4cfc44a19db166496eefed14**,
+base **9c267752754180f048e4bb1f7c333f7e56f24c57**. ACK confirmed4189.
+[Codex approves this exact head](https://github.com/Decksx/cbz-automation-suite/pull/177#issuecomment-6763735015),
+tree **b45b22d40f2bad702f995e7190dc7b4ac72cc08f**, with no remaining blocking
+finding in the inherited single watcher-owned in-process destination concurrency
+scope. This supersedes earlier PR177 changes-requested verdicts. Independent
+processes writing the library still require external serialization.
+
+Resume now owns a claim before reading or judging its record, then hands that
+same ownership and current record directly to processing. Processing refuses
+unowned claims. Creator ownership and owner-only retirement remain. This closes
+the last demonstrated stale-record overwrite of completed AI custody. The old
+probe's intermediate timing assertion is obsolete because the competing pass now
+skips the owned claim; the adapted probe preserves the final one-rewrite assertion.
+
+Full Windows/Python3.11 suite, translation disabled, -n4/loadfile: **5142 passed/12
+skipped/0 failed in333.53s**, inventory5154. No web failure occurred. Skips include
+local routing configuration, deliberately unreadable cases, unavailable symlink
+privileges and2 native lifetime cases that cannot run inside this Job Object.
+No attempt was made to escape containment. Exact-head pull_request
+**42789088941** and push **42789078640** both completed successfully.
+
+Independent behavioral probes:8 passed in7.67s, covering the adapted stale-record
+race, AI rename/retry, owned reads for valid/missing/corrupt/foreign/empty records
+with final dispositions, and closing a suspended resume before a successful fresh
+pass. Moving the read before ownership in memory gives1 failure in3.16s with two
+AI rewrites. Source files were unchanged. All25 commits touch one file each;
+whitespace checks pass and watcher bare-LF remains863. The clean completed review
+copy was removed after owned runners ended and inactive/unbound checks passed.
+
+External artifacts in C:\Users\david\.codex\worktrees:
+test_review177_r3_record_snapshot.py SHA-256
+**d6c65f7132e0a28603979a6fc74b8addae243b18948d0154b08a05802579d8ea**;
+test_review177_r3_ownership.py SHA-256
+**870bd6e4152f7ce6bf4f715684cbb3095124b7c6e4a3d337a3ffe6739c840dd5**.
+The previously recorded r2 AI identity witness remains unchanged. Set
+REVIEW177_REPO; REVIEW177_PRELOCK_READ=1 is diagnostic-only. Logs/JUnit prefix
+review177-9d45-. Registered successor workspace and external evidence remain.
+
+Claude's reported alternating isolated web-overflow A/B sample is base13/30
+failed, head9/30 failed. This is attributed author evidence, not Codex's own
+sample. Earlier independent baseline reproduction, unchanged web implementation
+and tests, the bounded round2 results and this passing full run do not establish
+a new watcher regression. Author guard accounting is26 initial+10 round1+3
+load-bearing round2 bypasses. The explicit foreign-root release is retained but
+its removal is redundant on CPython because object destruction closes the lock;
+it is not claimed as a load-bearing bypass.
+
+Codex refreshed the PR summary to final behavior, scope and test accounting,
+then read it back with the source head unchanged. Inventory5120->5154 is+42 new
+claim test IDs minus8 held-state IDs; parametrized IDs are counted correctly.
+One non-blocking documentation follow-up remains: the final Logging paragraph
+in docs/cbz_watcher.md still names the deleted held-state JSON, contradicting its
+updated claim-first section. Preliminary status confirmed4190; approval handoff
+confirmed4191. Dashboard118 is in review awaiting pinned merge, completed
+approval121 was added, read-back verified. Claude owns the pinned merge with exact
+parent/tree receipt and174 closure record. Changed candidates need fresh review.
+This code approval is not rollout approval: live stays5755290 with watcher stopped
+until David's OK through the owning interactive session. The earlier local
+checkpoint notes below retain their original timing; this publication collects
+the post202 receipt and all three PR177 review rounds.
+
+## PR177 round2 atb979fd6; stale resume record still repeats AI (2026-11-10)
+
+Claude4174 handed off exact **b979fd6086b2660c8a88673ef2ef9d5ed6d20afe**,
+unchanged base **9c267752754180f048e4bb1f7c333f7e56f24c57**. ACK confirmed4176.
+[Round2 review](https://github.com/Decksx/cbz-automation-suite/pull/177#issuecomment-6762920408)
+and [final verification](https://github.com/Decksx/cbz-automation-suite/pull/177#issuecomment-6763022825)
+request changes. Creation-time ownership, owner-only retirement and non-recursive
+final folder removal close the original P1; persisted naming markers and custody
+rekeying close the original single-pass rename/retry P2. The original probes'
+mechanism preconditions are obsolete; their behavioral assertions were retargeted.
+
+New P2: _resumed_items reads claim.json before _claim_item acquires ownership.
+Its stale record is saved after acquisition, overwriting newer custody. Two
+process_and_move_directory callbacks for disjoint existing sibling folders are
+allowed by the directory guard, and both resume unfinished claims first. CallbackA
+reads an old no-custody record and pauses. CallbackB owns the claim, rewrites AI
+once, saves completion, then a refused final landing leaves its archive in
+processing. A resumes after B releases ownership, saves its old snapshot and
+rewrites the same archive again. The fake AI makes unique original backups and
+changes page bytes on each invocation. The diagnostic control acquires ownership
+and reloads the record before entering _claim_item; the same probe then passes.
+Record observation/validation, including unreadable records and watch-root
+filtering, must participate in the ownership protocol through processing and
+retirement. The diagnostic wrapper demonstrates this instance, not a complete fix.
+
+Independent stale probe:1 failed in3.41s; ownership/reload control:1 passed in3.13s.
+Adapted original AI rename/retry witness:1 passed in2.98s, retaining the call-count
+assertion and requiring completed custody under the canonical filename. Full
+Windows/Python3.11 suite, translation disabled, -n4/loadfile: **5139 passed/12
+skipped/1 failed in437.18s**, inventory5152. All9 newly added round1 test IDs pass.
+Both exact-head CI **42783695704** and **42783687254** completed successfully.
+
+The sole full failure is tests/web/test_web_logs.py::
+test_alternating_overflow_compacts_map_and_physical_files, WinError5 at
+comic_automation/web/jobs/logs.py:176 replacing index.tmp with index.json.
+Candidate selected reruns:2 failed/1 passed with that same error; exact base9c26775
+selected reruns:3 passed. This turn did not reproduce that failure on current
+base. Earlier PR176 base testing reproduced the same error; web implementation
+and test files are unchanged from that earlier base through this head. The
+changed autouse fixture isolates claim roots instead of held-state JSON. No new
+watcher finding is inferred from the web results; these are bounded rerun results,
+not a claim that the current base always passes. All5 new commits touch one file;
+Git-derived whitespace checks pass and watcher bare-LF remains863.
+
+External test_review177_r2_record_snapshot.py SHA-256
+**70f66c033660766a388cfab3248264b258691cc07b92d85a2fe51693a9faef0a**;
+test_review177_r2_ai_identity.py SHA-256
+**d0e46b95d3d8eb7c5fad403777638cff69d8446f9dc739e0a1548b4f63a4e299**,
+both in C:\Users\david\.codex\worktrees beside earlier evidence. Set
+REVIEW177_REPO; diagnostic-only REVIEW177_FRESH_RECORD_CONTROL=1 reloads the
+record under ownership. Logs/JUnit prefix review177-b979-. Completed clean
+candidate/base copies were removed after owned runners ended and inactive/unbound
+checks passed. Registered successor workspace and external evidence remain.
+
+Handoff confirmed4177 accidentally carried a placeholder comment URL; correction
+confirmed4179 names the actual6762920408 comment. Claude4181 acknowledged and
+forwarded the correct finding/link to git-bf. Final handoff confirmed4182.
+Dashboard103/118 remain active with Claude, title118 reflects the stale-record
+fix; completed review120 was added, all read-back verified. Claude/the owning
+session supplies a fresh corrected exact head. Live stays5755290 with watcher
+stopped per the owning session; Codex did not advance it or launch the watcher.
+No rollout approval: corrected-head review and David's OK remain required.
+This checkpoint is local pending the next substantive context publication.
+
+## PR177 reviewed at172d064; claim retirement P1 and AI custody P2 (2026-11-10)
+
+Claude4163 handed off exact **172d0642a7ee08d2024aebbdab2151f32739c907**,
+base **9c267752754180f048e4bb1f7c333f7e56f24c57**. ACK confirmed4165.
+[Main review](https://github.com/Decksx/cbz-automation-suite/pull/177#issuecomment-6761964288)
+and [verification addendum](https://github.com/Decksx/cbz-automation-suite/pull/177#issuecomment-6762065112)
+request changes. This claim-first implementation supersedes175, but174 stays open.
+
+P1: claim_directory/claim_files publish a metadata-only claim before moving its
+payload, with OwnerLock acquired later by the watcher. Resume can inspect that
+empty claim, enter retirement, and pause immediately before rmtree. The creator
+then moves the only original into it; resumed retirement deletes that archive.
+Both directory and files-only kinds reproduce this in-process interleaving.
+Ownership must cover claim birth/publication and record inspection/retirement,
+with revalidation under ownership. Merely holding owner.lock does not prevent
+rmtree(ignore_errors=True) from deleting the payload. A diagnostic shared
+creation/retirement ownership control makes both repros pass; it is not a complete
+production patch.
+
+P2: persisted AI completion is keyed by the post-AI filename, before later media
+naming. Group Ch.1.cbz is processed, renamed to Berserk ch. 1.cbz, then left in
+the claim by a failed final landing. Normal resume misses the old-name custody
+entry and invokes AI again on the canonical name. A persisted canonical-name
+association control prevents the repeat. The fix needs stable archive identity
+or crash-safe name association; unresolved custody must not silently rerun AI.
+The probe retains original backups and demonstrates repeated processing rather
+than claiming permanent loss from this second finding.
+
+Independent full Windows/Python3.11 run, translation disabled, -n4/loadfile:
+**5131 passed/12 skipped/0 failed in332.60s**, inventory5143. Source CI
+**42775494651** and **42775488702** both completed successfully. External claim
+probes:2 failed/1 passed; ownership controls:2 passed/1 deselected. AI identity
+probe:1 failed; persisted-name control:1 passed. The passing claim probe retargets
+the removed no-library/deferred-tagged-arrival failed-move scenario to claim-first.
+
+The specifically requested retained stripped-collision test fails the tagged
+chapter's own move, then verifies retry. It covers the core preservation/retry
+invariant; the removed test exercised a separate no-existing-library whole-mover
+failure path, which the external retarget also passes. Removal is not a separate
+implementation finding. Collected held test IDs independently confirm29->21,
+14 kept/15 removed/7 added. The PR body sentence saying none are parametrized
+needs correction: six collected candidate IDs have parameter suffixes. Its
+numerical ID accounting is correct. The author's reported zero-writes web test
+passes3/3 isolated at exact base9c267752 and in Codex's full candidate run. No
+tests/web files changed, but that particular failure was not independently
+reproduced on base. All16 commits touch one file each; Git-derived whitespace
+checks pass; watcher bare-LF863 versus base870 is accounted for by9 removed/2 added.
+
+External artifacts remain in C:\Users\david\.codex\worktrees:
+test_review177_probes.py SHA-256
+**525b7db2505253afe06f2edaa2ba2f32e89366e8386fd685887b88f7477ddc2a**;
+test_review177_ai_identity.py SHA-256
+**bbc427fadee727934c8f0d13846415483952c2b5f5587ef0a70c742d968a1af2**.
+Set REVIEW177_REPO to the candidate checkout. Diagnostic-only switches are
+REVIEW177_CREATION_CONTROL=1 and REVIEW177_AI_REKEY_CONTROL=1. Logs/JUnit use
+prefix review177-172d-. Both clean completed review worktrees were removed after
+owned runners ended and inactive/unbound checks passed; the registered successor
+workspace and external evidence remain.
+
+Initial handoff confirmed4166; Claude acknowledged4169 and forwarded both findings
+to the owning session git-bf. Final handoff confirmed4170. Dashboard103 now links
+PR177, implementation118 is in progress with Claude, bounded review119 is done;
+all read-back verified. Claude supplies a corrected exact head for fresh Codex
+review. Live remains5755290 with watcher stopped per the owning session; Codex
+did not advance it or launch the watcher. Rollout requires corrected-head approval
+and David's OK. This checkpoint is local pending the next substantive context
+publication, on the receipt branch based on merged PR202.
+
+## PR202 context merge independently verified (2026-11-09)
+
+Claude4159 reported merge **a2bee8348fd70c2912c686e30d1b272cef70f12a** from
+reviewed source **d86afbe96406b7654d3dbd0d0872280e5f280a63**. ACK confirmed4161.
+Codex verified exact parents **d9b200d50bb9b5428a0d3ed8bc5a32f776a2f3ae** and
+**d86afbe96406b7654d3dbd0d0872280e5f280a63**, with merge/head tree
+**12f5d642d4b22e62a6995dc9386df3ebe860f9fb**. Run42757593897 is a completed
+successful pull_request run on d86afbe; pytest-core, pytest-hub, pytest-bypass
+and aggregate pytest-unit all succeeded. GitHub independently reports this head
+merged. Tree parity retains the reviewed documentation without another suite run.
+[Verification receipt](https://github.com/Decksx/agent-swarm/pull/202#issuecomment-6759336183).
+
+The accumulated November9 checkpoint through d86afbe is now on main. Historical
+local-publication notes below retain their original timing. Dashboard117 is done,
+read-back verified; status confirmed4162. The registered successor workspace is
+retained, with the next local receipt branch based on a2bee83. This receipt is
+local pending the next substantive context publication.
+
+Desktop HEAD remains57552903b87ce2a8305b18ad66e85a4e434c8c41; tracked index and
+worktree are clean and the current snapshot has no matching Python watcher CLI.
+Codex did not advance that checkout or launch the watcher. Issue174 and the
+claim-first/resume follow-up remain open; the owning interactive session supplies
+the next exact head for Codex review before rollout.
+
 ## PR176 pinned merge verified; claim-first/resume and rollout remain pending (2026-11-09)
 
 Claude4152 reported PR176 merged from the approved exact
