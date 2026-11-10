@@ -1,5 +1,73 @@
 # Agent Swarm imported project context
 
+## PR177 reviewed at172d064; claim retirement P1 and AI custody P2 (2026-11-10)
+
+Claude4163 handed off exact **172d0642a7ee08d2024aebbdab2151f32739c907**,
+base **9c267752754180f048e4bb1f7c333f7e56f24c57**. ACK confirmed4165.
+[Main review](https://github.com/Decksx/cbz-automation-suite/pull/177#issuecomment-6761964288)
+and [verification addendum](https://github.com/Decksx/cbz-automation-suite/pull/177#issuecomment-6762065112)
+request changes. This claim-first implementation supersedes175, but174 stays open.
+
+P1: claim_directory/claim_files publish a metadata-only claim before moving its
+payload, with OwnerLock acquired later by the watcher. Resume can inspect that
+empty claim, enter retirement, and pause immediately before rmtree. The creator
+then moves the only original into it; resumed retirement deletes that archive.
+Both directory and files-only kinds reproduce this in-process interleaving.
+Ownership must cover claim birth/publication and record inspection/retirement,
+with revalidation under ownership. Merely holding owner.lock does not prevent
+rmtree(ignore_errors=True) from deleting the payload. A diagnostic shared
+creation/retirement ownership control makes both repros pass; it is not a complete
+production patch.
+
+P2: persisted AI completion is keyed by the post-AI filename, before later media
+naming. Group Ch.1.cbz is processed, renamed to Berserk ch. 1.cbz, then left in
+the claim by a failed final landing. Normal resume misses the old-name custody
+entry and invokes AI again on the canonical name. A persisted canonical-name
+association control prevents the repeat. The fix needs stable archive identity
+or crash-safe name association; unresolved custody must not silently rerun AI.
+The probe retains original backups and demonstrates repeated processing rather
+than claiming permanent loss from this second finding.
+
+Independent full Windows/Python3.11 run, translation disabled, -n4/loadfile:
+**5131 passed/12 skipped/0 failed in332.60s**, inventory5143. Source CI
+**42775494651** and **42775488702** both completed successfully. External claim
+probes:2 failed/1 passed; ownership controls:2 passed/1 deselected. AI identity
+probe:1 failed; persisted-name control:1 passed. The passing claim probe retargets
+the removed no-library/deferred-tagged-arrival failed-move scenario to claim-first.
+
+The specifically requested retained stripped-collision test fails the tagged
+chapter's own move, then verifies retry. It covers the core preservation/retry
+invariant; the removed test exercised a separate no-existing-library whole-mover
+failure path, which the external retarget also passes. Removal is not a separate
+implementation finding. Collected held test IDs independently confirm29->21,
+14 kept/15 removed/7 added. The PR body sentence saying none are parametrized
+needs correction: six collected candidate IDs have parameter suffixes. Its
+numerical ID accounting is correct. The author's reported zero-writes web test
+passes3/3 isolated at exact base9c267752 and in Codex's full candidate run. No
+tests/web files changed, but that particular failure was not independently
+reproduced on base. All16 commits touch one file each; Git-derived whitespace
+checks pass; watcher bare-LF863 versus base870 is accounted for by9 removed/2 added.
+
+External artifacts remain in C:\Users\david\.codex\worktrees:
+test_review177_probes.py SHA-256
+**525b7db2505253afe06f2edaa2ba2f32e89366e8386fd685887b88f7477ddc2a**;
+test_review177_ai_identity.py SHA-256
+**bbc427fadee727934c8f0d13846415483952c2b5f5587ef0a70c742d968a1af2**.
+Set REVIEW177_REPO to the candidate checkout. Diagnostic-only switches are
+REVIEW177_CREATION_CONTROL=1 and REVIEW177_AI_REKEY_CONTROL=1. Logs/JUnit use
+prefix review177-172d-. Both clean completed review worktrees were removed after
+owned runners ended and inactive/unbound checks passed; the registered successor
+workspace and external evidence remain.
+
+Initial handoff confirmed4166; Claude acknowledged4169 and forwarded both findings
+to the owning session git-bf. Final handoff confirmed4170. Dashboard103 now links
+PR177, implementation118 is in progress with Claude, bounded review119 is done;
+all read-back verified. Claude supplies a corrected exact head for fresh Codex
+review. Live remains5755290 with watcher stopped per the owning session; Codex
+did not advance it or launch the watcher. Rollout requires corrected-head approval
+and David's OK. This checkpoint is local pending the next substantive context
+publication, on the receipt branch based on merged PR202.
+
 ## PR202 context merge independently verified (2026-11-09)
 
 Claude4159 reported merge **a2bee8348fd70c2912c686e30d1b272cef70f12a** from
