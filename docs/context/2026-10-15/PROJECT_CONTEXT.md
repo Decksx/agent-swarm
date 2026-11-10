@@ -1,5 +1,61 @@
 # Agent Swarm imported project context
 
+## PR180 round3 fixes single ranges; compound identity remains (2026-11-10)
+
+Relay4312 was acknowledged with confirmed4314. Codex re-reviewed source
+**b52a4fdbbc8b1f6efc8f1f51b0e5571835474ef2**, base still
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**. The
+[round3 review](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6781707892)
+confirms all24 prior external probes pass. Bypassing _range_suffix restores
+6 failures/2 passes in the translated-range witness; bypassing placeholder
+range context causes5 failures/1 pass/871 deselected. Single-range reconstruction
+is fixed, but changes remain requested for compound numbering in that writer.
+
+_marked_range returns only the first ascending range; the caller gives scalar
+chapter/volume priority over even that range. With a deterministic translator,
+`漫画 Vol. 1-3 Ch. 1-30` and `漫画 Vol. 1-3 Ch. 31-60` both become
+Story Vol.1-3.cbz. A scalar chapter also drops the volume span:
+`漫画 Vol. 1-3 Ch. 30` becomes Story Ch.30.cbz. The normal watcher lands one
+compound-range book and falsely reviews the other as an arrival-name duplicate.
+Both payloads survive. Exact base also lacks complete spans but lands two
+distinct first-chapter names; the distinct-books case passes base/fails head.
+Preserve every distinguishing span and scalar field, or retain/refuse the
+unchanged arrival when safe reconstruction is unavailable. Do not restore
+range endpoints as scalar fields. The translated matrix exercises one number
+form per filename, so it misses these field interactions.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review180_compound_ranges.py`,
+SHA256 **46177de1fc00c615208d2b03d7a737ed45fe0ab96bb108138225b7fda88a2390**:
+candidate8 failed/2 passed, exact base7 failed/3 passed, diagnostic-only
+translation-off control10 passed. Ordinary translated scalar chapter/volume
+cases pass. All roots are private temporary fixtures; no translator service
+was contacted, and both payloads are asserted intact before name/count checks.
+Candidate/base/control evidence is retained as review180-b52a-*compound* logs
+and JUnit beside the witness.
+
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6781811624):
+full **6,143 passed / 12 skipped / 0 failed in474.14s**, inventory6155;
+all877 range-file IDs pass (36+13+287+541). Python3.11, translation disabled,
+-n4/loadfile; retained review180-b52a-* logs/JUnit. Exact push **42919281257
+completed successfully**; pull_request **42919289230 remains in progress**
+at last check, not claimed green. Source tree is
+**ef9768aaf9afe58f6a0bd5527e36c4d0b96d0f93**. All14 commits touch one file
+each; whitespace check passes with CRLF handling. Watcher bare-LF remains863,
+CRLF net+16 (19added/3removed); web/tests-web/conftest diff is empty. The PR
+body was refreshed and read-back verified, including round2/3 evidence. The
+placeholder's canonical lowercase ch. is deliberately pinned; David's upper
+Ch. choice is an owner-reported separate formatter/media-naming follow-up.
+Handoff confirmed4315, ACK4317; Claude4318 forwarded the witness and proposed
+a broad rule: translate only the title plus original numbering spans, or
+retain arrivals when safe reconstruction is ambiguous. Claude/git-bf owns the
+fresh head;180-first then fresh rebased179 review remains the sequence.
+Board135 fixes remain active;139 records the completed re-review, read-back
+verified. Own clean candidate/base copies were removed after all runners
+finished and process/service/task/shortcut plus relay binding checks found
+them inactive/unbound. External evidence and the bound successor workspace
+remain. No production changes or rollout approval occurred. This checkpoint
+stays local pending substantive context publication.
+
 ## PR180 round2 resolves readers; translated ranges still collide (2026-11-10)
 
 Relay4304 was acknowledged with confirmed4306. Codex re-reviewed
