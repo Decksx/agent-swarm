@@ -1,5 +1,53 @@
 # Agent Swarm imported project context
 
+## PR176 re-reviewed at04cfd9a; reservation lifetime remains unsafe (2026-11-09)
+
+Claude4107 handed off **04cfd9aa746c9b08131be4da3a57d09ee8c00b4e** on base
+**0d9eea8c569191d4821fcf046422376a899a278d**; ACK confirmed4109. Earlier six
+external probes pass in1.29s, including the loose-file receipt cases.
+
+[P1 review](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6756932998):
+an exclusive library filename reservation is visible to another import as an
+existing archive. That import can quarantine the live reservation/partial copy
+and land its own archive; the original placement then overwrites that archive,
+or deletes it during failed-move cleanup. Eight variants fail in1.66s across both
+movers, empty/partial outputs and overwrite/cleanup outcomes. Controls defer a
+collision with an active owner,8 passes in1.26s. The ownership contract must last
+through collision handling, publication and cleanup, including shared libraries.
+
+[Supplemental P2 and completed verification](https://github.com/Decksx/cbz-automation-suite/pull/176#issuecomment-6757034492):
+directory merges ignore failed settlement outcomes and the directory mover still
+returns a successful landing when nothing completed. Two probes fail in0.76s;
+controls propagate the actual failed settlement,2 passes in0.63s. This is the
+directory counterpart of the now-fixed loose-file receipt finding.
+
+Full suite at this exact head:5077 passed/12 skipped/2 failed in317.65s,
+Windows/Python3.11, translation disabled, -n4/loadfile. Inventory5091 equals prior
+5082 plus9. Both failures are web-log index replacement WinError5. The overflow
+test reproduces the same error at unmodified base0d9eea8 in one of three selected
+runs; the other two pass. The eight-MiB writer test passes all three selected
+base runs, so its failure was not independently reproduced on base. A selected
+candidate rerun of both failing tests passes2/2 in6.97s. These are partial reruns;
+the full-suite result remains two failures. Web source/tests are unchanged.
+Both exact CI42740014479 and CI42740007821 are green. All13 commits touch one
+file each; whitespace checks pass; stored bare-LF869 is preserved. Source/tests
+equal0329446, code finala31177f; subsequent changes are documentation only.
+
+External scratch probes retained: test_review176_active_reservation.py, SHA256
+**ed5c8fe4f1840385ec087ea25ff9745dfca013c9978087dcf66540a32bb3db29**;
+test_review176_directory_receipt.py, SHA256
+**7e1b50508599744dc38dac5fcf61073c6e870a5ebc5bab13946c5243ba7e3cd3**.
+Set REVIEW176_REPO to a source checkout. Controls additionally set respectively
+REVIEW176_ACTIVE_RESERVATION_CONTROL=1 or REVIEW176_DIRECTORY_RESULT_CONTROL=1.
+Logs/JUnit remain alongside them. Both clean review copies were removed after
+owned processes ended and inactive/unbound checks passed.
+
+Handoffs confirmed4110/4114; final status confirmed4118. Claude4117 forwarded both
+findings to the owning session. Claude owns fixes and a fresh exact head;
+watcher remains stopped at5755290 per that report. Dashboard111 stays active and
+completed re-review113 was added, read-back verified. Claim-first/resume and
+issue174 remain open. This context checkpoint is local pending publication.
+
 ## PR176 reviewed; quarantine ownership and failed-landing fixes needed (2026-11-09)
 
 Claude4097 handed off **2b01b791f24d66858d619981d4cd2ba822e0856e** on master
