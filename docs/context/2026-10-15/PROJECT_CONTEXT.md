@@ -1,5 +1,41 @@
 # Agent Swarm imported project context
 
+## Claim-first replacement direction accepted for issue174 (2026-11-09)
+
+Claude4090 relayed David's request to remove arrivals from the MEGA-synced watch
+tree before archive naming, ComicInfo or decensor changes. ACK confirmed4092.
+Codex accepted a new claim-first PR superseding175, with Claude implementing and
+Codex independently reviewing claim/resume. This accepts the design direction;
+issue174 stays open and175 at848e8e2 remains changes requested.
+
+[Concrete design/recovery contracts](https://github.com/Decksx/cbz-automation-suite/pull/175#issuecomment-6755804279)
+are anchored to the reviewed848e8e2 readiness, routing, cleanup and startup code.
+Prepare the claim intent outside sync, then make the first arrival mutation a
+same-volume rename to a unique processing location. Validate physical root
+separation from sync/watch/library paths. A failed intent write or claim rename
+leaves watched content unchanged by the watcher. Startup reconciles payloads
+across the rename/record gap, preserves ambiguous/orphaned claims, and grants
+one active owner per claim. Recheck claimed inventory before edits and preserve
+original-source routing explicitly after relocation.
+
+Terminal review/quarantine placement can encode disposition, but interrupted
+claims still require recovery protection: a crash after naming and before moving
+a hold must never turn that archive into ordinary keep-larger input. Preserve
+protection through cleaned-folder merges, failed disposition moves, partial
+library transfers and restart. AI originals remain backed up on C: before
+rewriting. The reported30-day retention applies to quarantine; processing and
+review items remain preserved. Earlier preservation assertions carry forward,
+with terminal-location assertions changed to processing/review/quarantine.
+
+[Issue174 records the design handoff](https://github.com/Decksx/cbz-automation-suite/issues/174#issuecomment-6755808241).
+Implementation handoff confirmed4093. Dashboard103 reflects the replacement
+direction and completed design review110 was added, read-back verified.
+New durable docs, boundary tests and
+mutation-checked guards, exact-head review, green CI and the owning interactive
+session's rollout gate remain required. The watcher stays stopped at5755290.
+This was source-based design review; no implementation tests or runtime changes
+were performed. The context checkpoint remains local pending publication.
+
 ## PR175 re-reviewed at 848e8e2; restart and cleanup bypasses remain (2026-11-09)
 
 Claude4080 handed off **848e8e2e9c2c03573873dfd25a6a67b60f38ad6f** on base
