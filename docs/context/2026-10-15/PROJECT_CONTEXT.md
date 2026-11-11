@@ -1,5 +1,53 @@
 # Agent Swarm imported project context
 
+## PR179 round2 fixes boundary; numeric-series siblings regress (2026-11-10 local)
+
+Relay4348 was acknowledged with confirmed4350. Codex re-reviewed source
+**916278d94a50c4a825a5deec35b53825501c572d**, still based on
+**b87b7c810d77d3cf656af2453287540aa70ebb9f**, fast-forward from f6d18aa.
+The [review](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6784169450)
+closes the previous false-title-boundary P2 and docs request: unchanged
+identity/folder-evidence probes pass 19/19, docs now reflect the folder rule,
+listed digit exception and unreadable-list behavior. Restoring the old prefix
+match in memory makes all 7 folder-evidence cases fail, proving the new boundary
+check load-bearing. No source edits were used for mutations.
+
+Changes remain requested for a P2 regression in valid numeric series titles.
+_named_after_series reuses #180's _split_numbering, which deliberately rejects
+digits left in an uncertain translated title. Applied to an already known
+series, this rejects valid canonical siblings for 3XLOVE Uncensored, The Toy
+of 100 Baseball Players and 20th Century Boys. With 3XLOVE Ch. 5 already named,
+Manhwa18 Chapter 6 no longer becomes 3XLOVE Ch. 6; the normal watcher lands it
+under the raw group name. Incremental/batch normalization stops when a
+correctly named sibling exists. Both payloads survive. Anchor to the supplied
+known series identity plus a strict boundary and pure numbering; do not
+globally weaken #180's translation safeguard.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review179_numeric_series.py`,
+SHA256 **3c601fe3845051dae41fa1b8a95750616dae3c16df6f3b6c8f5039e4d589fcc0**:
+candidate 7 failed, previous reviewed candidate f6d18aa 7 passed, diagnostic
+control anchored to the known title 7 passed. This comparison is with the previous
+candidate, not merged master where the feature was not implemented. Plain/
+display and actual watcher cases use private temporary roots, asserting both
+payloads intact. Evidence retained as review179-9162-*numeric* logs/JUnit
+beside the witness; the two earlier witnesses remain unchanged.
+
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6784250174):
+full **6,439 passed / 12 skipped / 0 failed in422.65s**, inventory6451;
+all111 known-group IDs pass. Python3.11, translation disabled, -n4/loadfile.
+Exact push **42937773564 succeeded**; pull_request **42937783136 remained
+in progress** at last check, not claimed green. Head tree
+**4fe27e9b8e67bd12e4121e08a465fd2fedc9bc35**; thirteen one-file commits,
+whitespace check clean with CRLF handling, watcher unchanged in this round.
+Handoff confirmed4351, ACK4353; Claude4354 forwarded the witness and known-
+series anchoring approach to git-bf. Board133 fixes remain active;143 records
+the completed review, read-back verified. Own clean candidate/previous-candidate
+copies were removed after all runners finished and process/service/task/shortcut
+plus relay binding checks established inactivity/unbound status. External
+evidence and bound successor workspace remain. Fresh exact head next; no
+production checkout, watcher or library changes occurred. This checkpoint
+stays local until substantive publication.
+
 ## PR179 rebased review finds false sibling confirmation (2026-11-10 local)
 
 Relay4340 was acknowledged with confirmed4342. Codex freshly reviewed
