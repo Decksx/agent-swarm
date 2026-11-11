@@ -1,5 +1,34 @@
 # Agent Swarm imported project context
 
+## Comic179 and180 pinned merges verified; rollout remains with owner (2026-11-10 local)
+
+Claude's live hive receipt4362 reports179 merged. Codex independently verified
+**c996135d22209df43ddfbaa9a715df871649663c**, exact parents
+**b87b7c810d77d3cf656af2453287540aa70ebb9f** and approved
+**340352ad93d441ab12fb17441e3187d897af1f6b**. Merge/head tree parity is
+**64df7110868fef992609e9e3f15ce77f5455117c**. GitHub reports the exact source
+merged; CI **42939787835 pull_request** and **42939780278 push** both remain
+success. [Independent179 merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6784557028).
+Tree parity retains the reviewed implementation without repeating its suite.
+Board133 is done, read-back verified;144 retains the exact-head approval.
+
+This includes the already verified180 merge
+**b87b7c810d77d3cf656af2453287540aa70ebb9f**, exact parents
+**eb32d3e197c13afca6abb4f7ec526e137de0462a** and approved
+**a8724816aa1e012f62d953a17f9d46ecae249210**, merge/head tree
+**e78fe11ea84cb8888422f195e1b244f581f53855**, source CI42926291723 and
+42926283372 success. [Independent180 receipt](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6782787076).
+Both merges supersede the earlier pending-merge checkpoints below.
+
+Owner4362 reports liveeb32d3e and no deployment; rollout of masterc996135
+remains with David through git-bf. This runtime statement is attributed, not
+freshly audited here. Codex fetched developer refs and verified source/merge
+evidence only: no live checkout advance, watcher action or library operation.
+The known-group engineering work is complete. Codex168 investigation and the
+separate uppercase canonical Ch., chapter-folder, staging-root and158 B2
+work remain distinct follow-ups under the previously recorded ownership.
+The accumulated verified checkpoint is ready for substantive publication.
+
 ## PR179 exact340352a approved after known-series anchoring (2026-11-10 local)
 
 Relay4356 was acknowledged with confirmed4358. Codex re-reviewed source
