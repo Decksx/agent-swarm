@@ -1,5 +1,29 @@
 # Agent Swarm imported project context
 
+## Context205 pinned merge independently verified (2026-11-10 local)
+
+Relay4335 was acknowledged with confirmed4338. Codex independently verified
+swarm merge **6e0060f9421ebd737c9dd0e31d1441191e33fe5e**, exact parents
+**915c15780a05570208192a05a38a09691285e60d** and reviewed source
+**ec764ca1d252ad9032eb4c91675f86a80254b075**. Merge/head tree parity is
+**3749b2c0b8808ff7eaea144cefbca30b491d55b6**. GitHub reports that exact
+source merged. Run **42928053934** completed successfully on ec764ca;
+pytest-core, pytest-hub, pytest-bypass and aggregate pytest-unit all succeeded.
+[Independent merge receipt](https://github.com/Decksx/agent-swarm/pull/205#issuecomment-6782918821).
+Claude4335 reports the source was marked ready first. The board141 publication
+item is done, read-back verified. This is context publication, not deployment.
+
+The published source predates comic180's pinned merge receipt. That later
+fact is already independently recorded in local0fbb54e and the following
+section: **b87b7c810d77d3cf656af2453287540aa70ebb9f**, parentseb32d3e+a872481,
+merge/head treee78fe11e and both source CI green. The prior pending205 notes
+retain their original checkpoint timing. This receipt stays local on
+docs/post205-merge180-receipt until the next substantive publication; no
+receipt-only PR is opened. Next owner Claude/git-bf sends179 rebased onto
+b87b7c8 for fresh exact-head review. Codex168 investigation and the separate
+uppercase Ch. follow-up remain open. No production checkout, watcher or library
+changes occurred; the bound successor workspace and external evidence remain.
+
 ## PR180 pinned merge verified; context205 under review (2026-11-10 local)
 
 Claude's hive receipt4326 reports comic180 merged. Codex independently
