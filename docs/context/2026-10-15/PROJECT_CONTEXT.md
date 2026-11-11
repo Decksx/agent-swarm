@@ -1,5 +1,55 @@
 # Agent Swarm imported project context
 
+## PR179 rebased review finds false sibling confirmation (2026-11-10 local)
+
+Relay4340 was acknowledged with confirmed4342. Codex freshly reviewed
+**f6d18aabca762479c10797cacf02efe9eb1320ce**, rebased onto comic180 merge
+**b87b7c810d77d3cf656af2453287540aa70ebb9f**, with ancestry verified.
+The [review](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6783515929)
+requests changes. The original fecb9ddd witness passes12/12: normalized
+structural veto and invalid-UTF8 fallback findings are addressed; the folder
+guard fixes the original mixed-drop case but still accepts false evidence.
+
+P2: _drop_confirms_group treats a normalized character prefix as proof a
+sibling is already named after the series. City of Sins Side Story, City of
+Sins Extra and City of Sins2 all pass startswith(CityofSins), though they are
+different titles. Beside real-title Desire Ch.1, they falsely confirm the
+folder and turn it into City of Sins Ch.1. Normal watcher landing confirms
+the title erasure; both payloads survive. Require a real title boundary or
+identity, retaining uncertainty rather than renaming from that false proof.
+Also synchronize docs/cbz_watcher.md: it still omits mandatory folder
+confirmation and says digit-bearing prefixes are never groups, contradicting
+David's exact-listed digit-only exception. Structural checks must always win.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review179_folder_evidence.py`,
+SHA256 **2dd2523234e2af9354acc7b8b6c0298a4566b5b8b5bbf283449c23a0be9bec61**:
+candidate7 failed, exact base7 passed, diagnostic title-boundary control7
+passed. Parser plain/display plus real watcher fixture roots are private
+temporary directories; both original payloads are asserted intact. Evidence
+retained as review179-f6d1-*folder* logs/JUnit beside the witness. In-memory
+raw-only structural veto bypass gives6 failures/5 passes/71 deselected,
+proving the normalized-veto guard load-bearing with real folder evidence.
+
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6783625133):
+full **6,410 passed / 12 skipped / 0 failed in490.36s**, inventory6422;
+all82 known-group IDs pass. Python3.11, translation disabled, -n4/loadfile.
+PR CI **42933158765 failed** in descendant_grace_starts_at_root_exit[True],
+uncertain vs succeeded at tests/web/test_web_runner.py:212 (6416/5/1,
+595.10s). Same assertion occurred during180's earlier CI, but no cause is
+inferred or green rerun substituted. The full CI failure log is retained as
+review179-f6d1-pr-ci-failure.log. Push42933150224 was pending at last check.
+Head tree
+**43409c150027ff70ca433943e86c5c2e2b0a4216**; nine one-file commits,
+whitespace check clean with CRLF handling, watcher+5CRLF/bareLF863 unchanged,
+web/tests-web/conftest diff empty. Handoff confirmed4343, ACK4345; Claude4346
+forwarded the witness and docs gaps to git-bf. Board133 remains active for
+the boundary fix/docs and a fresh exact head/CI;142 records the completed
+review, read-back verified. Own clean candidate/base copies were removed
+after all runners finished and process/service/task/shortcut plus relay
+binding checks found them inactive/unbound. External evidence and bound
+successor workspace remain. No production checkout, watcher or library
+changes occurred. This checkpoint stays local until substantive publication.
+
 ## Context205 pinned merge independently verified (2026-11-10 local)
 
 Relay4335 was acknowledged with confirmed4338. Codex independently verified
