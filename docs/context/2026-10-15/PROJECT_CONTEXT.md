@@ -1,5 +1,60 @@
 # Agent Swarm imported project context
 
+## Comic182 exact705a726 approved; push CI pending at receipt (2026-11-10 local)
+
+Relay4395 was acknowledged with confirmed4397. Codex independently reviewed
+**705a7266ec181b6a48fc647b5ac4c9967959f8f0**, based on
+**27f4bf4153c4131936c1134c747e4e76bc3fb0ac**, tree
+**27d89fd282d02afcaef25a51f85bb1f863551d87**.
+[Exact-head approval](https://github.com/Decksx/cbz-automation-suite/pull/182#issuecomment-6786489678)
+records no blocking findings. This completes the recorded legacy display
+lowercase-token follow-up: display names use Ch. for standalone chapter tokens
+before numbers, while word endings, CJK-glued text and kept curly groups remain
+text. Earlier canonical lowercase arrivals now use the formatter's spelling;
+the independent witness confirms repeat-pass stability. Plain mode is unchanged.
+
+Independent Windows/Python3.11 suite: **6,542 passed / 12 skipped / 0 failed
+in429.08s**, inventory6554, all48 new display test IDs passed. Translation
+disabled for the full -n4/loadfile run; deterministic translation tests run
+within it. The extra two host skips are the native outer-Job containment cases.
+External test_review182_display.py passes **16/16**, covering token spellings,
+year/version/decimal/range names, multiple tokens, nested/separate curly groups,
+word/CJK boundaries and translated compound volume/chapter ranges. End-to-end
+assertions check exact spelling, retained bytes, every non-filename metadata
+field and another parsing pass. At unchanged base the same16 expectations fail
+as assertions, with only an identity stand-in for the then-absent helper.
+An initial base run also failed16, with four absent-helper failures; the explicit
+identity run separates those from behavior. A wrapper's Windows path literal
+first caused a SyntaxError and was corrected before that comparison.
+
+Separate generated comparison: **300 complete plain-mode parsed records are
+identical** between base and candidate. Removing the word-boundary lookbehind
+in memory gives **10 failed / 38 passed** in the48-test display suite. No tracked
+source was edited. Witness SHA-256 is
+**e74c17b14768589bc4de808af2cd2780eac7abe377579af5a81f8af6854e6c54**;
+review182_plain_corpus.py SHA-256 is
+**85169a745e69b6eecd2276635e56552692e7d514067e93f8d65638a84536cbba**.
+External review182-* logs/JUnit/JSON remain under Codex scratch worktrees.
+
+Eight one-file commits and CRLF-aware whitespace check are clean. Watcher,
+web code, web tests and conftest are unchanged. The modified watcher tests
+retain the collision/failure injections under the new expected spelling.
+Own clean candidate/base copies were removed after all runners finished and
+process/service/task/shortcut/relay checks established inactivity and no binding.
+The registered successor workspace and external evidence remain.
+
+At the approval receipt, exact-source **42954455351 pull_request** completed
+successfully; **42954428938 push** was still running pytest. Confirmed handoff
+4398 assigns Claude/git-bf to confirm BOTH successful before a pinned merge,
+then return actual parents and tree parity. A failing check needs investigation;
+a changed source needs fresh review. Board149 remains in review awaiting that
+gate and merge;150 records the completed Codex review, read-back verified.
+Rollout remains with the owning interactive session and David. No production
+checkout/library operation or fresh runtime audit occurred in this review.
+The last owner-attributed181 rollout state is4391 below. Existing168,
+chapter-folder, staging-root and158 B2 follow-ups retain their owners.
+This local receipt waits for the next substantive context publication.
+
 ## Context207 merge independently verified (2026-11-10 local)
 
 Relay4391 was acknowledged with confirmed4393. Codex independently verified
