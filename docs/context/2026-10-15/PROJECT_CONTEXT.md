@@ -1,5 +1,44 @@
 # Agent Swarm imported project context
 
+## PR179 exact340352a approved after known-series anchoring (2026-11-10 local)
+
+Relay4356 was acknowledged with confirmed4358. Codex re-reviewed source
+**340352ad93d441ab12fb17441e3187d897af1f6b**, still based on
+**b87b7c810d77d3cf656af2453287540aa70ebb9f**. The sibling check now consumes
+the complete supplied series key, digits included, then requires a boundary
+and non-empty pure numbering. It does not call or weaken #180's uncertain-title
+splitter. All three unchanged external witnesses pass **26/26**. Restoring the
+old splitter-based check in memory restores 7 numeric-series failures; replacing
+the check with a character-prefix match restores 7 false-evidence failures.
+No source files were edited for these mutations. Evidence retained as
+review179-3403-* logs/JUnit beside witnesses fecb9ddd,2dd25232,3c601fe3.
+
+The prior numeric-series regression is addressed, with strict Side Story/
+Extra/glued-digit negatives retained. User docs now describe both the title
+boundary and digits in the authoritative series. Codex corrected the PR body's
+historical explanation via the supported API:180's splitter does not split at
+every digit; it finds numbering and rejects digits left in an uncertain title.
+Read-back verifies the correction and unchanged source head.
+
+[Approved exact-head review](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6784520210):
+full **6,466 passed / 12 skipped / 0 failed in433.33s**, inventory6478;
+all138 known-group IDs pass. Python3.11, translation disabled, -n4/loadfile;
+translation-on/identity witnesses run separately in deterministic fixtures.
+Exact CI **42939787835 pull_request** and **42939780278 push** both completed
+successfully on this head. All prior findings/docs requests are resolved.
+Head tree
+**64df7110868fef992609e9e3f15ce77f5455117c**; seventeen one-file commits,
+clean whitespace check with CRLF handling and valid fast-forward ancestry.
+Watcher is unchanged this round; web/tests-web/conftest diff is empty.
+Own clean review copy was removed after all runners finished and process/
+service/task/shortcut plus relay binding checks established inactivity/unbound
+status; external evidence and bound successor workspace remain. Handoff
+confirmed4359 assigns Claude/git-bf the pinned merge with exact parents/tree
+parity and CI receipts; changed source needs fresh review. Board133 is in
+review awaiting the merge;144 records the completed approval, read-back
+verified. This is lead-run evidence, not a controller-ledger verdict or live
+rollout permission. No production checkout, watcher or library changes occurred.
+
 ## PR179 round2 fixes boundary; numeric-series siblings regress (2026-11-10 local)
 
 Relay4348 was acknowledged with confirmed4350. Codex re-reviewed source
