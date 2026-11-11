@@ -1,5 +1,441 @@
 # Agent Swarm imported project context
 
+## PR180 exacta872481 approved after title/numbering separation (2026-11-10)
+
+Relay4320 was acknowledged with confirmed4322. Codex re-reviewed source
+**a8724816aa1e012f62d953a17f9d46ecae249210**, still based on
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**. The translated path now splits
+title from numbering and translates only the title. Ranges and compounds keep
+the complete numbering span; unsplittable arrivals retain their names. The
+first-range-only _range_suffix helper is removed. All four unchanged external
+witnesses pass34/34. In-memory span-retention bypass restores8 failures/2 passes
+in the compound witness; bypassing the unsplittable guard fails both named
+guards with1060 deselected. No source files were edited for these mutations.
+
+Independent exact-base comparison matches all11 ordinary translated chapter
+and volume names. The explicit episode exception is confirmed: base writes
+Story.cbz for both Ep.3 and Ep.30, while head keeps Story Ep.3 / Story Ep.30.
+Read-only comparison helper review180_scalar_compat.py and the candidate/base
+review180-a872-*scalars.json receipts are retained in Codex's scratch root.
+The original four witnesses retain hashes22a006db,7bbaa4ca,7ace1d39,46177de1;
+targeted results and mutations are retained as review180-a872-* logs/JUnit.
+
+The PR body was refreshed by the owner and independently read back. Codex
+corrected one reversed historical sentence via the supported PR API: at
+b52a4fd a scalar chapter took priority and dropped a volume range, rather
+than the opposite. Read-back confirms the correction and unchanged source.
+Documented limits remain: the historical130 provenance gap, leading-index
+ambiguity (01 - 30 Days keeps its index), cosmetic mixed-width digits, and
+the separately planned uppercase Ch. formatter/media-naming follow-up.
+
+Full independent suite: **6,328 passed / 12 skipped / 0 failed in505.25s**,
+inventory6340, all1062 range-file IDs pass (36+13+287+541+185). Python3.11,
+translation disabled, -n4/loadfile; deterministic translation-on probes run
+separately. Exact CI **42926291723 pull_request** and **42926283372 push**
+both completed successfully. Codex
+[APPROVED this exact head](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6782717212),
+closing all prior range findings. Head tree is
+**e78fe11ea84cb8888422f195e1b244f581f53855**. All17 commits
+touch one file each; whitespace check passes with CRLF handling. Watcher is
+unchanged in this round and retains prior bare-LF863; web/tests-web/conftest
+diff is empty. Own clean candidate/base copies were removed after all runners
+finished and process/service/task/shortcut plus relay binding checks found
+them inactive/unbound; external evidence and bound successor workspace remain.
+Handoff confirmed4323 assigns Claude/git-bf the pinned merge with exact
+parents/tree parity and CI receipt, then179's rebase onto the new master and
+fresh exact-head review. Board135 is in review awaiting that merge;140 records
+the completed approval, read-back verified. Source changes require fresh
+review. This is lead-run engineering evidence, not a controller-ledger verdict.
+No production changes or rollout approval occurred. The accumulated verified
+checkpoint is ready for substantive context publication.
+
+## PR180 round3 fixes single ranges; compound identity remains (2026-11-10)
+
+Relay4312 was acknowledged with confirmed4314. Codex re-reviewed source
+**b52a4fdbbc8b1f6efc8f1f51b0e5571835474ef2**, base still
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**. The
+[round3 review](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6781707892)
+confirms all24 prior external probes pass. Bypassing _range_suffix restores
+6 failures/2 passes in the translated-range witness; bypassing placeholder
+range context causes5 failures/1 pass/871 deselected. Single-range reconstruction
+is fixed, but changes remain requested for compound numbering in that writer.
+
+_marked_range returns only the first ascending range; the caller gives scalar
+chapter/volume priority over even that range. With a deterministic translator,
+`漫画 Vol. 1-3 Ch. 1-30` and `漫画 Vol. 1-3 Ch. 31-60` both become
+Story Vol.1-3.cbz. A scalar chapter also drops the volume span:
+`漫画 Vol. 1-3 Ch. 30` becomes Story Ch.30.cbz. The normal watcher lands one
+compound-range book and falsely reviews the other as an arrival-name duplicate.
+Both payloads survive. Exact base also lacks complete spans but lands two
+distinct first-chapter names; the distinct-books case passes base/fails head.
+Preserve every distinguishing span and scalar field, or retain/refuse the
+unchanged arrival when safe reconstruction is unavailable. Do not restore
+range endpoints as scalar fields. The translated matrix exercises one number
+form per filename, so it misses these field interactions.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review180_compound_ranges.py`,
+SHA256 **46177de1fc00c615208d2b03d7a737ed45fe0ab96bb108138225b7fda88a2390**:
+candidate8 failed/2 passed, exact base7 failed/3 passed, diagnostic-only
+translation-off control10 passed. Ordinary translated scalar chapter/volume
+cases pass. All roots are private temporary fixtures; no translator service
+was contacted, and both payloads are asserted intact before name/count checks.
+Candidate/base/control evidence is retained as review180-b52a-*compound* logs
+and JUnit beside the witness.
+
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6781811624):
+full **6,143 passed / 12 skipped / 0 failed in474.14s**, inventory6155;
+all877 range-file IDs pass (36+13+287+541). Python3.11, translation disabled,
+-n4/loadfile; retained review180-b52a-* logs/JUnit. Exact push **42919281257
+completed successfully**; pull_request **42919289230 remains in progress**
+at last check, not claimed green. Source tree is
+**ef9768aaf9afe58f6a0bd5527e36c4d0b96d0f93**. All14 commits touch one file
+each; whitespace check passes with CRLF handling. Watcher bare-LF remains863,
+CRLF net+16 (19added/3removed); web/tests-web/conftest diff is empty. The PR
+body was refreshed and read-back verified, including round2/3 evidence. The
+placeholder's canonical lowercase ch. is deliberately pinned; David's upper
+Ch. choice is an owner-reported separate formatter/media-naming follow-up.
+Handoff confirmed4315, ACK4317; Claude4318 forwarded the witness and proposed
+a broad rule: translate only the title plus original numbering spans, or
+retain arrivals when safe reconstruction is ambiguous. Claude/git-bf owns the
+fresh head;180-first then fresh rebased179 review remains the sequence.
+Board135 fixes remain active;139 records the completed re-review, read-back
+verified. Own clean candidate/base copies were removed after all runners
+finished and process/service/task/shortcut plus relay binding checks found
+them inactive/unbound. External evidence and the bound successor workspace
+remain. No production changes or rollout approval occurred. This checkpoint
+stays local pending substantive context publication.
+
+## PR180 round2 resolves readers; translated ranges still collide (2026-11-10)
+
+Relay4304 was acknowledged with confirmed4306. Codex re-reviewed
+**a1e36f9e7161f10dc3db8096efc950788ef25539**, still based on
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**. The
+[round2 review](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6780850967)
+closes the prior suffix/CJK endpoint findings: unchanged external probes pass
+16/16; bypassing _ends_range restores6 failures/2 passes in the CJK witness.
+The expanded reader audit pins264 forms/separator/prefix combinations. The
+documented leading-index tradeoff and cosmetic fullwidth-digit mismatch remain
+explicit. Source review confirms10 one-file commits, clean whitespace check
+with CRLF handling, and no watcher/web/tests-web/conftest diff. Head tree is
+**48df87dc352cafb79d0e3de0fb6d4f2acbd358d2**.
+
+Changes are requested for a P2 in the subsequent translated-title writer.
+After range fields are correctly unset, the rebuild uses only english_stem
+and scalar chapter/volume: `漫画 Ch. 1-30.cbz` and `漫画 Ch. 31-60.cbz` both
+become Story.cbz when a deterministic translator translates 漫画 to Story.
+Both plain/display paths lose the range. Normal watcher import lands one
+Story.cbz and falsely reviews the other as a duplicate of the arrival name.
+Both payloads survive. Exact base also loses full spans but lands two distinct
+Story Ch.1 / Story Ch.31 archives; therefore the full-span loss predates the
+PR while the shared-name collision is exposed by removing scalar endpoints.
+Preserve the range in translated rebuilding or retain the arrival name,
+without restoring an endpoint field. This does not reconstruct historic130.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review180_translated_ranges.py`,
+SHA256 **7ace1d3902fc186174a11e8ab6300450ea378bc57b67d7751ae0305ec2453895**:
+candidate6 failed/2 passed, exact base5 failed/3 passed. The distinct-books
+case passes base and fails candidate; ordinary translated single chapters
+pass both. Diagnostic translation-off control8/8 passes, establishing the
+writer boundary rather than proposing a global feature disable. No external
+translation service was contacted. All roots are private temporary fixtures;
+both original payloads are asserted intact before name/count checks. Retained
+review180-a1e3-*translated* logs/JUnit record candidate/base/control results.
+
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6780921073):
+full **5,601 passed / 12 skipped / 1 failed in389.08s**, inventory5614;
+all336 range-file IDs pass (36+13+287). Sole failure is known168's
+alternating_overflow WinError5 at logs.py176, replacing index.tmp->index.json.
+[Additional failure receipt](https://github.com/Decksx/cbz-automation-suite/issues/168#issuecomment-6780911244)
+retains this occurrence without inferring cause or substituting a green rerun.
+Python3.11, translation disabled, -n4/loadfile. Latest CI check corrects the
+earlier final-comment snapshot: **42912728742 push completed successfully**;
+**42912737521 pull_request remains in progress**, not claimed green.
+Handoff confirmed4307,
+ACK4309, Claude4310 forwarded the witness, P2 and stale-PR-body note to git-bf.
+The PR body still describes the initial36-test candidate; the detailed round2
+comment6780750925 is supporting evidence, and the body needs refresh before
+merge. Sequence remains180 first, then fresh rebased179 review. Board135 fixes
+remain active;138 records the completed review and132 the168 evidence, all
+read-back verified. Own clean candidate/base copies were removed after all
+runners finished and process/service/task/shortcut plus relay binding checks
+established inactivity/unbound status. External witnesses/logs and the bound
+successor workspace remain. No production checkout, library or watcher change
+occurred. This checkpoint stays local pending substantive context publication.
+
+## PR180 round1 resolves suffix loss; CJK fallback remains (2026-11-10)
+
+Relay4295 was acknowledged with confirmed4297. Codex re-reviewed source
+**ad2e73135d096f04a50f513d1d5daa94fa8d5ead**, base still
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**. The
+[round1 review](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6779831281)
+closes the prior mixed-title suffix P2: _token_end carries the complete
+ascending range before extraction. The unchanged external22a006db witness
+passes8/8. In-memory first-endpoint bypass restores6 failures/2 passes;
+removing the ascending-only decision fails both descending-tail tests with47
+deselected. No source edits were used for these mutations.
+
+Changes are still requested for a remaining P2 in the explicitly supported
+CJK-number fallback. `Series 第1-30話.cbz` gets chapter30, and
+`Series 第1-3巻.cbz` gets volume3, in plain and display parsing. After the
+Latin range extraction leaves fields unset, the fallback matches the endpoint
+before 話/巻. Normal watcher landings write ComicInfo Number30/Volume3 while
+retaining the range-bearing filenames. This is pre-existing on the exact base,
+an incomplete range fix rather than a newly introduced regression. It does
+not explain the historical1-30->130 provenance gap. Preserve ordinary CJK
+single numbers while preventing a range endpoint from becoming a single field.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review180_cjk_ranges.py`,
+SHA256 **7bbaa4ca6327b06607fb8d4d187ced574ad72622bda98261043f5cc02981587b**:
+candidate6 failed/2 passed, exact base6 failed/2 passed; a diagnostic-only
+control rejecting those fallback endpoint matches passes8/8. The two unchanged
+passes pin ordinary 第30話/第3巻. Parser and real watcher XML assertions use
+private temporary roots; both payloads survive. Evidence retained as
+review180-ad2e-cjk* and review180-ad2e-base-cjk* logs/JUnit beside the witness.
+
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6779904667):
+full **5,315 passed / 12 skipped / 0 failed in411.87s**, inventory5327;
+all49 range-file IDs pass (36 initial +13 round1). Python3.11, translation
+disabled, -n4/loadfile, retained review180-ad2e-* logs/JUnit. Both exact-head
+CI runs completed successfully: **42904728344 pull_request**,
+**42904716539 push**. Seven commits
+each touch one file. Whitespace check passes with CRLF handling; watcher and
+web/tests-web/conftest have no diff. Reviewed head tree is
+**3a2b7291aa62db253e90a5bd71016dfc5db688ac**.
+
+Handoff confirmed4298, ACK4301; Claude4302 forwarded the CJK finding and witness
+to git-bf. The4298 link accidentally contained a placeholder; append-only
+correction4300 records actual review6779831281, independently confirmed4302.
+Findings/counts were unchanged. Sequence per4295/4302 is180 first, then179
+rebased onto the merged master with fresh exact-head review. The latter's
+round1 fixes are owner-reported parked/unpushed, not reviewed or approved.
+Board135 remains active for the current CJK P2, separate from chapter-folder131;
+child137 records this completed re-review. Both were read-back verified.
+Own clean review/base copies were removed after all runners finished and
+process/service/task/shortcut plus relay binding checks found no use. External
+evidence and the bound successor workspace remain. No production checkout,
+library or watcher change occurred. This checkpoint stays local pending the
+next substantive context publication.
+
+## PR180 exact-head review finds remaining range truncation (2026-11-10)
+
+Relay4287 was acknowledged with confirmed4289. Codex reviewed comic PR180
+**2042bfa19002547cf0b8903337a01fbe99d558d6**, base
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**. The
+[review](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6779020542)
+requests changes for one P2: mixed-title shortening precedes the new range
+extraction guard. `Series - 漫画 Ch. 1-30.cbz` becomes `Series Ch. 1.cbz`
+and the normal watcher lands it with ComicInfo Number1. The analogous
+Vol.1-3 becomes Vol.1 and is sent to review under that truncated name.
+_extract_num_suffix copies only the first-number regex match from the discarded
+title segment, so the new guard never sees the second endpoint. This path is
+pre-existing on the exact base: an incomplete fix, not a new regression.
+It does not reconstruct the acknowledged historical1-30->130 incident; that
+provenance gap remains documented in the PR and dev log.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review180_ranges.py`,
+SHA256 **22a006db5369fddbdb0854f8f82fd07d175c79627b042622b84cab2c02e89446**:
+candidate6 failed/2 passed, base8 failed, diagnostic suffix-preservation
+control8 passed. The two additional base failures are unshortened ranges the
+PR fixes. Bypassing _starts_range gives2 failures/6 deselected. Early witness
+assertions incorrectly required the template's empty Number element to be
+absent; the final file accepts empty/absent and all counts above use it.
+All roots and routing were isolated in temporary fixtures, and page bytes
+survive. Final XML/filename assertions catch the actual metadata/name loss.
+
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6779074347):
+full independent suite **5,302 passed / 12 skipped / 0 failed in405.59s**,
+inventory5314; all36 added test IDs pass. Python3.11, translation disabled,
+-n4/loadfile, retained review180-2042-* logs/JUnit beside the witness.
+Four commits each touch one file; whitespace check passes with CRLF handling,
+watcher is untouched, and web/tests-web/conftest diff is empty. Exact CI
+**42897755081 pull_request success**; **42897681360 push** initially failed
+test_descendant_grace_starts_at_root_exit_independent_of_eof[True]
+(uncertain vs succeeded;5308/5/1), and is being rerun at last check.
+Candidate/base isolated checks each pass once; that neither diagnoses nor
+erases the failed attempt. No green push rerun is claimed yet.
+
+Handoff confirmed4290, ACK4292, Claude4293 forwarded the P2 and witness to
+git-bf and requested sequencing with179. Both edit cbz_core and the dev log;
+whichever lands second needs a rebase and fresh exact-head review. Claude
+owns fixes, Codex reviews. Dashboard135 active implementation and136 completed
+review were read-back verified, separate from chapter-folder card131.
+Both own review worktrees were clean and removed after runners finished and
+process/service/task/shortcut and relay binding checks found no use. External
+evidence and bound successor workspace remain. No live/library change occurred.
+This checkpoint stays local pending the next substantive context publication.
+
+## PR179 exact-head review requests three fixes (2026-11-10)
+
+Relay4279 was acknowledged with confirmed4281. Codex independently reviewed
+comic PR179 source **1559d2798e08cf022c679b3e29d69d8addbdd6e4**, base
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**. The
+[exact-head review](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6778255041)
+requests changes for three P2 findings:
+
+- Shipped known-group names Desire/Violet also work as real series titles.
+  In a genuine mixed loose-file arrival, both request Mixed Drop Ch.1;
+  one lands with its title erased and the other goes to duplicate review.
+  Both archives survive, but their identity/classification is wrong. An audit
+  finding no existing series-folder collision does not establish the role of
+  a future prefix. Preserve ambiguity or require trustworthy series context;
+  David's explicit digit-only override is not being reversed.
+- The whitelist key ignores case/spacing/punctuation and applies NFKC, while
+  structural vetoes inspect raw prefixes. Listed S2/V3/P2/Ep4 aliases such as
+  S 2, V 3, P 2, E.p.4 and fullwidth S2/V3 evade the always-win veto.
+- An invalid UTF-8 known-groups file raises UnicodeDecodeError instead of
+  the documented unreadable-file/no-groups fallback.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review179_identity.py`,
+SHA256 **fecb9ddd481b08b18ae5bda5439aef2f396a0ad0ad52f7502c2a2ee415e1f612**:
+candidate12 failed, exact base12 passed, diagnostic controls12 passed. Controls
+are causal checks, not an accepted implementation. The normal watcher fixture
+asserts loose-claim routing, isolates all roots in temporary directories and
+includes an unaffected nested series. Candidate/base/control logs and JUnit
+are retained beside the witness as review179-1559-* artifacts.
+
+Full independent suite: **5,319 passed / 12 skipped / 1 failed**, inventory5332,
+543.31s with Python3.11, translation disabled, -n4/loadfile. All54 added test IDs
+pass. Sole failure is known168's alternating_overflow WinError5 at logs.py176
+replacing index.tmp with index.json; web implementation/tests/conftest have no
+PR179 diff. The [additional failing receipt](https://github.com/Decksx/cbz-automation-suite/issues/168#issuecomment-6778270833)
+retains that evidence without substituting a green rerun or inferring a cause.
+Codex's168 investigation remains open; no fix was implemented during this review.
+Exact source CI **42891782067** (pull_request) and **42891665082** (push) both
+completed successfully. Five commits each touch one file; whitespace check
+passes with Windows CRLF handling, and cbz_watcher.py is untouched.
+
+Handoff confirmed4282, acknowledged4284; Claude4285 forwarded all three findings
+and the witness to owning session git-bf. Claude owns fixes and a fresh exact
+head for Codex review. Board133 tracks implementation in progress, child134
+records this completed review, and132 retains the168 failure evidence; read-back
+verified. Chapter-folder card131 remains a separate workstream.
+
+Both own review copies (comic-review179-1559d27 and comic-review179-base-eb32d3e)
+were clean and removed after runners finished and process/service/task/shortcut
+and relay binding checks found no use. External probes/logs remain; the bound
+successor workspace stays. No live checkout, watcher or library change occurred.
+This checkpoint remains local pending the next substantive context publication.
+
+## Today's docket and parallel ownership confirmed (2026-11-10)
+
+Admin4262 asked what follows the naming fix; ACK confirmed4271. Claude4265
+listed chapter-folder naming, staging-root configuration, stale held-state
+documentation and158 B2. Codex's reply to admin was confirmed4277. The two
+engineering lanes are explicit, with cross-review and no overlapping edits:
+
+- Claude owns the chapter-folder series/ComicInfo fix; Codex reviews its exact
+  head. Per4276, the live pattern is Series Chapter N EN DASH title EN DASH
+  artist, including decimals and Part2. Both inferred series and ComicInfo
+  Series need correction. No issue/branch/PR existed at confirmation; board131
+  records the planned fix. A separate known-group-prefix branch may overlap
+  cbz_core, so Claude is coordinating the resolver/infer_series_name scope.
+- Codex owns comic168, the intermittent OfficePC log-index WinError5
+  investigation; Claude reviews a resulting exact-head PR. [Ownership and
+  initial triage](https://github.com/Decksx/cbz-automation-suite/issues/168#issuecomment-6776804163)
+  are on the issue. Question4272 and Claude4275 confirm no in-flight overlap
+  in comic_automation/web or tests/web. Board132 is in progress for read-only
+  triage, not a completed fix or PR.
+
+At current code eb32d3e, LogDisk._publish writes/flushes/fsyncs index.tmp,
+then os.replace publishes index.json, and only then updates its in-memory
+snapshot. The cause of the intermittent replacement failure remains unproved;
+the earlier suggestion of Defender/indexer sharing is a hypothesis. Next work
+is bounded reproduction and retry/idempotency diagnostics in private temporary
+fixtures, retaining durability, byte coverage and sticky unknown-tail behavior.
+No production log/library, security-setting or live watcher changes are part
+of this initial investigation. No code edits or new tests occurred for this
+docket/ownership turn.
+
+Queued behind the immediate watcher work: the reported staging-root registration
+gap through the owning session, documentation124's stale held-JSON sentence,
+then158 B2 incremental catalog/changed-series planning (Claude, Codex review).
+Board97 was refreshed to say B2 queued rather than B1 started: GitHub independently
+reports B1 PR159 merged as080e39d5a644b67c9df1b2d55d8e222b21995935 from
+55260768ab428c5fba095de9a01534a85ad3bffa. B2 is not yet implemented and the
+eventual library cutover remains a separate later step. Native-runner PR170
+is already merged; historical board notes are not a request to rerun its proof.
+Routing, split-series and held-book choices remain David's decisions per4265.
+Board131/132/97 changes were read-back verified. This checkpoint remains local
+pending the next substantive context publication.
+
+## PR204 merge and owning-session rollout receipt verified (2026-11-10)
+
+Claude4255 reported merge **915c15780a05570208192a05a38a09691285e60d** from
+reviewed **319570030af872242010587102330f70cf976cec**. ACK confirmed4259.
+Codex independently verified exact parents
+**26ceb19e671b929bdee09a13d70f0301f5d500a4** and
+**319570030af872242010587102330f70cf976cec**, merge/head tree
+**ba1d71b03c191548a4f7fada6d5f28fcfdceb02b**. GitHub reports the reviewed source
+merged. Run **42879930706** completed successfully on3195700; pytest-core,
+pytest-hub, pytest-bypass and aggregate pytest-unit all succeeded. Tree parity
+retains the reviewed documentation without another suite run.
+[Independent context merge receipt](https://github.com/Decksx/agent-swarm/pull/204#issuecomment-6776601486).
+The later PR178 merge was already recorded in locala97e78e immediately below;
+this checkpoint records that completed publication and the resolved rollout.
+
+Independent desktop recheck confirms clean tracked index/worktree at
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**, watcherPID5728 running under
+Tk54604, created **2026-11-10T18:55:13.2028470Z**. Reflog independently confirms
+fast-forward6e5c3a8->eb32d3e at **18:54:32Z**, and the earlier5755290->6e5c3a8
+at **09:53:06Z**. This verifies current checkout/process state independently
+of the memory index. The approved PR178 merge/tree and exact CI were already
+verified. Codex did not deploy, advance the live checkout, launch or stop a
+process, rerun live tests or audit production library data.
+
+Question4253 is resolved by Claude4260 and owning interactive session
+git-bf/253aba3c receipt **4261**. Attributed authorization references: for177,
+David replied "Ok the GUI is closed" after the session asked about proceeding;
+for178, he agreed to wait until the group-name fix was loaded, following the
+session's plan to load it and tell him when he could start. The session
+fast-forwarded live, and David then started the watcher himself. Neither was
+a separate hive yes-deploy message. These are the owning session's account of
+interactive-chat authorization, not a controller-issued activation.
+
+Owner-reported smoke:177 validate_roots OK with Python3.11, zero claims and63
+focused tests passed;178 validate_roots OK with one claim, expected positive
+and negative prefix checks, and the Toy-of-100 claim resumed/completed38 files.
+These smoke/import results are attributed to the owner; independent Codex
+verification covers checkout, reflog, processes, merge/tree and source CI.
+Receipt4261 also reports manual case normalization and City-of-Sins library
+work with undo logs; those library operations were not audited by Codex.
+[Public rollout follow-up](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6776619441).
+
+Dashboard130 (PR204) and123 (rollout) are done, read-back verified;125 received
+the resolved rollout follow-up. The earlier pending-receipt notes below retain
+their original timing. This checkpoint and the PR178 merge receipt remain
+local pending the next substantive context publication. The registered
+successor workspace stays bound and retained.
+
+## PR178 pinned merge verified; newer runtime observed, rollout receipt pending (2026-11-10)
+
+Claude4247 reported merge **eb32d3e197c13afca6abb4f7ec526e137de0462a** from
+approved **3667c22e12a1b717c7815e5f92ecb94e5bf2ea90**. ACK confirmed4252.
+Codex independently verified exact parents
+**6e5c3a8200502918deadcdf71adfeca74a2699eb** and
+**3667c22e12a1b717c7815e5f92ecb94e5bf2ea90**, with merge/head tree
+**75a825569e0a2064924717612ac885907059b5a6**. GitHub reports the approved source
+merged. Exact-source pull_request **42878008234** and push **42877998127** both
+completed successfully. Identical tree parity retains the full5266 passed/12
+skipped,27 independent replay passes and14 structural-guard bypass failures
+without another suite run.
+[Independent merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/178#issuecomment-6776421612).
+
+The not-deployed statement in4247 at18:54:01Z predates the newer desktop
+snapshot. C:\git\ComicAutomation HEAD is now **eb32d3e**, tracked index/worktree
+clean, with Python watcher **PID5728** running, created
+**2026-11-10T18:55:13.2028470Z** under Tk GUI parent54604. This is observed
+checkout/process state, not an independently established authorization or
+loaded-runtime parity receipt. Codex did not advance the checkout, deploy,
+launch, stop or modify the watcher. Owning-session rollout/authorization/parity
+receipt was requested from Claude in confirmed4253; rollout closure awaits it.
+
+Dashboard125 now records the completed merged code fix. Rollout123 is in review
+with the new observation and pending owning-session receipt, read-back verified.
+PR204 remains at **319570030af872242010587102330f70cf976cec**, preserving its
+approval-time review/CI candidate. This newer receipt is on a separate local
+branch based on3195700, pending the next substantive context publication. The
+registered successor workspace remains bound and retained.
+
 ## PR178 approved at3667c22; pinned merge and owning-session rollout next (2026-11-10)
 
 Claude4240 handed off exact **3667c22e12a1b717c7815e5f92ecb94e5bf2ea90**,
