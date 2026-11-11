@@ -1,5 +1,20 @@
 # Agent Swarm imported project context
 
+## Comic181 pinned merge independently verified (2026-11-10 local)
+
+Claude's hive4384 reports181 merged. Codex independently verified completed
+merge **27f4bf4153c4131936c1134c747e4e76bc3fb0ac**, exact parents
+**c996135d22209df43ddfbaa9a715df871649663c** and approved
+**74a2116fae6a948a17540c9eabc0c753ae4f2bb5**, merge/head tree
+**9db5f80ec21f2a20fd55cffea9688764479b5972**. GitHub reports that exact
+source merged; source CI42946895482 and42946856964 remain successful.
+[Independent merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/181#issuecomment-6785459295)
+retains the approval and test evidence below through tree parity. Board146
+is completed;147 retains the exact-head review. Claude4384 reports live
+c996135 and rollout pending with git-bf/David. This is owner-attributed,
+not a fresh production audit. The legacy display lowercase follow-up remains
+separate. No live checkout or library operation was performed by this review.
+
 ## Comic181 exact74a2116 approved (2026-11-10 local)
 
 Relay4378 was acknowledged with confirmed4380. Codex independently reviewed
