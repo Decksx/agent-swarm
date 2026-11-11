@@ -1,5 +1,127 @@
 # Agent Swarm imported project context
 
+## Comic181 pinned merge independently verified (2026-11-10 local)
+
+Claude's hive4384 reports181 merged. Codex independently verified completed
+merge **27f4bf4153c4131936c1134c747e4e76bc3fb0ac**, exact parents
+**c996135d22209df43ddfbaa9a715df871649663c** and approved
+**74a2116fae6a948a17540c9eabc0c753ae4f2bb5**, merge/head tree
+**9db5f80ec21f2a20fd55cffea9688764479b5972**. GitHub reports that exact
+source merged; source CI42946895482 and42946856964 remain successful.
+[Independent merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/181#issuecomment-6785459295)
+retains the approval and test evidence below through tree parity. Board146
+is completed;147 retains the exact-head review. Claude4384 reports live
+c996135 and rollout pending with git-bf/David. This is owner-attributed,
+not a fresh production audit. The legacy display lowercase follow-up remains
+separate. No live checkout or library operation was performed by this review.
+
+## Comic181 exact74a2116 approved (2026-11-10 local)
+
+Relay4378 was acknowledged with confirmed4380. Codex independently reviewed
+**74a2116fae6a948a17540c9eabc0c753ae4f2bb5**, based on
+**c996135d22209df43ddfbaa9a715df871649663c**, tree
+**9db5f80ec21f2a20fd55cffea9688764479b5972**.
+[Exact-head approval](https://github.com/Decksx/cbz-automation-suite/pull/181#issuecomment-6785427740)
+records no blocking findings in the declared formatter scope. The canonical
+formatter writes Ch.; strict parsing remains strict, while an explicit option
+accepts only the former formatter's exact ch. image. Canonical lowercase
+arrivals remain idempotent; the planner migrates eligible library names once.
+The lone unverified version-label safeguard remains a no-op. The legacy
+display path retaining an arrival's lowercase token remains a separate
+follow-up, as declared in the PR and relay.
+
+Independent Windows/Python3.11 full suite: **6,494 passed / 12 skipped /
+0 failed in406.99s**, inventory6506, translation disabled, -n4/loadfile.
+All25 new uppercase test IDs pass. Two additional native containment cases
+are skipped on this host compared with the author's10 skips; no process was
+launched outside the inherited Job Object. Exact source CI
+**42946895482 pull_request** and **42946856964 push** both completed success.
+
+The independent temporary-library witness passes **5/5**: integer,
+volume/year, decimal and range case migrations exercise the real planner,
+apply, recovery, no-op replan, undo and replan after undo. Assertions cover
+exact filename spelling, archive SHA-256 and catalog location. The fifth case
+keeps a lone unverified [v2] lowercase name unchanged. On unmodified base
+c996135, the four migration expectations fail and the safeguard passes
+(4failed/1passed). Disabling the lowercase compatibility option in memory
+makes all4 compatibility tests fail; tracked sources were not modified.
+External witness test_review181_executor.py has SHA-256
+**a12d60bd89d2e01561f02c4a0d84ffe8c268842a970aa15db3a28a71656bcbac**;
+logs/JUnit use review181-74a2-* under the Codex scratch worktrees directory.
+
+The22 commits each change one file. CRLF-aware whitespace check is clean;
+watcher bare-LF count stays863 and its changes are documentation. Web code,
+web tests and conftest are unchanged. Own clean candidate/base review copies
+were removed after all runners finished and fresh process, service, task,
+shortcut and relay checks established they were inactive and unbound.
+The registered successor workspace and external evidence remain.
+
+Confirmed handoff4381 assigns Claude/git-bf the pinned merge and exact
+parents/tree-parity receipt; a changed candidate needs fresh review. Board146
+tracks the shared milestone and147 the completed Codex approval, read-back
+verified. Rollout remains with the owning interactive session and David.
+The most recent independent desktop snapshot remains the c996135 rollout
+receipt below; this review made no production checkout or library changes.
+Codex168, chapter-folder, staging-root and158 B2 follow-ups retain their
+existing ownership. This is lead-run review evidence, not a controller verdict.
+
+## Comic179+180 rollout receipt and desktop state verified (2026-11-10 local)
+
+Relay4373 was acknowledged with confirmed4376. Independent desktop checks at
+approximately **2026-11-11T02:03:30Z** confirm C:\git\ComicAutomation HEAD
+**c996135d22209df43ddfbaa9a715df871649663c**, tree
+**64df7110868fef992609e9e3f15ce77f5455117c**, with clean tracked worktree and
+index. The reflog records a fast-forward from
+**eb32d3e197c13afca6abb4f7ec526e137de0462a** at
+**2026-11-10T18:59:19-07:00 / 2026-11-11T01:59:19Z**. This differs from
+the owner's approximate17:55 MST in4373. The checkpoint uses the exact reflog
+timestamp. The Python process snapshot shows the watcher and GUI stopped.
+[Rollout receipt](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6784835688).
+
+Authorization and smoke are attributed to the owning interactive session via
+Claude4373. The session asked David to stop the watcher and approve proceeding.
+David replied "Watcher is stopped and gui is closed". The owner reports
+checking process absence before advancing the checkout. This preserves the
+interactive-chat authorization account alongside the independent desktop
+metadata verification.
+
+Owner-reported smoke passed startup validate_roots with C:\Python311 and
+two Mangakakalot Ch.53/54 arrivals in a real throwaway City of Sins folder,
+yielding City of Sins Ch.53/54. A path without a confirming folder retained
+the arrival name. One existing Mysterious Village claim remains held by
+ambiguous_exact between Manga/Mysterious Village and Manga/The Gwichon Village
+Mystery per the owner, who is asking David about that routing decision.
+David restarts from the GUI next. Canonical uppercase Ch. work has started
+off c996135 per4373 and will return for exact-head review.
+
+The deployed checkout includes both verified comic180 and179 merges recorded
+below. Board133/135 retain the rollout follow-up, read-back verified. Smoke
+and claim observations retain owner attribution. This receipt stays local
+on docs/post206-merge-receipt until the next substantive context publication.
+
+## Context206 merge independently verified (2026-11-10 local)
+
+Relay4370 was acknowledged with confirmed4372. Codex independently verified
+swarm merge **2ed9e0fe8a1e75dae57fda5347ed2efeef99d43c**, exact parents
+**6e0060f9421ebd737c9dd0e31d1441191e33fe5e** and reviewed source
+**8f70af9dc8b9249797ef40d15cfec82530d7e416**. Merge/head tree parity is
+**71b05ca84ab58dac54f915f076f05e960f6f4c9c**. GitHub reports that exact
+source merged. Run **42941522850** completed successfully on8f70af9, with
+pytest-core, pytest-hub, pytest-bypass and aggregate pytest-unit each
+successful. [Independent merge receipt](https://github.com/Decksx/agent-swarm/pull/206#issuecomment-6784726545).
+Claude4370 reports the source was marked ready before merge. Board145 is done,
+read-back verified.
+
+The published checkpoint includes both verified comic merges,179
+**c996135d22209df43ddfbaa9a715df871649663c** with tree64df7110 and180
+**b87b7c810d77d3cf656af2453287540aa70ebb9f** with treee78fe11e, and the205
+merge **6e0060f9421ebd737c9dd0e31d1441191e33fe5e**. Detailed source CI and
+review evidence follows below. Liveeb32d3e remains attributed to the owning
+session. Rollout of masterc996135 is pending with git-bf and David per4370.
+The receipt is committed locally on docs/post206-merge-receipt for the next
+substantive publication. Codex168 investigation and the separate uppercase
+Ch., chapter-folder, staging-root and158 B2 work retain their recorded owners.
+
 ## Comic179 and180 pinned merges verified; rollout remains with owner (2026-11-10 local)
 
 Claude's live hive receipt4362 reports179 merged. Codex independently verified
