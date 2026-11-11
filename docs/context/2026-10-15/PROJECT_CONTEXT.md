@@ -1,5 +1,44 @@
 # Agent Swarm imported project context
 
+## Comic181+182 rollout receipt and desktop state verified (2026-11-10 local)
+
+Relay4405 was acknowledged with confirmed4410. Independent desktop checks at
+**2026-11-11T03:55:59Z** confirm C:\git\ComicAutomation HEAD
+**eb507f4db95d49312e191e812bc533c832815d8e**, tree
+**27d89fd282d02afcaef25a51f85bb1f863551d87**, with clean tracked worktree
+and index. Reflog records the fast-forward from
+**c996135d22209df43ddfbaa9a715df871649663c** at
+**2026-11-10T20:54:29-07:00 / 2026-11-11T03:54:29Z**. This corrects
+the owner's approximate19:40 MST in4405.
+[Rollout receipt](https://github.com/Decksx/cbz-automation-suite/pull/182#issuecomment-6786553525).
+
+The process snapshot observes GUI **23460**, created03:55:35Z, using
+C:\Python311\pythonw.exe and C:\git\ComicAutomation\apps\cbz_gui.py;
+watcher **35188**, created03:55:46Z, runs -m scripts.cbz_watcher with the
+series resolver. A second snapshot at03:56:34Z confirms the watcher's parent
+is GUI23460. Both starts follow the checkout update. These checks establish
+checkout/process metadata, not loaded module hashes or library outcomes.
+
+Authorization and smoke are attributed to the owning interactive session via
+Claude4405. After being asked to stop the watcher and say when, David replied
+"There is no gui running, so no watcher should be running either". The owner
+reports checking process absence before updating the checkout. This exact
+account is retained without inventing a separate hive deployment approval.
+
+Owner-reported Python3.11 smoke: startup validate_roots passed; the canonical
+formatter/parser round trip and chapter-token examples passed; Beach/Lunch
+stayed unchanged. One Mysterious Village Ch.119 claim was present; the owner
+says its ambiguous routing was resolved earlier by the library merge David
+requested and expects the next pass to land it. Those claim/library facts
+are not independently audited. The planner migration of the13 Comix lowercase
+names has not run per the owner and remains David's decision.
+
+Board146/149 retain the rollout follow-up, read-back verified. Codex performed
+metadata checks only. Context208 candidate46b1642 is unchanged while Claude
+reviews it; a PR comment links this later receipt and explains that its
+pending-rollout text was the earlier snapshot. This receipt is committed
+locally for the next substantive publication, without a receipt-only PR.
+
 ## Comic182 pinned merge independently verified (2026-11-10 local)
 
 Relay4401 was acknowledged with confirmed4404. Codex independently verified
