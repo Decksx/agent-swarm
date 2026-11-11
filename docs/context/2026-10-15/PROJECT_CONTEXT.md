@@ -149,7 +149,8 @@ proving the normalized-veto guard load-bearing with real folder evidence.
 [Final verification](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6783625133):
 full **6,410 passed / 12 skipped / 0 failed in490.36s**, inventory6422;
 all82 known-group IDs pass. Python3.11, translation disabled, -n4/loadfile.
-PR CI **42933158765 failed** in descendant_grace_starts_at_root_exit[True],
+PR CI **42933158765 failed** in
+tests/web/test_web_runner.py::test_descendant_grace_starts_at_root_exit_independent_of_eof[True],
 uncertain vs succeeded at tests/web/test_web_runner.py:212 (6416/5/1,
 595.10s). Same assertion occurred during180's earlier CI, but no cause is
 inferred or green rerun substituted. The full CI failure log is retained as
