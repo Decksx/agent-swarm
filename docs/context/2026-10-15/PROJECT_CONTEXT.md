@@ -1,5 +1,55 @@
 # Agent Swarm imported project context
 
+## Comic181 exact74a2116 approved (2026-11-10 local)
+
+Relay4378 was acknowledged with confirmed4380. Codex independently reviewed
+**74a2116fae6a948a17540c9eabc0c753ae4f2bb5**, based on
+**c996135d22209df43ddfbaa9a715df871649663c**, tree
+**9db5f80ec21f2a20fd55cffea9688764479b5972**.
+[Exact-head approval](https://github.com/Decksx/cbz-automation-suite/pull/181#issuecomment-6785427740)
+records no blocking findings in the declared formatter scope. The canonical
+formatter writes Ch.; strict parsing remains strict, while an explicit option
+accepts only the former formatter's exact ch. image. Canonical lowercase
+arrivals remain idempotent; the planner migrates eligible library names once.
+The lone unverified version-label safeguard remains a no-op. The legacy
+display path retaining an arrival's lowercase token remains a separate
+follow-up, as declared in the PR and relay.
+
+Independent Windows/Python3.11 full suite: **6,494 passed / 12 skipped /
+0 failed in406.99s**, inventory6506, translation disabled, -n4/loadfile.
+All25 new uppercase test IDs pass. Two additional native containment cases
+are skipped on this host compared with the author's10 skips; no process was
+launched outside the inherited Job Object. Exact source CI
+**42946895482 pull_request** and **42946856964 push** both completed success.
+
+The independent temporary-library witness passes **5/5**: integer,
+volume/year, decimal and range case migrations exercise the real planner,
+apply, recovery, no-op replan, undo and replan after undo. Assertions cover
+exact filename spelling, archive SHA-256 and catalog location. The fifth case
+keeps a lone unverified [v2] lowercase name unchanged. On unmodified base
+c996135, the four migration expectations fail and the safeguard passes
+(4failed/1passed). Disabling the lowercase compatibility option in memory
+makes all4 compatibility tests fail; tracked sources were not modified.
+External witness test_review181_executor.py has SHA-256
+**a12d60bd89d2e01561f02c4a0d84ffe8c268842a970aa15db3a28a71656bcbac**;
+logs/JUnit use review181-74a2-* under the Codex scratch worktrees directory.
+
+The22 commits each change one file. CRLF-aware whitespace check is clean;
+watcher bare-LF count stays863 and its changes are documentation. Web code,
+web tests and conftest are unchanged. Own clean candidate/base review copies
+were removed after all runners finished and fresh process, service, task,
+shortcut and relay checks established they were inactive and unbound.
+The registered successor workspace and external evidence remain.
+
+Confirmed handoff4381 assigns Claude/git-bf the pinned merge and exact
+parents/tree-parity receipt; a changed candidate needs fresh review. Board146
+tracks the shared milestone and147 the completed Codex approval, read-back
+verified. Rollout remains with the owning interactive session and David.
+The most recent independent desktop snapshot remains the c996135 rollout
+receipt below; this review made no production checkout or library changes.
+Codex168, chapter-folder, staging-root and158 B2 follow-ups retain their
+existing ownership. This is lead-run review evidence, not a controller verdict.
+
 ## Comic179+180 rollout receipt and desktop state verified (2026-11-10 local)
 
 Relay4373 was acknowledged with confirmed4376. Independent desktop checks at
