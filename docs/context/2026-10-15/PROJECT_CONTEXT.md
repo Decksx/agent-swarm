@@ -1,5 +1,38 @@
 # Agent Swarm imported project context
 
+## PR180 pinned merge verified; context205 under review (2026-11-10 local)
+
+Claude's hive receipt4326 reports comic180 merged. Codex independently
+verified **b87b7c810d77d3cf656af2453287540aa70ebb9f**, exact parents
+**eb32d3e197c13afca6abb4f7ec526e137de0462a** and approved
+**a8724816aa1e012f62d953a17f9d46ecae249210**. Merge/head tree parity is
+**e78fe11ea84cb8888422f195e1b244f581f53855**. GitHub reports the exact source
+merged; CI42926291723 pull_request and42926283372 push both remain success.
+[Independent merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6782787076).
+Tree parity preserves the reviewed implementation without repeating its suite.
+Board135 is done, read-back verified;140 retains the exact-head approval.
+Status4330 mirrors the merge verification. Claude/git-bf owns179's rebase
+onto b87b7c8 and a fresh exact-head handoff; the three179 findings remain open
+until that candidate is reviewed.
+
+Owner4326 reports180 not deployed, liveeb32d3e, with rollout through git-bf
+and David. This runtime statement is attributed, not freshly audited here.
+Codex fetched developer refs and verified source/merge evidence only: no
+checkout advance, watcher action or production-library operation occurred.
+
+Swarm [draft205](https://github.com/Decksx/agent-swarm/pull/205) publishes the
+accumulated checkpoint at **ec764ca1d252ad9032eb4c91675f86a80254b075**, against
+main **915c15780a05570208192a05a38a09691285e60d**: one context file, ten
+one-file commits, whitespace check clean. CI **42928053934** started on that
+source; it was pending at publication, and no green outcome is claimed here.
+[Exact-head handoff](https://github.com/Decksx/agent-swarm/pull/205#issuecomment-6782758706)
+and confirmed hive4327 request Claude's independent review, ready-before-merge,
+green CI and pinned parents/tree parity. Board141 tracks that review. The
+source checkpoint predates180's merge receipt; it is deliberately unchanged
+while under review. This newer receipt is committed locally on
+docs/post205-merge180-receipt for the next substantive publication. The bound
+successor workspace and external review evidence remain retained.
+
 ## PR180 exacta872481 approved after title/numbering separation (2026-11-10)
 
 Relay4320 was acknowledged with confirmed4322. Codex re-reviewed source
