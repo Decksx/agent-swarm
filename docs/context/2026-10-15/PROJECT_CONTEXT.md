@@ -1,5 +1,229 @@
 # Agent Swarm imported project context
 
+## Comic179 and180 pinned merges verified; rollout remains with owner (2026-11-10 local)
+
+Claude's live hive receipt4362 reports179 merged. Codex independently verified
+**c996135d22209df43ddfbaa9a715df871649663c**, exact parents
+**b87b7c810d77d3cf656af2453287540aa70ebb9f** and approved
+**340352ad93d441ab12fb17441e3187d897af1f6b**. Merge/head tree parity is
+**64df7110868fef992609e9e3f15ce77f5455117c**. GitHub reports the exact source
+merged; CI **42939787835 pull_request** and **42939780278 push** both remain
+success. [Independent179 merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6784557028).
+Tree parity retains the reviewed implementation without repeating its suite.
+Board133 is done, read-back verified;144 retains the exact-head approval.
+
+This includes the already verified180 merge
+**b87b7c810d77d3cf656af2453287540aa70ebb9f**, exact parents
+**eb32d3e197c13afca6abb4f7ec526e137de0462a** and approved
+**a8724816aa1e012f62d953a17f9d46ecae249210**, merge/head tree
+**e78fe11ea84cb8888422f195e1b244f581f53855**, source CI42926291723 and
+42926283372 success. [Independent180 receipt](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6782787076).
+Both merges supersede the earlier pending-merge checkpoints below.
+
+Owner4362 reports liveeb32d3e and no deployment; rollout of masterc996135
+remains with David through git-bf. This runtime statement is attributed, not
+freshly audited here. Codex fetched developer refs and verified source/merge
+evidence only: no live checkout advance, watcher action or library operation.
+The known-group engineering work is complete. Codex168 investigation and the
+separate uppercase canonical Ch., chapter-folder, staging-root and158 B2
+work remain distinct follow-ups under the previously recorded ownership.
+The accumulated verified checkpoint is ready for substantive publication.
+
+## PR179 exact340352a approved after known-series anchoring (2026-11-10 local)
+
+Relay4356 was acknowledged with confirmed4358. Codex re-reviewed source
+**340352ad93d441ab12fb17441e3187d897af1f6b**, still based on
+**b87b7c810d77d3cf656af2453287540aa70ebb9f**. The sibling check now consumes
+the complete supplied series key, digits included, then requires a boundary
+and non-empty pure numbering. It does not call or weaken #180's uncertain-title
+splitter. All three unchanged external witnesses pass **26/26**. Restoring the
+old splitter-based check in memory restores 7 numeric-series failures; replacing
+the check with a character-prefix match restores 7 false-evidence failures.
+No source files were edited for these mutations. Evidence retained as
+review179-3403-* logs/JUnit beside witnesses fecb9ddd,2dd25232,3c601fe3.
+
+The prior numeric-series regression is addressed, with strict Side Story/
+Extra/glued-digit negatives retained. User docs now describe both the title
+boundary and digits in the authoritative series. Codex corrected the PR body's
+historical explanation via the supported API:180's splitter does not split at
+every digit; it finds numbering and rejects digits left in an uncertain title.
+Read-back verifies the correction and unchanged source head.
+
+[Approved exact-head review](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6784520210):
+full **6,466 passed / 12 skipped / 0 failed in433.33s**, inventory6478;
+all138 known-group IDs pass. Python3.11, translation disabled, -n4/loadfile;
+translation-on/identity witnesses run separately in deterministic fixtures.
+Exact CI **42939787835 pull_request** and **42939780278 push** both completed
+successfully on this head. All prior findings/docs requests are resolved.
+Head tree
+**64df7110868fef992609e9e3f15ce77f5455117c**; seventeen one-file commits,
+clean whitespace check with CRLF handling and valid fast-forward ancestry.
+Watcher is unchanged this round; web/tests-web/conftest diff is empty.
+Own clean review copy was removed after all runners finished and process/
+service/task/shortcut plus relay binding checks established inactivity/unbound
+status; external evidence and bound successor workspace remain. Handoff
+confirmed4359 assigns Claude/git-bf the pinned merge with exact parents/tree
+parity and CI receipts; changed source needs fresh review. Board133 is in
+review awaiting the merge;144 records the completed approval, read-back
+verified. This is lead-run evidence, not a controller-ledger verdict or live
+rollout permission. No production checkout, watcher or library changes occurred.
+
+## PR179 round2 fixes boundary; numeric-series siblings regress (2026-11-10 local)
+
+Relay4348 was acknowledged with confirmed4350. Codex re-reviewed source
+**916278d94a50c4a825a5deec35b53825501c572d**, still based on
+**b87b7c810d77d3cf656af2453287540aa70ebb9f**, fast-forward from f6d18aa.
+The [review](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6784169450)
+closes the previous false-title-boundary P2 and docs request: unchanged
+identity/folder-evidence probes pass 19/19, docs now reflect the folder rule,
+listed digit exception and unreadable-list behavior. Restoring the old prefix
+match in memory makes all 7 folder-evidence cases fail, proving the new boundary
+check load-bearing. No source edits were used for mutations.
+
+Changes remain requested for a P2 regression in valid numeric series titles.
+_named_after_series reuses #180's _split_numbering, which deliberately rejects
+digits left in an uncertain translated title. Applied to an already known
+series, this rejects valid canonical siblings for 3XLOVE Uncensored, The Toy
+of 100 Baseball Players and 20th Century Boys. With 3XLOVE Ch. 5 already named,
+Manhwa18 Chapter 6 no longer becomes 3XLOVE Ch. 6; the normal watcher lands it
+under the raw group name. Incremental/batch normalization stops when a
+correctly named sibling exists. Both payloads survive. Anchor to the supplied
+known series identity plus a strict boundary and pure numbering; do not
+globally weaken #180's translation safeguard.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review179_numeric_series.py`,
+SHA256 **3c601fe3845051dae41fa1b8a95750616dae3c16df6f3b6c8f5039e4d589fcc0**:
+candidate 7 failed, previous reviewed candidate f6d18aa 7 passed, diagnostic
+control anchored to the known title 7 passed. This comparison is with the previous
+candidate, not merged master where the feature was not implemented. Plain/
+display and actual watcher cases use private temporary roots, asserting both
+payloads intact. Evidence retained as review179-9162-*numeric* logs/JUnit
+beside the witness; the two earlier witnesses remain unchanged.
+
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6784250174):
+full **6,439 passed / 12 skipped / 0 failed in422.65s**, inventory6451;
+all111 known-group IDs pass. Python3.11, translation disabled, -n4/loadfile.
+Exact push **42937773564 succeeded**; pull_request **42937783136 remained
+in progress** at last check, not claimed green. Head tree
+**4fe27e9b8e67bd12e4121e08a465fd2fedc9bc35**; thirteen one-file commits,
+whitespace check clean with CRLF handling, watcher unchanged in this round.
+Handoff confirmed4351, ACK4353; Claude4354 forwarded the witness and known-
+series anchoring approach to git-bf. Board133 fixes remain active;143 records
+the completed review, read-back verified. Own clean candidate/previous-candidate
+copies were removed after all runners finished and process/service/task/shortcut
+plus relay binding checks established inactivity/unbound status. External
+evidence and bound successor workspace remain. Fresh exact head next; no
+production checkout, watcher or library changes occurred. This checkpoint
+stays local until substantive publication.
+
+## PR179 rebased review finds false sibling confirmation (2026-11-10 local)
+
+Relay4340 was acknowledged with confirmed4342. Codex freshly reviewed
+**f6d18aabca762479c10797cacf02efe9eb1320ce**, rebased onto comic180 merge
+**b87b7c810d77d3cf656af2453287540aa70ebb9f**, with ancestry verified.
+The [review](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6783515929)
+requests changes. The original fecb9ddd witness passes12/12: normalized
+structural veto and invalid-UTF8 fallback findings are addressed; the folder
+guard fixes the original mixed-drop case but still accepts false evidence.
+
+P2: _drop_confirms_group treats a normalized character prefix as proof a
+sibling is already named after the series. City of Sins Side Story, City of
+Sins Extra and City of Sins2 all pass startswith(CityofSins), though they are
+different titles. Beside real-title Desire Ch.1, they falsely confirm the
+folder and turn it into City of Sins Ch.1. Normal watcher landing confirms
+the title erasure; both payloads survive. Require a real title boundary or
+identity, retaining uncertainty rather than renaming from that false proof.
+Also synchronize docs/cbz_watcher.md: it still omits mandatory folder
+confirmation and says digit-bearing prefixes are never groups, contradicting
+David's exact-listed digit-only exception. Structural checks must always win.
+
+Independent witness `C:\Users\david\.codex\worktrees\test_review179_folder_evidence.py`,
+SHA256 **2dd2523234e2af9354acc7b8b6c0298a4566b5b8b5bbf283449c23a0be9bec61**:
+candidate7 failed, exact base7 passed, diagnostic title-boundary control7
+passed. Parser plain/display plus real watcher fixture roots are private
+temporary directories; both original payloads are asserted intact. Evidence
+retained as review179-f6d1-*folder* logs/JUnit beside the witness. In-memory
+raw-only structural veto bypass gives6 failures/5 passes/71 deselected,
+proving the normalized-veto guard load-bearing with real folder evidence.
+
+[Final verification](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6783625133):
+full **6,410 passed / 12 skipped / 0 failed in490.36s**, inventory6422;
+all82 known-group IDs pass. Python3.11, translation disabled, -n4/loadfile.
+PR CI **42933158765 failed** in
+tests/web/test_web_runner.py::test_descendant_grace_starts_at_root_exit_independent_of_eof[True],
+uncertain vs succeeded at tests/web/test_web_runner.py:212 (6416/5/1,
+595.10s). Same assertion occurred during180's earlier CI, but no cause is
+inferred or green rerun substituted. The full CI failure log is retained as
+review179-f6d1-pr-ci-failure.log. Push42933150224 was pending at last check.
+Head tree
+**43409c150027ff70ca433943e86c5c2e2b0a4216**; nine one-file commits,
+whitespace check clean with CRLF handling, watcher+5CRLF/bareLF863 unchanged,
+web/tests-web/conftest diff empty. Handoff confirmed4343, ACK4345; Claude4346
+forwarded the witness and docs gaps to git-bf. Board133 remains active for
+the boundary fix/docs and a fresh exact head/CI;142 records the completed
+review, read-back verified. Own clean candidate/base copies were removed
+after all runners finished and process/service/task/shortcut plus relay
+binding checks found them inactive/unbound. External evidence and bound
+successor workspace remain. No production checkout, watcher or library
+changes occurred. This checkpoint stays local until substantive publication.
+
+## Context205 pinned merge independently verified (2026-11-10 local)
+
+Relay4335 was acknowledged with confirmed4338. Codex independently verified
+swarm merge **6e0060f9421ebd737c9dd0e31d1441191e33fe5e**, exact parents
+**915c15780a05570208192a05a38a09691285e60d** and reviewed source
+**ec764ca1d252ad9032eb4c91675f86a80254b075**. Merge/head tree parity is
+**3749b2c0b8808ff7eaea144cefbca30b491d55b6**. GitHub reports that exact
+source merged. Run **42928053934** completed successfully on ec764ca;
+pytest-core, pytest-hub, pytest-bypass and aggregate pytest-unit all succeeded.
+[Independent merge receipt](https://github.com/Decksx/agent-swarm/pull/205#issuecomment-6782918821).
+Claude4335 reports the source was marked ready first. The board141 publication
+item is done, read-back verified. This is context publication, not deployment.
+
+The published source predates comic180's pinned merge receipt. That later
+fact is already independently recorded in local0fbb54e and the following
+section: **b87b7c810d77d3cf656af2453287540aa70ebb9f**, parentseb32d3e+a872481,
+merge/head treee78fe11e and both source CI green. The prior pending205 notes
+retain their original checkpoint timing. This receipt stays local on
+docs/post205-merge180-receipt until the next substantive publication; no
+receipt-only PR is opened. Next owner Claude/git-bf sends179 rebased onto
+b87b7c8 for fresh exact-head review. Codex168 investigation and the separate
+uppercase Ch. follow-up remain open. No production checkout, watcher or library
+changes occurred; the bound successor workspace and external evidence remain.
+
+## PR180 pinned merge verified; context205 under review (2026-11-10 local)
+
+Claude's hive receipt4326 reports comic180 merged. Codex independently
+verified **b87b7c810d77d3cf656af2453287540aa70ebb9f**, exact parents
+**eb32d3e197c13afca6abb4f7ec526e137de0462a** and approved
+**a8724816aa1e012f62d953a17f9d46ecae249210**. Merge/head tree parity is
+**e78fe11ea84cb8888422f195e1b244f581f53855**. GitHub reports the exact source
+merged; CI42926291723 pull_request and42926283372 push both remain success.
+[Independent merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6782787076).
+Tree parity preserves the reviewed implementation without repeating its suite.
+Board135 is done, read-back verified;140 retains the exact-head approval.
+Status4330 mirrors the merge verification. Claude/git-bf owns179's rebase
+onto b87b7c8 and a fresh exact-head handoff; the three179 findings remain open
+until that candidate is reviewed.
+
+Owner4326 reports180 not deployed, liveeb32d3e, with rollout through git-bf
+and David. This runtime statement is attributed, not freshly audited here.
+Codex fetched developer refs and verified source/merge evidence only: no
+checkout advance, watcher action or production-library operation occurred.
+
+Swarm [draft205](https://github.com/Decksx/agent-swarm/pull/205) publishes the
+accumulated checkpoint at **ec764ca1d252ad9032eb4c91675f86a80254b075**, against
+main **915c15780a05570208192a05a38a09691285e60d**: one context file, ten
+one-file commits, whitespace check clean. CI **42928053934** started on that
+source; it was pending at publication, and no green outcome is claimed here.
+[Exact-head handoff](https://github.com/Decksx/agent-swarm/pull/205#issuecomment-6782758706)
+and confirmed hive4327 request Claude's independent review, ready-before-merge,
+green CI and pinned parents/tree parity. Board141 tracks that review. The
+source checkpoint predates180's merge receipt; it is deliberately unchanged
+while under review. This newer receipt is committed locally on
+docs/post205-merge180-receipt for the next substantive publication. The bound
+successor workspace and external review evidence remain retained.
+
 ## PR180 exacta872481 approved after title/numbering separation (2026-11-10)
 
 Relay4320 was acknowledged with confirmed4322. Codex re-reviewed source
