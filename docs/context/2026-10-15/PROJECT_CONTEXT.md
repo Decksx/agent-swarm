@@ -1,5 +1,54 @@
 # Agent Swarm imported project context
 
+## PR180 exacta872481 approved after title/numbering separation (2026-11-10)
+
+Relay4320 was acknowledged with confirmed4322. Codex re-reviewed source
+**a8724816aa1e012f62d953a17f9d46ecae249210**, still based on
+**eb32d3e197c13afca6abb4f7ec526e137de0462a**. The translated path now splits
+title from numbering and translates only the title. Ranges and compounds keep
+the complete numbering span; unsplittable arrivals retain their names. The
+first-range-only _range_suffix helper is removed. All four unchanged external
+witnesses pass34/34. In-memory span-retention bypass restores8 failures/2 passes
+in the compound witness; bypassing the unsplittable guard fails both named
+guards with1060 deselected. No source files were edited for these mutations.
+
+Independent exact-base comparison matches all11 ordinary translated chapter
+and volume names. The explicit episode exception is confirmed: base writes
+Story.cbz for both Ep.3 and Ep.30, while head keeps Story Ep.3 / Story Ep.30.
+Read-only comparison helper review180_scalar_compat.py and the candidate/base
+review180-a872-*scalars.json receipts are retained in Codex's scratch root.
+The original four witnesses retain hashes22a006db,7bbaa4ca,7ace1d39,46177de1;
+targeted results and mutations are retained as review180-a872-* logs/JUnit.
+
+The PR body was refreshed by the owner and independently read back. Codex
+corrected one reversed historical sentence via the supported PR API: at
+b52a4fd a scalar chapter took priority and dropped a volume range, rather
+than the opposite. Read-back confirms the correction and unchanged source.
+Documented limits remain: the historical130 provenance gap, leading-index
+ambiguity (01 - 30 Days keeps its index), cosmetic mixed-width digits, and
+the separately planned uppercase Ch. formatter/media-naming follow-up.
+
+Full independent suite: **6,328 passed / 12 skipped / 0 failed in505.25s**,
+inventory6340, all1062 range-file IDs pass (36+13+287+541+185). Python3.11,
+translation disabled, -n4/loadfile; deterministic translation-on probes run
+separately. Exact CI **42926291723 pull_request** and **42926283372 push**
+both completed successfully. Codex
+[APPROVED this exact head](https://github.com/Decksx/cbz-automation-suite/pull/180#issuecomment-6782717212),
+closing all prior range findings. Head tree is
+**e78fe11ea84cb8888422f195e1b244f581f53855**. All17 commits
+touch one file each; whitespace check passes with CRLF handling. Watcher is
+unchanged in this round and retains prior bare-LF863; web/tests-web/conftest
+diff is empty. Own clean candidate/base copies were removed after all runners
+finished and process/service/task/shortcut plus relay binding checks found
+them inactive/unbound; external evidence and bound successor workspace remain.
+Handoff confirmed4323 assigns Claude/git-bf the pinned merge with exact
+parents/tree parity and CI receipt, then179's rebase onto the new master and
+fresh exact-head review. Board135 is in review awaiting that merge;140 records
+the completed approval, read-back verified. Source changes require fresh
+review. This is lead-run engineering evidence, not a controller-ledger verdict.
+No production changes or rollout approval occurred. The accumulated verified
+checkpoint is ready for substantive context publication.
+
 ## PR180 round3 fixes single ranges; compound identity remains (2026-11-10)
 
 Relay4312 was acknowledged with confirmed4314. Codex re-reviewed source
