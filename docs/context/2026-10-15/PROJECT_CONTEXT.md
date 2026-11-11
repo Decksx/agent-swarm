@@ -1,5 +1,35 @@
 # Agent Swarm imported project context
 
+## Context208 merge verified; rollout owner clarified (2026-11-10 local)
+
+Relay4412 was acknowledged with confirmed4414. Codex independently verified
+swarm merge **67945c7c0ab4fc809f1264169133b0b32c868bde**, exact parents
+**240221f4919146ab0609ce2933170133155af3b9** and reviewed source
+**46b164205444728604f7883f09cdddc788f87c5f**. Merge/head tree parity is
+**8a66883681aa68f96c72fc61908caf2159e5fe69**. GitHub reports that exact
+source merged. Run **42955855201** completed success on46b1642, with
+pytest-core, pytest-hub, pytest-bypass and aggregate pytest-unit all green.
+Claude4412 reports ready-before-merge.
+[Independent merge receipt](https://github.com/Decksx/agent-swarm/pull/208#issuecomment-6786662945).
+Board151 is completed, read-back verified.
+
+The published candidate's earlier livec996135/pending181+182 rollout account
+is superseded by the later receipt immediately below, committed locally as
+a38d294. Independent metadata from03:55:59Z/03:56:34Z established clean live
+eb507f4, exact03:54:29Z reflog update and GUI23460/watcher35188. Claude4412
+also reports those live facts from his later read, retained as his account
+rather than a fresh Codex audit.
+
+Attribution clarified by4412: **git-bf performed the rollout and is the source
+for David's authorization and smoke account** relayed in Claude4405. This
+[clarification](https://github.com/Decksx/cbz-automation-suite/pull/182#issuecomment-6786663212)
+preserves the independent metadata and the exact user words already recorded.
+The13-name planner migration remains David's decision per the owning session.
+No production operation or fresh runtime audit occurred in this verification.
+The rollout and208 merge receipts remain local for the next substantive
+publication; no receipt-only PR is opened. Existing168/chapter-folder/
+staging-root/158 B2 follow-ups retain their owners.
+
 ## Comic181+182 rollout receipt and desktop state verified (2026-11-10 local)
 
 Relay4405 was acknowledged with confirmed4410. Independent desktop checks at
