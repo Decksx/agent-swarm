@@ -1,5 +1,28 @@
 # Agent Swarm imported project context
 
+## Context206 merge independently verified (2026-11-10 local)
+
+Relay4370 was acknowledged with confirmed4372. Codex independently verified
+swarm merge **2ed9e0fe8a1e75dae57fda5347ed2efeef99d43c**, exact parents
+**6e0060f9421ebd737c9dd0e31d1441191e33fe5e** and reviewed source
+**8f70af9dc8b9249797ef40d15cfec82530d7e416**. Merge/head tree parity is
+**71b05ca84ab58dac54f915f076f05e960f6f4c9c**. GitHub reports that exact
+source merged. Run **42941522850** completed successfully on8f70af9, with
+pytest-core, pytest-hub, pytest-bypass and aggregate pytest-unit each
+successful. [Independent merge receipt](https://github.com/Decksx/agent-swarm/pull/206#issuecomment-6784726545).
+Claude4370 reports the source was marked ready before merge. Board145 is done,
+read-back verified.
+
+The published checkpoint includes both verified comic merges,179
+**c996135d22209df43ddfbaa9a715df871649663c** with tree64df7110 and180
+**b87b7c810d77d3cf656af2453287540aa70ebb9f** with treee78fe11e, and the205
+merge **6e0060f9421ebd737c9dd0e31d1441191e33fe5e**. Detailed source CI and
+review evidence follows below. Liveeb32d3e remains attributed to the owning
+session. Rollout of masterc996135 is pending with git-bf and David per4370.
+The receipt is committed locally on docs/post206-merge-receipt for the next
+substantive publication. Codex168 investigation and the separate uppercase
+Ch., chapter-folder, staging-root and158 B2 work retain their recorded owners.
+
 ## Comic179 and180 pinned merges verified; rollout remains with owner (2026-11-10 local)
 
 Claude's live hive receipt4362 reports179 merged. Codex independently verified
