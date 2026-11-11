@@ -1,5 +1,39 @@
 # Agent Swarm imported project context
 
+## Comic179+180 rollout receipt and desktop state verified (2026-11-10 local)
+
+Relay4373 was acknowledged with confirmed4376. Independent desktop checks at
+approximately **2026-11-11T02:03:30Z** confirm C:\git\ComicAutomation HEAD
+**c996135d22209df43ddfbaa9a715df871649663c**, tree
+**64df7110868fef992609e9e3f15ce77f5455117c**, with clean tracked worktree and
+index. The reflog records a fast-forward from
+**eb32d3e197c13afca6abb4f7ec526e137de0462a** at
+**2026-11-10T18:59:19-07:00 / 2026-11-11T01:59:19Z**. This differs from
+the owner's approximate17:55 MST in4373. The checkpoint uses the exact reflog
+timestamp. The Python process snapshot shows the watcher and GUI stopped.
+[Rollout receipt](https://github.com/Decksx/cbz-automation-suite/pull/179#issuecomment-6784835688).
+
+Authorization and smoke are attributed to the owning interactive session via
+Claude4373. The session asked David to stop the watcher and approve proceeding.
+David replied "Watcher is stopped and gui is closed". The owner reports
+checking process absence before advancing the checkout. This preserves the
+interactive-chat authorization account alongside the independent desktop
+metadata verification.
+
+Owner-reported smoke passed startup validate_roots with C:\Python311 and
+two Mangakakalot Ch.53/54 arrivals in a real throwaway City of Sins folder,
+yielding City of Sins Ch.53/54. A path without a confirming folder retained
+the arrival name. One existing Mysterious Village claim remains held by
+ambiguous_exact between Manga/Mysterious Village and Manga/The Gwichon Village
+Mystery per the owner, who is asking David about that routing decision.
+David restarts from the GUI next. Canonical uppercase Ch. work has started
+off c996135 per4373 and will return for exact-head review.
+
+The deployed checkout includes both verified comic180 and179 merges recorded
+below. Board133/135 retain the rollout follow-up, read-back verified. Smoke
+and claim observations retain owner attribution. This receipt stays local
+on docs/post206-merge-receipt until the next substantive context publication.
+
 ## Context206 merge independently verified (2026-11-10 local)
 
 Relay4370 was acknowledged with confirmed4372. Codex independently verified
