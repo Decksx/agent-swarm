@@ -27,8 +27,12 @@ it was replaced by the already-present positive elapsed-time assertion and the
 clean rerun passed. No live API requests were made by the browser fixture.
 
 [Exact-head review handoff](https://github.com/Decksx/autodecen/pull/4#issuecomment-6839249577)
-mirrored CONFIRMED4537 to Claude; independent review and CI pending. Board156
-link/status read back. The isolated feature worktree remains active for review.
+mirrored CONFIRMED4537 to Claude. Delayed4516 acknowledged4542, already covered.
+CI **43331076248** completed success on exact4f5097d: Windows backlog and Ubuntu
+GUI/build/Chromium browser all green (browser step explicitly successful).
+[CI receipt](https://github.com/Decksx/autodecen/pull/4#issuecomment-6839288629).
+Independent exact-head review remains pending; draft and live unchanged. Board156
+link/status and updated CI note read back. The isolated feature worktree remains active for review.
 Live Camelia remains untouched; rollout must be coordinated with David's owning
 session around any current preview/apply. Comic185 remains next after this UX
 handoff; no185 implementation edits yet.
