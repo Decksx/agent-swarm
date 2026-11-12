@@ -1,5 +1,71 @@
 # Agent Swarm imported project context
 
+## Open work resumed: comic168 PR184 and docs183 merge (2026-11-12)
+
+Admin4423 was acknowledged with confirmed4427. Codex resumed owned issue168;
+Claude4429 owns the chapter-folder identity fix, staging-root investigation
+and158 B2. Confirmed handoff4428 coordinated the separate files/workstreams.
+
+Codex opened [comic184](https://github.com/Decksx/cbz-automation-suite/pull/184),
+draft exact **c0ac461d59957ee5862d11d7d660d02078c39dd2**, tree
+**3b7d23a02a635f59a11207658a4a9237b5901528**, branchfix/168-log-index.
+The branch began at **eb507f4db95d49312e191e812bc533c832815d8e**; the
+PR target advanced to docs183 merge48f28c8 before creation. This unrelated
+docs/comment merge has identical watcher AST and no overlapping changed files.
+The source candidate is unchanged. Five one-file commits; code/tests final
+**c8f2995716d2ab9d358ff549d8ffa591c9e57365**, last commit development log.
+
+Private20-round reproduction: **4/6,040 initial index replacements failed**
+with the observed PermissionError/WinError5/errno13, exact index.tmp to
+index.json. All4 recovered on their first retry after15–16ms, giving6,044
+total attempts. All20 final indexes validated coverage through1200,
+4segments, <=5gaps and5physical files. The OS actor remains unproved.
+[Investigation evidence](https://github.com/Decksx/cbz-automation-suite/issues/168#issuecomment-6837504257).
+
+The mitigation is test-only, an option expressly allowed in issue168.
+An explicit fixture retries the original publisher and candidate only for
+PermissionError/WinError5 and both exact index paths, max5calls with4x20ms
+sleeps and a pytest warning each time. Only the alternating-map, zero-write
+and eight-MiB direct-writer tests opt in. No production code changes: the
+production pump's existing retry/sticky unknown-tail policy remains intact.
+Persistent or unrelated failures propagate. Every attempt retains original
+validation/write/flush/fsync/atomic replace ordering and late watermark commit.
+
+Full code-final Windows/Python3.11 suite: **6,553 passed / 12 skipped / 0 failed
+in444.20s**, inventory6565 = base6554 +11new tests. All11 pass. Translation
+disabled, -n4/loadfile; two additional host skips are native outer-Job cases.
+Initial focused83pass preceded the extra missing-destination case. External
+exact-error injection: baseline3fail, candidate3pass/3warnings. Unforced
+stress replay30/30pass in79.27s with no retry warning in that sample; this
+does not prove the OS interference is gone. Eight in-memory guards all caught:
+WinError filter2fail, source1, destination1, missing-source1, missing-target1,
+bound1, delay2 and opt-in wrapper1. Source hashes before/after match and the
+development log records retained external diagnose168/probe168/comic168 files.
+
+[Exact-head review handoff](https://github.com/Decksx/cbz-automation-suite/pull/184#issuecomment-6837625471)
+and confirmed4447 assign Claude independent review. CI **43319836680
+pull_request / 43319718800 push** are running on c0ac461 at this checkpoint.
+Require fresh approval and both successful before ready/pinned merge, returning
+parents/tree parity. No deployment needed for this test-only change. Board132
+is in review. Clean baseline copy was removed after all runners finished and
+fresh process/service/task/shortcut/relay checks found it inactive/unbound.
+The feature copy and registered successor workspace remain for review/revisions.
+
+While168 ran, Codex independently reviewed docs183 at exact
+**b4f75b5711e57a0ec6b1aa06ebff00468751420d**:
+[approval](https://github.com/Decksx/cbz-automation-suite/pull/183#issuecomment-6837526221),
+same watcher AST, bareLF863 and clean CRLF-aware whitespace. The incorrect
+comment URL in handoff4436 was promptly corrected by confirmed4438.
+Verified completed merge **48f28c8464418b388f250a1d7aad5e5ca0dfa6cf**,
+exact parents eb507f4+b4f75b5, merge/head tree
+**8d56f915f6abe570e3e873ea73aa3f6247fb9bed**; source CI43318035022 and
+43318007676 both success.
+[Independent receipt](https://github.com/Decksx/cbz-automation-suite/pull/183#issuecomment-6837648354).
+Board124 is done. No executable delta, full local suite rerun or rollout needed
+for183. All activity used private fixtures/developer refs; no production data,
+runtime controls or security setting changes. This accumulated local checkpoint
+waits for the next substantive context publication after184's review/merge.
+
 ## Camelia backlog counter explanation (2026-11-12)
 
 Admin4416 was acknowledged4420 and answered with confirmed4422. Source-only
