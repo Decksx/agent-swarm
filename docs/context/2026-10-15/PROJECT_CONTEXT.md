@@ -1,5 +1,47 @@
 # Agent Swarm imported project context
 
+## Confirmed Camelia prune active; indexed-event fix handed off (2026-11-12)
+
+Delayed admin4539 reports about ten minutes since Confirm; ACK4557. Read-only
+API/OS checks at approximately23:47Z show API36888 responsive, queue paused,
+crawl stopped and no committed prune. A3s process sample records3.109 CPU seconds,
+420883 reads/1723889971 read bytes and1082420 written bytes: logical process I/O,
+not a physical-disk or numeric progress measurement. At23:54:11Z, the GET summary
+still has46048 records and no recent prune events. The apply is atomic, so that
+view remains unchanged until commit. No direct live DB open, library walk,
+second preview/apply, restart or live file update by Codex.
+
+The schema lacks events.book_id indexing; per-book event detaches and FK checks
+rescan history. [Autodecen PR5](https://github.com/Decksx/autodecen/pull/5), exact
+**673ccf4d27834f01fa284dc27a3135746b59af11**, adds one idempotent startup index,
+two bounded-work/migration guards and backend CI wiring. Six one-file commits,
+forked frome0936a8; the last two preserve/order the concurrently merged PR4 log.
+Targetbb660793 integrates cleanly to predicted tree
+**817499476a3a7394046ba533fea339fe2579d895**, retaining PR4 UI/browser checks.
+Both new tests fail base: about2316000 apply VM instructions and36000 lookup
+instructions. Fixed apply is about4000; both tests pass with history/audits/FK
+checks intact. These are private fixture work counts, not production timing.
+All124 available core checks pass19.753s in private database/temp paths; the
+three model modules remain unavailable/excluded as before. No models launched.
+[Exact-head review handoff](https://github.com/Decksx/autodecen/pull/5#issuecomment-6839440339)
+mirrored CONFIRMED4564. Board157 link/note read back. Run43332540400 exact673ccf4:
+Windows backlog green, GUI pending at23:54Z. Independent review pending, draft.
+The active request cannot benefit from a later update; rollout stays with the
+owning session and David after the operation settles. Comic185 remains deferred.
+
+## Camelia progress-feedback PR4 merge verified (2026-11-12)
+
+PR4 merged while the performance diagnosis was underway: merge
+**bb66079342971e07bca9224fb59a2ffb08b69868**, parentse0936a8+4f5097d,
+merge/head tree **ada279e7d66f6fcf7d9e82a36b4c4036273622af**. Exact approval
+[6839286132](https://github.com/Decksx/autodecen/pull/4#issuecomment-6839286132),
+run43331076248 both jobs green at4f5097d. Codex's earlier pending-review CI
+comment raced the merge; [merge receipt](https://github.com/Decksx/autodecen/pull/4#issuecomment-6839456084)
+supersedes it. Board156 implementation done, rollout tracked separately with
+Claude. Live HEAD observed e0936a8 at23:48Z; no deployment by Codex. Earlier
+PR4-pending snapshots below are historical.
+
+
 ## Camelia preview succeeded; progress feedback handed off (2026-11-12)
 
 Admin4511 could not tell whether Prune missing files was working; ACK4524.
