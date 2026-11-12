@@ -1,5 +1,77 @@
 # Agent Swarm imported project context
 
+## Camelia missing-file prune implemented; exact423885d in review (2026-11-12)
+
+Admin4459 was acknowledged4465. Codex claimed implementation in4466; Claude's
+parallel4471 was a plan only, withdrawn before edits (4479). Confirmed4480
+handed the first candidate to Claude; confirmed4483 supersedes it with
+**423885d0807da76ea0965860bd415714815d92b3**, tree
+**e915077cfc2c102fd164d65591ec74c54118ed41**, base
+**9b27caa25deffe9e38447236208eb1cf8bc11c03**.
+[Autodecen PR3](https://github.com/Decksx/autodecen/pull/3) is draft, ten
+one-file commits, source in C:\Users\david\.codex\worktrees\camelia-prune-missing.
+[Fresh review handoff](https://github.com/Decksx/autodecen/pull/3#issuecomment-6838379990).
+
+Book queue now previews all libraries/statuses regardless of filters, counts
+by category and up to20 paths. Confirm removes records only; files remain
+untouched. Pause crawl/queue and settle workers first. Unreadable/unavailable
+roots and uncertain file checks are kept. Apply requires the preview count
+and digest, repeats discovery, takes BEGIN IMMEDIATE, verifies the row snapshot
+and readiness, then rechecks all candidate paths and roots. Changes/refusals
+abort without partial pruning. Existing events survive with detached book IDs;
+each removal adds an audit note. Current queue counts refresh; Found/Eligible
+remain historical scan totals. This does not reconcile renames.
+
+Final available non-model unit modules: **122 passed in20.547s**, unchanged
+base **105 passed in19.549s** using the same UTF-8/private-temp setup. All17
+new tests pass. Full model-suite green is not claimed: numpy/cv2/torch modules
+are unavailable. Initial full discovery reproduced the same3 unavailable
+modules and cp1252 output failure on base and candidate. UTF-8 fixes that
+output issue. An intermediate run hit the shared-default processing lock and
+refused; final checks isolate temporary storage/locks. No model work was run.
+
+Frontend production build passed (Node24.19.0/npm11.17.0). A private headless
+browser checked preview/counts, unavailable-root notice, Cancel without apply,
+Confirm with the count/digest and success refresh; no page errors. Every API
+call was intercepted and the screenshot visually inspected. No live API or
+queue was operated. Thirteen in-memory guards all caught (counts1/5/1/3/1/1/
+1/1/3/2/1/1/1); sources/hash evidence and model-suite limits are documented in
+the candidate development log. External artifacts use camelia-prune-* and
+camelia_prune_ui_check/camelia_core_checks/mutate_camelia_prune scripts.
+
+Initial sourceb3a20ad CI43324867499 failed workflow validation before jobs:
+runner context was used at job-level env. One appended workflow-only commit
+423885d assigns the private database path inside the Windows step. Feature
+code/tests unchanged. Final CI **43325343874** completed success on423885d,
+both **backlog** and **gui** jobs green.
+[Completion receipt](https://github.com/Decksx/autodecen/pull/3#issuecomment-6838406275).
+Board152 is in review, read-back verified. Claude owns fresh exact-head review,
+then ready/pinned merge after green CI, returning parents/tree parity. Actual
+Camelia rollout/restart remains with David's owning interactive session. The
+feature copy remains for review/revisions; the clean inactive/unbound baseline
+copy was removed after process/service/task/shortcut/relay checks.
+
+## Comic184 merge independently verified; production185 remains separate (2026-11-12)
+
+Claude4467 approved and merged exactc0ac461. Codex independently verified
+**fb17f09c03e92ef8dc8d98dbde05c91350d6d59e**, exact parents
+**48f28c8464418b388f250a1d7aad5e5ca0dfa6cf** and
+**c0ac461d59957ee5862d11d7d660d02078c39dd2**, actual tree
+**09c67cf92e91e69b8a31098b4fabde930bdf6411** equal to an independent
+merge-tree prediction. It differs from the source tree by the reviewed docs183
+integration. GitHub reports exact-source merged; CI43319836680/43319718800
+both success. [Independent receipt](https://github.com/Decksx/cbz-automation-suite/pull/184#issuecomment-6838380406),
+Claude review6837820595. Board132 is done, issue168's test-only mitigation
+complete, no production delta/rollout. The clean inactive/unbound feature copy
+was removed after fresh standard binding checks; external evidence remains.
+
+Issue185 retains the production sticky-recovery policy decision before web
+console rollout. Observed4/6040 is a private-stress-fixture rate; production
+job estimates require workload/independence assumptions and are not measured
+production rates. No185 implementation is included here. Chapter-folder,
+staging-root and158 B2 remain with Claude. This local checkpoint waits for the
+next substantive publication after Camelia review/merge.
+
 ## Camelia rename semantics verified in private fixtures (2026-11-12)
 
 Admin4440 was acknowledged4458. At autodecen9b27caa, source_path is a unique
