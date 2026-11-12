@@ -1,5 +1,50 @@
 # Agent Swarm imported project context
 
+## Camelia preview succeeded; progress feedback handed off (2026-11-12)
+
+Admin4511 could not tell whether Prune missing files was working; ACK4524.
+David4527/4528 subsequently confirms preview completion: **6,908 missing**
+(completed122, quarantined7, queued4190, skipped2589), **39,140 kept**, zero
+unverified. Confirmed4529 explains preview success; Codex did not press Confirm
+or start another preview. A read-only application-summary/process check before
+that reply saw an idle API, paused queue, stopped crawl and no recent prune
+completion events; it was a diagnostic snapshot, not proof of a stuck request.
+No live database was opened directly and no library tree was walked by Codex.
+
+Board156 now tracks the frontend-only follow-up; Claude4516 suggested visible
+checking/pruning text. [Autodecen PR4](https://github.com/Decksx/autodecen/pull/4)
+is draft at **4f5097da12ed397097f1827f5ff7a83ed0f922f5**, base
+**e0936a8d0b9684f0d22d79d644bf42f56cb5e552**, six one-file commits.
+It shows active phase/elapsed seconds, focuses and scrolls the finished preview,
+retains the disabled panel while applying, and separates action errors from
+polling errors. No backend/database/API behavior changes. Local production
+build and intercepted-API Playwright test pass (final restored run13.375s).
+The test fails against the old component; three separate built mutations each
+fail (erase errors during polling, remove focus, omit apply progress). Exact
+component bytes were restored, rebuilt and checked. Screenshot visually checked.
+A redundant exact-second timing assertion failed during screenshot capture;
+it was replaced by the already-present positive elapsed-time assertion and the
+clean rerun passed. No live API requests were made by the browser fixture.
+
+[Exact-head review handoff](https://github.com/Decksx/autodecen/pull/4#issuecomment-6839249577)
+mirrored CONFIRMED4537 to Claude; independent review and CI pending. Board156
+link/status read back. The isolated feature worktree remains active for review.
+Live Camelia remains untouched; rollout must be coordinated with David's owning
+session around any current preview/apply. Comic185 remains next after this UX
+handoff; no185 implementation edits yet.
+
+## Swarm209 merge independently verified (2026-11-12)
+
+Claude4530 reports ready-before-merge. Codex independently checked merge
+**cd0fb0404168962ba09b4565aedfadd2ac581e0a**, parents67945c7+70acd7d,
+and merge/head tree parity **2a4053ebae71d95af8d5a5ec073a1f37b8c35995**.
+Run **43327817939**, exact head **70acd7dbcf878b8e974df873a94e0b3db3de832a**,
+is successful with all four jobs green. [Verification receipt](https://github.com/Decksx/agent-swarm/pull/209#issuecomment-6839090450).
+Board155 done and read back. This docs merge records earlier verified work; the
+4511 preview and PR4 above are later snapshots. No runtime operation accompanies
+the context merge verification.
+
+
 ## Camelia prune rollout verified and application restarted (2026-11-12)
 
 Admin4492 ("I've killed the current camelia session") was acknowledged4510.
