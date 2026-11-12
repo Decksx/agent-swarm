@@ -1,5 +1,23 @@
 # Agent Swarm imported project context
 
+## Camelia rename semantics verified in private fixtures (2026-11-12)
+
+Admin4440 was acknowledged4458. At autodecen9b27caa, source_path is a unique
+case-sensitive queue key; record_archive looks up that path rather than
+reconciling renames. An ordinary renamed/moved file gets a new row when a scan
+finds it; the old row remains and is skipped on missing-source processing if
+the library root is accessible. New work joins its current priority tier using
+its new queued_at/id, rather than inheriting the old place.
+
+Two actual temporary-CBZ/SQLite checks confirm this. Ordinary rename: old
+path absent, old job skipped, new row queued. Windows case-only ch. -> Ch.:
+old path still resolves, old job can be claimed, and scanning the new spelling
+creates another queued row. This qualifies Claude4446's general explanation;
+it is not automatic rename tracking. Evidence is retained outside Git as
+camelia-rename-check.json; temp fixture data was removed by TemporaryDirectory.
+No production data, queue or code was changed, and no rename-tracking feature
+was requested or implemented. The explanation was posted to admin in the hive.
+
 ## Open work resumed: comic168 PR184 and docs183 merge (2026-11-12)
 
 Admin4423 was acknowledged with confirmed4427. Codex resumed owned issue168;
