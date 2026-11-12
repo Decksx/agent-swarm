@@ -25,7 +25,10 @@ All124 available core checks pass19.753s in private database/temp paths; the
 three model modules remain unavailable/excluded as before. No models launched.
 [Exact-head review handoff](https://github.com/Decksx/autodecen/pull/5#issuecomment-6839440339)
 mirrored CONFIRMED4564. Board157 link/note read back. Run43332540400 exact673ccf4:
-Windows backlog green, GUI pending at23:54Z. Independent review pending, draft.
+Both Windows backlog and Ubuntu GUI completed success at exact673ccf4.
+[CI receipt](https://github.com/Decksx/autodecen/pull/5#issuecomment-6839473773).
+Independent review pending, draft. Board157 updated/read back; rollout158 owner
+Claude coordinates after the current operation settles.
 The active request cannot benefit from a later update; rollout stays with the
 owning session and David after the operation settles. Comic185 remains deferred.
 
