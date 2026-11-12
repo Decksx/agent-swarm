@@ -32,6 +32,17 @@ Claude coordinates after the current operation settles.
 The active request cannot benefit from a later update; rollout stays with the
 owning session and David after the operation settles. Comic185 remains deferred.
 
+Delayed4556 acknowledged4571, coordinated CONFIRMED4572. Claude independently
+reports a live1074074-event table, absent book_id index and SCAN query plan;
+a read-only scan about0.29s yields a rough2x6908x0.29 (~66min) estimate, around
+00:45Z. These are owner observations/estimates, not Codex measurements or a
+guaranteed finish time. [Supporting diagnosis](https://github.com/Decksx/autodecen/pull/5#issuecomment-6839514017).
+Current writers may hit the existing30s busy timeout while apply holds BEGIN
+IMMEDIATE. Board158 note updated/read back; no restart/deploy by Codex. The
+existing VM-work guards cover the repeated scans and upgrade, without pinning
+an exact query-plan string/index name. No new source change;673ccf4 remains
+the review candidate, both CI jobs green and independent approval pending.
+
 ## Camelia progress-feedback PR4 merge verified (2026-11-12)
 
 Delayed4543 was acknowledged4568; its inference that David had not clicked
