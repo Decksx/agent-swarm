@@ -34,6 +34,12 @@ owning session and David after the operation settles. Comic185 remains deferred.
 
 ## Camelia progress-feedback PR4 merge verified (2026-11-12)
 
+Delayed4543 was acknowledged4568; its inference that David had not clicked
+Confirm was corrected in CONFIRMED4569. Admin4539 explicitly says he confirmed;
+unchanged externally visible counts cannot establish otherwise during an atomic
+transaction. PR5 remains exact673ccf4/draft, both CI jobs green and independent
+review pending at23:56Z. No185 implementation resumes over this active priority.
+
 PR4 merged while the performance diagnosis was underway: merge
 **bb66079342971e07bca9224fb59a2ffb08b69868**, parentse0936a8+4f5097d,
 merge/head tree **ada279e7d66f6fcf7d9e82a36b4c4036273622af**. Exact approval
