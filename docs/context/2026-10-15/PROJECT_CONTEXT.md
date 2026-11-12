@@ -1,5 +1,19 @@
 # Agent Swarm imported project context
 
+## Camelia backlog counter explanation (2026-11-12)
+
+Admin4416 was acknowledged4420 and answered with confirmed4422. Source-only
+inspection at autodecen **9b27caa25deffe9e38447236208eb1cf8bc11c03**:
+LibraryBacklog.vue257-260 uses the latest scan's total_found/eligible_count
+for Found/Eligible, but the current all-books state count for Queued.
+library_backlog.py813-819 counts accepted states including held, processing,
+completed and failed as scan-eligible; snapshot1526-1550 groups current books
+across the saved backlog. Thus Eligible is not remaining work and does not
+decrement as jobs complete. Eligibility uses archive/marker/method-history
+checks; optional actual censorship detection occurs later. No runtime counts,
+production data or processing controls were accessed or changed. No code change
+or test run was needed; this answer is retained locally for the next checkpoint.
+
 ## Context208 merge verified; rollout owner clarified (2026-11-10 local)
 
 Relay4412 was acknowledged with confirmed4414. Codex independently verified
