@@ -1,5 +1,326 @@
 # Agent Swarm imported project context
 
+## Camelia prune rollout verified and application restarted (2026-11-12)
+
+Admin4492 ("I've killed the current camelia session") was acknowledged4510.
+Claude4497 had already performed the assigned rollout. Codex independently
+verified primary C:\git\ComicAutomation\_related\autodecen HEAD
+**e0936a8d0b9684f0d22d79d644bf42f56cb5e552**, tree
+**e915077cfc2c102fd164d65591ec74c54118ed41**, with clean tracked worktree
+and index. Reflog pins the fast-forward from9b27caa to
+**2026-11-12T16:11:50-07:00 / 2026-11-12T23:11:50Z**.
+[Rollout receipt](https://github.com/Decksx/autodecen/pull/3#issuecomment-6838710291).
+
+At23:16:12Z, the process snapshot observes Start Camelia launcher49584
+(created23:12:43Z), API **36888** (23:12:45Z, ProgramData miniconda3
+camelia_env), Nuxt parent **13192** (23:12:49Z) and dev workers30204/21224
+(23:13:17Z). These starts follow the checkout update. This establishes
+checkout/process metadata, not independently inspected loaded modules or
+queue contents.
+
+Owner4497 reports verifying process absence before the update, then17 prune
+and10 queue tests under camelia_env with a temporary backlog database; the
+live database was untouched. The launcher uses Nuxt dev mode, so a production
+build was not needed. Those pre-update/smoke/launcher facts retain owner
+attribution. Camelia is restarted; David runs preview and Confirm prune when
+ready. Codex neither invoked the live endpoint nor inspected the live database.
+Board153 is done, read-back verified; this supersedes earlier pending-rollout
+snapshots below. Comic185 remains Codex's next implementation, separate from
+this completed GUI work.
+
+## Comic185 accepted; bounded recovery design selected (2026-11-12)
+
+Relay4467 was acknowledged4494; its184 merge was already independently
+verified and recorded below. Confirmed4498 accepts185 as Codex's next slice
+and preserves Claude/David ownership of Camelia rollout153 after admin4492.
+[Issue claim and design](https://github.com/Decksx/cbz-automation-suite/issues/185#issuecomment-6838638855).
+Board154 is in progress, read-back verified.
+
+A private deterministic probe atfb17f09 injects one exact index replacement
+WinError5 into a sticky pump. It recovers with read_offset8/durable_offset8,
+settledTrue, but completeFalse/errorPermissionError. Evidence is retained in
+comic185-sticky-repro.json; the temporary fixture was removed and no production
+log store was accessed. The new clean feature worktree is
+C:\Users\david\.codex\worktrees\comic-185-index-recovery, branch
+fix/185-bounded-index-retry atfb17f09. No implementation edits yet.
+
+Selected option1: narrowly bounded retry of the complete exact index-publication
+attempt, preserving validation, write/fsync, atomic replace and late watermark
+commit. Exhausted/unrelated errors retain existing pump stickiness; no broad
+error clearing. Implementation must test recovered complete EOF, retained
+sticky failures, repeated path validation and existing durable-gap semantics,
+then obtain fresh exact-head review and CI before any merge/rollout.
+The4/6040 rate is from private fixtures. The18percent projection assumes an
+unproved identical independent per-attempt rate across300 production publishes;
+it is not a measured production failure rate.
+
+## Camelia prune merged and verified; rollout window pending (2026-11-12)
+
+Claude4484/4485 reports PR3 approved and merged. Codex independently verified
+**e0936a8d0b9684f0d22d79d644bf42f56cb5e552**, exact parents
+**9b27caa25deffe9e38447236208eb1cf8bc11c03** and approved source
+**423885d0807da76ea0965860bd415714815d92b3**, merge/head tree parity
+**e915077cfc2c102fd164d65591ec74c54118ed41**. GitHub reports that exact
+source merged; CI43325343874 backlog and gui jobs both successful.
+[Independent merge receipt](https://github.com/Decksx/autodecen/pull/3#issuecomment-6838505983).
+
+Claude's independent review6838439300 reports own17/52/10 passing suites,
+event-FK/audit/offline-root end-to-end probe and event-detach mutant5fail.
+Final confirmation6838454452 explicitly reviews the workflow-only delta to
+423885d after the first stale pin was correctly refused. The development-log
+pre/post-root mutation rows concern apply's transaction checks. A dedicated
+preview-time disappearing-root witness remains a nonblocking test follow-up.
+The earlier core122/base105/model-suite limits remain as recorded below.
+
+Primary Camelia checkout was independently read at9b27caa. No deployment or
+live prune was performed. Board152 marks implementation/review complete;
+child153 assigns Claude the rollout once David closes Camelia, as already
+requested in4485. Update source/frontend as the launcher requires and restart
+through the owning interactive session; operator preview/confirmation remains
+the only live prune path. The clean feature copy was removed after all own
+runners finished and fresh process/service/task/shortcut/relay checks found
+it inactive/unbound. External evidence and the registered successor remain.
+This local checkpoint waits for the next substantive context publication.
+
+## Camelia missing-file prune implemented; exact423885d in review (2026-11-12)
+
+Admin4459 was acknowledged4465. Codex claimed implementation in4466; Claude's
+parallel4471 was a plan only, withdrawn before edits (4479). Confirmed4480
+handed the first candidate to Claude; confirmed4483 supersedes it with
+**423885d0807da76ea0965860bd415714815d92b3**, tree
+**e915077cfc2c102fd164d65591ec74c54118ed41**, base
+**9b27caa25deffe9e38447236208eb1cf8bc11c03**.
+[Autodecen PR3](https://github.com/Decksx/autodecen/pull/3) is draft, ten
+one-file commits, source in C:\Users\david\.codex\worktrees\camelia-prune-missing.
+[Fresh review handoff](https://github.com/Decksx/autodecen/pull/3#issuecomment-6838379990).
+
+Book queue now previews all libraries/statuses regardless of filters, counts
+by category and up to20 paths. Confirm removes records only; files remain
+untouched. Pause crawl/queue and settle workers first. Unreadable/unavailable
+roots and uncertain file checks are kept. Apply requires the preview count
+and digest, repeats discovery, takes BEGIN IMMEDIATE, verifies the row snapshot
+and readiness, then rechecks all candidate paths and roots. Changes/refusals
+abort without partial pruning. Existing events survive with detached book IDs;
+each removal adds an audit note. Current queue counts refresh; Found/Eligible
+remain historical scan totals. This does not reconcile renames.
+
+Final available non-model unit modules: **122 passed in20.547s**, unchanged
+base **105 passed in19.549s** using the same UTF-8/private-temp setup. All17
+new tests pass. Full model-suite green is not claimed: numpy/cv2/torch modules
+are unavailable. Initial full discovery reproduced the same3 unavailable
+modules and cp1252 output failure on base and candidate. UTF-8 fixes that
+output issue. An intermediate run hit the shared-default processing lock and
+refused; final checks isolate temporary storage/locks. No model work was run.
+
+Frontend production build passed (Node24.19.0/npm11.17.0). A private headless
+browser checked preview/counts, unavailable-root notice, Cancel without apply,
+Confirm with the count/digest and success refresh; no page errors. Every API
+call was intercepted and the screenshot visually inspected. No live API or
+queue was operated. Thirteen in-memory guards all caught (counts1/5/1/3/1/1/
+1/1/3/2/1/1/1); sources/hash evidence and model-suite limits are documented in
+the candidate development log. External artifacts use camelia-prune-* and
+camelia_prune_ui_check/camelia_core_checks/mutate_camelia_prune scripts.
+
+Initial sourceb3a20ad CI43324867499 failed workflow validation before jobs:
+runner context was used at job-level env. One appended workflow-only commit
+423885d assigns the private database path inside the Windows step. Feature
+code/tests unchanged. Final CI **43325343874** completed success on423885d,
+both **backlog** and **gui** jobs green.
+[Completion receipt](https://github.com/Decksx/autodecen/pull/3#issuecomment-6838406275).
+Board152 is in review, read-back verified. Claude owns fresh exact-head review,
+then ready/pinned merge after green CI, returning parents/tree parity. Actual
+Camelia rollout/restart remains with David's owning interactive session. The
+feature copy remains for review/revisions; the clean inactive/unbound baseline
+copy was removed after process/service/task/shortcut/relay checks.
+
+## Comic184 merge independently verified; production185 remains separate (2026-11-12)
+
+Claude4467 approved and merged exactc0ac461. Codex independently verified
+**fb17f09c03e92ef8dc8d98dbde05c91350d6d59e**, exact parents
+**48f28c8464418b388f250a1d7aad5e5ca0dfa6cf** and
+**c0ac461d59957ee5862d11d7d660d02078c39dd2**, actual tree
+**09c67cf92e91e69b8a31098b4fabde930bdf6411** equal to an independent
+merge-tree prediction. It differs from the source tree by the reviewed docs183
+integration. GitHub reports exact-source merged; CI43319836680/43319718800
+both success. [Independent receipt](https://github.com/Decksx/cbz-automation-suite/pull/184#issuecomment-6838380406),
+Claude review6837820595. Board132 is done, issue168's test-only mitigation
+complete, no production delta/rollout. The clean inactive/unbound feature copy
+was removed after fresh standard binding checks; external evidence remains.
+
+Issue185 retains the production sticky-recovery policy decision before web
+console rollout. Observed4/6040 is a private-stress-fixture rate; production
+job estimates require workload/independence assumptions and are not measured
+production rates. No185 implementation is included here. Chapter-folder,
+staging-root and158 B2 remain with Claude. This local checkpoint waits for the
+next substantive publication after Camelia review/merge.
+
+## Camelia rename semantics verified in private fixtures (2026-11-12)
+
+Admin4440 was acknowledged4458. At autodecen9b27caa, source_path is a unique
+case-sensitive queue key; record_archive looks up that path rather than
+reconciling renames. An ordinary renamed/moved file gets a new row when a scan
+finds it; the old row remains and is skipped on missing-source processing if
+the library root is accessible. New work joins its current priority tier using
+its new queued_at/id, rather than inheriting the old place.
+
+Two actual temporary-CBZ/SQLite checks confirm this. Ordinary rename: old
+path absent, old job skipped, new row queued. Windows case-only ch. -> Ch.:
+old path still resolves, old job can be claimed, and scanning the new spelling
+creates another queued row. This qualifies Claude4446's general explanation;
+it is not automatic rename tracking. Evidence is retained outside Git as
+camelia-rename-check.json; temp fixture data was removed by TemporaryDirectory.
+No production data, queue or code was changed, and no rename-tracking feature
+was requested or implemented. The explanation was posted to admin in the hive.
+
+## Open work resumed: comic168 PR184 and docs183 merge (2026-11-12)
+
+Admin4423 was acknowledged with confirmed4427. Codex resumed owned issue168;
+Claude4429 owns the chapter-folder identity fix, staging-root investigation
+and158 B2. Confirmed handoff4428 coordinated the separate files/workstreams.
+
+Codex opened [comic184](https://github.com/Decksx/cbz-automation-suite/pull/184),
+draft exact **c0ac461d59957ee5862d11d7d660d02078c39dd2**, tree
+**3b7d23a02a635f59a11207658a4a9237b5901528**, branchfix/168-log-index.
+The branch began at **eb507f4db95d49312e191e812bc533c832815d8e**; the
+PR target advanced to docs183 merge48f28c8 before creation. This unrelated
+docs/comment merge has identical watcher AST and no overlapping changed files.
+The source candidate is unchanged. Five one-file commits; code/tests final
+**c8f2995716d2ab9d358ff549d8ffa591c9e57365**, last commit development log.
+
+Private20-round reproduction: **4/6,040 initial index replacements failed**
+with the observed PermissionError/WinError5/errno13, exact index.tmp to
+index.json. All4 recovered on their first retry after15–16ms, giving6,044
+total attempts. All20 final indexes validated coverage through1200,
+4segments, <=5gaps and5physical files. The OS actor remains unproved.
+[Investigation evidence](https://github.com/Decksx/cbz-automation-suite/issues/168#issuecomment-6837504257).
+
+The mitigation is test-only, an option expressly allowed in issue168.
+An explicit fixture retries the original publisher and candidate only for
+PermissionError/WinError5 and both exact index paths, max5calls with4x20ms
+sleeps and a pytest warning each time. Only the alternating-map, zero-write
+and eight-MiB direct-writer tests opt in. No production code changes: the
+production pump's existing retry/sticky unknown-tail policy remains intact.
+Persistent or unrelated failures propagate. Every attempt retains original
+validation/write/flush/fsync/atomic replace ordering and late watermark commit.
+
+Full code-final Windows/Python3.11 suite: **6,553 passed / 12 skipped / 0 failed
+in444.20s**, inventory6565 = base6554 +11new tests. All11 pass. Translation
+disabled, -n4/loadfile; two additional host skips are native outer-Job cases.
+Initial focused83pass preceded the extra missing-destination case. External
+exact-error injection: baseline3fail, candidate3pass/3warnings. Unforced
+stress replay30/30pass in79.27s with no retry warning in that sample; this
+does not prove the OS interference is gone. Eight in-memory guards all caught:
+WinError filter2fail, source1, destination1, missing-source1, missing-target1,
+bound1, delay2 and opt-in wrapper1. Source hashes before/after match and the
+development log records retained external diagnose168/probe168/comic168 files.
+
+[Exact-head review handoff](https://github.com/Decksx/cbz-automation-suite/pull/184#issuecomment-6837625471)
+and confirmed4447 assign Claude independent review. CI **43319836680
+pull_request / 43319718800 push** are running on c0ac461 at this checkpoint.
+Require fresh approval and both successful before ready/pinned merge, returning
+parents/tree parity. No deployment needed for this test-only change. Board132
+is in review. Clean baseline copy was removed after all runners finished and
+fresh process/service/task/shortcut/relay checks found it inactive/unbound.
+The feature copy and registered successor workspace remain for review/revisions.
+
+While168 ran, Codex independently reviewed docs183 at exact
+**b4f75b5711e57a0ec6b1aa06ebff00468751420d**:
+[approval](https://github.com/Decksx/cbz-automation-suite/pull/183#issuecomment-6837526221),
+same watcher AST, bareLF863 and clean CRLF-aware whitespace. The incorrect
+comment URL in handoff4436 was promptly corrected by confirmed4438.
+Verified completed merge **48f28c8464418b388f250a1d7aad5e5ca0dfa6cf**,
+exact parents eb507f4+b4f75b5, merge/head tree
+**8d56f915f6abe570e3e873ea73aa3f6247fb9bed**; source CI43318035022 and
+43318007676 both success.
+[Independent receipt](https://github.com/Decksx/cbz-automation-suite/pull/183#issuecomment-6837648354).
+Board124 is done. No executable delta, full local suite rerun or rollout needed
+for183. All activity used private fixtures/developer refs; no production data,
+runtime controls or security setting changes. This accumulated local checkpoint
+waits for the next substantive context publication after184's review/merge.
+
+## Camelia backlog counter explanation (2026-11-12)
+
+Admin4416 was acknowledged4420 and answered with confirmed4422. Source-only
+inspection at autodecen **9b27caa25deffe9e38447236208eb1cf8bc11c03**:
+LibraryBacklog.vue257-260 uses the latest scan's total_found/eligible_count
+for Found/Eligible, but the current all-books state count for Queued.
+library_backlog.py813-819 counts accepted states including held, processing,
+completed and failed as scan-eligible; snapshot1526-1550 groups current books
+across the saved backlog. Thus Eligible is not remaining work and does not
+decrement as jobs complete. Eligibility uses archive/marker/method-history
+checks; optional actual censorship detection occurs later. No runtime counts,
+production data or processing controls were accessed or changed. No code change
+or test run was needed; this answer is retained locally for the next checkpoint.
+
+## Context208 merge verified; rollout owner clarified (2026-11-10 local)
+
+Relay4412 was acknowledged with confirmed4414. Codex independently verified
+swarm merge **67945c7c0ab4fc809f1264169133b0b32c868bde**, exact parents
+**240221f4919146ab0609ce2933170133155af3b9** and reviewed source
+**46b164205444728604f7883f09cdddc788f87c5f**. Merge/head tree parity is
+**8a66883681aa68f96c72fc61908caf2159e5fe69**. GitHub reports that exact
+source merged. Run **42955855201** completed success on46b1642, with
+pytest-core, pytest-hub, pytest-bypass and aggregate pytest-unit all green.
+Claude4412 reports ready-before-merge.
+[Independent merge receipt](https://github.com/Decksx/agent-swarm/pull/208#issuecomment-6786662945).
+Board151 is completed, read-back verified.
+
+The published candidate's earlier livec996135/pending181+182 rollout account
+is superseded by the later receipt immediately below, committed locally as
+a38d294. Independent metadata from03:55:59Z/03:56:34Z established clean live
+eb507f4, exact03:54:29Z reflog update and GUI23460/watcher35188. Claude4412
+also reports those live facts from his later read, retained as his account
+rather than a fresh Codex audit.
+
+Attribution clarified by4412: **git-bf performed the rollout and is the source
+for David's authorization and smoke account** relayed in Claude4405. This
+[clarification](https://github.com/Decksx/cbz-automation-suite/pull/182#issuecomment-6786663212)
+preserves the independent metadata and the exact user words already recorded.
+The13-name planner migration remains David's decision per the owning session.
+No production operation or fresh runtime audit occurred in this verification.
+The rollout and208 merge receipts remain local for the next substantive
+publication; no receipt-only PR is opened. Existing168/chapter-folder/
+staging-root/158 B2 follow-ups retain their owners.
+
+## Comic181+182 rollout receipt and desktop state verified (2026-11-10 local)
+
+Relay4405 was acknowledged with confirmed4410. Independent desktop checks at
+**2026-11-11T03:55:59Z** confirm C:\git\ComicAutomation HEAD
+**eb507f4db95d49312e191e812bc533c832815d8e**, tree
+**27d89fd282d02afcaef25a51f85bb1f863551d87**, with clean tracked worktree
+and index. Reflog records the fast-forward from
+**c996135d22209df43ddfbaa9a715df871649663c** at
+**2026-11-10T20:54:29-07:00 / 2026-11-11T03:54:29Z**. This corrects
+the owner's approximate19:40 MST in4405.
+[Rollout receipt](https://github.com/Decksx/cbz-automation-suite/pull/182#issuecomment-6786553525).
+
+The process snapshot observes GUI **23460**, created03:55:35Z, using
+C:\Python311\pythonw.exe and C:\git\ComicAutomation\apps\cbz_gui.py;
+watcher **35188**, created03:55:46Z, runs -m scripts.cbz_watcher with the
+series resolver. A second snapshot at03:56:34Z confirms the watcher's parent
+is GUI23460. Both starts follow the checkout update. These checks establish
+checkout/process metadata, not loaded module hashes or library outcomes.
+
+Authorization and smoke are attributed to the owning interactive session via
+Claude4405. After being asked to stop the watcher and say when, David replied
+"There is no gui running, so no watcher should be running either". The owner
+reports checking process absence before updating the checkout. This exact
+account is retained without inventing a separate hive deployment approval.
+
+Owner-reported Python3.11 smoke: startup validate_roots passed; the canonical
+formatter/parser round trip and chapter-token examples passed; Beach/Lunch
+stayed unchanged. One Mysterious Village Ch.119 claim was present; the owner
+says its ambiguous routing was resolved earlier by the library merge David
+requested and expects the next pass to land it. Those claim/library facts
+are not independently audited. The planner migration of the13 Comix lowercase
+names has not run per the owner and remains David's decision.
+
+Board146/149 retain the rollout follow-up, read-back verified. Codex performed
+metadata checks only. Context208 candidate46b1642 is unchanged while Claude
+reviews it; a PR comment links this later receipt and explains that its
+pending-rollout text was the earlier snapshot. This receipt is committed
+locally for the next substantive publication, without a receipt-only PR.
+
 ## Comic182 pinned merge independently verified (2026-11-10 local)
 
 Relay4401 was acknowledged with confirmed4404. Codex independently verified
