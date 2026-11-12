@@ -1,5 +1,33 @@
 # Agent Swarm imported project context
 
+## Camelia prune merged and verified; rollout window pending (2026-11-12)
+
+Claude4484/4485 reports PR3 approved and merged. Codex independently verified
+**e0936a8d0b9684f0d22d79d644bf42f56cb5e552**, exact parents
+**9b27caa25deffe9e38447236208eb1cf8bc11c03** and approved source
+**423885d0807da76ea0965860bd415714815d92b3**, merge/head tree parity
+**e915077cfc2c102fd164d65591ec74c54118ed41**. GitHub reports that exact
+source merged; CI43325343874 backlog and gui jobs both successful.
+[Independent merge receipt](https://github.com/Decksx/autodecen/pull/3#issuecomment-6838505983).
+
+Claude's independent review6838439300 reports own17/52/10 passing suites,
+event-FK/audit/offline-root end-to-end probe and event-detach mutant5fail.
+Final confirmation6838454452 explicitly reviews the workflow-only delta to
+423885d after the first stale pin was correctly refused. The development-log
+pre/post-root mutation rows concern apply's transaction checks. A dedicated
+preview-time disappearing-root witness remains a nonblocking test follow-up.
+The earlier core122/base105/model-suite limits remain as recorded below.
+
+Primary Camelia checkout was independently read at9b27caa. No deployment or
+live prune was performed. Board152 marks implementation/review complete;
+child153 assigns Claude the rollout once David closes Camelia, as already
+requested in4485. Update source/frontend as the launcher requires and restart
+through the owning interactive session; operator preview/confirmation remains
+the only live prune path. The clean feature copy was removed after all own
+runners finished and fresh process/service/task/shortcut/relay checks found
+it inactive/unbound. External evidence and the registered successor remain.
+This local checkpoint waits for the next substantive context publication.
+
 ## Camelia missing-file prune implemented; exact423885d in review (2026-11-12)
 
 Admin4459 was acknowledged4465. Codex claimed implementation in4466; Claude's
