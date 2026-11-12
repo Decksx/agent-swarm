@@ -1,5 +1,31 @@
 # Agent Swarm imported project context
 
+## Comic185 accepted; bounded recovery design selected (2026-11-12)
+
+Relay4467 was acknowledged4494; its184 merge was already independently
+verified and recorded below. Confirmed4498 accepts185 as Codex's next slice
+and preserves Claude/David ownership of Camelia rollout153 after admin4492.
+[Issue claim and design](https://github.com/Decksx/cbz-automation-suite/issues/185#issuecomment-6838638855).
+Board154 is in progress, read-back verified.
+
+A private deterministic probe atfb17f09 injects one exact index replacement
+WinError5 into a sticky pump. It recovers with read_offset8/durable_offset8,
+settledTrue, but completeFalse/errorPermissionError. Evidence is retained in
+comic185-sticky-repro.json; the temporary fixture was removed and no production
+log store was accessed. The new clean feature worktree is
+C:\Users\david\.codex\worktrees\comic-185-index-recovery, branch
+fix/185-bounded-index-retry atfb17f09. No implementation edits yet.
+
+Selected option1: narrowly bounded retry of the complete exact index-publication
+attempt, preserving validation, write/fsync, atomic replace and late watermark
+commit. Exhausted/unrelated errors retain existing pump stickiness; no broad
+error clearing. Implementation must test recovered complete EOF, retained
+sticky failures, repeated path validation and existing durable-gap semantics,
+then obtain fresh exact-head review and CI before any merge/rollout.
+The4/6040 rate is from private fixtures. The18percent projection assumes an
+unproved identical independent per-attempt rate across300 production publishes;
+it is not a measured production failure rate.
+
 ## Camelia prune merged and verified; rollout window pending (2026-11-12)
 
 Claude4484/4485 reports PR3 approved and merged. Codex independently verified
