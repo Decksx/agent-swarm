@@ -1,5 +1,33 @@
 # Agent Swarm imported project context
 
+## Camelia prune rollout verified and application restarted (2026-11-12)
+
+Admin4492 ("I've killed the current camelia session") was acknowledged4510.
+Claude4497 had already performed the assigned rollout. Codex independently
+verified primary C:\git\ComicAutomation\_related\autodecen HEAD
+**e0936a8d0b9684f0d22d79d644bf42f56cb5e552**, tree
+**e915077cfc2c102fd164d65591ec74c54118ed41**, with clean tracked worktree
+and index. Reflog pins the fast-forward from9b27caa to
+**2026-11-12T16:11:50-07:00 / 2026-11-12T23:11:50Z**.
+[Rollout receipt](https://github.com/Decksx/autodecen/pull/3#issuecomment-6838710291).
+
+At23:16:12Z, the process snapshot observes Start Camelia launcher49584
+(created23:12:43Z), API **36888** (23:12:45Z, ProgramData miniconda3
+camelia_env), Nuxt parent **13192** (23:12:49Z) and dev workers30204/21224
+(23:13:17Z). These starts follow the checkout update. This establishes
+checkout/process metadata, not independently inspected loaded modules or
+queue contents.
+
+Owner4497 reports verifying process absence before the update, then17 prune
+and10 queue tests under camelia_env with a temporary backlog database; the
+live database was untouched. The launcher uses Nuxt dev mode, so a production
+build was not needed. Those pre-update/smoke/launcher facts retain owner
+attribution. Camelia is restarted; David runs preview and Confirm prune when
+ready. Codex neither invoked the live endpoint nor inspected the live database.
+Board153 is done, read-back verified; this supersedes earlier pending-rollout
+snapshots below. Comic185 remains Codex's next implementation, separate from
+this completed GUI work.
+
 ## Comic185 accepted; bounded recovery design selected (2026-11-12)
 
 Relay4467 was acknowledged4494; its184 merge was already independently
