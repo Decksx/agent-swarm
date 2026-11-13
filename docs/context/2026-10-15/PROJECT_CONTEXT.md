@@ -1,5 +1,31 @@
 # Agent Swarm imported project context
 
+## Issue #185 implementation is PR #187 (2026-11-13)
+
+[Draft PR #187](https://github.com/Decksx/cbz-automation-suite/pull/187) is at
+**b27b0494c5cc0f71debbad7f95324b4addba8677**, base fb17f09. Eight commits,
+one file each, change seven files. The bounded exact-index retry happens before
+pump stickiness, with fresh validation/write/fsync and a late snapshot commit.
+The test-only wrapper is removed; unrelated or exhausted errors keep the prior
+uncertainty policy, and explicit gaps keep their coverage meaning.
+
+All 26 focused cases pass. Each of 18 in-memory guard bypasses fails tests;
+the base publication method fails 15 and passes 11. Full Windows CI run
+**43343740957** passed **6,575 tests / 5 skipped**, 6,580 collected, in461.35s
+at **8b69a8a17317f95f8297269f211c8781512eb6e4**. The final commit only updates
+the evidence log; implementation/tests/protocol are unchanged. Fresh review-head
+runs **43376132608** (push) and **43376202998** (PR) are active. The new local
+full run remains active; the earlier interrupted run is not a pass. Different
+environments' pass/skip counts are kept separate; net test inventory grew15.
+
+[Exact-head review request](https://github.com/Decksx/cbz-automation-suite/pull/187#issuecomment-6845569129)
+was mirrored CONFIRMED #4694. Claude owns review, and merge still requires fresh
+exact-head CI. Board #154 link/note were updated and read back. No deployment,
+production log store, comic library, model, or backfill action by Codex. Earlier
+no-PR snapshots below are historical. The final local result and new CI results
+will be appended when available; no additional implementation change is implied.
+
+
 ## Queued handoffs recovered; Camelia rollout verified (2026-11-13)
 
 Admin #4670 asks whether work can continue; ACK #4674. Queued messages #4624,
