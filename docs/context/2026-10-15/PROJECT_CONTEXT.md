@@ -1,5 +1,19 @@
 # Agent Swarm imported project context
 
+## Camelia confirmed prune still active at00:14Z (2026-11-13)
+
+Admin4577 asks whether complete; ACK4579. Read-only API at00:13:56Z returns
+46048records (completed4222/quarantined10/queued18140/skipped23676), paused
+queue, stopped crawl and no recent book_pruned_missing events. Listener API36888
+has2threads; a2.016s process sample records2.094 CPU seconds,272892 reads /
+1117718835 read bytes,410 writes /902676 write bytes. This supports continued
+active database work; no completed prune observed. Logical I/O is not physical
+storage throughput or a precise completion counter. Admin told to keep Camelia
+open and not reconfirm. Claude's earlier ~00:45Z estimate stays approximate.
+Board158 note updated/read back. No live DB open, repeated prune, restart or
+checkout update by Codex. Existing PR4/PR5 rollout gates remain in force.
+
+
 ## Confirmed Camelia prune active; indexed-event fix handed off (2026-11-12)
 
 Delayed admin4539 reports about ten minutes since Confirm; ACK4557. Read-only
