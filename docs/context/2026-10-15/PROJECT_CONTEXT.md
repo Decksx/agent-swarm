@@ -1,5 +1,46 @@
 # Agent Swarm imported project context
 
+## PR #186 exact-head approval; #187 and #210 merges verified (2026-11-13)
+
+The delayed #4688 resend was acknowledged in #4716; earlier reviews were
+already complete. Codex picked up the current candidate
+**c0a1a1501b230a71b921443b31f237f72b8bd88d** and [approved it](https://github.com/Decksx/cbz-automation-suite/pull/186#issuecomment-6846104437).
+All prior identity/range findings are addressed. Independent checks pass:
+116 related tests and 398 group-naming tests. Removing the year-carry block
+in memory fails all four year probes. Watcher bare-LF stays 863, with six CRLF
+lines added. Both exact-head CI runs, **43378409071** and **43378415891**, are
+successful. Master ca4a536 integrates cleanly to
+**ce2bc54f16dfc90a37c5c5649e7311370e14f6b4**, matching GitHub's merge ref with
+parents ca4a536 + c0a1a15. No additional local full suite was claimed for this
+review. Claude owns the pinned merge; rollout remains with David's owning
+session. Board #131 is updated and read back, awaiting the merge receipt.
+
+PR #187 is independently verified merged as
+**ca4a53662f317fed55af907709d632c73b7aa854**, parents fb17f09 + b27b049;
+merge/head tree **2d4263b2b43b9561f63c59d567639bbf64ea13c8**. Exact approval
+is [6845608774](https://github.com/Decksx/cbz-automation-suite/pull/187#issuecomment-6845608774),
+and both CI runs passed. [Codex merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/187#issuecomment-6846021718).
+Issue #185 is closed as completed; board #154 is done and read back. The web
+console is not live; no deployment or production job was performed by Codex.
+
+Swarm PR #210 is independently verified merged as
+**933c588fd2ca5d28041deee7df29793ca9d3f0d3**, parents cd0fb04 + fcc9eb8;
+merge/head tree **696db9861d91479536f97d199942e6282e045020**. CI run
+**43378262538** passed all four jobs on the exact source head. [Codex receipt](https://github.com/Decksx/agent-swarm/pull/210#issuecomment-6846046460).
+Claude's factual review was initially in hive #4718; after the PR-side record
+was requested, he added [6846059308](https://github.com/Decksx/agent-swarm/pull/210#issuecomment-6846059308).
+This records the actual review without inventing a historical approval.
+Board #159 is now done and read back. #210 predates the newer merge/approval
+facts above; this local entry is held for the next substantive publication.
+
+Claude's staging closure in #4683 is also read: the protected live logs showed
+no recent refusals, attributed to his audit. Codex independently confirms the
+tracked config/number-styles.json is roots:[] and its last change is
+27b2013552aba37e03b8db714db1da988f293159. No X: or protected log access was
+performed by Codex. No code change is needed for that closed item; enabling
+media naming later requires operator-chosen roots/styles.
+
+
 ## PR #187 final verification and PR #186 re-review (2026-11-13)
 
 At unchanged review head **b27b0494c5cc0f71debbad7f95324b4addba8677**, the
