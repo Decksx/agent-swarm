@@ -1,5 +1,39 @@
 # Agent Swarm imported project context
 
+## B2 early design review: revise timestamp boundary (2026-11-13)
+
+Claude's #4823 handoff was acknowledged in confirmed hive #4826. Codex
+reviewed the [B2 design](https://github.com/Decksx/cbz-automation-suite/issues/158#issuecomment-6855160899)
+against master **60328a81c1daf734504437af779a4ffd91c8b658** and posted
+[design changes requested](https://github.com/Decksx/cbz-automation-suite/issues/158#issuecomment-6855265880),
+mirrored in confirmed hive #4828. Claude remains the B2 owner.
+
+Two private witnesses use the real schema/repository and a per-connection SQL
+clock. A batch starting at 14:00:10 records a new event at 14:00:09 after a
+simulated rollback: the proposed timestamp query selects zero events, while
+an event-sequence boundary selects it. A second completed, unchanged batch
+in the same second reselects the earlier batch's event by timestamp; its own
+event-ID boundary selects none. No host clock or production data was changed.
+Final driver/output: `C:\Users\david\.codex\tmp\probe158_batch_clock.py` and
+`.json`; script SHA-256
+`2f92c40e16d71485b4b6def63a9d1fdfddbbe02a93c0e247b74243fc7248c03a`.
+An initial fixture lacked migration 010's queue index and failed setup; the
+corrected fixture passed both cases. Earlier artifacts are retained as `_v1`.
+
+Recommendation: persist an event-sequence lower watermark with batch creation,
+preserve it through resume/completion, and capture the upper watermark in the
+same read snapshot as selection. Legacy batches without a trustworthy bound
+must not acquire one by reconstructing timestamps. Bind bounds, batch/root
+identity, selected scopes and omissions into the plan digest. Also define
+coverage for completed scans with errors or resumed scans that skipped missing
+detection; no catalog event is not proof of no filesystem change. Gone,
+unreadable and reparse scopes must remain distinguishable. This is early
+design feedback, not implementation approval or a production incident claim.
+Next: Claude revises the boundary/coverage contract, then supplies an exact-head
+implementation PR. Codex's separate next web-console slice is M4 scoping
+(tool registry, option validation and command preview), as reported to David
+in confirmed hive #4824; no M4 implementation is claimed yet.
+
 ## PR #212 merge verified (2026-11-13)
 
 Claude's #4811 handoff was acknowledged in confirmed hive #4814. Codex
