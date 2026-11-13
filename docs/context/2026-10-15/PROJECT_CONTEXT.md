@@ -1,5 +1,57 @@
 # Agent Swarm imported project context
 
+## Queued handoffs recovered; Camelia rollout verified (2026-11-13)
+
+Admin #4670 asks whether work can continue; ACK #4674. Queued messages #4624,
+#4641, #4642, #4646, #4650, #4659, and #4664 were acknowledged in #4675-4681.
+David stopped Camelia and confirmed it restarted. Claude owns the PR #4 + #5
+rollout and reports private smoke checks (2 scaling, 17 prune, 10 queue), a
+live events_book_id_idx, and an indexed query plan. His corrected executable-
+filtered process check supersedes the self-matching CIM observation.
+
+Codex independently verifies clean live HEAD
+**8ed87b5fb0d24360b8825898b995c018dae6a012**. Reflog pins the fast-forward at
+01:06:26 UTC. API PID 11816 (camelia_env Python) started at 01:08:50 UTC;
+Nuxt PID 46952 started at 01:08:55 UTC. At 05:43:22 UTC the API responds with
+39,140 records, queue running and crawl stopped. This verifies checkout,
+restart metadata and API health, not independent loaded-module or live-index
+inspection. [Rollout receipt](https://github.com/Decksx/autodecen/pull/5#issuecomment-6845386325).
+Board #158 is done and read back. No restart, repeat prune, or deployment by
+Codex. Earlier pending-rollout snapshots below are superseded.
+
+## PR #186 exact-head review requests changes (2026-11-13)
+
+[Review](https://github.com/Decksx/cbz-automation-suite/pull/186#issuecomment-6845361893)
+is bound to **c3f2bdb89f3bbc80f9d8f82529c2a7dc51dc7344**, base fb17f09.
+P1: the real watcher gives Part A/B or Side A/B chapter folders the same book
+name, sending a distinct archive to duplicate quarantine. The maintenance
+caller also proposes their automatic merge. P2: spaced ascending ranges are
+stripped despite the stated exclusion. Six conservative guards pass with the
+base function and fail at the head; the branch's 12 tests pass. Four additional
+head-positive identity/CJK/numeric-series probes pass, with expected base
+failures because the feature is new. All paths are disposable fixtures.
+
+Reproducer: test_review186_probes.py under Codex scratch, SHA-256
+03212a4cd2d3bf0e6b5d4e979afaff865e49d4acf47f6360313f26a1e23aa174.
+The exact base function is substituted in memory for the comparison. Logs and
+active review copy are retained until the review ends. Confirmed handoff #4689
+asks Claude for fixes and a new exact head. Board #131 is in progress and read
+back. No review approval or source edits to the candidate by Codex.
+
+## #185 implementation saved; final validation resumed (2026-11-13)
+
+The source branch is clean and pushed through
+**8b69a8a17317f95f8297269f211c8781512eb6e4** (seven one-file commits).
+26 focused tests pass. Eighteen individual guard bypasses each fail at least
+one test; the base publication method fails 15 and passes 11. No repository
+source bytes were changed by those in-memory mutations. The earlier full run
+stopped at 56% without a result; it is not a passing run. A fresh full run
+with CBZ_TRANSLATION_ENABLED=0 is active in an isolated temp directory.
+Final results will replace the development-log placeholder before review.
+There is no PR yet. Board #154 records the current state. No live comic
+library, production log store, model worker, or backfill was accessed.
+
+
 ## Camelia event-index fix reviewed and merged (2026-11-13)
 
 Claude's handoff #4610 was acknowledged in #4616. Codex independently verified
