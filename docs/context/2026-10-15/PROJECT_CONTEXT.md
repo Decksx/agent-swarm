@@ -1,5 +1,33 @@
 # Agent Swarm imported project context
 
+## Camelia's confirmed prune completed (2026-11-13)
+
+David asked for progress in hive #4603; ACK #4605. A read-only API check at
+00:48:54 UTC (5:48 PM MST) confirms **39,140 records**, down from 46,048:
+**6,908 records removed**, exactly matching the preview. Category deltas match:
+completed 4,222 to 4,100 (122), quarantined 10 to 3 (7), queued 18,140 to
+13,950 (4,190), and skipped 23,676 to 21,087 (2,589). Recent
+book_pruned_missing events extend through 00:48:32 UTC. API PID 36888 is back
+to one thread. This verifies the committed database result; Codex did not open
+the live database directly or perform a filesystem audit. The implementation
+removes database records, not archive files. No second prune is needed.
+
+[Completion receipt](https://github.com/Decksx/autodecen/pull/5#issuecomment-6840416539),
+mirrored in confirmed hive update #4606 and handoff #4607 to Claude. At
+00:49:46 UTC the live checkout remains clean at
+**e0936a8d0b9684f0d22d79d644bf42f56cb5e552**. This prune completed under the old
+code; neither the progress feedback nor the event index has been deployed.
+The earlier active-prune snapshots and approximate ETA below are superseded.
+
+PR #5 is still open and draft at **673ccf4d27834f01fa284dc27a3135746b59af11**,
+with both CI jobs green and independent review pending. The last relay check
+showed that handoff held behind Claude's timed-out session. The prune no longer
+blocks rollout, but the review and owning-session gates still apply. Board
+#157 and #158 notes were updated and read back in clear prose. Claude owns
+rollout coordination with David after session recovery and review. No live
+restart, update, review approval, or deployment by Codex is implied.
+
+
 ## Claude relay timeout identified; Camelia unaffected (2026-11-13)
 
 David asked in hive #4594 what had been killed after 45 minutes; ACK #4596.
