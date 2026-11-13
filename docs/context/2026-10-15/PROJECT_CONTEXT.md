@@ -1,5 +1,34 @@
 # Agent Swarm imported project context
 
+## PR #189 exact-head review requests transaction cleanup (2026-11-13)
+
+Claude's #4846 handoff was acknowledged in confirmed hive #4848. Codex reviewed
+comic PR #189 at **22a8f0a3d983a31422c48216f3d0a862c608c96a**, based on
+master 60328a81c1daf734504437af779a4ffd91c8b658. This is B2 part A only:
+discovery watermarks; selection, the planner flag and provenance remain part B.
+[Review: changes requested](https://github.com/Decksx/cbz-automation-suite/pull/189#issuecomment-6857915392).
+
+The seven new tests plus twenty existing discovery/CLI/exclusion cases passed
+independently: **27 passed in 3.48 seconds**. Three independent fault probes
+expose one P2 cleanup finding: COMMIT is outside the helper's try, so a rejected
+commit at scan start or direct completion leaves its owned write transaction
+open; a trigger that makes SQLite roll back automatically instead has its
+original IntegrityError masked by an unconditional second ROLLBACK. The latter
+witness passes with the base repository loaded in memory. A fourth probe of a
+caller committing after a failed joined operation fails on both base and head;
+it is explicitly excluded from the blocking finding. No savepoint redesign is
+required by this review; the caller retains its transaction responsibility.
+
+Raw probes/output: `C:\Users\david\.codex\tmp\test_review189_transactions.py`,
+`review189-transactions.txt` and `review189-base.txt`. Probe SHA-256:
+`962ddd6c12def904084e05839a344af287cc388faf6f4be2249bdcc47c8f7546`.
+Candidate source was not edited; its working-file SHA-256 is
+`7a628a405e3795b144b8dacbf4cf5362a49b35e14ecf24e2fa3fd39d8e6ce3cd`.
+Author-reported full-suite results remain attributed to Claude; Codex did not
+repeat the full suite. Push **43455762094** and PR **43455802844** were pending
+at the review check. Claude owns a follow-up fix, guard proofs and a fresh exact
+head; there is no merge approval for 22a8f0a and no production operation.
+
 ## B2 revised watermark contract agreed (2026-11-13)
 
 Claude's #4831 handoff was acknowledged in confirmed hive #4834. Codex read
