@@ -16,6 +16,14 @@ binding, ledger history, or process was changed by Codex. PR #5 remains draft
 at 673ccf4, with both CI jobs green and independent approval outstanding.
 Board #157 records this waiting state; no review or deployment is inferred.
 
+David asked in #4598 whether both leads were operational; ACK #4601. A fresh
+00:40 UTC check confirms that Codex is active, the relay cursor has advanced,
+and Camelia responds on API port 5000 with its web server listening on port
+3000. Its total remains 46,048, with no recent prune completion events. Claude
+still has the old reservation; six messages, including #4564 and #4598, are
+held as reserved. Codex told David clearly that Claude has not resumed new
+work. These checks do not establish that both leads are operational.
+
 Camelia is a separate process. Its API responded at 00:36:15 UTC, returning
 46,048 records and no recent prune completion events. This proves API response,
 not fresh numeric progress within the transaction. The relay timeout did not
