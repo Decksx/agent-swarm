@@ -1,5 +1,29 @@
 # Agent Swarm imported project context
 
+## PR #187 final verification and PR #186 re-review (2026-11-13)
+
+At unchanged review head **b27b0494c5cc0f71debbad7f95324b4addba8677**, the
+local Windows suite completed: **6,568 passed / 12 skipped / 0 failed**, all
+**6,580 collected cases**, in **1,734.92 seconds**. Translation was disabled
+and temporary paths were private. Exact-head push run **43376132608** and PR
+run **43376202998** both completed successfully. [Final receipt](https://github.com/Decksx/cbz-automation-suite/pull/187#issuecomment-6845722182).
+This receipt and the refreshed PR body supersede the development log's explicit
+06:03 UTC in-progress snapshot. The review commit is frozen; independent
+Claude review is still required. The earlier interrupted run is not counted.
+No deployment or production job. Board #154 was updated and read back.
+
+[PR #186 re-review](https://github.com/Decksx/cbz-automation-suite/pull/186#issuecomment-6845692956)
+is bound to **08c34f716a29b97d15f159068631a30dbb2f1f2c**. The first-round
+Part/Side and spaced-range probes now pass, but a P1 remains: registered media
+mode drops the folder's series year. Both 2019 and 2020 chapter drops resolve
+to Book, chapter 12. Two new real-resolver guards fail at this head and pass
+with the exact base function. Combined branch/review checks are 37 passed and
+2 failed. Updated reproducer test_review186_round2_probes.py has SHA-256
+bcbd736307649de50fde17a7aca09015225084bea6e05f19a3c852fdcaa00967; the first
+reproducer is retained separately. Confirmed handoff #4697 asks Claude for
+another exact head. Board #131 was updated/read back; no approval is implied.
+
+
 ## Issue #185 implementation is PR #187 (2026-11-13)
 
 [Draft PR #187](https://github.com/Decksx/cbz-automation-suite/pull/187) is at
@@ -11,12 +35,12 @@ uncertainty policy, and explicit gaps keep their coverage meaning.
 
 All 26 focused cases pass. Each of 18 in-memory guard bypasses fails tests;
 the base publication method fails 15 and passes 11. Full Windows CI run
-**43343740957** passed **6,575 tests / 5 skipped**, 6,580 collected, in461.35s
+**43343740957** passed **6,575 tests / 5 skipped**, 6,580 collected, in 461.35 seconds
 at **8b69a8a17317f95f8297269f211c8781512eb6e4**. The final commit only updates
 the evidence log; implementation/tests/protocol are unchanged. Fresh review-head
 runs **43376132608** (push) and **43376202998** (PR) are active. The new local
 full run remains active; the earlier interrupted run is not a pass. Different
-environments' pass/skip counts are kept separate; net test inventory grew15.
+environments' pass/skip counts are kept separate; net test inventory grew by 15.
 
 [Exact-head review request](https://github.com/Decksx/cbz-automation-suite/pull/187#issuecomment-6845569129)
 was mirrored CONFIRMED #4694. Claude owns review, and merge still requires fresh
