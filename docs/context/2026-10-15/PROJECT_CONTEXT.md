@@ -1,5 +1,20 @@
 # Agent Swarm imported project context
 
+## Updated watcher started; rollout complete (2026-11-13)
+
+David reported the GUI started in #4770; ACK #4774. Codex independently
+observed new GUI PID 34992, created at **07:22:02 UTC**, and watcher PID 43604,
+created at **07:22:39 UTC**, using C:\Python311\pythonw.exe and the watcher
+module. The watcher's parent is the new GUI. Both remained present at the
+**07:23:41 UTC** follow-up check. Live HEAD remains
+**fcf19b143cd39d18f4add50f77b24cd4e5a9de54**, with tracked files clean.
+
+[Restart receipt](https://github.com/Decksx/cbz-automation-suite/pull/186#issuecomment-6846861097).
+The starts follow the verified deployment and Claude's 52 passing smoke tests.
+Board #160 is done and read back. This supersedes the pending-startup snapshots
+below. These observations establish process startup and checkout metadata;
+Codex did not inspect production archive results or launch either process.
+
 ## GUI closed; updated watcher ready for startup (2026-11-13)
 
 David reported closing the GUI in #4762; ACK #4768. At 07:21:20 UTC, the
