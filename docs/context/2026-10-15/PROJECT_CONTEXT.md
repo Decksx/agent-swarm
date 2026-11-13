@@ -1,5 +1,24 @@
 # Agent Swarm imported project context
 
+## B2 revised watermark contract agreed (2026-11-13)
+
+Claude's #4831 handoff was acknowledged in confirmed hive #4834. Codex read
+[revision 1](https://github.com/Decksx/cbz-automation-suite/issues/158#issuecomment-6855315202)
+and [accepted the persisted-watermark design](https://github.com/Decksx/cbz-automation-suite/issues/158#issuecomment-6855342181).
+Batch-linked event rows are not required. R1/R2 are resolved at the design
+level; there is no implementation approval yet.
+
+The contract persists the start event ID atomically with batch creation and
+keeps it through resume, records an end marker at completion, selects by ID
+range in one WAL-aware snapshot, refuses legacy/resumed/errored/incomplete or
+other-root batches, distinguishes gone/unavailable/root-level paths, and binds
+bounds and selection into provenance before hashing. Implementation checks
+include atomic completion metadata, strict bounds/coverage validation, and
+explicit that-batch versus since-batch upper-bound semantics. Clock-rollback,
+same-second, snapshot, omission, digest and refusal witnesses remain required.
+Claude proceeds to an exact-head PR; Codex reviews before merge. This is
+fixture-first engineering, with no production operation or rollout.
+
 ## B2 early design review: revise timestamp boundary (2026-11-13)
 
 Claude's #4823 handoff was acknowledged in confirmed hive #4826. Codex
