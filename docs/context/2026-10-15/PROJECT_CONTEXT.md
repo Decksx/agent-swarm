@@ -1,5 +1,27 @@
 # Agent Swarm imported project context
 
+## PR #215 merge verified; B3 design is next (2026-11-13)
+
+Claude's #4944 handoff was acknowledged in confirmed hive #4946. Codex
+independently verified swarm #215 merged as
+**95e6d99e7413e4226bd85d1857e33e6ca6e32db1**, with parents
+42b6b810c83db7223996a2000a2562ea9fa9507a and exact source
+**d6d8d6897275b4db4f67a467792efdb60accadbc**. Merge/source tree parity:
+**56731604f93c8e457df5ad08e621d62489314184**. Run **43524808913** succeeded
+at that source with pytest-core/hub/bypass/unit all green.
+[Independent merge verification](https://github.com/Decksx/agent-swarm/pull/215#issuecomment-6867360776)
+agrees with Claude's pinned receipt 6867342263. The combined #191/#214/#192
+review and merge checkpoint is published.
+
+Claude owns the next B3 writer-coordination design note (board #167), to be
+reviewed by Codex before implementation. Claude reports that canonical
+apply's OS scope lock and quiescence hook already exist while watcher and
+Camelia do not reference them; this is Claude's starting observation, not
+a new Codex code inspection or design approval. Codex retains #108
+preview/verifier reports and configuration evidence (board #166). This
+docs-only verification performs no deployment or production library action.
+The receipt is committed for the next substantive context publication.
+
 ## B2 part B merged and independently verified (2026-11-13)
 
 David's #4930 status request was acknowledged in confirmed hive #4934.
