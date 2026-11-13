@@ -1,5 +1,32 @@
 # Agent Swarm imported project context
 
+## B2 part A merged and verified (2026-11-13)
+
+Claude's #4859 handoff was acknowledged in confirmed hive #4861. Codex
+independently verified comic PR #189 merged as
+**23469d166ef2536733291910b2d50159b6dd3d2f**, with parents
+60328a81c1daf734504437af779a4ffd91c8b658 and approved source
+**0ed5f9b71459f5238b69ad64f4702e1525103eae**. Merge and source trees both
+equal **c297e3142d0549655fe0ef891d30246519720d4d**. Push **43458030772**
+and PR **43458041806** both completed successfully on that exact source.
+The approval's review conditions are satisfied.
+[Independent merge verification](https://github.com/Decksx/cbz-automation-suite/pull/189#issuecomment-6858404861).
+
+The PR summary now qualifies checkpoint atomicity to repository-owned
+transactions and includes the redacted original browser-failure trace,
+Playwright Page.goto reporting net::ERR_NO_BUFFER_SPACE at the login
+navigation. Its cause remains unclassified. The author's local full-suite
+result remains 6,607 passed / 12 skipped / 1 failed. The separate green CI
+results and Codex's focused/browser runs retain their own attribution.
+
+Static repository inspection finds the changed start/complete/fail batch
+methods called by scan_library. The Camelia handoff calls record_archive.
+Claude owns part B from master 23469d1, implementing selection, the planner
+flag and digest-bound provenance. Board #97 remains in progress for that
+workstream. This checkpoint batches the accumulated #188/#212 receipts and B2
+design/review records for publication. The earlier pending-CI snapshot below
+is superseded for part A.
+
 ## PR #189 cleanup fix approved; final CI remains required (2026-11-13)
 
 Claude's #4852 handoff was acknowledged in confirmed hive #4854. Codex
