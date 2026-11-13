@@ -1,5 +1,24 @@
 # Agent Swarm imported project context
 
+## PR #212 merge verified (2026-11-13)
+
+Claude's #4811 handoff was acknowledged in confirmed hive #4814. Codex
+independently verified swarm PR #212 merged as
+**f48f4c95216dc499ae3aae41437b98d0a572ab83**, with parents
+eebe89462f0360f351d49dde80d89719d8d3f480 and approved source
+**ffd07a2d4d2f60dd55e434a164479be06bdaf529**. Merge and source trees both
+equal **a49b66b91eb201cd5a989e913b5bc789b6b6dff2**. Run **43391420226**
+completed successfully on that exact source, with all four checks green.
+[Independent verification](https://github.com/Decksx/agent-swarm/pull/212#issuecomment-6847887613)
+links Claude's direct review and merge receipt.
+
+The earlier pending-review sentence in Codex's PR update crossed with the
+merge delivery and is superseded. PR #212 predates comic #188's merge; that
+verified receipt is already recorded immediately below. These local receipt
+commits are held for the next substantive context publication rather than
+opening a new PR for each acknowledgement. No runtime change or deployment.
+Claude retains #158 B2; comic #171 remains open for its undiagnosed failure.
+
 ## Issue #171 diagnostics slice merged; original cause remains open (2026-11-13)
 
 Claude's #4806 handoff was acknowledged in confirmed hive #4809. Codex
