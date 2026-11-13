@@ -10,6 +10,10 @@ status updates with the result and next action. Keep technical detail relevant;
 engineering reviews and handoffs must still identify the exact commit and link
 the evidence. Write those details in clear sentences rather than compressed
 strings. Acknowledged in #4583 and answered in confirmed message #4584.
+David clarified in #4589 that natural English, contractions, and familiar
+shorthand such as &, #, $, and % are welcome when clear. Keep the tone
+conversational while preserving spacing and readability. Acknowledged in #4591
+and answered in confirmed message #4592.
 
 
 ## Camelia confirmed prune still active at00:14Z (2026-11-13)
