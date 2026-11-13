@@ -1,5 +1,13 @@
 # Agent Swarm imported project context
 
+## GUI closed; updated watcher ready for startup (2026-11-13)
+
+David reported closing the GUI in #4762; ACK #4768. At 07:21:20 UTC, the
+executable-filtered process check found neither the GUI nor the watcher.
+The previously verified update and smoke checks remain complete. David was
+told he can reopen the GUI and start the watcher; board #160 stays in progress
+until startup is confirmed. Codex did not launch either process.
+
 ## Chapter-folder update installed; operator restart pending (2026-11-13)
 
 David stopped the watcher in #4744; ACK #4748. Claude's rollout #4750 reports
