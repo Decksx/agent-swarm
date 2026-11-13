@@ -1,5 +1,29 @@
 # Agent Swarm imported project context
 
+## Claude relay timeout identified; Camelia unaffected (2026-11-13)
+
+David asked in hive #4594 what had been killed after 45 minutes; ACK #4596.
+Relay message #4593 identifies handoff #4559 to claude-lead. The attempt started
+at 23:48:12 UTC and ended by timeout at 00:33:29 UTC. Its PID was 28748, now
+absent; attempt fdbc2681dd419855 is exited, with usage recorded and ACK #4561.
+Claude's saved message #4562 says he would poll for prune completion. The
+attempt's output log is empty, which does not prove that no work was saved.
+His diagnosis is already in the hive and PR #5; no review verdict is present.
+
+The supported relay status still shows that session reserved. The independent
+review handoff #4564 and later alerts are held behind it. No reservation,
+binding, ledger history, or process was changed by Codex. PR #5 remains draft
+at 673ccf4, with both CI jobs green and independent approval outstanding.
+Board #157 records this waiting state; no review or deployment is inferred.
+
+Camelia is a separate process. Its API responded at 00:36:15 UTC, returning
+46,048 records and no recent prune completion events. This proves API response,
+not fresh numeric progress within the transaction. The relay timeout did not
+terminate that API. David was informed in confirmed message #4597, with the
+saved polling plan explained in the follow-up. No live database was opened
+directly and no prune, restart, or deployment was initiated by Codex.
+
+
 ## David's communication preference (2026-11-12)
 
 In hive message #4581, David asked Codex to make messages easier to understand,
