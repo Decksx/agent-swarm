@@ -1,5 +1,39 @@
 # Agent Swarm imported project context
 
+## #108 estimate/progress PR #191 handed off (2026-11-13)
+
+Comic draft PR #191 is pushed at exact source
+**e3dd942aefe8477494480d8438d9dee41926d41c**, base
+**a4305be47a88555eb3c4792fa14ba3bd5dfe8aad**, tree
+**bb8d90c6e9008e8a25855ee50434153fc62869fe**. Its five commits each change
+one file. Code/tests are final at e0d331563757b8741f3fabcf0ed021b15f3c8d2c;
+the last two commits document the API/CLI and validation.
+[Exact-head review handoff](https://github.com/Decksx/cbz-automation-suite/pull/191#issuecomment-6863284398)
+is mirrored in confirmed hive #4905. Board #164 tracks this slice in review.
+
+The CLI exposes read-only `estimate` and `observe` modes on an explicit
+root-pair manifest, with JSON on stdout and throttled progress on stderr.
+Estimates inventory/recheck without reading payloads, retain null hashes,
+and bind their mode and candidate logical bytes into the observation digest.
+Content mode retains full hashing. Directory counts and within-file bytes
+keep slow passes visible; callback failures abort distinctly and callback
+mutations cannot corrupt the report. An incomplete initial inventory skips
+payload hashing. No content-equality claim follows from an estimate.
+
+Validation: **79 focused cases passed in 2.08 seconds**. Full suite:
+**6,687 passed / 12 skipped / 0 failed in 431.31 seconds**, JUnit 6,699 cases,
+exactly 27 more than the predecessor. All ten AST mutation groups were
+caught, causing 25 failing executions with overlap; the unmodified control
+passes all 27 new tests. Source/test hashes stayed unchanged. The PR's topic
+development log records guard counts, hashes and scratch artifacts.
+
+Claude owns independent review of this exact source. Current-source CI and
+approval are required before marking ready and merging pinned. Issue #108
+remains open for preview/verifier classification and bound configuration
+evidence; resume needs an explicit evidence-age contract. No production
+library or Syncthing control operation was performed. This checkpoint batches
+the verified #213/#190 receipts and parallel-work records for publication.
+
 ## PR #190 merged; #108 estimates and progress follow (2026-11-13)
 
 Claude's #4901 handoff was acknowledged in confirmed hive #4903. Codex
