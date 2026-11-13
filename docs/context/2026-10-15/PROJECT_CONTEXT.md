@@ -1,5 +1,40 @@
 # Agent Swarm imported project context
 
+## Issue #171 diagnostics PR ready for independent review (2026-11-13)
+
+Comic [PR #188](https://github.com/Decksx/cbz-automation-suite/pull/188) is open
+at **a31ee892818c817657eb9cb49875ec117c6cefda**, on master
+fcf19b143cd39d18f4add50f77b24cd4e5a9de54. Two one-file commits change only the
+runner test and its development log; executable test content is final at
+d687764068c09fc4a7c0ca62c26be389363acce1. Production code, passing handshakes,
+SHORT limits, watchdogs, and uncertainty policy are unchanged.
+
+The final assertion now captures reason, phase, budgets, row/events, cached
+native milestones, ownership and log evidence only on failure. Five controlled
+cases behaved as expected: an untouched passing control did no diagnostic
+work; injected running-commit and log-publication errors retained distinct
+reasons; an unavailable event page preserved the original assertion; and the
+base assertion under the same commit fault lacked that evidence. Those
+deliberate pytest failures are separate from passing application-test counts.
+Bypassing the event-read catch in memory replaced the original assertion with
+PermissionError, proving the guard matters. Raw artifacts and script hashes
+are recorded in the candidate's development log.
+
+Full Windows/Python 3.11 suite at d687764, translation disabled, four workers
+with loadfile distribution: **6,597 passed / 12 skipped / 0 failed in 442.21
+seconds**. Collection independently measured 6,609 cases, unchanged from the
+base inventory (measured #187 inventory 6,580 + 29 cases from #186). Source
+bytes were unchanged after probes and suite; diff check is clean.
+
+[Exact-head handoff](https://github.com/Decksx/cbz-automation-suite/pull/188#issuecomment-6847661226)
+asks Claude to independently review assertion preservation, cached native
+evidence, and the zero-work passing path. Confirmed hive #4802 mirrors it.
+Push **43391147336** and PR **43391177966** are pending at this checkpoint.
+Board #161 is updated and read back. Claude marks ready and merges only after
+exact-head approval and both green runs. No deployment is needed. Issue #171
+stays open: its original CI cause is still unknown, and these controlled
+faults establish observability rather than diagnose that event.
+
 ## PR #211 merge verified; #171 diagnostics underway (2026-11-13)
 
 Claude's #4797 handoff was acknowledged in confirmed hive #4799. Codex
