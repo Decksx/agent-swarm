@@ -1,5 +1,120 @@
 # Agent Swarm imported project context
 
+## #108 estimate/progress PR #191 handed off (2026-11-13)
+
+Comic draft PR #191 is pushed at exact source
+**e3dd942aefe8477494480d8438d9dee41926d41c**, base
+**a4305be47a88555eb3c4792fa14ba3bd5dfe8aad**, tree
+**bb8d90c6e9008e8a25855ee50434153fc62869fe**. Its five commits each change
+one file. Code/tests are final at e0d331563757b8741f3fabcf0ed021b15f3c8d2c;
+the last two commits document the API/CLI and validation.
+[Exact-head review handoff](https://github.com/Decksx/cbz-automation-suite/pull/191#issuecomment-6863284398)
+is mirrored in confirmed hive #4905. Board #164 tracks this slice in review.
+
+The CLI exposes read-only `estimate` and `observe` modes on an explicit
+root-pair manifest, with JSON on stdout and throttled progress on stderr.
+Estimates inventory/recheck without reading payloads, retain null hashes,
+and bind their mode and candidate logical bytes into the observation digest.
+Content mode retains full hashing. Directory counts and within-file bytes
+keep slow passes visible; callback failures abort distinctly and callback
+mutations cannot corrupt the report. An incomplete initial inventory skips
+payload hashing. No content-equality claim follows from an estimate.
+
+Validation: **79 focused cases passed in 2.08 seconds**. Full suite:
+**6,687 passed / 12 skipped / 0 failed in 431.31 seconds**, JUnit 6,699 cases,
+exactly 27 more than the predecessor. All ten AST mutation groups were
+caught, causing 25 failing executions with overlap; the unmodified control
+passes all 27 new tests. Source/test hashes stayed unchanged. The PR's topic
+development log records guard counts, hashes and scratch artifacts.
+
+Claude owns independent review of this exact source. Current-source CI and
+approval are required before marking ready and merging pinned. Issue #108
+remains open for preview/verifier classification and bound configuration
+evidence; resume needs an explicit evidence-age contract. No production
+library or Syncthing control operation was performed. This checkpoint batches
+the verified #213/#190 receipts and parallel-work records for publication.
+
+## PR #190 merged; #108 estimates and progress follow (2026-11-13)
+
+Claude's #4901 handoff was acknowledged in confirmed hive #4903. Codex
+independently verified comic PR #190 merged as
+**a4305be47a88555eb3c4792fa14ba3bd5dfe8aad**, with parents
+23469d166ef2536733291910b2d50159b6dd3d2f and approved source
+**27bdf9895c8293b82837574522cc4b40f973225a**. Merge and source trees both
+equal **48f8ca4cf95f862f86199ca97e73d987fef65f6f**. Push **43490289271**
+and PR **43490367609** completed successfully on that exact source.
+[Independent merge verification](https://github.com/Decksx/cbz-automation-suite/pull/190#issuecomment-6862891144).
+Board #163 is done for this observation slice; issue #108 stays open.
+
+Claude's review identifies the size filter's limited benefit on nearly
+identical trees. His August catalog counts and earlier SMB throughput are
+owner-attributed evidence, not a current inventory or guaranteed runtime.
+Codex retains full-content equality evidence and adds a read-only estimate
+of candidate logical bytes plus directory and within-file progress. A
+metadata estimate cannot establish equality. Resuming cached hashes needs
+an explicit evidence-age contract before implementation.
+
+Confirmed hive #4904 records this choice. Work proceeds from the verified
+merge in `C:\Users\david\.codex\worktrees\comic-108-progress`, branch
+`feat/108-observation-progress`, using temporary fixtures only. Preview and
+verifier classifications and bound configuration evidence remain later
+deliveries; no live library or Syncthing control operation is authorized by
+this engineering checkpoint.
+
+## Parallel X-migration work starts with #108 observations (2026-11-13)
+
+David requested parallel migration development in #4888. Claude assigned Codex
+the #108 preview/verifier in #4891, acknowledged in confirmed hive #4894.
+Codex accepted the split in confirmed hive #4896 and created
+`C:\Users\david\.codex\worktrees\comic-108-sync-preview`, branch
+`feat/108-sync-observations`, from master
+**23469d166ef2536733291910b2d50159b6dd3d2f**. The ownership claim and staged
+delivery are recorded on the issue.
+[Implementation claim](https://github.com/Decksx/cbz-automation-suite/issues/108#issuecomment-6862162535).
+
+Comic PR #190 at **27bdf9895c8293b82837574522cc4b40f973225a** supplies shared
+filesystem observations with explicit paired
+roots, exclusions, root/alias validation, size-prefiltered stable SHA-256
+evidence, coverage errors and a deterministic digest. The scope is explicitly
+filesystem-only. Preview/verifier classifications, CLI and sanitized
+configuration evidence remain subsequent #108 work. Claude independently
+reviews each exact head, while retaining #158 B2 part B and the later B3
+writer-coordination design. This migration work takes priority over Codex's
+previously planned M4 scoping. Board #163 tracks the first observation slice.
+
+Final code/tests are at **d32fc12a99e87cc531ffef8dc757396e0678f95a**. The 52
+focused fixture cases pass, and 20 in-memory mutation groups are caught with
+56 failing executions including overlap. A fresh base suite passed **6,608 /
+12 skipped / 0 failed in 438.05 seconds**. Final full suite passed **6,660 /
+12 skipped / 0 failed in 362.77 seconds**, with JUnit confirming 6,672 cases
+and 52 new ones. Source bytes stayed unchanged during the final proofs and
+suite. The final head adds the development log only.
+
+[Exact-source review handoff](https://github.com/Decksx/cbz-automation-suite/pull/190#issuecomment-6862531534)
+asks Claude to review the root/alias and file-stability boundaries, coverage
+errors and scope binding. Push **43490289271** and PR **43490367609** are
+pending. Merge requires Claude's approval and both runs green at this source.
+The issue remains open for the next report/CLI/configuration-evidence slice.
+Development uses temporary local trees under the inherited Job Object.
+
+## PR #213 merge verified (2026-11-13)
+
+Claude's #4865 handoff was acknowledged in confirmed hive #4867. Codex
+independently verified swarm PR #213 merged as
+**bf2a022cf69e6523a484159021713026928cb1fd**, with parents
+f48f4c95216dc499ae3aae41437b98d0a572ab83 and approved source
+**0b508baf60b3f6286027c95a744e0e135ba06903**. Merge and source trees both
+equal **03351fdda4b509ab23427e1344980b0fc8d3dd31**. Run **43460359737**
+completed successfully on that exact source with all four checks green.
+[Independent merge verification](https://github.com/Decksx/agent-swarm/pull/213#issuecomment-6858671807)
+links Claude's direct review and merge receipt.
+
+This publishes the accumulated #188/#212 receipts and B2 design/review/merge
+history through comic #189. Claude owns B2 part B from master 23469d1,
+covering selection, the planner flag and provenance. Codex's next web-console
+slice is M4 scoping. The current receipt is committed on a new branch from
+the verified main merge for the next substantive publication.
+
 ## B2 part A merged and verified (2026-11-13)
 
 Claude's #4859 handoff was acknowledged in confirmed hive #4861. Codex
