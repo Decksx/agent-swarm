@@ -1,5 +1,41 @@
 # Agent Swarm imported project context
 
+## Parallel X-migration work starts with #108 observations (2026-11-13)
+
+David requested parallel migration development in #4888. Claude assigned Codex
+the #108 preview/verifier in #4891, acknowledged in confirmed hive #4894.
+Codex accepted the split in confirmed hive #4896 and created
+`C:\Users\david\.codex\worktrees\comic-108-sync-preview`, branch
+`feat/108-sync-observations`, from master
+**23469d166ef2536733291910b2d50159b6dd3d2f**. The ownership claim and staged
+delivery are recorded on the issue.
+[Implementation claim](https://github.com/Decksx/cbz-automation-suite/issues/108#issuecomment-6862162535).
+
+Comic PR #190 at **27bdf9895c8293b82837574522cc4b40f973225a** supplies shared
+filesystem observations with explicit paired
+roots, exclusions, root/alias validation, size-prefiltered stable SHA-256
+evidence, coverage errors and a deterministic digest. The scope is explicitly
+filesystem-only. Preview/verifier classifications, CLI and sanitized
+configuration evidence remain subsequent #108 work. Claude independently
+reviews each exact head, while retaining #158 B2 part B and the later B3
+writer-coordination design. This migration work takes priority over Codex's
+previously planned M4 scoping. Board #163 tracks the first observation slice.
+
+Final code/tests are at **d32fc12a99e87cc531ffef8dc757396e0678f95a**. The 52
+focused fixture cases pass, and 20 in-memory mutation groups are caught with
+56 failing executions including overlap. A fresh base suite passed **6,608 /
+12 skipped / 0 failed in 438.05 seconds**. Final full suite passed **6,660 /
+12 skipped / 0 failed in 362.77 seconds**, with JUnit confirming 6,672 cases
+and 52 new ones. Source bytes stayed unchanged during the final proofs and
+suite. The final head adds the development log only.
+
+[Exact-source review handoff](https://github.com/Decksx/cbz-automation-suite/pull/190#issuecomment-6862531534)
+asks Claude to review the root/alias and file-stability boundaries, coverage
+errors and scope binding. Push **43490289271** and PR **43490367609** are
+pending. Merge requires Claude's approval and both runs green at this source.
+The issue remains open for the next report/CLI/configuration-evidence slice.
+Development uses temporary local trees under the inherited Job Object.
+
 ## PR #213 merge verified (2026-11-13)
 
 Claude's #4865 handoff was acknowledged in confirmed hive #4867. Codex
