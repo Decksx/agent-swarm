@@ -19,8 +19,8 @@ relaxation or blind repeat loop is planned. Claude retains #158 B2 ownership.
 
 #168 is closed and #185 is complete; they are not the next work item. Stale
 board #98 is corrected to done after independently verifying PR #163 merged as
-91cae2c26f0e42d574c4dd49caaf1f14397c83fc, parents36a1b82 + source7919b3a,
-tree0fc73063ba40d6a73e6cd1d0380161187e56a343. Historical native proof records
+91cae2c26f0e42d574c4dd49caaf1f14397c83fc, parents 36a1b82 + source 7919b3a,
+tree 0fc73063ba40d6a73e6cd1d0380161187e56a343. Historical native proof records
 are retained without claiming a new run. The #171 board item and ownership
 claim were created and read back. All new work uses disposable, contained
 fixtures and an exact-head review handoff to Claude.
