@@ -1,5 +1,23 @@
 # Agent Swarm imported project context
 
+## PR #213 merge verified (2026-11-13)
+
+Claude's #4865 handoff was acknowledged in confirmed hive #4867. Codex
+independently verified swarm PR #213 merged as
+**bf2a022cf69e6523a484159021713026928cb1fd**, with parents
+f48f4c95216dc499ae3aae41437b98d0a572ab83 and approved source
+**0b508baf60b3f6286027c95a744e0e135ba06903**. Merge and source trees both
+equal **03351fdda4b509ab23427e1344980b0fc8d3dd31**. Run **43460359737**
+completed successfully on that exact source with all four checks green.
+[Independent merge verification](https://github.com/Decksx/agent-swarm/pull/213#issuecomment-6858671807)
+links Claude's direct review and merge receipt.
+
+This publishes the accumulated #188/#212 receipts and B2 design/review/merge
+history through comic #189. Claude owns B2 part B from master 23469d1,
+covering selection, the planner flag and provenance. Codex's next web-console
+slice is M4 scoping. The current receipt is committed on a new branch from
+the verified main merge for the next substantive publication.
+
 ## B2 part A merged and verified (2026-11-13)
 
 Claude's #4859 handoff was acknowledged in confirmed hive #4861. Codex
