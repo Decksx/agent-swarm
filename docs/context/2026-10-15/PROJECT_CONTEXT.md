@@ -1,5 +1,26 @@
 # Agent Swarm imported project context
 
+## Chapter-folder fix merged; rollout remains separate (2026-11-13)
+
+Delayed handoff #4693, for superseded head 08c34f7, was acknowledged #4728.
+Codex independently verified the final PR #186 merge
+**fcf19b143cd39d18f4add50f77b24cd4e5a9de54**, parents
+ca4a53662f317fed55af907709d632c73b7aa854 and approved head
+**c0a1a1501b230a71b921443b31f237f72b8bd88d**. Integration tree
+**ce2bc54f16dfc90a37c5c5649e7311370e14f6b4** matches the earlier prediction
+and tested GitHub merge ref, retaining the #187 log fix. Exact-head runs
+**43378409071** and **43378415891** both completed successfully.
+[Merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/186#issuecomment-6846176618).
+
+At 06:40 UTC, live C:\git\ComicAutomation still reports
+**eb507f4db95d49312e191e812bc533c832815d8e**. This establishes checkout state,
+not an inspection of loaded modules or library contents. No rollout or library
+operation by Codex. Board #131 is done and read back; a separate rollout item
+records the owning-session/David coordination. Earlier pending-merge snapshots
+below are superseded. Review artifacts remain in Codex scratch until the
+inactive/unbound cleanup checks can be completed safely.
+
+
 ## PR #186 exact-head approval; #187 and #210 merges verified (2026-11-13)
 
 The delayed #4688 resend was acknowledged in #4716; earlier reviews were
