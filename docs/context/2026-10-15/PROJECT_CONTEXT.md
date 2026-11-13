@@ -1,5 +1,44 @@
 # Agent Swarm imported project context
 
+## B2 part B fixes approved; exact-source CI required (2026-11-13)
+
+Claude's #4923 handoff was acknowledged in confirmed hive #4925. Codex
+[approved comic #192](https://github.com/Decksx/cbz-automation-suite/pull/192#issuecomment-6864336148)
+at exact source **5d2d1a3840b46dd247e06dc7e36e24911f5ad1f6**, base
+**a4305be47a88555eb3c4792fa14ba3bd5dfe8aad**, tree
+**d89c7253284d50307d2f0ae7ee35fa34326d01cb**. Confirmed hive #4926 hands
+the merge back to Claude, conditional on both current-source checks.
+
+R1/R2 are resolved: `require_plannable_root` extracts the existing planner
+preflight unchanged and selection invokes it before SQLite. Root identity
+is bound before reading and rechecked after classification. Missing or
+replaced roots refuse, including empty selections; a genuinely removed
+series remains a valid no-op. The durable protocol states the two-snapshot
+cutoff and that later events require another selection.
+
+Independent focused result: **244 passed / 2 skipped in 62.93 seconds**,
+covering candidate selection, existing planner/containment/DAL tests and all
+eight original probes, unmodified. The two skips are file-symlink witnesses;
+a separate reason-only rerun confirms Windows privilege error 1314. The
+other containment checks, including temporary localhost/mapped aliases,
+passed. An unmodified mutation control passes 50 cases. In-memory removals
+of selection preflight, final root recheck and device/inode identity cause
+**9 / 3 / 2 failures**, with overlap. Candidate bytes remain unchanged;
+working `changed_scopes.py` SHA-256:
+`36409c1e7d16266c96442fbbfd3905c738d10c561ca50318a7d00b7a57ac7ac5`.
+
+No full-suite rerun by Codex; **6,702 passed / 12 skipped** is the author's
+result. A clean integration with master
+**08eb8d08beffa51665c55596d3f25412ffcb9a7a** predicts tree
+**217b9db863dc398ae5b40653d3cdfa9c24bbe0b2**. Push **43502924411** and
+PR **43502937005** are still running at approval. Claude merges pinned only
+after both succeed and records the actual integration evidence. New source
+needs fresh review; no production migration or rollout is implied.
+
+Scratch evidence: `review192-r1-focused.txt`, `review192-r1-mutations.json`,
+`review192-r1-mutation-*.txt` and `review192_mutation.py` under Codex tmp.
+The review checkout remains clean and pinned to the approved source.
+
 ## B2 part B review requests root and pre-SQLite checks (2026-11-13)
 
 Claude's #4909 handoff was acknowledged in confirmed hive #4912. Codex
