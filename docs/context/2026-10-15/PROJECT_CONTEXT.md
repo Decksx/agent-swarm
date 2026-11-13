@@ -1,5 +1,63 @@
 # Agent Swarm imported project context
 
+## B2 part B review requests root and pre-SQLite checks (2026-11-13)
+
+Claude's #4909 handoff was acknowledged in confirmed hive #4912. Codex
+reviewed comic PR #192 at exact source
+**42e3a9eabfc11e3d9b67c05137c3a3b51d3ee754**, base
+**a4305be47a88555eb3c4792fa14ba3bd5dfe8aad**.
+[Review: changes requested](https://github.com/Decksx/cbz-automation-suite/pull/192#issuecomment-6864036050)
+is mirrored in confirmed hive #4916. Two P1 findings require a new head:
+
+- R1: an absent library, including one disappearing inside the selection
+  read, makes every changed series `gone` and the CLI exits 0 with no plan.
+  Root availability and identity must be established and rechecked before
+  accepting a successful empty selection. A removed series under a reachable
+  root remains a valid no-op.
+- R2: selection opens SQLite before the planner's external-catalog guard.
+  Codex observed WAL/SHM files created inside a fixture library. Nonempty
+  selections refuse too late; empty selections also bypass the protected
+  originals-root refusal. Shared preflight must precede the first selection
+  database open, preserving lexical/resolved/physical-alias checks.
+
+Independent results: **209 passed in 56.70 seconds** for the candidate,
+existing planner and DAL tests. Eight additional boundary probes give
+**6 failed / 2 passed in 1.96 seconds**, all failures being R1/R2 assertions.
+The positive controls cover a genuinely gone series and an ordinary catalog
+append between selection and planning: the plan retains the earlier event
+cutoff and plans only that selection. Two snapshots are acceptable with this
+explicit boundary, which needs durable documentation. Genuine other-root
+events need not count as omissions. The empty-selection JSON/no-output
+contract is acceptable after preflight.
+
+Probes remain at `C:\Users\david\.codex\tmp\test_review192_boundaries.py`,
+SHA-256 `3b893ba46e0b5014b4d30122d19acd9a880efaeb325661bf8a701f3ebae58481`.
+The pinned review checkout is `C:\Users\david\.codex\worktrees\review192`,
+clean and unmodified. No full-suite rerun by Codex. Claude owns fixes and the
+next exact-head handoff; no merge approval is given at this source.
+
+## PR #191 and swarm #214 merges verified (2026-11-13)
+
+Codex independently verified comic #191 merge
+**08eb8d08beffa51665c55596d3f25412ffcb9a7a**, parents
+a4305be47a88555eb3c4792fa14ba3bd5dfe8aad and approved source
+**e3dd942aefe8477494480d8438d9dee41926d41c**. Merge/source tree:
+**bb8d90c6e9008e8a25855ee50434153fc62869fe**. PR **43496114475** and
+push **43496070923**, attempt 2, both succeeded at that source.
+[Independent verification](https://github.com/Decksx/cbz-automation-suite/pull/191#issuecomment-6864058715)
+links Claude's approval and pinned receipt. The first push attempt's watchdog
+timeout remains unclassified. Codex owns two nonblocking follow-ups: exercise
+per-pair unknown-field rejection and refuse Windows root-relative manifest
+paths. Issue #108 remains open for classification and configuration evidence.
+
+Swarm #214 merged as **42b6b810c83db7223996a2000a2562ea9fa9507a**, parents
+bf2a022cf69e6523a484159021713026928cb1fd and approved source
+**351388661da2d9bcb07862ddbd08ee2eb92847a9**. Merge/source tree:
+**2653daf4dd88f7f77fd2afe87aa7273e5fba0aef**. Run **43496302640** succeeded
+on that source with all four jobs green. The direct verification comment
+records Claude's review and merge receipts. These are engineering and context
+merges; no production library or Syncthing control action was performed.
+
 ## #108 estimate/progress PR #191 handed off (2026-11-13)
 
 Comic draft PR #191 is pushed at exact source
@@ -47,7 +105,7 @@ and PR **43490367609** completed successfully on that exact source.
 Board #163 is done for this observation slice; issue #108 stays open.
 
 Claude's review identifies the size filter's limited benefit on nearly
-identical trees. His August catalog counts and earlier SMB throughput are
+identical trees. Claude's August catalog counts and earlier SMB throughput are
 owner-attributed evidence, not a current inventory or guaranteed runtime.
 Codex retains full-content equality evidence and adds a read-only estimate
 of candidate logical bytes plus directory and within-file progress. A
