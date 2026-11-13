@@ -1,5 +1,28 @@
 # Agent Swarm imported project context
 
+## Chapter-folder update installed; operator restart pending (2026-11-13)
+
+David stopped the watcher in #4744; ACK #4748. Claude's rollout #4750 reports
+live eb507f4 to **fcf19b143cd39d18f4add50f77b24cd4e5a9de54**, tracked files
+clean. His smoke check under C:\Python311, the GUI interpreter, passed 52 tests
+(chapter-suffix naming, held archives, and series detection); the watcher
+import also succeeded. These checks remain attributed to the deployment owner.
+
+Codex independently observes that exact live HEAD and clean tracked files.
+The reflog pins the fast-forward at **07:13:44 UTC**. At 07:15:57 UTC, a process
+check filtered to Python executables and both script/module watcher names finds
+only GUI PID 7700, with no separate watcher visible. The GUI uses subprocesses
+for tools. Claude told David the update is ready to start from the GUI.
+[Rollout receipt](https://github.com/Decksx/cbz-automation-suite/pull/186#issuecomment-6846739622).
+Board #160 is updated and read back; it stays in progress until startup is
+confirmed. The ready-to-start message was mirrored in confirmed hive #4752.
+
+This supersedes the earlier merged-but-not-deployed snapshot. The checkout
+includes #183, #184, and #187; a web-console service has not thereby been
+launched. Codex performed read-only verification and no production library
+operation. Existing untracked operational files were left alone. No fresh
+loaded-watcher-module claim is made before the operator starts it.
+
 ## Chapter-folder fix merged; rollout remains separate (2026-11-13)
 
 Delayed handoff #4693, for superseded head 08c34f7, was acknowledged #4728.
