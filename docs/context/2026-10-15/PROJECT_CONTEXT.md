@@ -1,5 +1,138 @@
 # Agent Swarm imported project context
 
+## Completed implementation; next task is #171 diagnostics (2026-11-13)
+
+David asked in #4784 whether everything was committed, pushed, and merged;
+ACK #4787. All implementation PRs in this batch are merged, including comic
+#186/#187 and Camelia #3/#4/#5; the watcher and Camelia rollouts are complete.
+The only unpublished work at that check was five local context commits covering
+the final merges, deployment, and operator startup. This checkpoint publishes
+those records together rather than treating them as new implementation work.
+
+Codex's next task is [#171](https://github.com/Decksx/cbz-automation-suite/issues/171#issuecomment-6847071430):
+retain missing reason, phase, budget, row/event and log/native evidence when the
+stalled-running-commit test fails, then use controlled fixture handshakes.
+Initial inspection at master fcf19b1 confirms the final assertion still lacks
+that diagnostic context. The original CI cause remains unknown; the earlier
+passing repetitions did not diagnose it. No production deadline/uncertainty
+relaxation or blind repeat loop is planned. Claude retains #158 B2 ownership.
+
+#168 is closed and #185 is complete; they are not the next work item. Stale
+board #98 is corrected to done after independently verifying PR #163 merged as
+91cae2c26f0e42d574c4dd49caaf1f14397c83fc, parents 36a1b82 + source 7919b3a,
+tree 0fc73063ba40d6a73e6cd1d0380161187e56a343. Historical native proof records
+are retained without claiming a new run. The #171 board item and ownership
+claim were created and read back. All new work uses disposable, contained
+fixtures and an exact-head review handoff to Claude.
+
+## Updated watcher started; rollout complete (2026-11-13)
+
+David reported the GUI started in #4770; ACK #4774. Codex independently
+observed new GUI PID 34992, created at **07:22:02 UTC**, and watcher PID 43604,
+created at **07:22:39 UTC**, using C:\Python311\pythonw.exe and the watcher
+module. The watcher's parent is the new GUI. Both remained present at the
+**07:23:41 UTC** follow-up check. Live HEAD remains
+**fcf19b143cd39d18f4add50f77b24cd4e5a9de54**, with tracked files clean.
+
+[Restart receipt](https://github.com/Decksx/cbz-automation-suite/pull/186#issuecomment-6846861097).
+The starts follow the verified deployment and Claude's 52 passing smoke tests.
+Board #160 is done and read back. This supersedes the pending-startup snapshots
+below. These observations establish process startup and checkout metadata;
+Codex did not inspect production archive results or launch either process.
+
+## GUI closed; updated watcher ready for startup (2026-11-13)
+
+David reported closing the GUI in #4762; ACK #4768. At 07:21:20 UTC, the
+executable-filtered process check found neither the GUI nor the watcher.
+The previously verified update and smoke checks remain complete. David was
+told he can reopen the GUI and start the watcher; board #160 stays in progress
+until startup is confirmed. Codex did not launch either process.
+
+## Chapter-folder update installed; operator restart pending (2026-11-13)
+
+David stopped the watcher in #4744; ACK #4748. Claude's rollout #4750 reports
+live eb507f4 to **fcf19b143cd39d18f4add50f77b24cd4e5a9de54**, tracked files
+clean. His smoke check under C:\Python311, the GUI interpreter, passed 52 tests
+(chapter-suffix naming, held archives, and series detection); the watcher
+import also succeeded. These checks remain attributed to the deployment owner.
+
+Codex independently observes that exact live HEAD and clean tracked files.
+The reflog pins the fast-forward at **07:13:44 UTC**. At 07:15:57 UTC, a process
+check filtered to Python executables and both script/module watcher names finds
+only GUI PID 7700, with no separate watcher visible. The GUI uses subprocesses
+for tools. Claude told David the update is ready to start from the GUI.
+[Rollout receipt](https://github.com/Decksx/cbz-automation-suite/pull/186#issuecomment-6846739622).
+Board #160 is updated and read back; it stays in progress until startup is
+confirmed. The ready-to-start message was mirrored in confirmed hive #4752.
+
+This supersedes the earlier merged-but-not-deployed snapshot. The checkout
+includes #183, #184, and #187; a web-console service has not thereby been
+launched. Codex performed read-only verification and no production library
+operation. Existing untracked operational files were left alone. No fresh
+loaded-watcher-module claim is made before the operator starts it.
+
+## Chapter-folder fix merged; rollout remains separate (2026-11-13)
+
+Delayed handoff #4693, for superseded head 08c34f7, was acknowledged #4728.
+Codex independently verified the final PR #186 merge
+**fcf19b143cd39d18f4add50f77b24cd4e5a9de54**, parents
+ca4a53662f317fed55af907709d632c73b7aa854 and approved head
+**c0a1a1501b230a71b921443b31f237f72b8bd88d**. Integration tree
+**ce2bc54f16dfc90a37c5c5649e7311370e14f6b4** matches the earlier prediction
+and tested GitHub merge ref, retaining the #187 log fix. Exact-head runs
+**43378409071** and **43378415891** both completed successfully.
+[Merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/186#issuecomment-6846176618).
+
+At 06:40 UTC, live C:\git\ComicAutomation still reports
+**eb507f4db95d49312e191e812bc533c832815d8e**. This establishes checkout state,
+not an inspection of loaded modules or library contents. No rollout or library
+operation by Codex. Board #131 is done and read back; a separate rollout item
+records the owning-session/David coordination. Earlier pending-merge snapshots
+below are superseded. Review artifacts remain in Codex scratch until the
+inactive/unbound cleanup checks can be completed safely.
+
+
+## PR #186 exact-head approval; #187 and #210 merges verified (2026-11-13)
+
+The delayed #4688 resend was acknowledged in #4716; earlier reviews were
+already complete. Codex picked up the current candidate
+**c0a1a1501b230a71b921443b31f237f72b8bd88d** and [approved it](https://github.com/Decksx/cbz-automation-suite/pull/186#issuecomment-6846104437).
+All prior identity/range findings are addressed. Independent checks pass:
+116 related tests and 398 group-naming tests. Removing the year-carry block
+in memory fails all four year probes. Watcher bare-LF stays 863, with six CRLF
+lines added. Both exact-head CI runs, **43378409071** and **43378415891**, are
+successful. Master ca4a536 integrates cleanly to
+**ce2bc54f16dfc90a37c5c5649e7311370e14f6b4**, matching GitHub's merge ref with
+parents ca4a536 + c0a1a15. No additional local full suite was claimed for this
+review. Claude owns the pinned merge; rollout remains with David's owning
+session. Board #131 is updated and read back, awaiting the merge receipt.
+
+PR #187 is independently verified merged as
+**ca4a53662f317fed55af907709d632c73b7aa854**, parents fb17f09 + b27b049;
+merge/head tree **2d4263b2b43b9561f63c59d567639bbf64ea13c8**. Exact approval
+is [6845608774](https://github.com/Decksx/cbz-automation-suite/pull/187#issuecomment-6845608774),
+and both CI runs passed. [Codex merge receipt](https://github.com/Decksx/cbz-automation-suite/pull/187#issuecomment-6846021718).
+Issue #185 is closed as completed; board #154 is done and read back. The web
+console is not live; no deployment or production job was performed by Codex.
+
+Swarm PR #210 is independently verified merged as
+**933c588fd2ca5d28041deee7df29793ca9d3f0d3**, parents cd0fb04 + fcc9eb8;
+merge/head tree **696db9861d91479536f97d199942e6282e045020**. CI run
+**43378262538** passed all four jobs on the exact source head. [Codex receipt](https://github.com/Decksx/agent-swarm/pull/210#issuecomment-6846046460).
+Claude's factual review was initially in hive #4718; after the PR-side record
+was requested, he added [6846059308](https://github.com/Decksx/agent-swarm/pull/210#issuecomment-6846059308).
+This records the actual review without inventing a historical approval.
+Board #159 is now done and read back. #210 predates the newer merge/approval
+facts above; this local entry is held for the next substantive publication.
+
+Claude's staging closure in #4683 is also read: the protected live logs showed
+no recent refusals, attributed to his audit. Codex independently confirms the
+tracked config/number-styles.json is roots:[] and its last change is
+27b2013552aba37e03b8db714db1da988f293159. No X: or protected log access was
+performed by Codex. No code change is needed for that closed item; enabling
+media naming later requires operator-chosen roots/styles.
+
+
 ## PR #187 final verification and PR #186 re-review (2026-11-13)
 
 At unchanged review head **b27b0494c5cc0f71debbad7f95324b4addba8677**, the
