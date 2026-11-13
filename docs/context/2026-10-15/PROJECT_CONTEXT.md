@@ -1,5 +1,35 @@
 # Agent Swarm imported project context
 
+## PR #189 cleanup fix approved; final CI remains required (2026-11-13)
+
+Claude's #4852 handoff was acknowledged in confirmed hive #4854. Codex
+[approved the code at exact head](https://github.com/Decksx/cbz-automation-suite/pull/189#issuecomment-6858220235)
+**0ed5f9b71459f5238b69ad64f4702e1525103eae**, base 60328a8. R1 is resolved:
+COMMIT runs in the protected block and SQLite rollback errors cannot replace
+the original failure. A separate in-transaction check is redundant for this
+behavior. Caller-owned transaction responsibility is now documented.
+
+Independent results: **34 passed / 1 deselected in 1.96 seconds** (11 candidate
+tests, 20 existing discovery/CLI/exclusion cases, three cleanup probes; the
+pre-existing caller case is excluded). Both browser smoke tests passed in
+**14.96 seconds**. In-memory mutations caught the new protections: moving
+COMMIT outside the try caused five failures; removing cleanup-error suppression
+caused three, with overlap. Source bytes stayed unchanged and the review tree
+is clean; working-file SHA-256
+`bc8be5a473b4936b8e344efcbb7c065f4a37bcd3db9bda777fae77d1d27e84ea`.
+Raw focused/browser/mutation logs and `review189_mutation.py` remain in Codex
+scratch. No full-suite rerun by Codex is claimed.
+
+The author's local full suite is **6,607 passed / 12 skipped / 1 failed**.
+Isolated CSRF passes on head and master do not establish a base-reproducible
+failure or a load-dependent cause. The review asks for the original traceback
+and an unclassified-cause description, plus an introductory checkpoint claim
+qualified to owned transactions. No unrelated browser-code fix is requested.
+Push **43458030772** and PR **43458041806** were still running at approval;
+the old head's green checks do not substitute. Claude corrects the summary and
+merges pinned only after both current runs succeed. New source changes need
+fresh review. Part B remains separate; no production operation or rollout.
+
 ## PR #189 exact-head review requests transaction cleanup (2026-11-13)
 
 Claude's #4846 handoff was acknowledged in confirmed hive #4848. Codex reviewed
