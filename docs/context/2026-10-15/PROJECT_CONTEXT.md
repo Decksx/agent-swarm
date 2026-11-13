@@ -1,5 +1,340 @@
 # Agent Swarm imported project context
 
+## PR #187 final verification and PR #186 re-review (2026-11-13)
+
+At unchanged review head **b27b0494c5cc0f71debbad7f95324b4addba8677**, the
+local Windows suite completed: **6,568 passed / 12 skipped / 0 failed**, all
+**6,580 collected cases**, in **1,734.92 seconds**. Translation was disabled
+and temporary paths were private. Exact-head push run **43376132608** and PR
+run **43376202998** both completed successfully. [Final receipt](https://github.com/Decksx/cbz-automation-suite/pull/187#issuecomment-6845722182).
+This receipt and the refreshed PR body supersede the development log's explicit
+06:03 UTC in-progress snapshot. The review commit is frozen; independent
+Claude review is still required. The earlier interrupted run is not counted.
+No deployment or production job. Board #154 was updated and read back.
+
+The completed Camelia feature copies remain in Codex scratch for now. Fresh
+service, task, shortcut, and relay checks found no binding to either copy,
+but the full process/open-handle scan did not finish. Its owned read-only
+diagnostic was stopped; no copy was removed without completed inactive-use
+proof. The registered root and active comic worktrees remain in place.
+
+[PR #186 re-review](https://github.com/Decksx/cbz-automation-suite/pull/186#issuecomment-6845692956)
+is bound to **08c34f716a29b97d15f159068631a30dbb2f1f2c**. The first-round
+Part/Side and spaced-range probes now pass, but a P1 remains: registered media
+mode drops the folder's series year. Both 2019 and 2020 chapter drops resolve
+to Book, chapter 12. Two new real-resolver guards fail at this head and pass
+with the exact base function. Combined branch/review checks are 37 passed and
+2 failed. Updated reproducer test_review186_round2_probes.py has SHA-256
+bcbd736307649de50fde17a7aca09015225084bea6e05f19a3c852fdcaa00967; the first
+reproducer is retained separately. Confirmed handoff #4697 asks Claude for
+another exact head. Board #131 was updated/read back; no approval is implied.
+
+
+## Issue #185 implementation is PR #187 (2026-11-13)
+
+[Draft PR #187](https://github.com/Decksx/cbz-automation-suite/pull/187) is at
+**b27b0494c5cc0f71debbad7f95324b4addba8677**, base fb17f09. Eight commits,
+one file each, change seven files. The bounded exact-index retry happens before
+pump stickiness, with fresh validation/write/fsync and a late snapshot commit.
+The test-only wrapper is removed; unrelated or exhausted errors keep the prior
+uncertainty policy, and explicit gaps keep their coverage meaning.
+
+All 26 focused cases pass. Each of 18 in-memory guard bypasses fails tests;
+the base publication method fails 15 and passes 11. Full Windows CI run
+**43343740957** passed **6,575 tests / 5 skipped**, 6,580 collected, in 461.35 seconds
+at **8b69a8a17317f95f8297269f211c8781512eb6e4**. The final commit only updates
+the evidence log; implementation/tests/protocol are unchanged. Fresh review-head
+runs **43376132608** (push) and **43376202998** (PR) are active. The new local
+full run remains active; the earlier interrupted run is not a pass. Different
+environments' pass/skip counts are kept separate; net test inventory grew by 15.
+
+[Exact-head review request](https://github.com/Decksx/cbz-automation-suite/pull/187#issuecomment-6845569129)
+was mirrored CONFIRMED #4694. Claude owns review, and merge still requires fresh
+exact-head CI. Board #154 link/note were updated and read back. No deployment,
+production log store, comic library, model, or backfill action by Codex. Earlier
+no-PR snapshots below are historical. The final local result and new CI results
+will be appended when available; no additional implementation change is implied.
+
+
+## Queued handoffs recovered; Camelia rollout verified (2026-11-13)
+
+Admin #4670 asks whether work can continue; ACK #4674. Queued messages #4624,
+#4641, #4642, #4646, #4650, #4659, and #4664 were acknowledged in #4675-4681.
+David stopped Camelia and confirmed it restarted. Claude owns the PR #4 + #5
+rollout and reports private smoke checks (2 scaling, 17 prune, 10 queue), a
+live events_book_id_idx, and an indexed query plan. His corrected executable-
+filtered process check supersedes the self-matching CIM observation.
+
+Codex independently verifies clean live HEAD
+**8ed87b5fb0d24360b8825898b995c018dae6a012**. Reflog pins the fast-forward at
+01:06:26 UTC. API PID 11816 (camelia_env Python) started at 01:08:50 UTC;
+Nuxt PID 46952 started at 01:08:55 UTC. At 05:43:22 UTC the API responds with
+39,140 records, queue running and crawl stopped. This verifies checkout,
+restart metadata and API health, not independent loaded-module or live-index
+inspection. [Rollout receipt](https://github.com/Decksx/autodecen/pull/5#issuecomment-6845386325).
+Board #158 is done and read back. No restart, repeat prune, or deployment by
+Codex. Earlier pending-rollout snapshots below are superseded.
+
+## PR #186 exact-head review requests changes (2026-11-13)
+
+[Review](https://github.com/Decksx/cbz-automation-suite/pull/186#issuecomment-6845361893)
+is bound to **c3f2bdb89f3bbc80f9d8f82529c2a7dc51dc7344**, base fb17f09.
+P1: the real watcher gives Part A/B or Side A/B chapter folders the same book
+name, sending a distinct archive to duplicate quarantine. The maintenance
+caller also proposes their automatic merge. P2: spaced ascending ranges are
+stripped despite the stated exclusion. Six conservative guards pass with the
+base function and fail at the head; the branch's 12 tests pass. Four additional
+head-positive identity/CJK/numeric-series probes pass, with expected base
+failures because the feature is new. All paths are disposable fixtures.
+
+Reproducer: test_review186_probes.py under Codex scratch, SHA-256
+03212a4cd2d3bf0e6b5d4e979afaff865e49d4acf47f6360313f26a1e23aa174.
+The exact base function is substituted in memory for the comparison. Logs and
+active review copy are retained until the review ends. Confirmed handoff #4689
+asks Claude for fixes and a new exact head. Board #131 is in progress and read
+back. No review approval or source edits to the candidate by Codex.
+
+## #185 implementation saved; final validation resumed (2026-11-13)
+
+The source branch is clean and pushed through
+**8b69a8a17317f95f8297269f211c8781512eb6e4** (seven one-file commits).
+26 focused tests pass. Eighteen individual guard bypasses each fail at least
+one test; the base publication method fails 15 and passes 11. No repository
+source bytes were changed by those in-memory mutations. The earlier full run
+stopped at 56% without a result; it is not a passing run. A fresh full run
+with CBZ_TRANSLATION_ENABLED=0 is active in an isolated temp directory.
+Final results will replace the development-log placeholder before review.
+There is no PR yet. Board #154 records the current state. No live comic
+library, production log store, model worker, or backfill was accessed.
+
+
+## Camelia event-index fix reviewed and merged (2026-11-13)
+
+Claude's handoff #4610 was acknowledged in #4616. Codex independently verified
+PR #5 merged as **8ed87b5fb0d24360b8825898b995c018dae6a012**, parents
+bb66079342971e07bca9224fb59a2ffb08b69868 and approved head
+**673ccf4d27834f01fa284dc27a3135746b59af11**. Its integration tree is
+**817499476a3a7394046ba533fea339fe2579d895**, matching the earlier prediction
+and Claude's tested tree. [Exact-head approval](https://github.com/Decksx/autodecen/pull/5#issuecomment-6840589421).
+CI run **43332540400** is successful at that exact head; both jobs are green.
+[Codex merge receipt](https://github.com/Decksx/autodecen/pull/5#issuecomment-6840615986).
+
+Claude reports testing the actual integration tree under camelia_env: 2 scaling,
+17 prune, 52 backlog, and 10 queue tests pass; removing the index fails both new
+tests. Those extra checks remain attributed to his review. He independently
+counted 6,908 committed prune audit events through 00:48:32 UTC, corroborating
+Codex's API result of 46,048 to 39,140 records. The earlier review-waiting state
+is superseded by this saved approval and merge; relay recovery details have
+not been independently established here.
+
+Board #157 is done and read back. Rollout of PR #4 + PR #5 remains with Claude
+and David under board #158, requiring a Camelia stop/start. Claude is asking
+David and owns the fast-forward/smoke check. This handoff does not establish
+that deployment has occurred. Codex resumes comic #185 from the isolated
+worktree at fb17f09; no production backfill, model work, or library access.
+
+
+## Camelia's confirmed prune completed (2026-11-13)
+
+David asked for progress in hive #4603; ACK #4605. A read-only API check at
+00:48:54 UTC (5:48 PM MST) confirms **39,140 records**, down from 46,048:
+**6,908 records removed**, exactly matching the preview. Category deltas match:
+completed 4,222 to 4,100 (122), quarantined 10 to 3 (7), queued 18,140 to
+13,950 (4,190), and skipped 23,676 to 21,087 (2,589). Recent
+book_pruned_missing events extend through 00:48:32 UTC. API PID 36888 is back
+to one thread. This verifies the committed database result; Codex did not open
+the live database directly or perform a filesystem audit. The implementation
+removes database records, not archive files. No second prune is needed.
+
+[Completion receipt](https://github.com/Decksx/autodecen/pull/5#issuecomment-6840416539),
+mirrored in confirmed hive update #4606 and handoff #4607 to Claude. At
+00:49:46 UTC the live checkout remains clean at
+**e0936a8d0b9684f0d22d79d644bf42f56cb5e552**. This prune completed under the old
+code; neither the progress feedback nor the event index has been deployed.
+The earlier active-prune snapshots and approximate ETA below are superseded.
+
+PR #5 is still open and draft at **673ccf4d27834f01fa284dc27a3135746b59af11**,
+with both CI jobs green and independent review pending. The last relay check
+showed that handoff held behind Claude's timed-out session. The prune no longer
+blocks rollout, but the review and owning-session gates still apply. Board
+#157 and #158 notes were updated and read back in clear prose. Claude owns
+rollout coordination with David after session recovery and review. No live
+restart, update, review approval, or deployment by Codex is implied.
+
+
+## Claude relay timeout identified; Camelia unaffected (2026-11-13)
+
+David asked in hive #4594 what had been killed after 45 minutes; ACK #4596.
+Relay message #4593 identifies handoff #4559 to claude-lead. The attempt started
+at 23:48:12 UTC and ended by timeout at 00:33:29 UTC. Its PID was 28748, now
+absent; attempt fdbc2681dd419855 is exited, with usage recorded and ACK #4561.
+Claude's saved message #4562 says he would poll for prune completion. The
+attempt's output log is empty, which does not prove that no work was saved.
+His diagnosis is already in the hive and PR #5; no review verdict is present.
+
+The supported relay status still shows that session reserved. The independent
+review handoff #4564 and later alerts are held behind it. No reservation,
+binding, ledger history, or process was changed by Codex. PR #5 remains draft
+at 673ccf4, with both CI jobs green and independent approval outstanding.
+Board #157 records this waiting state; no review or deployment is inferred.
+
+David asked in #4598 whether both leads were operational; ACK #4601. A fresh
+00:40 UTC check confirms that Codex is active, the relay cursor has advanced,
+and Camelia responds on API port 5000 with its web server listening on port
+3000. Its total remains 46,048, with no recent prune completion events. Claude
+still has the old reservation; six messages, including #4564 and #4598, are
+held as reserved. Codex told David clearly that Claude has not resumed new
+work. These checks do not establish that both leads are operational.
+
+Camelia is a separate process. Its API responded at 00:36:15 UTC, returning
+46,048 records and no recent prune completion events. This proves API response,
+not fresh numeric progress within the transaction. The relay timeout did not
+terminate that API. David was informed in confirmed message #4597, with the
+saved polling plan explained in the follow-up. No live database was opened
+directly and no prune, restart, or deployment was initiated by Codex.
+
+
+## David's communication preference (2026-11-12)
+
+In hive message #4581, David asked Codex to make messages easier to understand,
+with proper spacing, punctuation, and natural phrasing. This is a continuing
+preference for chat updates and written handoffs. Use complete sentences and
+readable forms such as PR #5, 124 tests, 46,048 records, and 5:45 PM MST. Lead
+status updates with the result and next action. Keep technical detail relevant;
+engineering reviews and handoffs must still identify the exact commit and link
+the evidence. Write those details in clear sentences rather than compressed
+strings. Acknowledged in #4583 and answered in confirmed message #4584.
+David clarified in #4589 that natural English, contractions, and familiar
+shorthand such as &, #, $, and % are welcome when clear. Keep the tone
+conversational while preserving spacing and readability. Acknowledged in #4591
+and answered in confirmed message #4592.
+
+
+## Camelia confirmed prune still active at00:14Z (2026-11-13)
+
+Admin4577 asks whether complete; ACK4579. Read-only API at00:13:56Z returns
+46048records (completed4222/quarantined10/queued18140/skipped23676), paused
+queue, stopped crawl and no recent book_pruned_missing events. Listener API36888
+has2threads; a2.016s process sample records2.094 CPU seconds,272892 reads /
+1117718835 read bytes,410 writes /902676 write bytes. This supports continued
+active database work; no completed prune observed. Logical I/O is not physical
+storage throughput or a precise completion counter. Admin told to keep Camelia
+open and not reconfirm. Claude's earlier ~00:45Z estimate stays approximate.
+Board158 note updated/read back. No live DB open, repeated prune, restart or
+checkout update by Codex. Existing PR4/PR5 rollout gates remain in force.
+
+
+## Confirmed Camelia prune active; indexed-event fix handed off (2026-11-12)
+
+Delayed admin4539 reports about ten minutes since Confirm; ACK4557. Read-only
+API/OS checks at approximately23:47Z show API36888 responsive, queue paused,
+crawl stopped and no committed prune. A3s process sample records3.109 CPU seconds,
+420883 reads/1723889971 read bytes and1082420 written bytes: logical process I/O,
+not a physical-disk or numeric progress measurement. At23:54:11Z, the GET summary
+still has46048 records and no recent prune events. The apply is atomic, so that
+view remains unchanged until commit. No direct live DB open, library walk,
+second preview/apply, restart or live file update by Codex.
+
+The schema lacks events.book_id indexing; per-book event detaches and FK checks
+rescan history. [Autodecen PR5](https://github.com/Decksx/autodecen/pull/5), exact
+**673ccf4d27834f01fa284dc27a3135746b59af11**, adds one idempotent startup index,
+two bounded-work/migration guards and backend CI wiring. Six one-file commits,
+forked frome0936a8; the last two preserve/order the concurrently merged PR4 log.
+Targetbb660793 integrates cleanly to predicted tree
+**817499476a3a7394046ba533fea339fe2579d895**, retaining PR4 UI/browser checks.
+Both new tests fail base: about2316000 apply VM instructions and36000 lookup
+instructions. Fixed apply is about4000; both tests pass with history/audits/FK
+checks intact. These are private fixture work counts, not production timing.
+All124 available core checks pass19.753s in private database/temp paths; the
+three model modules remain unavailable/excluded as before. No models launched.
+[Exact-head review handoff](https://github.com/Decksx/autodecen/pull/5#issuecomment-6839440339)
+mirrored CONFIRMED4564. Board157 link/note read back. Run43332540400 exact673ccf4:
+Both Windows backlog and Ubuntu GUI completed success at exact673ccf4.
+[CI receipt](https://github.com/Decksx/autodecen/pull/5#issuecomment-6839473773).
+Independent review pending, draft. Board157 updated/read back; rollout158 owner
+Claude coordinates after the current operation settles.
+The active request cannot benefit from a later update; rollout stays with the
+owning session and David after the operation settles. Comic185 remains deferred.
+
+Delayed4556 acknowledged4571, coordinated CONFIRMED4572. Claude independently
+reports a live1074074-event table, absent book_id index and SCAN query plan;
+a read-only scan about0.29s yields a rough2x6908x0.29 (~66min) estimate, around
+00:45Z. These are owner observations/estimates, not Codex measurements or a
+guaranteed finish time. [Supporting diagnosis](https://github.com/Decksx/autodecen/pull/5#issuecomment-6839514017).
+Current writers may hit the existing30s busy timeout while apply holds BEGIN
+IMMEDIATE. Board158 note updated/read back; no restart/deploy by Codex. The
+existing VM-work guards cover the repeated scans and upgrade, without pinning
+an exact query-plan string/index name. No new source change;673ccf4 remains
+the review candidate, both CI jobs green and independent approval pending.
+
+## Camelia progress-feedback PR4 merge verified (2026-11-12)
+
+Delayed4543 was acknowledged4568; its inference that David had not clicked
+Confirm was corrected in CONFIRMED4569. Admin4539 explicitly says he confirmed;
+unchanged externally visible counts cannot establish otherwise during an atomic
+transaction. PR5 remains exact673ccf4/draft, both CI jobs green and independent
+review pending at23:56Z. No185 implementation resumes over this active priority.
+
+PR4 merged while the performance diagnosis was underway: merge
+**bb66079342971e07bca9224fb59a2ffb08b69868**, parentse0936a8+4f5097d,
+merge/head tree **ada279e7d66f6fcf7d9e82a36b4c4036273622af**. Exact approval
+[6839286132](https://github.com/Decksx/autodecen/pull/4#issuecomment-6839286132),
+run43331076248 both jobs green at4f5097d. Codex's earlier pending-review CI
+comment raced the merge; [merge receipt](https://github.com/Decksx/autodecen/pull/4#issuecomment-6839456084)
+supersedes it. Board156 implementation done, rollout tracked separately with
+Claude. Live HEAD observed e0936a8 at23:48Z; no deployment by Codex. Earlier
+PR4-pending snapshots below are historical.
+
+
+## Camelia preview succeeded; progress feedback handed off (2026-11-12)
+
+Admin4511 could not tell whether Prune missing files was working; ACK4524.
+David4527/4528 subsequently confirms preview completion: **6,908 missing**
+(completed122, quarantined7, queued4190, skipped2589), **39,140 kept**, zero
+unverified. Confirmed4529 explains preview success; Codex did not press Confirm
+or start another preview. A read-only application-summary/process check before
+that reply saw an idle API, paused queue, stopped crawl and no recent prune
+completion events; it was a diagnostic snapshot, not proof of a stuck request.
+No live database was opened directly and no library tree was walked by Codex.
+
+Board156 now tracks the frontend-only follow-up; Claude4516 suggested visible
+checking/pruning text. [Autodecen PR4](https://github.com/Decksx/autodecen/pull/4)
+is draft at **4f5097da12ed397097f1827f5ff7a83ed0f922f5**, base
+**e0936a8d0b9684f0d22d79d644bf42f56cb5e552**, six one-file commits.
+It shows active phase/elapsed seconds, focuses and scrolls the finished preview,
+retains the disabled panel while applying, and separates action errors from
+polling errors. No backend/database/API behavior changes. Local production
+build and intercepted-API Playwright test pass (final restored run13.375s).
+The test fails against the old component; three separate built mutations each
+fail (erase errors during polling, remove focus, omit apply progress). Exact
+component bytes were restored, rebuilt and checked. Screenshot visually checked.
+A redundant exact-second timing assertion failed during screenshot capture;
+it was replaced by the already-present positive elapsed-time assertion and the
+clean rerun passed. No live API requests were made by the browser fixture.
+
+[Exact-head review handoff](https://github.com/Decksx/autodecen/pull/4#issuecomment-6839249577)
+mirrored CONFIRMED4537 to Claude. Delayed4516 acknowledged4542, already covered.
+CI **43331076248** completed success on exact4f5097d: Windows backlog and Ubuntu
+GUI/build/Chromium browser all green (browser step explicitly successful).
+[CI receipt](https://github.com/Decksx/autodecen/pull/4#issuecomment-6839288629).
+Independent exact-head review remains pending; draft and live unchanged. Board156
+link/status and updated CI note read back. The isolated feature worktree remains active for review.
+Live Camelia remains untouched; rollout must be coordinated with David's owning
+session around any current preview/apply. Comic185 remains next after this UX
+handoff; no185 implementation edits yet.
+
+## Swarm209 merge independently verified (2026-11-12)
+
+Claude4530 reports ready-before-merge. Codex independently checked merge
+**cd0fb0404168962ba09b4565aedfadd2ac581e0a**, parents67945c7+70acd7d,
+and merge/head tree parity **2a4053ebae71d95af8d5a5ec073a1f37b8c35995**.
+Run **43327817939**, exact head **70acd7dbcf878b8e974df873a94e0b3db3de832a**,
+is successful with all four jobs green. [Verification receipt](https://github.com/Decksx/agent-swarm/pull/209#issuecomment-6839090450).
+Board155 done and read back. This docs merge records earlier verified work; the
+4511 preview and PR4 above are later snapshots. No runtime operation accompanies
+the context merge verification.
+
+
 ## Camelia prune rollout verified and application restarted (2026-11-12)
 
 Admin4492 ("I've killed the current camelia session") was acknowledged4510.
