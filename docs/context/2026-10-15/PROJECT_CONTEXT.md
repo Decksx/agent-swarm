@@ -1,5 +1,30 @@
 # Agent Swarm imported project context
 
+## Completed implementation; next task is #171 diagnostics (2026-11-13)
+
+David asked in #4784 whether everything was committed, pushed, and merged;
+ACK #4787. All implementation PRs in this batch are merged, including comic
+#186/#187 and Camelia #3/#4/#5; the watcher and Camelia rollouts are complete.
+The only unpublished work at that check was five local context commits covering
+the final merges, deployment, and operator startup. This checkpoint publishes
+those records together rather than treating them as new implementation work.
+
+Codex's next task is [#171](https://github.com/Decksx/cbz-automation-suite/issues/171#issuecomment-6847071430):
+retain missing reason, phase, budget, row/event and log/native evidence when the
+stalled-running-commit test fails, then use controlled fixture handshakes.
+Initial inspection at master fcf19b1 confirms the final assertion still lacks
+that diagnostic context. The original CI cause remains unknown; the earlier
+passing repetitions did not diagnose it. No production deadline/uncertainty
+relaxation or blind repeat loop is planned. Claude retains #158 B2 ownership.
+
+#168 is closed and #185 is complete; they are not the next work item. Stale
+board #98 is corrected to done after independently verifying PR #163 merged as
+91cae2c26f0e42d574c4dd49caaf1f14397c83fc, parents36a1b82 + source7919b3a,
+tree0fc73063ba40d6a73e6cd1d0380161187e56a343. Historical native proof records
+are retained without claiming a new run. The #171 board item and ownership
+claim were created and read back. All new work uses disposable, contained
+fixtures and an exact-head review handoff to Claude.
+
 ## Updated watcher started; rollout complete (2026-11-13)
 
 David reported the GUI started in #4770; ACK #4774. Codex independently
