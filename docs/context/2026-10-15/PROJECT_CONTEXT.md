@@ -1,5 +1,188 @@
 # Agent Swarm imported project context
 
+## B2 part A merged and verified (2026-11-13)
+
+Claude's #4859 handoff was acknowledged in confirmed hive #4861. Codex
+independently verified comic PR #189 merged as
+**23469d166ef2536733291910b2d50159b6dd3d2f**, with parents
+60328a81c1daf734504437af779a4ffd91c8b658 and approved source
+**0ed5f9b71459f5238b69ad64f4702e1525103eae**. Merge and source trees both
+equal **c297e3142d0549655fe0ef891d30246519720d4d**. Push **43458030772**
+and PR **43458041806** both completed successfully on that exact source.
+The approval's review conditions are satisfied.
+[Independent merge verification](https://github.com/Decksx/cbz-automation-suite/pull/189#issuecomment-6858404861).
+
+The PR summary now qualifies checkpoint atomicity to repository-owned
+transactions and includes the redacted original browser-failure trace,
+Playwright Page.goto reporting net::ERR_NO_BUFFER_SPACE at the login
+navigation. Its cause remains unclassified. The author's local full-suite
+result remains 6,607 passed / 12 skipped / 1 failed. The separate green CI
+results and Codex's focused/browser runs retain their own attribution.
+
+Static repository inspection finds the changed start/complete/fail batch
+methods called by scan_library. The Camelia handoff calls record_archive.
+Claude owns part B from master 23469d1, implementing selection, the planner
+flag and digest-bound provenance. Board #97 remains in progress for that
+workstream. This checkpoint batches the accumulated #188/#212 receipts and B2
+design/review records for publication. The earlier pending-CI snapshot below
+is superseded for part A.
+
+## PR #189 cleanup fix approved; final CI remains required (2026-11-13)
+
+Claude's #4852 handoff was acknowledged in confirmed hive #4854. Codex
+[approved the code at exact head](https://github.com/Decksx/cbz-automation-suite/pull/189#issuecomment-6858220235)
+**0ed5f9b71459f5238b69ad64f4702e1525103eae**, base 60328a8. R1 is resolved:
+COMMIT runs in the protected block and SQLite rollback errors cannot replace
+the original failure. A separate in-transaction check is redundant for this
+behavior. Caller-owned transaction responsibility is now documented.
+
+Independent results: **34 passed / 1 deselected in 1.96 seconds** (11 candidate
+tests, 20 existing discovery/CLI/exclusion cases, three cleanup probes; the
+pre-existing caller case is excluded). Both browser smoke tests passed in
+**14.96 seconds**. In-memory mutations caught the new protections: moving
+COMMIT outside the try caused five failures; removing cleanup-error suppression
+caused three, with overlap. Source bytes stayed unchanged and the review tree
+is clean; working-file SHA-256
+`bc8be5a473b4936b8e344efcbb7c065f4a37bcd3db9bda777fae77d1d27e84ea`.
+Raw focused/browser/mutation logs and `review189_mutation.py` remain in Codex
+scratch. No full-suite rerun by Codex is claimed.
+
+The author's local full suite is **6,607 passed / 12 skipped / 1 failed**.
+Isolated CSRF passes on head and master do not establish a base-reproducible
+failure or a load-dependent cause. The review asks for the original traceback
+and an unclassified-cause description, plus an introductory checkpoint claim
+qualified to owned transactions. No unrelated browser-code fix is requested.
+Push **43458030772** and PR **43458041806** were still running at approval;
+the old head's green checks do not substitute. Claude corrects the summary and
+merges pinned only after both current runs succeed. New source changes need
+fresh review. Part B remains separate; no production operation or rollout.
+
+## PR #189 exact-head review requests transaction cleanup (2026-11-13)
+
+Claude's #4846 handoff was acknowledged in confirmed hive #4848. Codex reviewed
+comic PR #189 at **22a8f0a3d983a31422c48216f3d0a862c608c96a**, based on
+master 60328a81c1daf734504437af779a4ffd91c8b658. This is B2 part A only:
+discovery watermarks; selection, the planner flag and provenance remain part B.
+[Review: changes requested](https://github.com/Decksx/cbz-automation-suite/pull/189#issuecomment-6857915392).
+
+The seven new tests plus twenty existing discovery/CLI/exclusion cases passed
+independently: **27 passed in 3.48 seconds**. Three independent fault probes
+expose one P2 cleanup finding: COMMIT is outside the helper's try, so a rejected
+commit at scan start or direct completion leaves its owned write transaction
+open; a trigger that makes SQLite roll back automatically instead has its
+original IntegrityError masked by an unconditional second ROLLBACK. The latter
+witness passes with the base repository loaded in memory. A fourth probe of a
+caller committing after a failed joined operation fails on both base and head;
+it is explicitly excluded from the blocking finding. No savepoint redesign is
+required by this review; the caller retains its transaction responsibility.
+
+Raw probes/output: `C:\Users\david\.codex\tmp\test_review189_transactions.py`,
+`review189-transactions.txt` and `review189-base.txt`. Probe SHA-256:
+`962ddd6c12def904084e05839a344af287cc388faf6f4be2249bdcc47c8f7546`.
+Candidate source was not edited; its working-file SHA-256 is
+`7a628a405e3795b144b8dacbf4cf5362a49b35e14ecf24e2fa3fd39d8e6ce3cd`.
+Author-reported full-suite results remain attributed to Claude; Codex did not
+repeat the full suite. Push **43455762094** and PR **43455802844** were pending
+at the review check. Claude owns a follow-up fix, guard proofs and a fresh exact
+head; there is no merge approval for 22a8f0a and no production operation.
+
+## B2 revised watermark contract agreed (2026-11-13)
+
+Claude's #4831 handoff was acknowledged in confirmed hive #4834. Codex read
+[revision 1](https://github.com/Decksx/cbz-automation-suite/issues/158#issuecomment-6855315202)
+and [accepted the persisted-watermark design](https://github.com/Decksx/cbz-automation-suite/issues/158#issuecomment-6855342181).
+Batch-linked event rows are not required. R1/R2 are resolved at the design
+level; there is no implementation approval yet.
+
+The contract persists the start event ID atomically with batch creation and
+keeps it through resume, records an end marker at completion, selects by ID
+range in one WAL-aware snapshot, refuses legacy/resumed/errored/incomplete or
+other-root batches, distinguishes gone/unavailable/root-level paths, and binds
+bounds and selection into provenance before hashing. Implementation checks
+include atomic completion metadata, strict bounds/coverage validation, and
+explicit that-batch versus since-batch upper-bound semantics. Clock-rollback,
+same-second, snapshot, omission, digest and refusal witnesses remain required.
+Claude proceeds to an exact-head PR; Codex reviews before merge. This is
+fixture-first engineering, with no production operation or rollout.
+
+## B2 early design review: revise timestamp boundary (2026-11-13)
+
+Claude's #4823 handoff was acknowledged in confirmed hive #4826. Codex
+reviewed the [B2 design](https://github.com/Decksx/cbz-automation-suite/issues/158#issuecomment-6855160899)
+against master **60328a81c1daf734504437af779a4ffd91c8b658** and posted
+[design changes requested](https://github.com/Decksx/cbz-automation-suite/issues/158#issuecomment-6855265880),
+mirrored in confirmed hive #4828. Claude remains the B2 owner.
+
+Two private witnesses use the real schema/repository and a per-connection SQL
+clock. A batch starting at 14:00:10 records a new event at 14:00:09 after a
+simulated rollback: the proposed timestamp query selects zero events, while
+an event-sequence boundary selects it. A second completed, unchanged batch
+in the same second reselects the earlier batch's event by timestamp; its own
+event-ID boundary selects none. No host clock or production data was changed.
+Final driver/output: `C:\Users\david\.codex\tmp\probe158_batch_clock.py` and
+`.json`; script SHA-256
+`2f92c40e16d71485b4b6def63a9d1fdfddbbe02a93c0e247b74243fc7248c03a`.
+An initial fixture lacked migration 010's queue index and failed setup; the
+corrected fixture passed both cases. Earlier artifacts are retained as `_v1`.
+
+Recommendation: persist an event-sequence lower watermark with batch creation,
+preserve it through resume/completion, and capture the upper watermark in the
+same read snapshot as selection. Legacy batches without a trustworthy bound
+must not acquire one by reconstructing timestamps. Bind bounds, batch/root
+identity, selected scopes and omissions into the plan digest. Also define
+coverage for completed scans with errors or resumed scans that skipped missing
+detection; no catalog event is not proof of no filesystem change. Gone,
+unreadable and reparse scopes must remain distinguishable. This is early
+design feedback, not implementation approval or a production incident claim.
+Next: Claude revises the boundary/coverage contract, then supplies an exact-head
+implementation PR. Codex's separate next web-console slice is M4 scoping
+(tool registry, option validation and command preview), as reported to David
+in confirmed hive #4824; no M4 implementation is claimed yet.
+
+## PR #212 merge verified (2026-11-13)
+
+Claude's #4811 handoff was acknowledged in confirmed hive #4814. Codex
+independently verified swarm PR #212 merged as
+**f48f4c95216dc499ae3aae41437b98d0a572ab83**, with parents
+eebe89462f0360f351d49dde80d89719d8d3f480 and approved source
+**ffd07a2d4d2f60dd55e434a164479be06bdaf529**. Merge and source trees both
+equal **a49b66b91eb201cd5a989e913b5bc789b6b6dff2**. Run **43391420226**
+completed successfully on that exact source, with all four checks green.
+[Independent verification](https://github.com/Decksx/agent-swarm/pull/212#issuecomment-6847887613)
+links Claude's direct review and merge receipt.
+
+The earlier pending-review sentence in Codex's PR update crossed with the
+merge delivery and is superseded. PR #212 predates comic #188's merge; that
+verified receipt is already recorded immediately below. These local receipt
+commits are held for the next substantive context publication rather than
+opening a new PR for each acknowledgement. No runtime change or deployment.
+Claude retains #158 B2; comic #171 remains open for its undiagnosed failure.
+
+## Issue #171 diagnostics slice merged; original cause remains open (2026-11-13)
+
+Claude's #4806 handoff was acknowledged in confirmed hive #4809. Codex
+independently verified comic PR #188 merged as
+**60328a81c1daf734504437af779a4ffd91c8b658**, with parents
+fcf19b143cd39d18f4add50f77b24cd4e5a9de54 and approved source
+**a31ee892818c817657eb9cb49875ec117c6cefda**. The merge and source trees both
+equal **80c16809688f7d81d21dcad3d8c34fd3c16283ae**. Push **43391147336**
+and PR **43391177966** both completed successfully on that exact source.
+[Independent merge verification](https://github.com/Decksx/cbz-automation-suite/pull/188#issuecomment-6847844309).
+
+[Claude's exact-head review](https://github.com/Decksx/cbz-automation-suite/pull/188#issuecomment-6847815768)
+checks the helper's attribute contract and reports an independent forced
+wrong-state assertion containing the expected evidence without AttributeError.
+That probe remains attributed to Claude; Codex did not repeat it for this
+receipt. The diagnostics implementation is complete, but issue #171 is
+independently verified OPEN: the historical CI failure is still undiagnosed.
+No production code, deadlines, uncertainty policy, or deployment changed.
+The next investigation needs captured failure evidence or a concrete new
+hypothesis; passing repetitions alone do not resolve the issue.
+
+This receipt is committed separately from PR #212's frozen review head
+ffd07a2d4d2f60dd55e434a164479be06bdaf529, for the next context publication.
+The earlier pending-review/CI snapshot below is superseded for comic #188.
+
 ## Issue #171 diagnostics PR ready for independent review (2026-11-13)
 
 Comic [PR #188](https://github.com/Decksx/cbz-automation-suite/pull/188) is open
