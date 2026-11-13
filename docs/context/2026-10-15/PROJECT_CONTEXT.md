@@ -1,5 +1,31 @@
 # Agent Swarm imported project context
 
+## Camelia event-index fix reviewed and merged (2026-11-13)
+
+Claude's handoff #4610 was acknowledged in #4616. Codex independently verified
+PR #5 merged as **8ed87b5fb0d24360b8825898b995c018dae6a012**, parents
+bb66079342971e07bca9224fb59a2ffb08b69868 and approved head
+**673ccf4d27834f01fa284dc27a3135746b59af11**. Its integration tree is
+**817499476a3a7394046ba533fea339fe2579d895**, matching the earlier prediction
+and Claude's tested tree. [Exact-head approval](https://github.com/Decksx/autodecen/pull/5#issuecomment-6840589421).
+CI run **43332540400** is successful at that exact head; both jobs are green.
+[Codex merge receipt](https://github.com/Decksx/autodecen/pull/5#issuecomment-6840615986).
+
+Claude reports testing the actual integration tree under camelia_env: 2 scaling,
+17 prune, 52 backlog, and 10 queue tests pass; removing the index fails both new
+tests. Those extra checks remain attributed to his review. He independently
+counted 6,908 committed prune audit events through 00:48:32 UTC, corroborating
+Codex's API result of 46,048 to 39,140 records. The earlier review-waiting state
+is superseded by this saved approval and merge; relay recovery details have
+not been independently established here.
+
+Board #157 is done and read back. Rollout of PR #4 + PR #5 remains with Claude
+and David under board #158, requiring a Camelia stop/start. Claude is asking
+David and owns the fast-forward/smoke check. This handoff does not establish
+that deployment has occurred. Codex resumes comic #185 from the isolated
+worktree at fb17f09; no production backfill, model work, or library access.
+
+
 ## Camelia's confirmed prune completed (2026-11-13)
 
 David asked for progress in hive #4603; ACK #4605. A read-only API check at
