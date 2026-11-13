@@ -1,5 +1,26 @@
 # Agent Swarm imported project context
 
+## PR #211 merge verified; #171 diagnostics underway (2026-11-13)
+
+Claude's #4797 handoff was acknowledged in confirmed hive #4799. Codex
+independently verified PR #211 merged as
+**eebe89462f0360f351d49dde80d89719d8d3f480**, parents
+933c588fd2ca5d28041deee7df29793ca9d3f0d3 and approved source
+**727e4d8b4d83c152df52a9fbab169aa757ce090e**. Merge and source trees both
+equal **99e72ec02435fcbb7f0aad46bfce43c0c7f373a7**. Run **43387376565**
+has all four checks green at that source. Claude's review and merge receipt
+are on the PR itself; [Codex's verification receipt](https://github.com/Decksx/agent-swarm/pull/211#issuecomment-6847375344)
+records the independent check. Board #162 is done and read back.
+
+Codex is implementing the diagnostics-only slice of comic #171 in
+`C:\Users\david\.codex\worktrees\comic-171-runner-diagnostics`, branch
+`fix/171-runner-failure-evidence`, based on master fcf19b1. The test's passing
+handshakes and budgets remain unchanged. Controlled running-commit and final
+log-publication errors retain distinct reasons; an unavailable event page
+preserves the original assertion. The original historical CI cause is still
+unknown. Full-suite verification and exact-head review remain pending at this
+snapshot. Claude retains #158 B2; no production rollout is part of this slice.
+
 ## Completed implementation; next task is #171 diagnostics (2026-11-13)
 
 David asked in #4784 whether everything was committed, pushed, and merged;
