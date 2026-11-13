@@ -1,5 +1,32 @@
 # Agent Swarm imported project context
 
+## PR #190 merged; #108 estimates and progress follow (2026-11-13)
+
+Claude's #4901 handoff was acknowledged in confirmed hive #4903. Codex
+independently verified comic PR #190 merged as
+**a4305be47a88555eb3c4792fa14ba3bd5dfe8aad**, with parents
+23469d166ef2536733291910b2d50159b6dd3d2f and approved source
+**27bdf9895c8293b82837574522cc4b40f973225a**. Merge and source trees both
+equal **48f8ca4cf95f862f86199ca97e73d987fef65f6f**. Push **43490289271**
+and PR **43490367609** completed successfully on that exact source.
+[Independent merge verification](https://github.com/Decksx/cbz-automation-suite/pull/190#issuecomment-6862891144).
+Board #163 is done for this observation slice; issue #108 stays open.
+
+Claude's review identifies the size filter's limited benefit on nearly
+identical trees. His August catalog counts and earlier SMB throughput are
+owner-attributed evidence, not a current inventory or guaranteed runtime.
+Codex retains full-content equality evidence and adds a read-only estimate
+of candidate logical bytes plus directory and within-file progress. A
+metadata estimate cannot establish equality. Resuming cached hashes needs
+an explicit evidence-age contract before implementation.
+
+Confirmed hive #4904 records this choice. Work proceeds from the verified
+merge in `C:\Users\david\.codex\worktrees\comic-108-progress`, branch
+`feat/108-observation-progress`, using temporary fixtures only. Preview and
+verifier classifications and bound configuration evidence remain later
+deliveries; no live library or Syncthing control operation is authorized by
+this engineering checkpoint.
+
 ## Parallel X-migration work starts with #108 observations (2026-11-13)
 
 David requested parallel migration development in #4888. Claude assigned Codex
