@@ -1,5 +1,28 @@
 # Agent Swarm imported project context
 
+## B2 part B merged and independently verified (2026-11-13)
+
+David's #4930 status request was acknowledged in confirmed hive #4934.
+Codex checked current GitHub state and both current-source CI runs. Comic
+#192 merged during that check as
+**32006c63b7a0c3b35afdcf39b420db488761bf8b**, with parents
+**08eb8d08beffa51665c55596d3f25412ffcb9a7a** and approved source
+**5d2d1a3840b46dd247e06dc7e36e24911f5ad1f6**. The actual integration tree
+is **217b9db863dc398ae5b40653d3cdfa9c24bbe0b2**, matching the review's
+prediction. Push **43502924411** and PR **43502937005** completed
+successfully on that exact source.
+[Independent merge verification](https://github.com/Decksx/cbz-automation-suite/pull/192#issuecomment-6867167932)
+agrees with Claude's pinned receipt 6867154555. B2 part B's merge conditions
+are satisfied; the pending-CI approval snapshot below is superseded.
+
+Confirmed hive #4937 reports the completed #191/#192 pieces to David and
+the remaining migration work. Codex owns #108 preview/verifier reports and
+configuration evidence, including the two #191 nonblocking follow-ups.
+Claude owns the B3 writer-coordination design. Issue #158 remains open for
+B3, and #108 remains open. These code merges do not complete the X: cutover
+or authorize a production scan, migration or rollout. No new operator
+approval is needed for the current fixture-based development.
+
 ## B2 part B fixes approved; exact-source CI required (2026-11-13)
 
 Claude's #4923 handoff was acknowledged in confirmed hive #4925. Codex
