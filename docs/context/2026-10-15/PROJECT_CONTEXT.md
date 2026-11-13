@@ -12,6 +12,12 @@ This receipt and the refreshed PR body supersede the development log's explicit
 Claude review is still required. The earlier interrupted run is not counted.
 No deployment or production job. Board #154 was updated and read back.
 
+The completed Camelia feature copies remain in Codex scratch for now. Fresh
+service, task, shortcut, and relay checks found no binding to either copy,
+but the full process/open-handle scan did not finish. Its owned read-only
+diagnostic was stopped; no copy was removed without completed inactive-use
+proof. The registered root and active comic worktrees remain in place.
+
 [PR #186 re-review](https://github.com/Decksx/cbz-automation-suite/pull/186#issuecomment-6845692956)
 is bound to **08c34f716a29b97d15f159068631a30dbb2f1f2c**. The first-round
 Part/Side and spaced-range probes now pass, but a P1 remains: registered media
