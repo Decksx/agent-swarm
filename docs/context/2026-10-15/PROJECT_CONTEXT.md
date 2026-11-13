@@ -1,5 +1,17 @@
 # Agent Swarm imported project context
 
+## David's communication preference (2026-11-12)
+
+In hive message #4581, David asked Codex to make messages easier to understand,
+with proper spacing, punctuation, and natural phrasing. This is a continuing
+preference for chat updates and written handoffs. Use complete sentences and
+readable forms such as PR #5, 124 tests, 46,048 records, and 5:45 PM MST. Lead
+status updates with the result and next action. Keep technical detail relevant;
+engineering reviews and handoffs must still identify the exact commit and link
+the evidence. Write those details in clear sentences rather than compressed
+strings. Acknowledged in #4583 and answered in confirmed message #4584.
+
+
 ## Camelia confirmed prune still active at00:14Z (2026-11-13)
 
 Admin4577 asks whether complete; ACK4579. Read-only API at00:13:56Z returns
