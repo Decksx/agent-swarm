@@ -1,5 +1,255 @@
 # Agent Swarm imported project context
 
+## B3 slice 1: physical alias and acquisition fixes requested (2026-11-13)
+
+Claude's #4997 was acknowledged in confirmed hive #5014. Codex reviewed
+comic #195 at exact **c47a40e694f1351d91f9134422b3e40fe1faef3d**, base
+**909991da8ea47cb0f6189c4d97fedfbdd4610a92**, tree
+**b5f6f93afc34da9b3ec1d0765a63435e1594e1e9**.
+[Changes requested](https://github.com/Decksx/cbz-automation-suite/pull/195#issuecomment-6869846703)
+was mirrored in confirmed hive **#5015**. Two P1 implementation gaps:
+
+- Lexical ancestry through an interior junction assigns different keys to the
+  same physical series (a real second-thread contender is admitted), or assigns
+  a destination escaping into another registered root to the lexical parent's
+  gate. An external alias directly to a series is also refused. Resolve physical
+  ancestry and relative components, or conservatively refuse unsupported paths.
+- Root identity is checked only before gate-file open. Swapping the root during
+  that open still grants ordinary ownership on the replacement. Bind/revalidate
+  acquisition and refuse before yielding; cover maintenance and cleanup too.
+
+Existing writer-gate/observation/CLI/preview tests: **147 passed in 7.79 s**.
+Five independent fixture probes fail at this head. Probe retained outside the
+review checkout: `C:\Users\david\.codex\tmp\test_review195_probes.py`, SHA-256
+`ef0c94829544480640a111a07f776b14e7a599e6f0b60f81eaad23221f02bce6`.
+No full-suite or live lock probe by Codex. Exclusion constants agree with the
+design; preserve #196's all-Tower option when combining changes. Claude owns
+new commits, permanent guards/mutations, and fresh exact-head review. The full
+#193 design agreement below remains; no implementation approval is implied.
+
+## B3 revision 3: full design agreement (2026-11-13)
+
+Supersedes the partial agreement below. Claude's #4992 was acknowledged in
+confirmed hive #5007. Codex read the full #193 note and revision-2-to-3 diff
+at exact **66a6dbe34a4e13db7c43db4ecddbad3b2ca2aadd**, base
+**32006c63b7a0c3b35afdcf39b420db488761bf8b**, tree
+**aa583a9c57d0e9ddc67aac390d0ff76d70dad53e**. The remaining R2 private
+snapshot/output and owned staging requirements, directory-only series keys
+and all four control names are explicit. No blocking design findings remain.
+[Full design agreement](https://github.com/Decksx/cbz-automation-suite/pull/193#issuecomment-6869789569)
+was mirrored in confirmed hive **#5008**. Static documentation review only:
+current head/base/file scope verified and whitespace clean; no runtime tests
+or live lock probe by Codex. Claude's measurements remain owner-attributed.
+
+Claude owns the pinned docs merge after current CI and implementation slices.
+Each slice still requires exact-head review, guard witnesses and CI; this
+agreement is not implementation or rollout approval. Mixed-version and
+nonparticipant attestations remain. Multi-series transactions must own every
+affected scope or use the exclusive maintenance gate. Slice 1's control-name
+exclusion edit is acknowledged; preserve #196's pushed all-Tower baseline
+option and test their combined observation policy. Overall #108 is still open.
+
+## #194 merge verified; #108 fresh verifier handed off (2026-11-13)
+
+Claude's #4988 receipt was acknowledged in confirmed hive #4995. Codex
+independently verified comic #194 merge
+**909991da8ea47cb0f6189c4d97fedfbdd4610a92**, parents
+**32006c63b7a0c3b35afdcf39b420db488761bf8b** and approved source
+**42c58434bde425b2902af57d80f86eccf952727d**. Merge/source tree is
+**fa42e9887e3631658f888becec1ff5ddc1380e69**. Push **43537394982** and
+PR **43537650743** completed successfully at that source. Independent
+[receipt](https://github.com/Decksx/cbz-automation-suite/pull/194#issuecomment-6869268832)
+was mirrored in confirmed hive #4996. This supersedes the pending #194 state below.
+
+Codex implemented the next #108 slice from that merge in
+`C:\Users\david\.codex\worktrees\comic-108-verifier`, branch
+`feat/108-fresh-verifier`. Draft [comic #196](https://github.com/Decksx/cbz-automation-suite/pull/196)
+is at exact **af64abbde6f7607a3665193c1ad557c7e4afe3b2**, tree
+**355cefe4dc679f00cea6061872b62dff5f2a0316**. It adds fully hashed Tower
+baselines and a verifier that collects fresh evidence itself, binds root and
+exclusion scope, checks exact target paths/bytes, and refuses success on source
+drift or incomplete coverage. Metadata-only changes are diagnostic;
+`sync_ready=false` remains explicit.
+
+Final focused observation/CLI/preview/verifier tests: **171 passed in 5.90 s**.
+Full suite at implementation-identical
+**af7db841c8e6c4b586860a83e639ac5c4a6ebb4c**: **6,820 passed / 12 skipped
+in 453.43 s** (6,832 collected). A final test-only malformed-baseline case
+was added afterward; the final verifier file has **44 passing cases**. This is
+not a claim of a final-head local full run. All **29** in-memory mutation groups
+failed tests; control 43 passed/1 deselected, with the real subprocess test
+separately passing. Sources/tests were hashed unchanged around the mutation run.
+Evidence and per-guard counts are in the PR's topic development log.
+
+[Exact-head review handoff](https://github.com/Decksx/cbz-automation-suite/pull/196#issuecomment-6869738671)
+was mirrored in confirmed hive **#5002**; admin update was confirmed **#5001**.
+Claude owns independent review. Final-head CI **43543249897** and
+**43543245054** were queued/running when recorded; no success is inferred.
+The draft requires review plus both exact-head runs green before merge.
+All work used fixtures: no live inventory, backup, configuration or sync action.
+#108 remains open for sanitized configuration evidence and operational readiness.
+The B3 limited agreement and remaining private snapshot/staging requirement
+below are unchanged; #193 does not have full design or rollout approval.
+
+## B3 revision 2: primitive work agreed; private staging still needs clarity (2026-11-13)
+
+Claude's #4973 handoff was acknowledged in confirmed hive #4987. Codex
+reviewed design PR #193 at exact
+**f266f17d23ff206ad9f5a21bf212100074406f5f**, base
+**32006c63b7a0c3b35afdcf39b420db488761bf8b**, tree
+**365238d9c1cdd1f76910343808affadd8c6a1676**.
+[Re-review and limited design agreement](https://github.com/Decksx/cbz-automation-suite/pull/193#issuecomment-6869133943)
+is mirrored in confirmed hive #4989.
+
+R1, R3 and the registered-root principle in R4 are addressed. Slice 1's
+primitive, resolver and control-file exclusions may proceed on fixtures for
+exact-head implementation review. The agreement retains the mixed-version
+and nonparticipant attestations, fail-closed root resolution and outermost
+ownership. Series keys must use directory components, excluding filenames;
+folder landings and files inside that folder need equivalent keys, while
+loose books use the reserved root key. All four full control filenames must
+be explicit. This is not adapter integration or rollout approval.
+
+One R2 boundary still needs a design edit: "rebuild outside the gate, as
+today" could retain Camelia's library-side `.camelia-<uuid>.tmp` and live
+`archive_path` reads. At committed autodecen source
+**4211611d6d093af4284f4962ae31c4d500d8c206**, those paths are explicit in
+`api.py:770-795`. Extraction/rebuild/verification must use one immutable
+snapshot and private outputs outside every registered library. Only after
+ownership and generation revalidation may destination-side staging, backup,
+install and cleanup mutate the library. A maintenance-exclusive witness must
+show private processing creates no library payload/temp names or bytes.
+
+Claude owns that note correction and the next exact-head handoff. Primitive
+work can run in parallel within the limited agreement. This is static
+source/design review with clean whitespace; no runtime suite or live probe
+by Codex. Full design agreement and #193 merge approval remain pending.
+
+## #194 parent-directory spelling fix resubmitted (2026-11-13)
+
+Claude's #4967 review handoff was acknowledged in confirmed hive #4980.
+The P2 at initial source 7595ef6 was reproduced by five new failing cases:
+different child names under case/NFC-different parent prefixes were classified
+as writes/removals. The revised preview checks every parent prefix within
+its folder ID, holds the full affected subtree, and leaves sibling prefixes
+and other folder IDs independent. The P3 same-path-only group filter has a
+direct witness; empty directories and file/directory ordering are explicit
+report/protocol limits.
+
+New exact source **42c58434bde425b2902af57d80f86eccf952727d**, base
+**32006c63b7a0c3b35afdcf39b420db488761bf8b**, tree
+**fa42e9887e3631658f888becec1ff5ddc1380e69**. Four new one-file commits,
+no force-push; code/tests final at
+**8a655a5b5c8cbd33c0d540d71be84e762fc4b413**. Final focused result:
+**127 passed in 4.31 seconds**; before the fix, **5 failed / 122 passed**.
+Full suite: **6,777 passed / 12 skipped / 0 failed in 458.63 seconds**,
+JUnit 6,789 cases (+7 from the first #194 candidate, +48 from master).
+All 40 mutation groups are caught with 94 failing executions including
+overlap, control 48/48. Final source/CLI/test bytes stayed unchanged.
+The topic log preserves initial and round-1 evidence separately.
+
+[New exact-head handoff](https://github.com/Decksx/cbz-automation-suite/pull/194#issuecomment-6868914904)
+is mirrored in confirmed hive #4982. PR summary and board #169 are refreshed.
+Claude owns fresh review. Push **43537394982** and PR **43537650743** are
+running on this source; both must succeed before ready/pinned merge after
+approval. #108 remains open for the fresh verifier and configuration evidence;
+no production inventory, sync or rollout occurred.
+
+## B3 writer-gate design review requests four boundary fixes (2026-11-13)
+
+After delivering #194, Codex reviewed comic design PR #193 at exact
+**181da1eff841fd926ef13fb137a51f4a5c496786**, base
+**32006c63b7a0c3b35afdcf39b420db488761bf8b**, tree
+**76bf018fc13112bbe2d04eac80c9d87c103096ea**.
+[Design review: changes requested](https://github.com/Decksx/cbz-automation-suite/pull/193#issuecomment-6868624444)
+is mirrored in confirmed hive #4968. The shared/exclusive gate direction is
+reasonable, but four P1 contract gaps block implementation agreement:
+
+- R1: retain operator quiescence during partial/mixed-version deployment;
+  an exclusive gate cannot exclude legacy writers that never take it.
+- R2: bind Camelia's input generation through processing and final install,
+  rather than only gating backup/install after stale output is computed.
+- R3: cover watcher whole-folder rename, mkdir, backfill, deferred naming,
+  loose moves, merge and rollback; the destination-lock section alone misses
+  mutation paths.
+- R4: resolve one registered coordination root for all callers, including
+  nested apply roots and aliases; derive series keys from actual destinations.
+
+Codex answered all four design questions: shared control-name constants and
+exclusions, a validated shared-module import for Camelia, diagnostic M6
+busy/defer visibility without ownership bypass, and registered-root keys.
+The review is static against comic base 32006c6 and clean autodecen source
+**4211611d6d093af4284f4962ae31c4d500d8c206**. Claude's live lock measurements
+remain owner-attributed; no live probe or implementation approval by Codex.
+Claude owns the revised exact-head design handoff (board #167). Preview
+#194 remains with Claude for independent code review in parallel.
+
+## #108 filesystem preview PR #194 ready for review (2026-11-13)
+
+David's #4948 request was acknowledged in confirmed hive #4953. Codex
+reported plainly in #4954 that no implementation had run during the gap
+after receipt updates, started the next #108 slice, and sent Claude a direct
+B3 design handoff in #4955. Implementation progress reached David in
+confirmed #4961/#4962. The result is comic draft PR #194 at exact source
+**7595ef625d524bd4432b9a29af828a61c48804c7**, base
+**32006c63b7a0c3b35afdcf39b420db488761bf8b**, tree
+**ab8cbecb61495f313dbe816dfdc2fb9c746a1fc7**. Ten commits each change one
+file; five files total. Code/tests are final at
+**5c5d0aff74bd6660c7ad1740e5973a98b4fc3b14**.
+
+The preview partitions all observed Tower files into keep/write/unresolved
+and target files into keep/replaced/remove/unresolved, with logical bytes.
+Replacements retain old targets without double-counted removals. Global
+size/SHA-256 groups provide compact many-to-many relocation maps, not keeps
+or automatic renames. Cross-side Windows spelling conflicts stay unresolved.
+Incomplete evidence supplies no absence certainty; a supposedly complete
+artifact missing required candidate hashes is refused. The read-only CLI
+gains `preview`, independent evidence and a report digest. Both #191 manifest
+follow-ups are covered. `sync_ready=false` and scope remains filesystem-only.
+The fresh verifier and configuration/effective-ignore adapter remain later
+#108 work; the issue stays open. No live library or Syncthing action occurred.
+
+Validation: existing focused baseline **79 passed**; final **120 passed in
+4.45 seconds**, including 41 new cases. Parent collection is **6,741**.
+Final full suite: **6,770 passed / 12 skipped / 0 failed in 466.72 seconds**,
+JUnit **6,782 cases**. All **30 mutation groups** are caught with 56 failing
+executions including overlap; unmodified control 41/41. Final source/CLI/test
+bytes stayed unchanged across proof and final suite. A real-module CLI smoke
+preserved all fixture names/bytes. The topic log records the preliminary
+full pass, stopped interim run, masked collision fixture and final proof.
+
+[Exact-head review handoff](https://github.com/Decksx/cbz-automation-suite/pull/194#issuecomment-6868515290)
+is mirrored in confirmed hive #4963. Claude owns review; push **43534476120**
+and PR **43534496512** are running. Both must succeed on the approved source
+before ready/pinned merge. Changed source needs fresh review. Board #166
+continues for the whole reports/configuration workstream.
+
+Claude has also opened comic PR #193, writer-gate design, at
+**181da1eff841fd926ef13fb137a51f4a5c496786**. Codex's next review is that
+design; no design or implementation approval is recorded by this checkpoint.
+
+## PR #215 merge verified; B3 design is next (2026-11-13)
+
+Claude's #4944 handoff was acknowledged in confirmed hive #4946. Codex
+independently verified swarm #215 merged as
+**95e6d99e7413e4226bd85d1857e33e6ca6e32db1**, with parents
+42b6b810c83db7223996a2000a2562ea9fa9507a and exact source
+**d6d8d6897275b4db4f67a467792efdb60accadbc**. Merge/source tree parity:
+**56731604f93c8e457df5ad08e621d62489314184**. Run **43524808913** succeeded
+at that source with pytest-core/hub/bypass/unit all green.
+[Independent merge verification](https://github.com/Decksx/agent-swarm/pull/215#issuecomment-6867360776)
+agrees with Claude's pinned receipt 6867342263. The combined #191/#214/#192
+review and merge checkpoint is published.
+
+Claude owns the next B3 writer-coordination design note (board #167), to be
+reviewed by Codex before implementation. Claude reports that canonical
+apply's OS scope lock and quiescence hook already exist while watcher and
+Camelia do not reference them; this is Claude's starting observation, not
+a new Codex code inspection or design approval. Codex retains #108
+preview/verifier reports and configuration evidence (board #166). This
+docs-only verification performs no deployment or production library action.
+The receipt is committed for the next substantive context publication.
+
 ## B2 part B merged and independently verified (2026-11-13)
 
 David's #4930 status request was acknowledged in confirmed hive #4934.
