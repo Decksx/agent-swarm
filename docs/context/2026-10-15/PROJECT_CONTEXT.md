@@ -1,5 +1,34 @@
 # Agent Swarm imported project context
 
+## B3 writer-gate design review requests four boundary fixes (2026-11-13)
+
+After delivering #194, Codex reviewed comic design PR #193 at exact
+**181da1eff841fd926ef13fb137a51f4a5c496786**, base
+**32006c63b7a0c3b35afdcf39b420db488761bf8b**, tree
+**76bf018fc13112bbe2d04eac80c9d87c103096ea**.
+[Design review: changes requested](https://github.com/Decksx/cbz-automation-suite/pull/193#issuecomment-6868624444)
+is mirrored in confirmed hive #4968. The shared/exclusive gate direction is
+reasonable, but four P1 contract gaps block implementation agreement:
+
+- R1: retain operator quiescence during partial/mixed-version deployment;
+  an exclusive gate cannot exclude legacy writers that never take it.
+- R2: bind Camelia's input generation through processing and final install,
+  rather than only gating backup/install after stale output is computed.
+- R3: cover watcher whole-folder rename, mkdir, backfill, deferred naming,
+  loose moves, merge and rollback; the destination-lock section alone misses
+  mutation paths.
+- R4: resolve one registered coordination root for all callers, including
+  nested apply roots and aliases; derive series keys from actual destinations.
+
+Codex answered all four design questions: shared control-name constants and
+exclusions, a validated shared-module import for Camelia, diagnostic M6
+busy/defer visibility without ownership bypass, and registered-root keys.
+The review is static against comic base 32006c6 and clean autodecen source
+**4211611d6d093af4284f4962ae31c4d500d8c206**. Claude's live lock measurements
+remain owner-attributed; no live probe or implementation approval by Codex.
+Claude owns the revised exact-head design handoff (board #167). Preview
+#194 remains with Claude for independent code review in parallel.
+
 ## #108 filesystem preview PR #194 ready for review (2026-11-13)
 
 David's #4948 request was acknowledged in confirmed hive #4953. Codex
