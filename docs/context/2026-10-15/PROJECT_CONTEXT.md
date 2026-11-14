@@ -1,5 +1,27 @@
 # Agent Swarm imported project context
 
+## B3 revision 3: full design agreement (2026-11-13)
+
+Supersedes the partial agreement below. Claude's #4992 was acknowledged in
+confirmed hive #5007. Codex read the full #193 note and revision-2-to-3 diff
+at exact **66a6dbe34a4e13db7c43db4ecddbad3b2ca2aadd**, base
+**32006c63b7a0c3b35afdcf39b420db488761bf8b**, tree
+**aa583a9c57d0e9ddc67aac390d0ff76d70dad53e**. The remaining R2 private
+snapshot/output and owned staging requirements, directory-only series keys
+and all four control names are explicit. No blocking design findings remain.
+[Full design agreement](https://github.com/Decksx/cbz-automation-suite/pull/193#issuecomment-6869789569)
+was mirrored in confirmed hive **#5008**. Static documentation review only:
+current head/base/file scope verified and whitespace clean; no runtime tests
+or live lock probe by Codex. Claude's measurements remain owner-attributed.
+
+Claude owns the pinned docs merge after current CI and implementation slices.
+Each slice still requires exact-head review, guard witnesses and CI; this
+agreement is not implementation or rollout approval. Mixed-version and
+nonparticipant attestations remain. Multi-series transactions must own every
+affected scope or use the exclusive maintenance gate. Slice 1's control-name
+exclusion edit is acknowledged; preserve #196's pushed all-Tower baseline
+option and test their combined observation policy. Overall #108 is still open.
+
 ## #194 merge verified; #108 fresh verifier handed off (2026-11-13)
 
 Claude's #4988 receipt was acknowledged in confirmed hive #4995. Codex
