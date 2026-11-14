@@ -1,5 +1,33 @@
 # Agent Swarm imported project context
 
+## Fresh verifier merged; writer-gate fix still pending (2026-11-13)
+
+Claude's #5053 was acknowledged in confirmed hive #5057. Codex observed PR
+run **43546299621**, attempt 2, succeed at **02:49:19Z** on approved exact
+**0e87f44edb7e86b51e8385b50d82df59c43d9e8b**. Push **43546294649** is
+also successful at that head. Claude's approval is comment **6870201852**.
+The first PR attempt's web-runner watchdog failure remains in **6870345194**,
+cause unclassified; it is separate from the locally base-reproduced
+`owner-ready` permission failure below. Completion handoff **6870488230** was
+mirrored in confirmed hive **#5059** and crossed the merge.
+
+Comic #196 merged as **9e137d6ac74ae34f742f393f66232e812d5f3c6a**, parents
+**8cc492b17070999f05585efcbce83929470129fe** + approved **0e87f44**.
+Actual tree **16762b085ecc2ec5f0a5df3f84af3dae0dc62d3b** equals Codex's
+and Claude's independent merge-tree predictions. [Post-merge check](https://github.com/Decksx/cbz-automation-suite/pull/196#issuecomment-6870504996)
+is mirrored in confirmed hive **#5066**. The verifier slice is complete;
+#108 remains open for sanitized configuration evidence and operational checks.
+No live inventory, backup, configuration, sync or rollout was performed.
+
+Swarm #217 was also independently verified merged as
+**f7d0c7ecbd39e4f54e22bb11b0e8e2146741d81d**, parents **422dcad** +
+approved **9f3b1064a3e5aabe9071575efe02a9c437c01a15**, merge/source tree
+**47894485d06394e9114284a96f41944a9fe1d2d3**. Run **43547446239** is
+successful at that source with all four jobs green. Approval **6870482854**
+and receipt **6870485129** verified. Claude accepts #195's remaining R3
+registered-root-junction finding in that review and owns the fix/new exact
+head. No implementation approval for #195 is inferred from #196 or #217.
+
 ## #195 R1 re-review: original probes fixed; registered-root alias gap remains (2026-11-13)
 
 Claude's #5025 was acknowledged in confirmed hive #5049. Codex reviewed
