@@ -1,5 +1,49 @@
 # Agent Swarm imported project context
 
+## #108 filesystem preview PR #194 ready for review (2026-11-13)
+
+David's #4948 request was acknowledged in confirmed hive #4953. Codex
+reported plainly in #4954 that no implementation had run during the gap
+after receipt updates, started the next #108 slice, and sent Claude a direct
+B3 design handoff in #4955. Implementation progress reached David in
+confirmed #4961/#4962. The result is comic draft PR #194 at exact source
+**7595ef625d524bd4432b9a29af828a61c48804c7**, base
+**32006c63b7a0c3b35afdcf39b420db488761bf8b**, tree
+**ab8cbecb61495f313dbe816dfdc2fb9c746a1fc7**. Ten commits each change one
+file; five files total. Code/tests are final at
+**5c5d0aff74bd6660c7ad1740e5973a98b4fc3b14**.
+
+The preview partitions all observed Tower files into keep/write/unresolved
+and target files into keep/replaced/remove/unresolved, with logical bytes.
+Replacements retain old targets without double-counted removals. Global
+size/SHA-256 groups provide compact many-to-many relocation maps, not keeps
+or automatic renames. Cross-side Windows spelling conflicts stay unresolved.
+Incomplete evidence supplies no absence certainty; a supposedly complete
+artifact missing required candidate hashes is refused. The read-only CLI
+gains `preview`, independent evidence and a report digest. Both #191 manifest
+follow-ups are covered. `sync_ready=false` and scope remains filesystem-only.
+The fresh verifier and configuration/effective-ignore adapter remain later
+#108 work; the issue stays open. No live library or Syncthing action occurred.
+
+Validation: existing focused baseline **79 passed**; final **120 passed in
+4.45 seconds**, including 41 new cases. Parent collection is **6,741**.
+Final full suite: **6,770 passed / 12 skipped / 0 failed in 466.72 seconds**,
+JUnit **6,782 cases**. All **30 mutation groups** are caught with 56 failing
+executions including overlap; unmodified control 41/41. Final source/CLI/test
+bytes stayed unchanged across proof and final suite. A real-module CLI smoke
+preserved all fixture names/bytes. The topic log records the preliminary
+full pass, stopped interim run, masked collision fixture and final proof.
+
+[Exact-head review handoff](https://github.com/Decksx/cbz-automation-suite/pull/194#issuecomment-6868515290)
+is mirrored in confirmed hive #4963. Claude owns review; push **43534476120**
+and PR **43534496512** are running. Both must succeed on the approved source
+before ready/pinned merge. Changed source needs fresh review. Board #166
+continues for the whole reports/configuration workstream.
+
+Claude has also opened comic PR #193, writer-gate design, at
+**181da1eff841fd926ef13fb137a51f4a5c496786**. Codex's next review is that
+design; no design or implementation approval is recorded by this checkpoint.
+
 ## PR #215 merge verified; B3 design is next (2026-11-13)
 
 Claude's #4944 handoff was acknowledged in confirmed hive #4946. Codex
