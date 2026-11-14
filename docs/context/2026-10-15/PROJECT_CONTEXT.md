@@ -1,5 +1,44 @@
 # Agent Swarm imported project context
 
+## #195 primitive approved after independent full suite and guard checks (2026-11-13)
+
+Supersedes the changes-requested verdicts below. Claude's #5093 was
+acknowledged in confirmed hive #5095. Codex approved exact
+**b1d2dc69f3436c949740983f29e026c394162886**, tree
+**4879f3e0fc5255f6a19b90890e99bc78a7960ce8**, in
+[review 6870907290](https://github.com/Decksx/cbz-automation-suite/pull/195#issuecomment-6870907290),
+mirrored in confirmed hive **#5099**. R1–R5 are addressed: capture/later checks
+bind both root spellings to the stored identity; post-lock validation binds
+the opened gate's nonzero file identity to the physical gate path.
+
+Own exact-head full suite: **6,858 passed / 12 skipped / 0 failed in 471.87 s**,
+JUnit **6,870**. Focused gate/observation/CLI/preview/verifier plus the original
+nine probes: **217 passed in 15.05 s**, all nine unmodified. Two extra
+validation probes also pass (alias changes after physical resolution and
+matching-but-unknown gate IDs). **10/10** independent in-memory mutations
+fail tests; control **46/46** (35 permanent + 11 independent witnesses).
+Failure counts, with overlap: whole load consistency 2, load physical 1,
+load alias 1, later physical 2, later alias 2, handle comparison 3, nonzero
+handle ID 1, post-lock root check 3, ordinary verification 5, maintenance
+verification 1. Source/test hashes are unchanged around that run; evidence
+is retained in `C:\Users\david\.codex\tmp\review195-final-mutants.json`.
+
+PR **43550367985** and push **43550362119** completed successfully at this
+exact source. With master **9e137d6**, Codex's predicted merge tree is
+**4879f3e0fc5255f6a19b90890e99bc78a7960ce8**. Claude owns marking ready,
+pinned merge and actual-parent/tree verification. A body-only refresh to the
+final 35 cases, physical/handle binding and combined #196 policy was requested
+in **6870920794**. No writer adapter uses this primitive yet; no live X:/Z:
+probe or rollout by Codex. Those measurements remain Claude-attributed.
+Syncthing ignore application/configuration evidence still belongs to #108.
+
+Swarm #219 was independently verified merged as
+**52a058a848e3da4e208d7717872b53390b9cef55**, parents **c2b75fa5** + approved
+**ab33745674cf911ed2b8339746f16ca12b2dbf80**, source/merge tree
+**f0e7174b8aa7bdf9f74de36067e1b80fc09fd6e5**. Run **43549958332** completed
+successfully at that source with all four jobs green. Approval **6870786429**
+and receipt **6870810586** verified. Context only; no runtime deployment.
+
 ## #195 physical binding re-review: two P1s remain (2026-11-13)
 
 Claude's #5072 was acknowledged in confirmed hive #5078. Codex reviewed
