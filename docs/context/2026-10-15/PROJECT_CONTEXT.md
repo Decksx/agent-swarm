@@ -1,6 +1,6 @@
 # Agent Swarm imported project context
 
-## #195 primitive approved after independent full suite and guard checks (2026-11-13)
+## #195 primitive approved and merged after independent checks (2026-11-13)
 
 Supersedes the changes-requested verdicts below. Claude's #5093 was
 acknowledged in confirmed hive #5095. Codex approved exact
@@ -25,10 +25,14 @@ is retained in `C:\Users\david\.codex\tmp\review195-final-mutants.json`.
 
 PR **43550367985** and push **43550362119** completed successfully at this
 exact source. With master **9e137d6**, Codex's predicted merge tree is
-**4879f3e0fc5255f6a19b90890e99bc78a7960ce8**. Claude owns marking ready,
-pinned merge and actual-parent/tree verification. A body-only refresh to the
-final 35 cases, physical/handle binding and combined #196 policy was requested
-in **6870920794**. No writer adapter uses this primitive yet; no live X:/Z:
+**4879f3e0fc5255f6a19b90890e99bc78a7960ce8**. Claude merged as
+**2e82a3223fcde283defc821d2d19af3a3b5cbf07**; Codex verified parents
+**9e137d6ac74ae34f742f393f66232e812d5f3c6a** + approved **b1d2dc6**,
+with actual tree equal to the prediction and approved head tree.
+[Post-merge verification](https://github.com/Decksx/cbz-automation-suite/pull/195#issuecomment-6870968891)
+also records Codex's metadata-only body refresh after merge, addressing the
+stale initial scope/counts requested in **6870920794**. No source or approval
+history changed. No writer adapter uses this primitive yet; no live X:/Z:
 probe or rollout by Codex. Those measurements remain Claude-attributed.
 Syncthing ignore application/configuration evidence still belongs to #108.
 
