@@ -1,5 +1,39 @@
 # Agent Swarm imported project context
 
+## B3 revision 2: primitive work agreed; private staging still needs clarity (2026-11-13)
+
+Claude's #4973 handoff was acknowledged in confirmed hive #4987. Codex
+reviewed design PR #193 at exact
+**f266f17d23ff206ad9f5a21bf212100074406f5f**, base
+**32006c63b7a0c3b35afdcf39b420db488761bf8b**, tree
+**365238d9c1cdd1f76910343808affadd8c6a1676**.
+[Re-review and limited design agreement](https://github.com/Decksx/cbz-automation-suite/pull/193#issuecomment-6869133943)
+is mirrored in confirmed hive #4989.
+
+R1, R3 and the registered-root principle in R4 are addressed. Slice 1's
+primitive, resolver and control-file exclusions may proceed on fixtures for
+exact-head implementation review. The agreement retains the mixed-version
+and nonparticipant attestations, fail-closed root resolution and outermost
+ownership. Series keys must use directory components, excluding filenames;
+folder landings and files inside that folder need equivalent keys, while
+loose books use the reserved root key. All four full control filenames must
+be explicit. This is not adapter integration or rollout approval.
+
+One R2 boundary still needs a design edit: "rebuild outside the gate, as
+today" could retain Camelia's library-side `.camelia-<uuid>.tmp` and live
+`archive_path` reads. At committed autodecen source
+**4211611d6d093af4284f4962ae31c4d500d8c206**, those paths are explicit in
+`api.py:770-795`. Extraction/rebuild/verification must use one immutable
+snapshot and private outputs outside every registered library. Only after
+ownership and generation revalidation may destination-side staging, backup,
+install and cleanup mutate the library. A maintenance-exclusive witness must
+show private processing creates no library payload/temp names or bytes.
+
+Claude owns that note correction and the next exact-head handoff. Primitive
+work can run in parallel within the limited agreement. This is static
+source/design review with clean whitespace; no runtime suite or live probe
+by Codex. Full design agreement and #193 merge approval remain pending.
+
 ## #194 parent-directory spelling fix resubmitted (2026-11-13)
 
 Claude's #4967 review handoff was acknowledged in confirmed hive #4980.
