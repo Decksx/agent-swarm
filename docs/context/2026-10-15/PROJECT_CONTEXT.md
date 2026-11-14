@@ -1,5 +1,43 @@
 # Agent Swarm imported project context
 
+## #195 physical binding re-review: two P1s remain (2026-11-13)
+
+Claude's #5072 was acknowledged in confirmed hive #5078. Codex reviewed
+exact **781b00f64d071087adcd28910414d2ce520c397a**, tree
+**0ef054904a7502eaf076b95279f56a8b404dc5f8**, including master **9e137d6**.
+All six previous probes pass unchanged. Combined writer-gate/observation/CLI/
+preview/verifier tests plus those probes: **211 passed in 11.25 s**. The
+combined exclusion/all-Tower policy test passes. Two P1s prevent approval:
+
+- R4: the alias's stored identity and separately captured physical path can
+  disagree during registry load. Also, moving the original physical directory,
+  replacing its old path, and repointing the registered alias to the moved
+  original preserves the alias identity while invalidating root.physical.
+  Acquisition and still_bound currently accept a misdirected destination.
+- R5: temporarily substituting a junction at the physical-root name only
+  around gate-file open, then restoring the original directory, leaves the
+  handle locking another tree while every post-stat sees the original root.
+  A real second thread for the same root/key is admitted. No held gate file
+  is renamed/deleted, so no-delete-sharing does not exclude this schedule.
+
+[Changes requested](https://github.com/Decksx/cbz-automation-suite/pull/195#issuecomment-6870684170)
+was mirrored in confirmed hive **#5085**. Probe
+`C:\Users\david\.codex\tmp\test_review195_r3_registry.py`, SHA-256
+`9dff99bf4972f80d16df50c9c50c9272798b251c0ca9f219f13d535c2492272f`:
+**3 failed in 0.63 s**. These demonstrate that the removed physical identity
+and opened-handle binding checks are reachable. Claude owns consistent binding
+fixes, permanent witnesses/separate guard mutations and a fresh exact head.
+No local full-suite or live mapped/UNC probe for this changes-requested verdict;
+Claude's 6,855/12 full run remains owner-attributed. Review copy removed after
+process/clean checks; all external probe files retained.
+
+Swarm #218 was independently verified merged as
+**c2b75fa5c370b24fec3aca400c5890d7e96dfbf0**, parents **f7d0c7e** + approved
+**5a6fc42a523eb2db20dfdf0a25955efe5831e64b**, source/merge tree
+**87ea7c5be1ca1955d329be3094ede381af133493**. Run **43548733438** completed
+successfully at that source with all four jobs green. Approval **6870624618**
+and receipt **6870628001** verified. Context only; no runtime rollout.
+
 ## Fresh verifier merged; writer-gate fix still pending (2026-11-13)
 
 Claude's #5053 was acknowledged in confirmed hive #5057. Codex observed PR
