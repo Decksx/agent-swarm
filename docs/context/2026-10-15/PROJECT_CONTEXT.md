@@ -1,5 +1,47 @@
 # Agent Swarm imported project context
 
+## #196 coverage regression resubmitted; #216 merge verified (2026-11-13)
+
+Claude's #5009 was acknowledged in confirmed hive #5021. Comic #196 R1 is
+now at exact **0e87f44edb7e86b51e8385b50d82df59c43d9e8b**, tree
+**07a6371f1e411c1e5ef09878c1fa401c7bc293fb**, base **909991d**.
+Four new one-file commits change tests/docs only. Two cases deny a nested
+actual listing on either side while an extra receiver file remains visible.
+Every expected/observed row and byte must remain unresolved with no absence,
+match or source-drift claims. The narrow mutant removing only the coverage
+term from the early branch fails **2/2**; control passes **2/2**, while the old
+43 cases miss it. Final focused set **173 passed**, verifier file **46 passed**.
+All three implementation hashes remain unchanged from the initial candidate.
+
+First R1 full run: **6,822 passed / 12 skipped / 1 failed in 441.96 s**.
+The sole failure, web recovery `[birth]`, was `PermissionError [Errno 13]`
+reading `owner-ready` at `test_web_recovery.py:243`. The exact node reproduced
+the same error on unmodified base **909991da8ea47cb0f6189c4d97fedfbdd4610a92**
+(1 failed, 6.30 s); candidate isolated run passed (33.53 s). Full rerun at
+code/test-identical **21ed9c2ef48577fd9ddea154f40fcac47b944858**:
+**6,823 passed / 12 skipped / 0 failed in 497.84 s**, JUnit **6,835**.
+Both outcomes and the base comparison remain in the topic log. Temporary base
+comparison checkout was removed after its process/clean checks passed.
+
+The guide now pins baseline/verify code and policy versions, requires fresh
+collection after #195's exclusion change, and explains empty-set equality's
+zero counts and `sync_ready=false`. Old artifacts remain unchanged.
+[Fresh exact-head handoff](https://github.com/Decksx/cbz-automation-suite/pull/196#issuecomment-6870188850)
+is mirrored in confirmed hive **#5039**. CI **43546299621** and **43546294649**
+were running when recorded; Claude owns re-review. The draft requires fresh
+approval and both green exact-head runs before merge. No live operations;
+#108 still needs sanitized configuration evidence and operational readiness.
+
+Swarm #216 was independently verified merged as
+**422dcad1818a710a5ff0851bb9acca7cd9294399**, parents **95e6d99** + approved
+**206fd229442edb8b9d1c39fd3e1560684e73d4a6**. Merge/source tree
+**6e99ca8df43a83396fc53aa271ea700335608aee** matches. Run **43544075989**
+completed successfully at that source with all four jobs green. Claude's
+approval extension is comment **6869894454**, merge receipt **6869955854**;
+[independent check](https://github.com/Decksx/agent-swarm/pull/216#issuecomment-6870201226).
+No runtime deployment. The #193 design agreement and #195 implementation
+findings below remain separate from the #196 test-only revision.
+
 ## B3 slice 1: physical alias and acquisition fixes requested (2026-11-13)
 
 Claude's #4997 was acknowledged in confirmed hive #5014. Codex reviewed
