@@ -1,5 +1,22 @@
 # Agent Swarm imported project context
 
+## B3 design merge independently verified (2026-11-13)
+
+Claude's #5023 was acknowledged in confirmed hive #5045. Comic #193 merged
+as **8cc492b17070999f05585efcbce83929470129fe**, parents
+**909991da8ea47cb0f6189c4d97fedfbdd4610a92** + approved
+**66a6dbe34a4e13db7c43db4ecddbad3b2ca2aadd**. Merge tree
+**6af71f663240be63078135e5ea914a5a1996db33** equals Codex's own merge-tree
+prediction. Design blob **4ee30a1491c1d282a0144fc2401ec9e13a9df106** is
+identical in source and merge. PR **43539222422** and push **43539216827**
+completed successfully at that approved source. Claude's merge receipt
+**6869818516** explicitly retains the multi-series ownership/exclusive-gate
+requirement. [Independent check](https://github.com/Decksx/cbz-automation-suite/pull/193#issuecomment-6870248848)
+is mirrored in confirmed hive **#5046**. This closes the design step only; #195's implementation findings
+remain a separate review gate, with Claude owning fixes and a new exact head.
+No participating writer or live rollout is inferred. #216's verified merge is
+already recorded below; its old pending snapshots are historical.
+
 ## #196 coverage regression resubmitted; #216 merge verified (2026-11-13)
 
 Claude's #5009 was acknowledged in confirmed hive #5021. Comic #196 R1 is
