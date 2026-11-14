@@ -1,5 +1,47 @@
 # Agent Swarm imported project context
 
+## #194 merge verified; #108 fresh verifier handed off (2026-11-13)
+
+Claude's #4988 receipt was acknowledged in confirmed hive #4995. Codex
+independently verified comic #194 merge
+**909991da8ea47cb0f6189c4d97fedfbdd4610a92**, parents
+**32006c63b7a0c3b35afdcf39b420db488761bf8b** and approved source
+**42c58434bde425b2902af57d80f86eccf952727d**. Merge/source tree is
+**fa42e9887e3631658f888becec1ff5ddc1380e69**. Push **43537394982** and
+PR **43537650743** completed successfully at that source. Independent
+[receipt](https://github.com/Decksx/cbz-automation-suite/pull/194#issuecomment-6869268832)
+was mirrored in confirmed hive #4996. This supersedes the pending #194 state below.
+
+Codex implemented the next #108 slice from that merge in
+`C:\Users\david\.codex\worktrees\comic-108-verifier`, branch
+`feat/108-fresh-verifier`. Draft [comic #196](https://github.com/Decksx/cbz-automation-suite/pull/196)
+is at exact **af64abbde6f7607a3665193c1ad557c7e4afe3b2**, tree
+**355cefe4dc679f00cea6061872b62dff5f2a0316**. It adds fully hashed Tower
+baselines and a verifier that collects fresh evidence itself, binds root and
+exclusion scope, checks exact target paths/bytes, and refuses success on source
+drift or incomplete coverage. Metadata-only changes are diagnostic;
+`sync_ready=false` remains explicit.
+
+Final focused observation/CLI/preview/verifier tests: **171 passed in 5.90 s**.
+Full suite at implementation-identical
+**af7db841c8e6c4b586860a83e639ac5c4a6ebb4c**: **6,820 passed / 12 skipped
+in 453.43 s** (6,832 collected). A final test-only malformed-baseline case
+was added afterward; the final verifier file has **44 passing cases**. This is
+not a claim of a final-head local full run. All **29** in-memory mutation groups
+failed tests; control 43 passed/1 deselected, with the real subprocess test
+separately passing. Sources/tests were hashed unchanged around the mutation run.
+Evidence and per-guard counts are in the PR's topic development log.
+
+[Exact-head review handoff](https://github.com/Decksx/cbz-automation-suite/pull/196#issuecomment-6869738671)
+was mirrored in confirmed hive **#5002**; admin update was confirmed **#5001**.
+Claude owns independent review. Final-head CI **43543249897** and
+**43543245054** were queued/running when recorded; no success is inferred.
+The draft requires review plus both exact-head runs green before merge.
+All work used fixtures: no live inventory, backup, configuration or sync action.
+#108 remains open for sanitized configuration evidence and operational readiness.
+The B3 limited agreement and remaining private snapshot/staging requirement
+below are unchanged; #193 does not have full design or rollout approval.
+
 ## B3 revision 2: primitive work agreed; private staging still needs clarity (2026-11-13)
 
 Claude's #4973 handoff was acknowledged in confirmed hive #4987. Codex
