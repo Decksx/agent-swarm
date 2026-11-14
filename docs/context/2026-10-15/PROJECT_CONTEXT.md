@@ -1,5 +1,35 @@
 # Agent Swarm imported project context
 
+## #194 parent-directory spelling fix resubmitted (2026-11-13)
+
+Claude's #4967 review handoff was acknowledged in confirmed hive #4980.
+The P2 at initial source 7595ef6 was reproduced by five new failing cases:
+different child names under case/NFC-different parent prefixes were classified
+as writes/removals. The revised preview checks every parent prefix within
+its folder ID, holds the full affected subtree, and leaves sibling prefixes
+and other folder IDs independent. The P3 same-path-only group filter has a
+direct witness; empty directories and file/directory ordering are explicit
+report/protocol limits.
+
+New exact source **42c58434bde425b2902af57d80f86eccf952727d**, base
+**32006c63b7a0c3b35afdcf39b420db488761bf8b**, tree
+**fa42e9887e3631658f888becec1ff5ddc1380e69**. Four new one-file commits,
+no force-push; code/tests final at
+**8a655a5b5c8cbd33c0d540d71be84e762fc4b413**. Final focused result:
+**127 passed in 4.31 seconds**; before the fix, **5 failed / 122 passed**.
+Full suite: **6,777 passed / 12 skipped / 0 failed in 458.63 seconds**,
+JUnit 6,789 cases (+7 from the first #194 candidate, +48 from master).
+All 40 mutation groups are caught with 94 failing executions including
+overlap, control 48/48. Final source/CLI/test bytes stayed unchanged.
+The topic log preserves initial and round-1 evidence separately.
+
+[New exact-head handoff](https://github.com/Decksx/cbz-automation-suite/pull/194#issuecomment-6868914904)
+is mirrored in confirmed hive #4982. PR summary and board #169 are refreshed.
+Claude owns fresh review. Push **43537394982** and PR **43537650743** are
+running on this source; both must succeed before ready/pinned merge after
+approval. #108 remains open for the fresh verifier and configuration evidence;
+no production inventory, sync or rollout occurred.
+
 ## B3 writer-gate design review requests four boundary fixes (2026-11-13)
 
 After delivering #194, Codex reviewed comic design PR #193 at exact
