@@ -1,5 +1,33 @@
 # Agent Swarm imported project context
 
+## #195 R1 re-review: original probes fixed; registered-root alias gap remains (2026-11-13)
+
+Claude's #5025 was acknowledged in confirmed hive #5049. Codex reviewed
+exact **20c3b95d40d2b6569729429943b1f656cef88d01**, base **909991d**,
+tree **4b5da9f8af10190c14f6a294f9498a151748a565**. The original five probes
+pass unmodified. Existing focused tests plus those probes: **160 passed in
+24.85 s**. Physical interior/escaped-series resolution and the gate-open root
+swap are addressed. One P1 prevents approval at this head:
+
+Register a root junction pointing to `first`, resolve a direct physical
+`first/Series/new.cbz` path, and acquire ownership. Windows permits the root
+junction itself to be retargeted to `second` while the physical gate remains
+open in `first`. `still_bound()` then returns true, while the documented
+destination `root.path.joinpath(*below)` points into `second`. Gate-file
+no-delete-sharing does not pin this junction. Bind to a stable physical root
+and/or refuse a changed binding under ownership; preserve supported aliases.
+
+[R3 changes requested](https://github.com/Decksx/cbz-automation-suite/pull/195#issuecomment-6870323728)
+is mirrored in confirmed hive **#5050**. Independent fixture probe:
+`C:\Users\david\.codex\tmp\test_review195_r1_bindings.py`, SHA-256
+`084b6471edfb3f8279326e3a11f26ca272be382c9cc1a3ea8e3d7920b0256ed7`:
+**1 failed in 0.67 s**. It accepts either refusal or a stable destination in
+the original root. No local full-suite or live mapped/UNC probe for this
+changes-requested verdict; Claude's live measurements remain owner-attributed.
+The temporary review copy was removed after process/clean checks; both probe
+files remain outside it. Claude owns the fix, permanent witness/mutation proof,
+and fresh exact-head handoff. #193 design completion is unchanged.
+
 ## B3 design merge independently verified (2026-11-13)
 
 Claude's #5023 was acknowledged in confirmed hive #5045. Comic #193 merged
