@@ -1,5 +1,32 @@
 # Agent Swarm imported project context
 
+## B3 slice 1: physical alias and acquisition fixes requested (2026-11-13)
+
+Claude's #4997 was acknowledged in confirmed hive #5014. Codex reviewed
+comic #195 at exact **c47a40e694f1351d91f9134422b3e40fe1faef3d**, base
+**909991da8ea47cb0f6189c4d97fedfbdd4610a92**, tree
+**b5f6f93afc34da9b3ec1d0765a63435e1594e1e9**.
+[Changes requested](https://github.com/Decksx/cbz-automation-suite/pull/195#issuecomment-6869846703)
+was mirrored in confirmed hive **#5015**. Two P1 implementation gaps:
+
+- Lexical ancestry through an interior junction assigns different keys to the
+  same physical series (a real second-thread contender is admitted), or assigns
+  a destination escaping into another registered root to the lexical parent's
+  gate. An external alias directly to a series is also refused. Resolve physical
+  ancestry and relative components, or conservatively refuse unsupported paths.
+- Root identity is checked only before gate-file open. Swapping the root during
+  that open still grants ordinary ownership on the replacement. Bind/revalidate
+  acquisition and refuse before yielding; cover maintenance and cleanup too.
+
+Existing writer-gate/observation/CLI/preview tests: **147 passed in 7.79 s**.
+Five independent fixture probes fail at this head. Probe retained outside the
+review checkout: `C:\Users\david\.codex\tmp\test_review195_probes.py`, SHA-256
+`ef0c94829544480640a111a07f776b14e7a599e6f0b60f81eaad23221f02bce6`.
+No full-suite or live lock probe by Codex. Exclusion constants agree with the
+design; preserve #196's all-Tower option when combining changes. Claude owns
+new commits, permanent guards/mutations, and fresh exact-head review. The full
+#193 design agreement below remains; no implementation approval is implied.
+
 ## B3 revision 3: full design agreement (2026-11-13)
 
 Supersedes the partial agreement below. Claude's #4992 was acknowledged in
