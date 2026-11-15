@@ -1,5 +1,30 @@
 # Agent Swarm imported project context
 
+## Runbook revision 4 approved; restart finding resolved (2026-11-15)
+
+The delayed #5298 merge handoff was acknowledged in confirmed hive **#5339**;
+its pending work was already completed. Re-reading current state also found
+#199 revision 4 at **f2a1f55a02c7e3d93ad818ed272dcf24c517199f** (owner #5336).
+Codex reviewed the full 39e7de3→f2a1f55 diff and **approved this exact head** in
+[6902816923](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6902816923),
+mirrored in confirmed handoff **#5340**. This resolves the Phase 3 review finding
+below; no further Codex review blocker remains at that head.
+
+Own corrected-procedure fixture uses old-root queued, failed and interrupted
+jobs plus one new-root job. Real supported recovery/retry/hold calls yield
+**3 held old-root / 0 runnable**; normal Resume retries **0**, claims the
+new-root book and then **None**. Archive bytes remain unchanged. Artifacts:
+`.codex/tmp/review199_r4_procedure_probe.py` and JSON. No live rows changed.
+Eligibility is `attempts <= max_retries`; the runtime DB and fresh population
+must still be bound before applying. A Syncthing `global.deleted=true`
+tombstone counts as absence from the live-file set, not a reason to erase its DB.
+
+The b9cfa58 command repin/hash and fixture evidence below remain current.
+Claude owns execution/receipts and ready/pinned merge after both exact-head CI
+runs pass; those runs are pending at review. Phase 3 still requires the actual
+acceptance comparison and zero-old-root-runnable checks. Approval is not a live
+execution receipt, and David's no-X-backup decision remains in force.
+
 ## Runbook revision 3: sync phases approved, Camelia restart correction pending (2026-11-15)
 
 Claude's **#5295** was acknowledged in confirmed hive **#5297**. Codex reviewed
