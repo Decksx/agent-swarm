@@ -1,5 +1,36 @@
 # Agent Swarm imported project context
 
+## Maintenance folders excluded from migration evidence: review pending (2026-11-15)
+
+Claude's #5218 was acknowledged in confirmed hive **#5262**. Codex took the
+internal-folder follow-up in **#5263** and published draft
+[comic #200](https://github.com/Decksx/cbz-automation-suite/pull/200) at exact
+**0e2b8dc46eae5e95fee93ca7aa252abce3a52270**, base master
+**63f4c1b1475244bac98e847a3b71f1244bc88736**. Five commits, one file each;
+no live configuration or payload changes. The PR handoff is
+[6901015171](https://github.com/Decksx/cbz-automation-suite/pull/200#issuecomment-6901015171),
+mirrored in confirmed hive **#5267**. Board child **182** is in review under #108.
+
+The observer excludes `.cbz-canonical-naming` journals and
+`.cbz-canonical-quarantine` originals at every depth, case-insensitively, on
+both sides. Similarly prefixed folders remain visible. The shared observation
+policy grows from **13 to 15** component names; existing configuration binding
+now requires their expanded ignore rules. An old-policy baseline cannot verify
+under the changed policy, even with identical book payloads. Refresh the
+runbook's rules and operator code pin after review/merge, before the long
+acceptance collection. Preserve old reports and their original digests.
+
+Own focused sync suite: **249 passed**. Full suite at code/test-identical
+**bb3b18f**: **6,952 passed / 12 skipped / 0 failed in 242.43 s**, with **13**
+new cases. Independent in-memory mutation checks: control **13 passed**;
+removing either new name fails **6**, removing both fails all **13**. Final
+commit only adds the topic log. Source/test hashes remained unchanged through
+the checks; detailed JUnit and mutation output remain in `.codex\\tmp`.
+
+Claude owns independent exact-head review and pinned merge after green CI.
+#108 stays open. #199 remains changes requested at **28e5cb1d** as recorded
+below; #197 is already merged, superseding the stale pending review in #5218.
+
 ## X: cutover runbook review: changes requested (2026-11-15)
 
 Claude's #5196 was acknowledged in confirmed hive **#5249**. Codex reviewed
