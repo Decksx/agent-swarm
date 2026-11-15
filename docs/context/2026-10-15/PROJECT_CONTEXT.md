@@ -1,5 +1,115 @@
 # Agent Swarm imported project context
 
+## Cutover preparation is live; scans still running (2026-11-15)
+
+Claude's #5352 was acknowledged in confirmed hive **#5354**. He reports the
+four ignore files written/read back, Tower Comix marker created, X: versioning
+disabled, Tower config backed up and folders changed to send-only, container
+started, and scans requested. These filesystem/config changes are owner-reported;
+Codex did not repeat them. The relayed '~23:35Z' time was in the future at receipt.
+
+Own **GET-only** spot check at **23:06:55–23:06:56 UTC** verifies both instances
+**v2.1.7**, all four folders **sendonly/unpaused**, and OfficePC versioning none.
+OfficePC Manga is idle; OfficePC Comix and both Tower folders are scanning.
+Reported errors/pullErrors are all **0**, but need counts are nonzero/changing.
+These are not scan-completion or source-authority witnesses; wait for completed
+scans/index exchange before Tower-only Override. No controls changed by Codex.
+Sanitized artifact: `.codex/tmp/sync108-live-20261115/status-codex-20261115T230656Z.json`.
+
+Receipt and exact-head CI verification are on
+[#199, 6902910903](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6902910903),
+mirrored in confirmed hive **#5356**. Push **43772019161** and PR **43772023773**
+both succeeded at approved **f2a1f55a02c7e3d93ad818ed272dcf24c517199f**.
+Wake-up handoff **#5355** tells Claude the requested re-review is complete and
+to resume scan witnesses/continuation. Ready/pinned merge and live execution
+remain his; no collection or completed migration is claimed here.
+
+## Runbook revision 4 approved; restart finding resolved (2026-11-15)
+
+The delayed #5298 merge handoff was acknowledged in confirmed hive **#5339**;
+its pending work was already completed. Re-reading current state also found
+#199 revision 4 at **f2a1f55a02c7e3d93ad818ed272dcf24c517199f** (owner #5336).
+Codex reviewed the full 39e7de3→f2a1f55 diff and **approved this exact head** in
+[6902816923](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6902816923),
+mirrored in confirmed handoff **#5340**. This resolves the Phase 3 review finding
+below; no further Codex review blocker remains at that head.
+
+Own corrected-procedure fixture uses old-root queued, failed and interrupted
+jobs plus one new-root job. Real supported recovery/retry/hold calls yield
+**3 held old-root / 0 runnable**; normal Resume retries **0**, claims the
+new-root book and then **None**. Archive bytes remain unchanged. Artifacts:
+`.codex/tmp/review199_r4_procedure_probe.py` and JSON. No live rows changed.
+Eligibility is `attempts <= max_retries`; the runtime DB and fresh population
+must still be bound before applying. A Syncthing `global.deleted=true`
+tombstone counts as absence from the live-file set, not a reason to erase its DB.
+
+The b9cfa58 command repin/hash and fixture evidence below remain current.
+Claude owns execution/receipts and ready/pinned merge after both exact-head CI
+runs pass; those runs are pending at review. Phase 3 still requires the actual
+acceptance comparison and zero-old-root-runnable checks. Approval is not a live
+execution receipt, and David's no-X-backup decision remains in force.
+
+## Runbook revision 3: sync phases approved, Camelia restart correction pending (2026-11-15)
+
+Claude's **#5295** was acknowledged in confirmed hive **#5297**. Codex reviewed
+actual #199 head **39e7de3890037759153958a8b879d546a4590906**, superseding
+28e5cb1. The backup requirement and `/MIR` restore are gone per David's decision;
+both sides stay send-only through source scans/index publication, then only X:
+becomes receive-only. The main previous ordering finding is addressed.
+
+[Scoped operational approval 6902763303](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6902763303)
+authorizes **Phases 0, 0b, 1 and 2 at that exact head**, with the runbook's
+stopped-writer, scan/index, free-space and acceptance checks, using the repinned
+commands below. Confirmed handoff **#5335** explicitly tells Claude to proceed
+with those phases rather than waiting for the Phase 3-only correction. This is
+not full-runbook approval or a claim that a live operation has happened. Claude
+owns execution and receipts. Board **181** remains in progress.
+
+**Remaining P1 before Camelia restart:** queued-only holds miss retryable
+failed old-root jobs. Normal GUI Resume calls `resume_queue(retry_failed=True)`
+and retries failed rows across roots. Own temporary-DB witness: after holding
+the old queued job, the first claim is the promoted new-root smoke job and the
+second is the old-root failed job; retry_failed=False control has no second
+claim. A successful first X: smoke does not establish continued X-only work.
+At autodecen code **4211611**, a fresh read-only WAL-aware snapshot at
+**22:54:15 UTC**, stable data_version, found failed **id 23456**, root
+**Z:\comics\Comix**, attempts **1**, max_retries **2**. This is an eligible
+retry, but the snapshot is not a future apply token or runtime-DB binding.
+
+[Review 6902753890](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6902753890)
+requires handling failed/interrupted state while stopped, then proving no
+old-root runnable work remains before restart, or enforcing a truly X-only
+claim scope. Claude owns the revised exact head. No live queue rows were
+changed by Codex. Probe/snapshot artifacts: `.codex/tmp/review199_r3_retry_probe.*`
+and `review199_r3_failed_snapshot.*`. Non-blocking status clarity also asks for
+needTotalItems/needDeletes/pullErrors and a global-index absence witness.
+
+**Operator repin completed:** retained clean tools checkout now at merged
+**b9cfa58dc0e741dae6596f0496137e415f4bdf5f**. Private
+`sync108-live-20261115/OPERATOR_COMMANDS.md` SHA-256 is
+**38d03b2a7afad7e3d0ef7e27a0625c2b984e6198beda0257b1ac38e038ada240**.
+The former c32c538f command artifact is preserved as
+`OPERATOR_COMMANDS.pre-b9cfa58.md`. Actual-ID pairs SHA remains
+**2e44e52a1f083230c67bc7eda1a58f0014eaee182652272e5bc0e2d91088d116**.
+All three actual PowerShell blocks ran under Windows PowerShell with private
+fixture paths: baseline and derived preview complete, **2 kept / 0 writes /
+0 removals / 0 unresolved**, **15** excluded components. No live long collection
+or library payload scan was launched by Codex. Long runs stay operator-owned.
+
+**Verified merges:** comic #200 merged as **b9cfa58dc0e741dae6596f0496137e415f4bdf5f**,
+parents **63f4c1b + approved 0e2b8dc**, source/merge tree
+**d902a0c8631a25a18470d6bf82836bda5952c322**. Push **43759250279** and PR
+**43759279290** succeeded at exact 0e2b8dc. Own receipt
+[6902757275](https://github.com/Decksx/cbz-automation-suite/pull/200#issuecomment-6902757275).
+Board **182** is done; #108 stays open. Claude's partial F-copy deletion
+(4,306 files, about 199 GB) is owner-reported in #5295, not repeated by Codex.
+
+Swarm #224 merged as **c9074f38c9d308afb6bf3e31cc2e63cf0b5b15df**,
+parents **2e6ef10 + approved 93bb78e**, source/merge tree
+**23c3fb0c1028f50a5cf2d59c88405a1ffddbec88**. Run **43762691006** passed all
+four checks at exact 93bb78e. Board **180** is done. These merges supersede the
+pending states below; no runtime rollout is implied by these receipts.
+
 ## David waives the X-side backup for cutover (2026-11-15)
 
 Current user instruction **#5278**, at **21:14:23 UTC**:
