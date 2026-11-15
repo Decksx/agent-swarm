@@ -1,5 +1,74 @@
 # Agent Swarm imported project context
 
+## #198 review fixes published; #197 root-binding review (2026-11-15)
+
+Claude's #5148 was acknowledged in confirmed hive **#5168**. Review
+[6899501633](https://github.com/Decksx/cbz-automation-suite/pull/198#issuecomment-6899501633)
+found two permanent-test gaps, not a code defect. Codex added four cases:
+a valid B1/B2 baseline-generation substitution witness and three CLI completion
+states. The repository configuration file now has **63 passed**. The exact
+digest-comparison mutant fails **1** case; unconditional CLI success fails
+**2**; control **63/63**, source/test hashes unchanged. Equivalent ignore-set
+and overlapping drift guards are now explicitly documented in code.
+
+Revised [comic #198](https://github.com/Decksx/cbz-automation-suite/pull/198)
+is **f4c81c288483e9adfef947f64d96c349ff13cdb4**, tree
+**678af23d5b84007a619ad3f1ec3f4410de309917**, same base **2e82a322**.
+Three follow-up one-file commits; production behavior unchanged by this round.
+Fresh full at code/test-identical **812d7041ba4376a603cd6b58bc44f2b7522b44d5**:
+**6,921 passed / 12 skipped / 0 failed in 1,543.95 s**, JUnit **6,933**.
+This was serial, unlike the earlier parallel run. Counts are base 6,858 + 63.
+Final commit changes only the topic log. [Re-review handoff](https://github.com/Decksx/cbz-automation-suite/pull/198#issuecomment-6899984739)
+is mirrored in confirmed hive **#5200**. PR **43752461361** and push
+**43752456962** were running when recorded. Fresh Claude review and both green
+current-head CI runs are required; old-head successes do not qualify.
+
+Codex reviewed B3 slice 2, [comic #197](https://github.com/Decksx/cbz-automation-suite/pull/197).
+At **458ddad895e71bfc9e73583bfe79a9dcaf2d3a77**, retargeting a library junction
+in quiescence let apply rename in an unlocked clone while holding the original
+tree's gate. [P1 finding](https://github.com/Decksx/cbz-automation-suite/pull/197#issuecomment-6899642811)
+was mirrored in confirmed hive **#5187**; own focused **45 passed**, separate
+probe **1 failed**. At **3444d299c3a910718bf5d42fed2813b1a2d0e160**, the P1 is
+resolved: original probe plus focused tests **53 passed in 16.25 s**, and all
+**6/6** independent new-guard mutants are caught (control **18/18**; failure
+counts **3/1/1/1/1/8**). Sources/tests unchanged around mutation execution.
+
+One new **P2 remains** at 3444d299: initial `_root_binding` raises raw
+`FileNotFoundError` when the root disappears before execution, bypassing the
+CLI's structured refusal. Same missing-root probe **passes at 458ddad and
+fails at 3444d299**. [Re-review](https://github.com/Decksx/cbz-automation-suite/pull/197#issuecomment-6899952351)
+is mirrored in confirmed hive **#5197**. Claude owns error normalization,
+permanent witness and a fresh exact head. No approval given. Both current-head
+CI runs **43751498670 / 43751494234** passed; they do not resolve the finding.
+Claude's full **6,875/12** remains owner-attributed; Codex ran focused checks
+and probes, not a full suite for this changes-requested review.
+
+David offered a migration-day stop in **#5129** and reported stopped in
+**#5130**. Codex's CIM snapshot at **18:56:59 UTC** found no identifiable
+watcher/Camelia command lines, a point-in-time check only. Runbook handoff
+**#5160** requires verified X: results, validated application/root/staging paths,
+deliberate Syncthing state and restart smoke checks; stop-before-maintenance
+remains required until writer adapters are integrated. No indefinite stop is
+required after a successful cutover. Recheck actual processes before operations.
+
+Claude's saved estimate `C:\git\.claude-tools\sync_live\estimate-20261115-112717.json`
+declares complete coverage, zero problems and **5,199,024,633,018** candidate
+bytes. Codex read this artifact and recomputed its digest successfully
+(`ade9ed3406b5f965995765b197d9fe45c8b9b4e6035b1c818ab8b8e1bc4ae4cc`),
+not a fresh live scan. It records Tower UNC roots and X Manga/Comix; folder IDs
+and exclusions still need current sanitized config evidence, requested in
+**#5155**. Suggested collection is estimate, one full baseline, then derive a
+preview from that saved baseline to avoid duplicate hashing. Long collection
+needs an operator-run command or reviewed resumability, never a job escape.
+No live collection, backup, Syncthing controls or transfer by Codex.
+
+Swarm #221 independently verified merged as
+**9816062f93d323f2ceb730332e1b0bfcd28e211c**, parents **5947a027** + approved
+**29fe6032252640cf8d5d5ba7bb730cf27f1bd805**, source/merge tree
+**932bb8edf8285386206afd73b4475ee7259b636f**. Run **43749077911** passed all
+four checks at that source. [Verification](https://github.com/Decksx/agent-swarm/pull/221#issuecomment-6899661574)
+is mirrored in confirmed hive **#5190**; board 177 done. Context only, no rollout.
+
 ## Migration work resumed: configuration-evidence PR #198 ready for review (2026-11-15)
 
 David's #5120 was acknowledged in confirmed hive **#5124**. Codex resumed
