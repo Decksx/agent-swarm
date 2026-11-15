@@ -1,5 +1,153 @@
 # Agent Swarm imported project context
 
+## David waives the X-side backup for cutover (2026-11-15)
+
+Current user instruction **#5278**, at **21:14:23 UTC**:
+
+> @leads don't backup the files on x:\ they're not needed.
+
+Acknowledged in confirmed hive **#5280**. This supersedes the X-to-F backup
+prerequisite, its integrity finding below, and rollback promises that rely on
+that backup. Do not start or continue that backup. Obsolete X-side content may
+be discarded in the agreed Tower-to-X migration; Tower remains authoritative.
+The earlier review remains historical evidence, not a renewed backup demand.
+
+The correction is on
+[comic #199, comment 6901476213](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6901476213),
+mirrored in confirmed handoff **#5282**. Claude owns removing the backup steps
+and backup-based rollback promises from the runbook and sending a revised head.
+Source scan/index/Override ordering, persisted Camelia Z: queue paths, and the
+#200 exclusion-policy/operator-pin refresh remain separate technical work.
+A local CIM query for `robocopy.exe` returned no processes at this check; no
+backup was launched or stopped by Codex. No live cutover change is claimed.
+
+## Maintenance folders excluded from migration evidence: review pending (2026-11-15)
+
+Claude's #5218 was acknowledged in confirmed hive **#5262**. Codex took the
+internal-folder follow-up in **#5263** and published draft
+[comic #200](https://github.com/Decksx/cbz-automation-suite/pull/200) at exact
+**0e2b8dc46eae5e95fee93ca7aa252abce3a52270**, base master
+**63f4c1b1475244bac98e847a3b71f1244bc88736**. Five commits, one file each;
+no live configuration or payload changes. The PR handoff is
+[6901015171](https://github.com/Decksx/cbz-automation-suite/pull/200#issuecomment-6901015171),
+mirrored in confirmed hive **#5267**. Board child **182** is in review under #108.
+
+The observer excludes `.cbz-canonical-naming` journals and
+`.cbz-canonical-quarantine` originals at every depth, case-insensitively, on
+both sides. Similarly prefixed folders remain visible. The shared observation
+policy grows from **13 to 15** component names; existing configuration binding
+now requires their expanded ignore rules. An old-policy baseline cannot verify
+under the changed policy, even with identical book payloads. Refresh the
+runbook's rules and operator code pin after review/merge, before the long
+acceptance collection. Preserve old reports and their original digests.
+
+Own focused sync suite: **249 passed**. Full suite at code/test-identical
+**bb3b18f**: **6,952 passed / 12 skipped / 0 failed in 242.43 s**, with **13**
+new cases. Independent in-memory mutation checks: control **13 passed**;
+removing either new name fails **6**, removing both fails all **13**. Final
+commit only adds the topic log. Source/test hashes remained unchanged through
+the checks; detailed JUnit and mutation output remain in `.codex\\tmp`.
+
+Claude owns independent exact-head review and pinned merge after green CI.
+#108 stays open. #199 remains changes requested at **28e5cb1d** as recorded
+below; #197 is already merged, superseding the stale pending review in #5218.
+
+## X: cutover runbook review: changes requested (2026-11-15)
+
+Claude's #5196 was acknowledged in confirmed hive **#5249**. Codex reviewed
+[comic #199](https://github.com/Decksx/cbz-automation-suite/pull/199) at actual
+**28e5cb1d1a2ef77434a24e17c539432d6ad5ada7**, superseding the older 2d48be5.
+[Review 6900649687](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6900649687)
+requests changes; confirmed hive handoff **#5250**. These are technical findings
+under David's existing #5191 authorization, not new permission questions.
+
+- **P1 source authority:** X becomes a receiver before successful source scans,
+  index exchange and Override are established. Proposed correction: both sides
+  send-only for scans/index exchange, Tower-only Override if needed with saved
+  authority witnesses, then X receive-only/Revert. Actual deployed versions and
+  completion/error evidence are required; UI start order is not a barrier.
+- **P1 backup acceptance:** same-name/size/mtime fixture with wrong backup bytes
+  passes the exact Robocopy copy flags with **exit 0 / FAILED=0**, equal counts
+  and bytes, but unequal SHA-256. Fresh per-path integrity evidence must reject
+  it before the F copy supports destructive cutover/versioning disablement.
+  Artifact: `.codex\tmp\review199-backup-proof.json`.
+- **P1 writer restart:** WAL-aware, read-only backlog snapshot at
+  **20:02:55 UTC**, stable data_version: **13,621 queued** rows point to
+  **Z:\comics\Comix**; all **39,140** rows use that root. The code read at
+  autodecen **4211611** passes stored source paths to replace processing.
+  Bind the actual runtime DB/config and migrate/rebuild or disable old-root
+  jobs before workers resume; a GUI/handoff root check alone is insufficient.
+  Artifact: `.codex\tmp\review199-camelia-roots.json`; no rows changed.
+- **P1 rollback:** backup excludes `.stversions`, generic restore `/MIR` does
+  not. Dry-run and actual isolated fixture show the unbacked history deleted
+  (exit **3**). Require an exact protected restore/quarantine plan and reviewed
+  dry-run, not blind purge. Artifact: `.codex\tmp\review199-rollback-proof.json`.
+
+Manifest and Phase 2 command hashes/fields match the prepared artifacts. Historical
+estimate metadata shows **26,017** Tower paths absent on X, **606,866,625,691 bytes**
+(**0.552 TiB**). Adding positive matching-path size growth and the 16 largest
+matching files yields an illustrative **0.671 TiB** peak, conditional on <=16
+replacement temporaries and no conflict/history/failed-temp buildup. Verify
+actual limits/reserve; versioning off is a conditional tradeoff after recovery
+evidence, not a capacity proof. Artifact: `.codex\tmp\review199-space-budget.json`.
+Claude owns the revised exact head. Additive backup/preparation may continue;
+no live role change, Revert/Override, restore or payload modification by Codex.
+
+## David's expanded project authorization and verified merges (2026-11-15)
+
+Current user instruction **#5191**, acknowledged in confirmed hive **#5233**:
+
+> @leads you have my explicit permission to edit, modify, remove, create, push, pull, commit, stage, merge, and deploy new code, files, or permissions related to this project in c:\git\ and c:\temp and g:\ and x:\ and z:\media\comics\. You can also modify the configurations of any of the containers on Tower or PiNAS if needed.
+
+This is project-related authorization for the exact locations and container
+configuration scope named above. It supersedes older per-request location/config
+permission restrictions within that scope; do not ask again for covered routine
+actions. It does not record an operation as performed or replace exact-head
+review/CI, guarded execution procedures or a missing technical choice. Claude
+remains the single owner of the migration runbook and operational changes;
+Codex's authorization/ownership handoff is confirmed hive **#5239**.
+
+Comic #197 independently verified merged as
+**63f4c1b1475244bac98e847a3b71f1244bc88736**, parents **c09de47a** + approved
+**d4419cfd95dc812e89626ef8f5091443b99aa2fd**, actual tree
+**f5a0d9e2f19ecc6f61729092ec2cb0626ef4a20f**, matching the prediction below.
+Both exact-head CI runs **43752875290 / 43752870157** passed. Claude's pinned
+receipt is **6900311379**. B3 slice 2 is merged; adapters and rollout are separate.
+
+Swarm #223 independently verified merged as
+**2e6ef10c6799f08995bafbc3c78f6c9e822544a1**, parents **945e2d6c** + approved
+**68f8528d9b068c239a8d82f8b7003110e9d48740**, source/merge tree
+**e711a485cdeaa2aee1e274d6d521863be81cb595**. Run **43753874956** passed
+all four checks at that exact source; pinned receipt **6900294848**.
+The **2a80011** follow-up was pushed after that pinned merge and was **not**
+included in #223, despite the subsequent handoff naming it as a candidate there.
+Its #197 approval paragraph is now carried forward by **c2a3457**, without
+rewriting the old receipt or implying that #223 included it. Context only,
+no runtime rollout. No live transfer or new configuration action by Codex.
+
+## #197 maintenance integration approved at the final head (2026-11-15)
+
+The fresh wake #5186 was acknowledged in confirmed hive **#5223**; its older
+458ddad candidate is superseded. Codex approved exact
+**d4419cfd95dc812e89626ef8f5091443b99aa2fd** in
+[review 6900268467](https://github.com/Decksx/cbz-automation-suite/pull/197#issuecomment-6900268467),
+mirrored in confirmed hive **#5224**. Both prior findings are resolved.
+Own focused tests plus both unmodified original probes: **55 passed in 13.79 s**.
+All **8/8** independent final guard mutants are caught, control **20/20**;
+failure counts **3/1/1/1/1/8/2/6** cover each executor entry check, state,
+rename, captured identity, initial error normalization and maintenance ownership.
+Source/test hashes unchanged; artifact `.codex\tmp\review197-final-mutants.json`.
+Claude's full **6,876 passed / 12 skipped** remains owner-attributed; no new
+full-suite claim by Codex. PR **43752875290** and push **43752870157** are both
+independently verified successful at d4419cfd.
+
+On master **c09de47a**, predicted merge tree is
+**f5a0d9e2f19ecc6f61729092ec2cb0626ef4a20f**. Claude owns pinned merge and
+actual parent/tree parity. Codex refreshed the stale PR body to the final
+root-binding/refusal behavior and current, attributed test counts; source is
+unchanged. Earlier watchdog failure evidence remains linked and unclassified.
+No rollout or cutover is implied. This supersedes the remaining-P2 state below.
+
 ## Actual-ID migration manifest prepared (2026-11-15)
 
 Comic #198 is now independently verified merged as
