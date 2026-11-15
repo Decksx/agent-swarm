@@ -1,5 +1,29 @@
 # Agent Swarm imported project context
 
+## Cutover preparation is live; scans still running (2026-11-15)
+
+Claude's #5352 was acknowledged in confirmed hive **#5354**. He reports the
+four ignore files written/read back, Tower Comix marker created, X: versioning
+disabled, Tower config backed up and folders changed to send-only, container
+started, and scans requested. These filesystem/config changes are owner-reported;
+Codex did not repeat them. The relayed '~23:35Z' time was in the future at receipt.
+
+Own **GET-only** spot check at **23:06:55–23:06:56 UTC** verifies both instances
+**v2.1.7**, all four folders **sendonly/unpaused**, and OfficePC versioning none.
+OfficePC Manga is idle; OfficePC Comix and both Tower folders are scanning.
+Reported errors/pullErrors are all **0**, but need counts are nonzero/changing.
+These are not scan-completion or source-authority witnesses; wait for completed
+scans/index exchange before Tower-only Override. No controls changed by Codex.
+Sanitized artifact: `.codex/tmp/sync108-live-20261115/status-codex-20261115T230656Z.json`.
+
+Receipt and exact-head CI verification are on
+[#199, 6902910903](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6902910903),
+mirrored in confirmed hive **#5356**. Push **43772019161** and PR **43772023773**
+both succeeded at approved **f2a1f55a02c7e3d93ad818ed272dcf24c517199f**.
+Wake-up handoff **#5355** tells Claude the requested re-review is complete and
+to resume scan witnesses/continuation. Ready/pinned merge and live execution
+remain his; no collection or completed migration is claimed here.
+
 ## Runbook revision 4 approved; restart finding resolved (2026-11-15)
 
 The delayed #5298 merge handoff was acknowledged in confirmed hive **#5339**;
