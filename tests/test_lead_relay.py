@@ -1179,9 +1179,9 @@ def test_a_run_still_alive_is_never_released_by_its_own_record(tmp_path):
     w.processes.alive[4000] = "start-4000"
     session = w.relay.session("claude-lead")
 
-    assert w.relay._release_ownership(session, w.backend, attempt) == UNKNOWN
+    assert lead_relay.proven_idle(w.backend, w.processes, session, attempt) == UNKNOWN
     w.processes.alive.pop(4000)
-    assert w.relay._release_ownership(session, w.backend, attempt) == CLOSED
+    assert lead_relay.proven_idle(w.backend, w.processes, session, attempt) == CLOSED
 
 
 @pytest.mark.parametrize("content", ["{not json", json.dumps({"pid": 1}), json.dumps([1])])

@@ -209,6 +209,47 @@ class ClaudeBackend:
         return None
 
 
+def proven_idle(backend, processes: ProcessApi, session: Session, attempt) -> str:
+    """The backend's idle check for releasing `attempt`'s reservation (§5).
+
+    UNKNOWN is re-judged only when the backend can retire a record naming
+    exactly this run AND the relay has proven the run gone. Then the only
+    thing holding the session is the run's own leftover record, which the
+    backend moves aside so later checks don't trip on it again.
+    """
+    state = backend.ownership(session)
+    retire = getattr(backend, "retire_record", None)
+    if state != UNKNOWN or retire is None or not run_proven_gone(processes, attempt):
+        return state
+    state = retire(session, attempt["pid"], attempt["proc_start"])
+    if state == CLOSED:
+        log.warning("%s: %s's session record outlived its run (pid %s); "
+                    "moved to sessions-stale and released",
+                    attempt["attempt_id"], attempt["recipient"], attempt["pid"])
+    return state
+
+
+def run_proven_gone(processes: ProcessApi, attempt) -> bool:
+    """The run and everything it started are gone, by the relay's own record.
+
+    Needs the Windows job the run was launched into (`popen_contained`):
+    breakaway is not allowed, so the job lists every process the run ever
+    started, and a job that no longer exists or has no members proves none
+    is alive. An uncontained run proves nothing and stays UNKNOWN.
+    """
+    container = attempt["container"] or ""
+    if not container.startswith("job:") or attempt["pid"] is None or not attempt["proc_start"]:
+        return False
+    if processes.is_same(attempt["pid"], attempt["proc_start"]):
+        return False
+    try:
+        members = processes.job_members(container[len("job:"):])
+    except Exception as exc:  # noqa: BLE001 -- access denied is not absence
+        log.error("could not read %s for %s: %s", container, attempt["attempt_id"], exc)
+        return False
+    return not members
+
+
 # `CodexBackend` is in `lead_relay_codex.py`.
 
 
