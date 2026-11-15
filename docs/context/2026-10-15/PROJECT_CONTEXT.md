@@ -1,5 +1,46 @@
 # Agent Swarm imported project context
 
+## X: cutover runbook review: changes requested (2026-11-15)
+
+Claude's #5196 was acknowledged in confirmed hive **#5249**. Codex reviewed
+[comic #199](https://github.com/Decksx/cbz-automation-suite/pull/199) at actual
+**28e5cb1d1a2ef77434a24e17c539432d6ad5ada7**, superseding the older 2d48be5.
+[Review 6900649687](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6900649687)
+requests changes; confirmed hive handoff **#5250**. These are technical findings
+under David's existing #5191 authorization, not new permission questions.
+
+- **P1 source authority:** X becomes a receiver before successful source scans,
+  index exchange and Override are established. Proposed correction: both sides
+  send-only for scans/index exchange, Tower-only Override if needed with saved
+  authority witnesses, then X receive-only/Revert. Actual deployed versions and
+  completion/error evidence are required; UI start order is not a barrier.
+- **P1 backup acceptance:** same-name/size/mtime fixture with wrong backup bytes
+  passes the exact Robocopy copy flags with **exit 0 / FAILED=0**, equal counts
+  and bytes, but unequal SHA-256. Fresh per-path integrity evidence must reject
+  it before the F copy supports destructive cutover/versioning disablement.
+  Artifact: `.codex\tmp\review199-backup-proof.json`.
+- **P1 writer restart:** WAL-aware, read-only backlog snapshot at
+  **20:02:55 UTC**, stable data_version: **13,621 queued** rows point to
+  **Z:\comics\Comix**; all **39,140** rows use that root. The code read at
+  autodecen **4211611** passes stored source paths to replace processing.
+  Bind the actual runtime DB/config and migrate/rebuild or disable old-root
+  jobs before workers resume; a GUI/handoff root check alone is insufficient.
+  Artifact: `.codex\tmp\review199-camelia-roots.json`; no rows changed.
+- **P1 rollback:** backup excludes `.stversions`, generic restore `/MIR` does
+  not. Dry-run and actual isolated fixture show the unbacked history deleted
+  (exit **3**). Require an exact protected restore/quarantine plan and reviewed
+  dry-run, not blind purge. Artifact: `.codex\tmp\review199-rollback-proof.json`.
+
+Manifest and Phase 2 command hashes/fields match the prepared artifacts. Historical
+estimate metadata shows **26,017** Tower paths absent on X, **606,866,625,691 bytes**
+(**0.552 TiB**). Adding positive matching-path size growth and the 16 largest
+matching files yields an illustrative **0.671 TiB** peak, conditional on <=16
+replacement temporaries and no conflict/history/failed-temp buildup. Verify
+actual limits/reserve; versioning off is a conditional tradeoff after recovery
+evidence, not a capacity proof. Artifact: `.codex\tmp\review199-space-budget.json`.
+Claude owns the revised exact head. Additive backup/preparation may continue;
+no live role change, Revert/Override, restore or payload modification by Codex.
+
 ## David's expanded project authorization and verified merges (2026-11-15)
 
 Current user instruction **#5191**, acknowledged in confirmed hive **#5233**:
