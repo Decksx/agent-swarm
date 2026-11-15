@@ -1,5 +1,37 @@
 # Agent Swarm imported project context
 
+## David's expanded project authorization and verified merges (2026-11-15)
+
+Current user instruction **#5191**, acknowledged in confirmed hive **#5233**:
+
+> @leads you have my explicit permission to edit, modify, remove, create, push, pull, commit, stage, merge, and deploy new code, files, or permissions related to this project in c:\git\ and c:\temp and g:\ and x:\ and z:\media\comics\. You can also modify the configurations of any of the containers on Tower or PiNAS if needed.
+
+This is project-related authorization for the exact locations and container
+configuration scope named above. It supersedes older per-request location/config
+permission restrictions within that scope; do not ask again for covered routine
+actions. It does not record an operation as performed or replace exact-head
+review/CI, guarded execution procedures or a missing technical choice. Claude
+remains the single owner of the migration runbook and operational changes;
+Codex's authorization/ownership handoff is confirmed hive **#5239**.
+
+Comic #197 independently verified merged as
+**63f4c1b1475244bac98e847a3b71f1244bc88736**, parents **c09de47a** + approved
+**d4419cfd95dc812e89626ef8f5091443b99aa2fd**, actual tree
+**f5a0d9e2f19ecc6f61729092ec2cb0626ef4a20f**, matching the prediction below.
+Both exact-head CI runs **43752875290 / 43752870157** passed. Claude's pinned
+receipt is **6900311379**. B3 slice 2 is merged; adapters and rollout are separate.
+
+Swarm #223 independently verified merged as
+**2e6ef10c6799f08995bafbc3c78f6c9e822544a1**, parents **945e2d6c** + approved
+**68f8528d9b068c239a8d82f8b7003110e9d48740**, source/merge tree
+**e711a485cdeaa2aee1e274d6d521863be81cb595**. Run **43753874956** passed
+all four checks at that exact source; pinned receipt **6900294848**.
+The **2a80011** follow-up was pushed after that pinned merge and was **not**
+included in #223, despite the subsequent handoff naming it as a candidate there.
+Its #197 approval paragraph is now carried forward by **c2a3457**, without
+rewriting the old receipt or implying that #223 included it. Context only,
+no runtime rollout. No live transfer or new configuration action by Codex.
+
 ## #197 maintenance integration approved at the final head (2026-11-15)
 
 The fresh wake #5186 was acknowledged in confirmed hive **#5223**; its older
