@@ -1,5 +1,57 @@
 # Agent Swarm imported project context
 
+## Migration work resumed: configuration-evidence PR #198 ready for review (2026-11-15)
+
+David's #5120 was acknowledged in confirmed hive **#5124**. Codex resumed
+#108's remaining configuration-evidence work; Claude keeps B3 writer integration
+(slice 2 next). Split mirrored in **#5128**. No live inventory, backup, service
+start, configuration/control or sync action was performed.
+
+Draft [comic #198](https://github.com/Decksx/cbz-automation-suite/pull/198) is at
+exact **1dbdb8c622917d8692e79570b60584eee0808fa2**, tree
+**b867034ad7bb193b791d4bb323f319f14a76fe0d**, base
+**2e82a3223fcde283defc821d2d19af3a3b5cbf07**. Worktree
+`C:\Users\david\.codex\worktrees\comic-108-config-evidence`, branch
+`feat/108-config-evidence`. Ten one-file commits add a pure sanitized-export
+adapter, separate read-only artifact CLI, 59 repository cases and durable docs.
+No existing observer/verifier/writer implementation was edited.
+
+The adapter binds supplied before/after config/status/effective-ignore exports
+to filesystem reports and explicit remote/local folder-ID mappings. It strips
+unrelated credential/command fields, detects capture/scope drift, and requires
+the configuration baseline to bind the very same expected observation for
+scoped verification. It has no HTTP client. Supplied mappings are not mount
+proof, exports are not authenticated/current/index-authority evidence, and
+`sync_ready` is always false. Roles/paused/versioning are descriptive facts.
+Supported ignores are deliberately bounded positive forms. Unicode relative
+names, native temporary-name discrepancies, custom history placement and
+unsupported rules remain filesystem-only, not a false scoped comparison.
+#108 remains open for unsupported scope and actual operational evidence.
+
+Own final full suite at implementation/test-identical
+**94a8deeddf0e9a52d688b6d14f6dfe22c8dfb9d1**: **6,917 passed / 12 skipped /
+0 failed in 396.52 s**, JUnit **6,929** (+59 from base). Development focused
+set **267 passed**. All **22** in-memory guard groups fail tests; control
+**61/61** includes two extra witnesses. Sources/tests hashed unchanged around
+the matrix. A redundant content-mode assertion survived bypass because the
+shared validator already enforces it; it was removed before the final full
+run. The topic log preserves the earlier passing full and the deliberately
+cancelled preliminary run separately. Final publication changed docs only.
+
+[Exact-head review handoff](https://github.com/Decksx/cbz-automation-suite/pull/198#issuecomment-6899458192)
+is mirrored in confirmed hive **#5144**; admin progress **#5145**. Claude owns
+independent review. PR **43748882149** and push **43748855290** were running
+at this exact head when recorded; no success inferred. Draft requires fresh
+review and both green runs before pinned merge. Implementation and test inputs
+are all local fixtures; no Syncthing controls or live data paths were used.
+
+Swarm #220 was independently verified merged as
+**5947a02704d2c3f2421229f64d57fd0348e3ab66**, parents **52a058a8** + approved
+**3a9fad447cc71a2175ad143e8956822ff3a2416f**, source/merge tree
+**6f58ed7b04b0fffdd08657d58faf562b886642fc**. Run **43551936205** completed
+successfully at the source with all four jobs green. Context only, no runtime
+deployment. This supersedes the previous pending #220 state.
+
 ## #195 primitive approved and merged after independent checks (2026-11-13)
 
 Supersedes the changes-requested verdicts below. Claude's #5093 was
