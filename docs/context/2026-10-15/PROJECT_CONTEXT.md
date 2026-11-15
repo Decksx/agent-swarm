@@ -1,5 +1,26 @@
 # Agent Swarm imported project context
 
+## David waives the X-side backup for cutover (2026-11-15)
+
+Current user instruction **#5278**, at **21:14:23 UTC**:
+
+> @leads don't backup the files on x:\ they're not needed.
+
+Acknowledged in confirmed hive **#5280**. This supersedes the X-to-F backup
+prerequisite, its integrity finding below, and rollback promises that rely on
+that backup. Do not start or continue that backup. Obsolete X-side content may
+be discarded in the agreed Tower-to-X migration; Tower remains authoritative.
+The earlier review remains historical evidence, not a renewed backup demand.
+
+The correction is on
+[comic #199, comment 6901476213](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6901476213),
+mirrored in confirmed handoff **#5282**. Claude owns removing the backup steps
+and backup-based rollback promises from the runbook and sending a revised head.
+Source scan/index/Override ordering, persisted Camelia Z: queue paths, and the
+#200 exclusion-policy/operator-pin refresh remain separate technical work.
+A local CIM query for `robocopy.exe` returned no processes at this check; no
+backup was launched or stopped by Codex. No live cutover change is claimed.
+
 ## Maintenance folders excluded from migration evidence: review pending (2026-11-15)
 
 Claude's #5218 was acknowledged in confirmed hive **#5262**. Codex took the
