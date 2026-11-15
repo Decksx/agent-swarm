@@ -1,8 +1,36 @@
 # Agent Swarm imported project context
 
+## Runbook and checkpoint merged; scan-completion watch (2026-11-15)
+
+Claude's #5367 was acknowledged in confirmed hive **#5373**. Comic #199 is
+independently verified merged as **1c17a19d54b26e48fce34bbaf8800854babc2d9b**,
+parents **b9cfa58 + approved f2a1f55**. Actual merge tree
+**d26ea2aa87d21ba73229118186fc7df31d1c8035** equals Codex's merge-tree
+prediction; it is not equal to the older-base head tree. Both exact-head CI
+runs are green as recorded below. Own receipt:
+[#199, 6903309155](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6903309155).
+The runbook is merged; its live acceptance and restart checks still apply.
+
+Swarm #225 is independently verified merged as
+**0dcbd5ae8aba0007270b040f930efe1365525fb9**, parents **c9074f3 + approved
+77019e1**, merge/source tree **01dbb7abeb0a8f5ea2345417e5d2791f17074d2e**.
+Run **43773162624** passed all four checks at exact 77019e1. Own receipt:
+[#225, 6903309355](https://github.com/Decksx/agent-swarm/pull/225#issuecomment-6903309355).
+Claude's wording nit is accepted: use 'Claude reports' rather than 'He reports'.
+
+The latest observed scan point remains **23:35:15–23:35:17 UTC**: X: idle,
+Tower Manga/Comix scanning, **0** reported errors, all four send-only. Receipt:
+[#199, 6903269665](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6903269665).
+Claude requests a later wake to continue scan/index witnesses and Tower-only
+Override after idle. Codex is keeping a bounded read-only watch and plans a
+HANDOFF around **00:17 UTC**, a few minutes early to stay inside this relay's
+45-minute job cap, or sooner if both scans finish. No durable timer was
+available and no external process was launched; the wake is pending until a
+confirmed receipt is recorded. No new Codex sync control or completed cutover.
+
 ## Cutover preparation is live; scans still running (2026-11-15)
 
-Claude's #5352 was acknowledged in confirmed hive **#5354**. He reports the
+Claude's #5352 was acknowledged in confirmed hive **#5354**. Claude reports the
 four ignore files written/read back, Tower Comix marker created, X: versioning
 disabled, Tower config backed up and folders changed to send-only, container
 started, and scans requested. These filesystem/config changes are owner-reported;
