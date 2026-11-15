@@ -116,6 +116,47 @@ class ClaudeBackend:
         self.sessions_dir = sessions_dir or Path.home() / ".claude" / "sessions"
 
     def ownership(self, session: Session) -> str:
+        return self._ownership(session, None)
+
+    def ownership_without(self, session: Session, pid: int, proc_start: str) -> str:
+        """`ownership`, except that a dead record naming exactly this process
+        (pid AND creation time) no longer counts.
+
+        Only for the relay's release check, after the relay has proven that
+        process and everything it started is gone (`Relay._run_proven_gone`).
+        A run the relay kills at RUN_TIMEOUT can leave its record behind, and
+        that record would otherwise hold the session UNKNOWN forever
+        (2026-11-03 and 2026-11-15). Every other stale, unreadable or
+        unrecognised record still answers UNKNOWN.
+        """
+        return self._ownership(session, (int(pid), str(proc_start)))
+
+    def retire_record(self, session: Session, pid: int, proc_start: str) -> str:
+        """Move this run's own dead record to `~/.claude/sessions-stale/`
+        (never deleted), then answer `ownership` afresh.
+
+        The record has to go, not just be overlooked once: every later
+        ownership check (dispatch, the pre-spawn re-check) would otherwise
+        read it again and hold the next delivery. Nothing is moved unless
+        `ownership_without` is CLOSED, and only files naming exactly this pid
+        and creation time are touched. Anything that appeared since is judged
+        by the fresh `ownership` call.
+        """
+        if self.ownership_without(session, pid, proc_start) != CLOSED:
+            return UNKNOWN
+        stale_dir = self.sessions_dir.parent / "sessions-stale"
+        try:
+            stale_dir.mkdir(parents=True, exist_ok=True)
+            for path in self.sessions_dir.glob("*.json"):
+                record = json.loads(path.read_text(encoding="utf-8"))
+                if record.get("sessionId") == session.session_id and \
+                        (int(record["pid"]), str(record["procStart"])) == (int(pid), str(proc_start)):
+                    path.replace(stale_dir / path.name)
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            return UNKNOWN
+        return self.ownership(session)
+
+    def _ownership(self, session: Session, ended: Optional[tuple[int, str]]) -> str:
         try:
             records = list(self.sessions_dir.glob("*.json"))
         except OSError:
@@ -143,7 +184,11 @@ class ClaudeBackend:
             if self.processes.is_same(pid, str(record["procStart"])):
                 return OPEN
         # A record for this session whose process is gone, or whose pid now
-        # names another process: stale, and stale is not proof of idle.
+        # names another process: stale, and stale is not proof of idle --
+        # unless every one of them is the relay's own run, proven ended.
+        if ended is not None and all(
+                (int(r["pid"]), str(r["procStart"])) == ended for r in matched):
+            return CLOSED
         return UNKNOWN
 
     def command(self, session: Session) -> list[str]:

@@ -1039,6 +1039,151 @@ def test_claude_ownership(tmp_path, files, alive, expected):
     assert backend.ownership(session) == expected
 
 
+@pytest.mark.parametrize("files, alive, expected", [
+    ([("a", {})], {}, CLOSED),                                    # the run's own record, dead
+    ([("a", {"procStart": "999"})], {}, UNKNOWN),                 # same pid, another process
+    ([("a", {"pid": 1})], {}, UNKNOWN),                           # someone else's stale record
+    ([("a", {}), ("b", {"pid": 1})], {}, UNKNOWN),                # one stale record is not ours
+    ([("a", {}), ("b", {"pid": 1, "procStart": "7"})], {1: "7"}, OPEN),  # another live owner
+    ([("a", {})], {22684: "134"}, OPEN),                          # it is in fact alive
+    ([("a", {"sessionId": "other"})], {}, CLOSED),
+], ids=["own-dead", "pid-reused", "foreign-stale", "mixed-stale", "other-live", "alive",
+        "no-match"])
+def test_claude_ownership_without_the_runs_own_record(tmp_path, files, alive, expected):
+    for name, fields in files:
+        record(tmp_path, name, **fields)
+    processes = FakeProcesses()
+    processes.alive.update(alive)
+    backend = lead_relay.ClaudeBackend(processes, sessions_dir=tmp_path)
+    session = lead_relay.Session("claude-lead", "claude", "s-1", "C:/git", None, True)
+
+    assert backend.ownership_without(session, 22684, "134") == expected
+
+
+def test_retire_record_moves_only_the_runs_own_dead_record(tmp_path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    record(sessions, "22684")                                   # the run's own, dead
+    record(sessions, "77", pid=77, sessionId="other")           # another conversation
+    backend = lead_relay.ClaudeBackend(FakeProcesses(), sessions_dir=sessions)
+    session = lead_relay.Session("claude-lead", "claude", "s-1", "C:/git", None, True)
+
+    assert backend.ownership(session) == UNKNOWN
+    assert backend.retire_record(session, 22684, "134") == CLOSED
+    assert sorted(p.name for p in sessions.iterdir()) == ["77.json"]
+    assert (tmp_path / "sessions-stale" / "22684.json").is_file()
+    assert backend.ownership(session) == CLOSED
+
+
+def test_retire_record_moves_nothing_without_proof(tmp_path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    record(sessions, "22684")
+    record(sessions, "1", pid=1)                                # someone else's stale record
+    backend = lead_relay.ClaudeBackend(FakeProcesses(), sessions_dir=sessions)
+    session = lead_relay.Session("claude-lead", "claude", "s-1", "C:/git", None, True)
+
+    assert backend.retire_record(session, 22684, "134") == UNKNOWN
+    assert sorted(p.name for p in sessions.iterdir()) == ["1.json", "22684.json"]
+    assert not (tmp_path / "sessions-stale").exists()
+
+
+def test_retire_record_answers_afresh_after_the_move(tmp_path):
+    """A live owner that appears between the check and the move still wins."""
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    record(sessions, "22684")
+    record(sessions, "5", pid=5, procStart="9")                 # a live interactive session
+    processes = FakeProcesses()
+    processes.alive[5] = "9"
+    backend = lead_relay.ClaudeBackend(processes, sessions_dir=sessions)
+    backend.ownership_without = lambda session, pid, start: CLOSED   # the earlier answer
+    session = lead_relay.Session("claude-lead", "claude", "s-1", "C:/git", None, True)
+
+    assert backend.retire_record(session, 22684, "134") == OPEN
+
+
+def test_ownership_without_still_refuses_an_unreadable_record(tmp_path):
+    record(tmp_path, "a")
+    (tmp_path / "x.json").write_text("{not json", encoding="utf-8")
+    backend = lead_relay.ClaudeBackend(FakeProcesses(), sessions_dir=tmp_path)
+    session = lead_relay.Session("claude-lead", "claude", "s-1", "C:/git", None, True)
+
+    assert backend.ownership_without(session, 22684, "134") == UNKNOWN
+
+
+@pytest.mark.parametrize("container, members, released", [
+    ("job:Global\\lead-relay-x", None, True),           # the job is destroyed
+    ("job:Global\\lead-relay-x", [], True),             # the job exists, empty
+    ("job:Global\\lead-relay-x", [5150], False),        # a child of the run lives on
+    ("job:Global\\lead-relay-x", OSError("denied"), False),  # can't read is not absent
+    (None, None, False),                                # uncontained: proves nothing
+    ("session:4000", None, False),                      # POSIX session: not a job
+], ids=["job-gone", "job-empty", "job-member", "job-unreadable", "uncontained", "posix"])
+def test_a_timed_out_runs_leftover_record_releases_only_with_proof(tmp_path, container, members,
+                                                                   released):
+    """2026-11-15: a run killed at RUN_TIMEOUT left ~/.claude/sessions/<pid>.json
+    behind, ownership stayed UNKNOWN and 12 messages sat `held / reserved`."""
+    w = World(tmp_path, ownership=UNKNOWN)
+    w.backend.state = CLOSED
+    asked = []
+
+    def retire_record(session, pid, start):
+        asked.append((pid, start))
+        w.backend.state = CLOSED                # the record is gone now
+        return CLOSED
+
+    jobs = []
+
+    def job_members(name):
+        jobs.append(name)
+        if isinstance(members, Exception):
+            raise members
+        return members
+
+    w.backend.retire_record = retire_record
+    w.processes.job_members = job_members
+    spawn = w.spawn
+
+    def contained_spawn(command, session, attempt_id):
+        pid, start, handle, log_path = spawn(command, session, attempt_id)
+        handle.container = container
+        return pid, start, handle, log_path
+
+    w.spawn = contained_spawn
+    w.relay = w.build()
+    first = started(w)
+    w.ack(first, w.token(first))
+    w.tick()
+    second = w.hub.add("codex-lead", "HANDOFF @claude-lead: queued behind it")
+
+    w.backend.state = UNKNOWN                   # its record outlived it
+    w.tick(lead_relay.RUN_TIMEOUT)              # killed by the timeout
+    w.tick()
+    w.tick()
+
+    if released:
+        assert asked and set(asked) == {(4000, "start-4000")}
+        assert set(jobs) == {"Global\\lead-relay-x"}
+        assert w.delivery(second) == ("running", None) and len(w.spawned) == 2
+    else:
+        assert w.delivery(second) == ("held", "reserved") and len(w.spawned) == 1
+
+
+def test_a_run_still_alive_is_never_released_by_its_own_record(tmp_path):
+    w = World(tmp_path, ownership=UNKNOWN)
+    w.backend.retire_record = lambda session, pid, start: CLOSED
+    w.processes.job_members = lambda name: None
+    attempt = {"attempt_id": "a", "recipient": "claude-lead", "pid": 4000,
+               "proc_start": "start-4000", "container": "job:Global\\lead-relay-a"}
+    w.processes.alive[4000] = "start-4000"
+    session = w.relay.session("claude-lead")
+
+    assert w.relay._release_ownership(session, w.backend, attempt) == UNKNOWN
+    w.processes.alive.pop(4000)
+    assert w.relay._release_ownership(session, w.backend, attempt) == CLOSED
+
+
 @pytest.mark.parametrize("content", ["{not json", json.dumps({"pid": 1}), json.dumps([1])])
 def test_an_unreadable_or_unrecognised_record_is_unknown(tmp_path, content):
     (tmp_path / "x.json").write_text(content, encoding="utf-8")
