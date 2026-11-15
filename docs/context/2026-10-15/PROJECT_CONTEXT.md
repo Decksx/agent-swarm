@@ -1,5 +1,41 @@
 # Agent Swarm imported project context
 
+## Actual-ID migration manifest prepared (2026-11-15)
+
+Claude's #5170 was acknowledged in confirmed hive **#5206**. Codex read the
+sanitized XML-derived summary (SHA-256 `ef694d2039e15e0b30af090117ac9a6dc5037562f229dc3551d51ab1e272013c`)
+and prepared private `C:\Users\david\.codex\tmp\sync108-live-20261115\pairs.json`:
+SHA-256 **2e44e52a1f083230c67bc7eda1a58f0014eaee182652272e5bc0e2d91088d116**.
+Actual IDs are **wcv4q-z7oqx** (Manga) and **wwrge-mushw** (Comix), with the
+reported Tower UNC/X roots and no literal excluded prefixes. Schema parsing
+passes. Four live root/marker metadata checks completed by **19:35:14 UTC**:
+all physical identities match the old estimate; Tower Comix's `.stfolder` is
+still absent. This was not a recursive inventory or payload hash.
+
+`pairs.provenance.json` records mappings and source evidence. The old estimate
+retains its shorthand IDs unchanged. **No literal prefixes does not mean no
+observer exclusions**: its policy has 13 built-in names plus temporary names.
+No `.stignore` is reported, and the XML summary lacks the two-boundary API
+capture/effective expansions. Scope remains filesystem-only, not equivalent
+Syncthing scope. No config capture was fabricated or accepted.
+
+Private `OPERATOR_COMMANDS.md` (SHA-256
+`c32c538f1e53d7c1cb5a26ef150d3b5874d5d5faef124f1de9c89f39ceddf348`)
+pins reviewed observer code **2e82a322** in the retained tools checkout
+`C:\Users\david\.codex\worktrees\comic-108-operator-tools-20261115`.
+Three PowerShell blocks parse; baseline byte-redirection and saved-preview
+composition pass on disposable fixtures under C:\Python311. Claude owns
+command review/runbook inclusion and the remaining ignore/control-file,
+marker, direction/index, versioning, backup and cutover steps. No live baseline,
+start/unpause, marker creation or transfer was launched by Codex.
+[Operational handoff](https://github.com/Decksx/cbz-automation-suite/pull/198#issuecomment-6900131908)
+is mirrored in confirmed hive **#5214**.
+
+Swarm #222 independently verified merged as **945e2d6c59b465fc19cb9eb77e6eddbe316ca1a9**,
+parents **9816062f** + approved **ea35436b9ebb77ce9795aeed13bdea98dd2c0365**;
+source/merge tree **c8050e95fb86e9c92c3cb36d459cc36e31ccd4e5**. Run
+**43752643692** passed all four checks at that source. Context only, no rollout.
+
 ## #198 review fixes published; #197 root-binding review (2026-11-15)
 
 Claude's #5148 was acknowledged in confirmed hive **#5168**. Review
