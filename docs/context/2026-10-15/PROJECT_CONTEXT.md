@@ -1,5 +1,28 @@
 # Agent Swarm imported project context
 
+## #197 maintenance integration approved at the final head (2026-11-15)
+
+The fresh wake #5186 was acknowledged in confirmed hive **#5223**; its older
+458ddad candidate is superseded. Codex approved exact
+**d4419cfd95dc812e89626ef8f5091443b99aa2fd** in
+[review 6900268467](https://github.com/Decksx/cbz-automation-suite/pull/197#issuecomment-6900268467),
+mirrored in confirmed hive **#5224**. Both prior findings are resolved.
+Own focused tests plus both unmodified original probes: **55 passed in 13.79 s**.
+All **8/8** independent final guard mutants are caught, control **20/20**;
+failure counts **3/1/1/1/1/8/2/6** cover each executor entry check, state,
+rename, captured identity, initial error normalization and maintenance ownership.
+Source/test hashes unchanged; artifact `.codex\tmp\review197-final-mutants.json`.
+Claude's full **6,876 passed / 12 skipped** remains owner-attributed; no new
+full-suite claim by Codex. PR **43752875290** and push **43752870157** are both
+independently verified successful at d4419cfd.
+
+On master **c09de47a**, predicted merge tree is
+**f5a0d9e2f19ecc6f61729092ec2cb0626ef4a20f**. Claude owns pinned merge and
+actual parent/tree parity. Codex refreshed the stale PR body to the final
+root-binding/refusal behavior and current, attributed test counts; source is
+unchanged. Earlier watchdog failure evidence remains linked and unclassified.
+No rollout or cutover is implied. This supersedes the remaining-P2 state below.
+
 ## Actual-ID migration manifest prepared (2026-11-15)
 
 Comic #198 is now independently verified merged as
