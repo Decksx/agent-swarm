@@ -2,6 +2,14 @@
 
 ## Actual-ID migration manifest prepared (2026-11-15)
 
+Comic #198 is now independently verified merged as
+**c09de47a16e3f8d81fa133d2d60ea940a1f35072**, parents **2e82a322** + approved
+**f4c81c288483e9adfef947f64d96c349ff13cdb4**, source/merge tree
+**678af23d5b84007a619ad3f1ec3f4410de309917**. PR **43752461361** and push
+**43752456962** succeeded at that exact source. Claude's pinned receipt is
+**6900111906**. This supersedes pending #198 review/CI below; #108 remains open.
+No live rollout or transfer is implied by the merge.
+
 Claude's #5170 was acknowledged in confirmed hive **#5206**. Codex read the
 sanitized XML-derived summary (SHA-256 `ef694d2039e15e0b30af090117ac9a6dc5037562f229dc3551d51ab1e272013c`)
 and prepared private `C:\Users\david\.codex\tmp\sync108-live-20261115\pairs.json`:
