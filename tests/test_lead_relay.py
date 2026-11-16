@@ -1060,20 +1060,24 @@ def test_claude_ownership_without_the_runs_own_record(tmp_path, files, alive, ex
     assert backend.ownership_without(session, 22684, "134") == expected
 
 
-def test_retire_record_moves_only_the_runs_own_dead_record(tmp_path):
+def test_retire_record_marks_only_the_runs_own_dead_record(tmp_path):
+    """The record is never moved; a content-addressed marker retires exactly it."""
     sessions = tmp_path / "sessions"
     sessions.mkdir()
     record(sessions, "22684")                                   # the run's own, dead
     record(sessions, "77", pid=77, sessionId="other")           # another conversation
+    own = (sessions / "22684.json").read_bytes()
     backend = lead_relay.ClaudeBackend(FakeProcesses(), sessions_dir=sessions)
     session = lead_relay.Session("claude-lead", "claude", "s-1", "C:/git", None, True)
 
     assert backend.ownership(session) == UNKNOWN
     assert backend.retire_record(session, 22684, "134") == CLOSED
-    assert sorted(p.name for p in sessions.iterdir()) == ["77.json"]
-    archived = list((tmp_path / "sessions-stale").glob("22684.*.json"))   # unique name, never overwritten
-    assert len(archived) == 1 and json.loads(archived[0].read_text())["procStart"] == "134"
+    assert sorted(p.name for p in sessions.iterdir()) == ["22684.json", "77.json"]   # nothing moved
+    markers = list((tmp_path / "sessions-stale").glob("*.retired.json"))
+    assert [m.read_bytes() for m in markers] == [own]
     assert backend.ownership(session) == CLOSED
+    # The marker persists: a restarted relay (a new backend) still sees it retired.
+    assert lead_relay.ClaudeBackend(FakeProcesses(), sessions_dir=sessions).ownership(session) == CLOSED
 
 
 def test_retire_record_moves_nothing_without_proof(tmp_path):
@@ -1089,8 +1093,8 @@ def test_retire_record_moves_nothing_without_proof(tmp_path):
     assert not (tmp_path / "sessions-stale").exists()
 
 
-def test_retire_record_answers_afresh_after_the_move(tmp_path):
-    """A live owner that appears between the check and the move still wins."""
+def test_retire_record_answers_afresh_after_retiring(tmp_path):
+    """A live owner that appears between the check and the retirement still wins."""
     sessions = tmp_path / "sessions"
     sessions.mkdir()
     record(sessions, "22684")
@@ -1634,8 +1638,9 @@ def test_confirm_cannot_interleave_with_a_tick_that_has_its_snapshot(tmp_path, m
 
 
 
-# --- #226 review: the moved record must be the one validated; archives are never overwritten ---
-# Adapted from codex-lead's probes (test_review226_probes.py, sha 0c565227...).
+# --- #226 review: retirement never moves a record; a marker retires exact bytes ---------
+# Replaces the move-based design, whose read-to-move race and failed restore could leave a
+# new live record only in sessions-stale (codex-lead's probes 0c565227..., 3cc0d2ba...).
 
 def _retire_fixture(tmp_path):
     from types import SimpleNamespace
@@ -1652,62 +1657,62 @@ def _retire_fixture(tmp_path):
     return path, rec, alive, processes, backend, session, attempt
 
 
+@pytest.mark.parametrize("live", [True, False])
 @pytest.mark.parametrize("new_session", ["s-1", "another-conversation"])
-def test_a_record_republished_at_the_move_is_restored_and_not_released(tmp_path, monkeypatch, new_session):
-    """A new process reuses the PID and writes its record after the read, before the move."""
+def test_a_record_republished_after_retirement_counts_again(tmp_path, new_session, live):
+    """PID reuse at the same path: new bytes, so no marker matches; nothing is hidden."""
     path, rec, alive, processes, backend, session, attempt = _retire_fixture(tmp_path)
-    original = Path.replace
-    replacement = dict(rec, sessionId=new_session, procStart="999")
-    swaps = []
-
-    def replace(source, destination):
-        if source == path and not swaps:
-            swaps.append(True)
-            alive[22684] = "999"
-            path.write_text(json.dumps(replacement), encoding="utf-8")
-        return original(source, destination)
-
-    monkeypatch.setattr(Path, "replace", replace)
-    answer = lead_relay.proven_idle(backend, processes, session, attempt)
-    assert swaps and answer != CLOSED
-    live = lead_relay.Session("claude-lead", "claude", new_session, "fixture", None, True)
-    assert backend.ownership(live) == OPEN
-    assert json.loads(path.read_text()) == replacement
+    assert lead_relay.proven_idle(backend, processes, session, attempt) == CLOSED
+    if live:
+        alive[22684] = "999"
+    path.write_text(json.dumps(dict(rec, sessionId=new_session, procStart="999")), encoding="utf-8")
+    now = lead_relay.Session("claude-lead", "claude", new_session, "fixture", None, True)
+    assert backend.ownership(now) == (OPEN if live else UNKNOWN)
+    assert lead_relay.proven_idle(backend, processes, now, attempt) != CLOSED
+    assert path.exists()
 
 
-def test_a_record_republished_at_the_move_never_overwrites_a_newer_arrival(tmp_path, monkeypatch):
-    """If yet another record lands at the path before the restore, both are kept."""
+def test_a_marker_that_cannot_be_written_stays_unknown_on_every_later_tick(tmp_path, monkeypatch):
     path, rec, alive, processes, backend, session, attempt = _retire_fixture(tmp_path)
-    original = Path.replace
-    calls = []
+    import builtins
+    real_open = builtins.open
 
-    def replace(source, destination):
-        if source == path and not calls:
-            calls.append(True)
-            path.write_text(json.dumps(dict(rec, procStart="999")), encoding="utf-8")
-            result = original(source, destination)
-            path.write_text(json.dumps(dict(rec, procStart="1000")), encoding="utf-8")   # newest arrival
-            return result
-        return original(source, destination)
+    def refuse_markers(file, mode="r", *args, **kwargs):
+        if "x" in mode and str(file).endswith(".retired.json"):
+            raise PermissionError("injected marker refusal")
+        return real_open(file, mode, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "replace", replace)
-    assert lead_relay.proven_idle(backend, processes, session, attempt) != CLOSED
-    assert json.loads(path.read_text())["procStart"] == "1000"
-    kept = [json.loads(p.read_text())["procStart"] for p in (tmp_path / "sessions-stale").glob("22684.*.json")]
-    assert kept == ["999"]
+    monkeypatch.setattr(builtins, "open", refuse_markers)
+    for _ in range(3):                                   # later ticks, not just the first
+        assert lead_relay.proven_idle(backend, processes, session, attempt) == UNKNOWN
+    assert path.exists() and not list((tmp_path / "sessions-stale").glob("*.retired.json"))
 
 
-def test_archiving_keeps_an_earlier_record_from_pid_reuse(tmp_path):
+def test_a_partial_or_altered_marker_retires_nothing(tmp_path):
+    import hashlib
     path, rec, alive, processes, backend, session, attempt = _retire_fixture(tmp_path)
-    archive = tmp_path / "sessions-stale"
-    archive.mkdir()
-    previous = archive / path.name
+    stale = tmp_path / "sessions-stale"
+    stale.mkdir()
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    (stale / f"{digest}.retired.json").write_bytes(path.read_bytes()[:10])   # torn write
+    assert backend.ownership(session) == UNKNOWN
+
+
+def test_pid_reuse_keeps_every_retirement_and_earlier_archives(tmp_path):
+    path, rec, alive, processes, backend, session, attempt = _retire_fixture(tmp_path)
+    stale = tmp_path / "sessions-stale"
+    stale.mkdir()
+    previous = stale / path.name                          # an archive from the old move-based relay
     history = json.dumps(dict(rec, procStart="90", sessionId="older-conversation")).encode()
     previous.write_bytes(history)
-    retiring = path.read_bytes()
+    first = path.read_bytes()
     assert lead_relay.proven_idle(backend, processes, session, attempt) == CLOSED
+    path.write_text(json.dumps(dict(rec, procStart="777")), encoding="utf-8")     # a later dead run, same PID
+    second = path.read_bytes()
+    assert lead_relay.proven_idle(backend, processes, session, dict(attempt, proc_start="777")) == CLOSED
     assert previous.read_bytes() == history
-    assert retiring in [p.read_bytes() for p in archive.iterdir() if p.is_file()]
+    kept = sorted(m.read_bytes() for m in stale.glob("*.retired.json"))
+    assert kept == sorted([first, second])
 
 
 def test_an_owner_present_before_the_check_stays_visible(tmp_path):
