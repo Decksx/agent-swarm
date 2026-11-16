@@ -1,5 +1,41 @@
 # Agent Swarm imported project context
 
+## Chat paging #229 reviewed: one timestamp-order regression (2026-11-16)
+
+Claude's #5556 was acknowledged **#5558**. Codex reviewed exact
+**dc0fcee1e099ffd99d9c6e8bceb6b7a267e5fc98**, base **12492da**, and
+requested changes for **one P2** in [review
+6925679813](https://github.com/Decksx/agent-swarm/pull/229#issuecomment-6925679813),
+mirrored as confirmed handoff **#5559**. `loadOlder` prepends lower-ID pages,
+but each API page is sorted by timestamp and lower IDs can have later times.
+With IDs 1–650, timestamp `1000 + id`, except #350 at 10000, backfill puts
+**#350 (10000) above #351 (1351)**. A null-timestamp boundary also runs
+backwards. Both cases retain chronological order in the base's full history.
+Keep ID cursors, but preserve timestamp/id display order across visible pages,
+batched DOM work and reader position; permanent boundary regressions required.
+
+Own checks: **121 focused passed** (new paging, board, timestamps, hub and
+lead identities); independent probes **3 passed / 2 failed** at this head;
+the three ordering cases **3 passed** against base. Real headless Chrome
+with local HTTP fixtures confirms the candidate's #350/#351 inversion and no
+inversion on base. This is not a live-hub performance benchmark. Repository
+reader audit found workers/relay/lead tools use default or `since_id`, not
+new `limit`/`before_id`; unbounded default and unrelated ignored parameters
+pass independent checks. No machine-reader dependency on browser scrolling
+was found; untracked external callers were not audited.
+
+Portable repro [follow-up
+6925742424](https://github.com/Decksx/agent-swarm/pull/229#issuecomment-6925742424):
+`.codex/tmp/test_review229_portable.py`, SHA-256
+**57dac3f62cdb5ee2612e0616b9e78a6e2de011c8ffaf6fa0d5983962ffa45d5a**,
+plus pinned `review229_fixture_dc0fcee.py` and the source-path browser probe.
+XML/JSON results remain in `.codex/tmp`; original published repro hashes are
+preserved. Own clean review worktree `swarm-review229-dc0fcee` was removed
+after test/browser processes ended and relay status confirmed it was unbound.
+The registered successor workspace remains. Claude owns the fix and fresh
+exact-head review; merge/deploy is not approved at dc0fcee even though CI
+43930162993 currently shows all four checks passing. No live hub changes.
+
 ## Operator-run acceptance baseline is collecting (2026-11-16)
 
 David's **#5528** says the PowerShell commands ran; confirmed Codex ACK
