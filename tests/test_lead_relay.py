@@ -1071,7 +1071,8 @@ def test_retire_record_moves_only_the_runs_own_dead_record(tmp_path):
     assert backend.ownership(session) == UNKNOWN
     assert backend.retire_record(session, 22684, "134") == CLOSED
     assert sorted(p.name for p in sessions.iterdir()) == ["77.json"]
-    assert (tmp_path / "sessions-stale" / "22684.json").is_file()
+    archived = list((tmp_path / "sessions-stale").glob("22684.*.json"))   # unique name, never overwritten
+    assert len(archived) == 1 and json.loads(archived[0].read_text())["procStart"] == "134"
     assert backend.ownership(session) == CLOSED
 
 
@@ -1630,3 +1631,88 @@ def test_confirm_cannot_interleave_with_a_tick_that_has_its_snapshot(tmp_path, m
         # The daemon delivered live, consistently: no row is both cancelled
         # and notified, which is the state the race used to produce.
         assert "notified" in states
+
+
+
+# --- #226 review: the moved record must be the one validated; archives are never overwritten ---
+# Adapted from codex-lead's probes (test_review226_probes.py, sha 0c565227...).
+
+def _retire_fixture(tmp_path):
+    from types import SimpleNamespace
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    path = sessions / "22684.json"
+    rec = dict(pid=22684, sessionId="s-1", procStart="134", kind="interactive")
+    path.write_text(json.dumps(rec), encoding="utf-8")
+    alive = {}
+    processes = SimpleNamespace(is_same=lambda pid, start: alive.get(pid) == start, job_members=lambda name: [])
+    backend = lead_relay.ClaudeBackend(processes, sessions_dir=sessions)
+    session = lead_relay.Session("claude-lead", "claude", "s-1", "fixture", None, True)
+    attempt = dict(attempt_id="fixture", recipient="claude-lead", pid=22684, proc_start="134", container="job:fixture")
+    return path, rec, alive, processes, backend, session, attempt
+
+
+@pytest.mark.parametrize("new_session", ["s-1", "another-conversation"])
+def test_a_record_republished_at_the_move_is_restored_and_not_released(tmp_path, monkeypatch, new_session):
+    """A new process reuses the PID and writes its record after the read, before the move."""
+    path, rec, alive, processes, backend, session, attempt = _retire_fixture(tmp_path)
+    original = Path.replace
+    replacement = dict(rec, sessionId=new_session, procStart="999")
+    swaps = []
+
+    def replace(source, destination):
+        if source == path and not swaps:
+            swaps.append(True)
+            alive[22684] = "999"
+            path.write_text(json.dumps(replacement), encoding="utf-8")
+        return original(source, destination)
+
+    monkeypatch.setattr(Path, "replace", replace)
+    answer = lead_relay.proven_idle(backend, processes, session, attempt)
+    assert swaps and answer != CLOSED
+    live = lead_relay.Session("claude-lead", "claude", new_session, "fixture", None, True)
+    assert backend.ownership(live) == OPEN
+    assert json.loads(path.read_text()) == replacement
+
+
+def test_a_record_republished_at_the_move_never_overwrites_a_newer_arrival(tmp_path, monkeypatch):
+    """If yet another record lands at the path before the restore, both are kept."""
+    path, rec, alive, processes, backend, session, attempt = _retire_fixture(tmp_path)
+    original = Path.replace
+    calls = []
+
+    def replace(source, destination):
+        if source == path and not calls:
+            calls.append(True)
+            path.write_text(json.dumps(dict(rec, procStart="999")), encoding="utf-8")
+            result = original(source, destination)
+            path.write_text(json.dumps(dict(rec, procStart="1000")), encoding="utf-8")   # newest arrival
+            return result
+        return original(source, destination)
+
+    monkeypatch.setattr(Path, "replace", replace)
+    assert lead_relay.proven_idle(backend, processes, session, attempt) != CLOSED
+    assert json.loads(path.read_text())["procStart"] == "1000"
+    kept = [json.loads(p.read_text())["procStart"] for p in (tmp_path / "sessions-stale").glob("22684.*.json")]
+    assert kept == ["999"]
+
+
+def test_archiving_keeps_an_earlier_record_from_pid_reuse(tmp_path):
+    path, rec, alive, processes, backend, session, attempt = _retire_fixture(tmp_path)
+    archive = tmp_path / "sessions-stale"
+    archive.mkdir()
+    previous = archive / path.name
+    history = json.dumps(dict(rec, procStart="90", sessionId="older-conversation")).encode()
+    previous.write_bytes(history)
+    retiring = path.read_bytes()
+    assert lead_relay.proven_idle(backend, processes, session, attempt) == CLOSED
+    assert previous.read_bytes() == history
+    assert retiring in [p.read_bytes() for p in archive.iterdir() if p.is_file()]
+
+
+def test_an_owner_present_before_the_check_stays_visible(tmp_path):
+    path, rec, alive, processes, backend, session, attempt = _retire_fixture(tmp_path)
+    alive[22684] = "999"
+    path.write_text(json.dumps(dict(rec, procStart="999")), encoding="utf-8")
+    assert lead_relay.proven_idle(backend, processes, session, attempt) == OPEN
+    assert path.exists() and not (tmp_path / "sessions-stale").exists()
