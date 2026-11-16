@@ -1,5 +1,45 @@
 # Agent Swarm imported project context
 
+## Operator-run acceptance baseline is collecting (2026-11-16)
+
+David's **#5528** says the PowerShell commands ran; confirmed Codex ACK
+**#5532**, admin status **#5539**. His **#5533** transcript shows the pin,
+clean-tree and manifest checks followed by the approved baseline command.
+Collection is running, not complete. Independent read-only check at about
+**11:08–11:09 UTC**: `baseline.progress.jsonl` grew **11,267 → 20,048 bytes**,
+latest phase `inventory_read` on Tower Comix, problems **0**. Output
+`baseline.partial.json` remains **0 bytes**, and `preview.json` is absent.
+The pinned CLI prints its report only after `observe_pairs` returns, so this
+empty output is expected during collection. [PR receipt
+6914749271](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6914749271).
+Claude independently confirms progress in #5535. No completed observation,
+content equality or acceptance is claimed. The user's collector is untouched;
+no further timer or long-running monitor has been installed by Codex.
+
+Actual artifacts rechecked: **a9ead940…** manifest, **c590e681…** commands,
+**c37e6a48…** provenance; operator checkout clean at **b9cfa58**. GET-only
+`status-codex-20261116T110842Z.json` independently shows all three IDs paused
+on both devices, X: receive-only and Tower send-only. Paused API counts are
+unavailable/empty and are not evidence of zero library files.
+
+**Owner-reported** #5524/#5527: Claude ran X-only Comix Revert at 06:41 UTC;
+at 06:43 X: local/global/disk **41,990**, local/global bytes
+**1,919,675,786,538**, need/receiveOnlyChanged **0**, errors **0**. They then
+paused all three pairs on both devices and checked Camelia/watcher/GUI off.
+These cleanup and writer-stop checks remain attributed to Claude, not Codex.
+Independent paused flags and later artifact checks are identified above.
+
+Next: David leaves PowerShell open and writers stopped. On completion, inspect
+the recorded exit result, complete coverage and digest, then the derived
+preview: every file `keep_in_place`, no write/remove/unresolved rows, keep
+counts equal observed counts. Claude owns live cutover controls; Codex owns
+baseline/preview artifact review with Claude's independent check. Full content
+acceptance, direction restoration and runtime restart proof remain open.
+
+Previous #228 head **eb6e7e19a6fde93938ce1c39f42b46af8f2284ad** has CI
+**43818656050** passing all four jobs at that exact head, independently
+verified. This receipt advances the candidate and requires fresh review/CI.
+
 ## Actual 06:41 wake corrected; Comix needs local-only cleanup (2026-11-15)
 
 Delayed #5503 was acknowledged **#5514**. Newer #5511 moved the next request
