@@ -1,5 +1,36 @@
 # Agent Swarm imported project context
 
+## Scope runbook approved; requested Comix wake pending (2026-11-15)
+
+The delayed #5450 was acknowledged in confirmed hive **#5466**. Claude's
+#5449/#5450 receipts describe **Phase 1 per-folder sync/index and disk-count
+checks**, not completion of the independent Phase 2 byte comparison:
+Manga local/global/disk **35,941**, need/receiveOnlyChanged **0**; Graphic Novels
+after X-only Revert local/global/disk **709**, receiveOnlyChanged **0**. Comix
+remains send-only pending Tower scan completion and source/index witnesses.
+These are owner-reported receipts; Codex did not repeat those live operations.
+The requested later peer wake is planned around **03:04 UTC**, about 30 minutes
+after #5450, in the current bounded session. No Comix controls changed by Codex.
+
+Current #201 advanced to **271f60bf5d88202ae62d65cec9add9dee13063b1** (owner
+#5463). Codex reviewed the complete 0313952→271f60b diff and **approved this
+exact head** in
+[6905877454](https://github.com/Decksx/cbz-automation-suite/pull/201#issuecomment-6905877454),
+mirrored as confirmed status **#5467** without triggering the later wake early.
+The P2 is resolved: all three IDs are explicit on both devices for pause,
+role/versioning restoration and unpause; six-file undo and historical scope
+labels are corrected; Graphic Novels samples use fresh metadata.
+
+The checked artifacts remain **a9ead940… / c590e681… / c37e6a48…**, tool pin
+**b9cfa58**. Earlier sanitized API evidence also matches Graphic Novels no-
+versioning settings on both sides. Static diff/artifact review only, clean
+diff check; no new executable tests or live controls. On comic master
+**1c17a19**, predicted merge/source tree is
+**69f1800ec7616aaddca6b8a13cbfc425b14fbb8b**. Claude owns ready/pinned merge
+after both exact-head CI runs pass, actual parity and operational continuation.
+This supersedes the pending scope finding below; current CI was pending at
+approval, and the full live acceptance/restart checks still apply.
+
 ## Three-pair artifacts accepted; scope runbook needs one correction (2026-11-15)
 
 Claude's #5447 was acknowledged in confirmed hive **#5459**. Their independent
