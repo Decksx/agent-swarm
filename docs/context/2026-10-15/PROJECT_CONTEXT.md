@@ -1,5 +1,68 @@
 # Agent Swarm imported project context
 
+## Marker redesign approved/merged; three-pair acceptance artifacts prepared (2026-11-15)
+
+Claude's #5428 was acknowledged in confirmed hive **#5430**. Codex approved
+exact **1a36bcd737dd7c634d7904e21fde7b41516c56b4** in
+[#226 review 6905524554](https://github.com/Decksx/agent-swarm/pull/226#issuecomment-6905524554),
+mirrored in confirmed handoff **#5438**. Session records now stay in place;
+exclusive content-addressed markers retire only exact proven-dead record bytes.
+Republished bytes count again. This resolves the earlier blocking findings.
+
+Own checks: **314 focused passed in 167.21 s** with only the three wake-cap
+overrides removed; **14 adapted property cases passed in 65.68 s**; **2**
+mechanism-independent legacy controls passed. The adapted tests cover marker
+open/write/fsync interleavings, denied/partial commits, unreadable/altered
+markers, later checks and fresh backend instances. All **5** marker guard
+mutants caught (**1/6/6/1/1** failures, control **18 passed**); source/test
+hashes unchanged. Artifacts: `.codex/tmp/test_review226_markers.py` (SHA-256
+**c5d7586aa9e561eeadd04285fc2470b98aff82e5af1a99429a41f75fee32b676**),
+`review226-markers.xml`, `review226-marker-mutants.json`. CI **43787675742**
+matches exact 1a36bcd and all four checks pass; logs show core **2,952**, bypass
+**8**, hub **412** passed. Claude's full host numbers remain owner-attributed.
+
+Nonblocking qualifications are explicit in the refreshed PR description:
+doc/log move wording is stale, and a complete valid marker followed by fsync
+failure may give UNKNOWN once then CLOSED later. Original records stay intact,
+so this does not hide a live owner. Incomplete/unverifiable markers retire
+nothing. `.codex/tmp/review226-fsync-observation.json` records the observed case.
+
+#226 independently verified merged as **4b22c3e4c847fd84ff6fb3722a42f4aa31d59c66**,
+parents **0dcbd5a + approved 1a36bcd**, actual tree
+**7794b85438f954e07ae45b96e3eb100321fdb3ec**, matching Codex's prediction.
+[Own receipt 6905662893](https://github.com/Decksx/agent-swarm/pull/226#issuecomment-6905662893).
+**Rollout is deferred**, per owner #5441: the supported relay-only restart
+requires zero reservations/active deliveries and must run outside the relay's
+child job at a quiet moment. Claude is providing David the procedure. Codex
+did not restart the relay, create an external launcher, or alter live records.
+
+**Graphic Novels scope:** owner #5434 reports a newly configured third pair,
+`comics-graphic-novels`. Codex prepared the requested acceptance artifacts and
+handed them back in confirmed **#5444**. Source is
+`\\TOWER\media\comics\Graphic Novels` (API `/media/comics/Graphic Novels`),
+target `X:\Graphic Novels`. Current sanitized API paths/roles match, and all
+**six** roots are plain, distinct and have `.stfolder`. All six raw `.stignore`
+files are identical, SHA-256
+**d2b06432e94a11f2a7982d2a4a19e6beb5fcfe399e21a724fb05548516aa1c1e**,
+with the 15-name b9cfa58 policy plus temp rule. This remains filesystem-only
+point evidence, not a two-boundary effective-scope capture.
+
+Private `sync108-live-20261115` current artifacts:
+- `pairs.json`: **a9ead940ab66fa4368f68e87c2bb13445902bf7468878c1b446c2486bba787e8**.
+- `OPERATOR_COMMANDS.md`: **c590e681d201d78f0741f89f0cce25beae944baba5543167f55a1e022f883f95**;
+  comic tool pin remains **b9cfa58dc0e741dae6596f0496137e415f4bdf5f**.
+- `pairs.provenance.json`: **c37e6a4811589770bee503e436f331f9b4ca02e32b4c40493820b3a5759ab92c**;
+  sanitized point config note `configuration-three-pairs-20261116T022737Z.json`.
+
+The two-pair manifest/provenance/commands are preserved under explicit
+two-pair filenames; old manifest hash stays **2e44e52a…**. Reports were not
+edited or resealed. All three actual Windows PowerShell blocks passed on a
+private three-pair fixture, including paths with spaces: **3 kept / 0 writes /
+0 removals / 0 unresolved**, six roots. No live collection was launched, and
+no live controls/payloads changed. Claude owns independent artifact review and
+scope-runbook inclusion before acceptance collection. Full hashes/evidence:
+[#199, 6905645924](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6905645924).
+
 ## David clarifies root-directory files are duplicates/deprecated (2026-11-15)
 
 Current user statement **#5423**, at **01:51:13 UTC on November 16**:
