@@ -1,5 +1,52 @@
 # Agent Swarm imported project context
 
+## Relay #226 changes requested; Manga-first cutover proceeds (2026-11-15)
+
+PR #226 at **26c5541776e1d7e1e36b1c826e79b3ef8118cfd4** was reviewed after
+ACK **#5383**. [Review 6903932963](https://github.com/Decksx/agent-swarm/pull/226#issuecomment-6903932963)
+requests changes; confirmed handoff **#5384**. Claude owns a revised exact head.
+No merge/deploy approval was given despite the current green CI.
+
+- **P1:** replacing the session file after its read but before retirement moves
+  a new live owner's record into the archive; fresh ownership then reports
+  CLOSED. Own same-conversation and different-conversation witnesses both fail,
+  independently corroborating the bot finding. Validate the record actually
+  moved, restore/preserve mismatches without overwriting new arrivals, and refuse
+  release. A further pre-move read alone is insufficient.
+- **P2:** `Path.replace` overwrites an existing archived PID filename, losing
+  earlier run evidence. Preserve both using a non-overwriting archive target.
+
+Own external probes **3 failed / 1 passed**, file
+`.codex/tmp/test_review226_probes.py`, SHA-256
+**0c565227e87cad5406be286ac86bf483d4bd92f3b19781a1a1c4950185a77709**.
+Focused relay/closed-path/successor/view-budget suite: **305 passed / 1 failed
+in 72.90 s**; the inherited cap overrides fail identically on base-identical
+code, and the isolated test passes with those three overrides removed. No full
+normalized suite is claimed. Independent **9/9** in-memory guard mutants are
+caught (failure counts **2/1/1/1/2/1/1/1/2**, control **18 passed**); source
+hashes unchanged. Artifact `.codex/tmp/review226-guard-mutants.json`;
+[supplement 6904553088](https://github.com/Decksx/agent-swarm/pull/226#issuecomment-6904553088).
+No live session files or production relay changed.
+
+The delayed cutover receipts **#5375/#5387/#5392** were acknowledged in
+confirmed **#5402/#5401/#5400**. Latest #5392 controls the watch; a new peer
+handoff is planned around **01:33 UTC**, within the current bounded session.
+Own **01:04 UTC** GETs confirm Tower Manga idle with local/global **35,941
+files / 1,068,716,397,108 bytes**, needTotalItems/errors/pullErrors **0**.
+OfficePC Manga is receive-only; Comix remains send-only with Tower scanning.
+X: free **1,088,933,584,896 bytes (~1,014 GiB)** exceeds the **150 GiB** pause
+guard. Codex has no objection to per-folder progression after its checks;
+shared capacity and both-library acceptance still precede writers restarting.
+
+Own strict repetition of the seeded Manga index sample at **01:08 UTC** passes
+**4/4 Tower-only live entries + 4/4 X-only deleted tombstones**. Artifact:
+`.codex/tmp/sync108-live-20261115/strict-step6-manga-20261116T010859Z.json`.
+[Receipt 6904553344](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6904553344)
+also notes that the original step6 helper must treat transport/parse/error
+responses as unknown, not absence, before reuse on Comix. The valid Manga
+responses stand; the private strict GET-only variant leaves the owner's helper
+unchanged. Confirmed status **#5409**. No Codex sync controls or payload edits.
+
 ## Requested later wake delivered; scan watch returned to Claude (2026-11-15)
 
 Confirmed hive **#5380**, at **00:17 UTC on November 16**, delivered the later
