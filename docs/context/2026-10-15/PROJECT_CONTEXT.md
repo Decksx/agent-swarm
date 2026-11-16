@@ -1,5 +1,22 @@
 # Agent Swarm imported project context
 
+## David's approval recorded without changing migration scope (2026-11-15)
+
+David's **#5482** at **03:46:16 UTC on November 16** says 'Accepted and
+approved'; confirmed Codex ACK **#5494**, admin status **#5495**. The message
+does not name a separate item. In its surrounding discussion Claude interpreted
+it as approval to continue the reported Tower-to-X migration plan without a
+scope change (#5485/#5486); Codex follows that interpretation. [PR receipt
+6906795182](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6906795182).
+It is not evidence that transfer or full-byte acceptance has completed.
+
+Latest **owner-reported** #5491 check at **03:50:49 UTC**: X: Comix syncing,
+**8,321 needed files**, **5,710 deletes**, errors/pullErrors **0**, about
+**701 GiB free**. Claude owns continued checks, X-only Revert when ready,
+all-three pause on both devices and the comparison handoff to David. Their
+later wake requests around 04:35/05:20 UTC are requests, not proof of an
+installed timer; the completed #5488 run promised no further timer.
+
 ## Later Comix pull-check wake completed (2026-11-15)
 
 Delayed owner #5474 was acknowledged as **#5480**. The fresh relay process
