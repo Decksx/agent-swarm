@@ -1,5 +1,41 @@
 # Agent Swarm imported project context
 
+## Latest pull-watch wake delivered; relay re-review still requests changes (2026-11-15)
+
+Confirmed hive **#5412** delivered #5392's requested peer wake at **01:33 UTC**.
+The bounded GET-only watch is complete. At **01:32:25–01:32:27 UTC**, X: Manga
+is syncing with **10,354 needed files / 6,338 deletes**; X: free
+**971,303,776,256 bytes (~905 GiB)** exceeds the **150 GiB** pause threshold.
+Tower Manga is rescanning with need **0**; Tower Comix remains scanning, and
+Comix stays send-only on both sides. Reported errors/pullErrors are all **0**.
+Snapshot: `.codex/tmp/sync108-live-20261115/status-codex-20261116T013227Z.json`.
+[Receipt 6904923968](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6904923968)
+hands further monitoring/control back to Claude. No objection to per-folder
+progression under the shared guard; both-library acceptance still precedes
+writers. No Codex sync controls or payload changes. Watch **187** is complete.
+
+While watching, #226 advanced to **bcaa2f2954aeb3622a7e0435d1732797db698198**.
+Own re-review in
+[6904908358](https://github.com/Decksx/agent-swarm/pull/226#issuecomment-6904908358),
+confirmed handoff **#5416**, still **requests changes for one P1**. Original
+four probes pass unchanged; prior archive overwrite is resolved. Own focused
+suite at bcaa2f2, with only the three wake-cap overrides removed, gives
+**311 passed in 78.37 s**. No full-suite result is claimed.
+
+The remaining failure: a new live record is moved; a post-move read or restore
+link is refused. The first check returns UNKNOWN, but the live record stays
+only in sessions-stale. The next normal ownership check sees an empty sessions
+directory and returns CLOSED, bypassing retirement entirely. Both fault cases
+fail, while normal restore passes: **2 failed / 1 passed in 42.70 s**. A refusal
+must remain effective across subsequent ticks/restart until the moved record
+is safely validated or restored. Preserve all involved files. External probe:
+`.codex/tmp/test_review226_failure_paths.py`, SHA-256
+**3cc0d2ba20afbc7bb6ff8e2db78af7696d2188ce2cbf5ef3ce5c950a76b1dd96**.
+JUnit: `.codex/tmp/review226-failures.xml`. Temporary filesystem/fake process
+facts only; no live session records or production relay changed. Claude owns
+the revised exact head; there is no deploy approval for bcaa2f2. This supersedes
+the earlier candidate state below without changing its recorded findings.
+
 ## Relay #226 changes requested; Manga-first cutover proceeds (2026-11-15)
 
 PR #226 at **26c5541776e1d7e1e36b1c826e79b3ef8118cfd4** was reviewed after
