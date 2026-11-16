@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ctypes
 import json
+import uuid
 import logging
 import os
 import subprocess
@@ -148,13 +149,40 @@ class ClaudeBackend:
         try:
             stale_dir.mkdir(parents=True, exist_ok=True)
             for path in self.sessions_dir.glob("*.json"):
-                record = json.loads(path.read_text(encoding="utf-8"))
-                if record.get("sessionId") == session.session_id and \
-                        (int(record["pid"]), str(record["procStart"])) == (int(pid), str(proc_start)):
-                    path.replace(stale_dir / path.name)
+                raw = path.read_bytes()
+                record = json.loads(raw.decode("utf-8"))
+                if record.get("sessionId") != session.session_id or \
+                        (int(record["pid"]), str(record["procStart"])) != (int(pid), str(proc_start)):
+                    continue
+                # A unique name: PID reuse must never overwrite an earlier
+                # archived record (#226 review P2).
+                target = stale_dir / f"{path.stem}.{uuid.uuid4().hex}.json"
+                path.replace(target)
+                # Between the read and the move, a new process may have reused
+                # the PID and published its own record at this path. What was
+                # moved must be exactly what was validated; otherwise put it
+                # back, never over a newer arrival, and refuse (#226 review P1).
+                if target.read_bytes() != raw:
+                    self._restore(target, path)
+                    return UNKNOWN
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             return UNKNOWN
         return self.ownership(session)
+
+    @staticmethod
+    def _restore(archived: Path, original: Path) -> None:
+        """Put a wrongly moved record back without overwriting anything.
+
+        ``os.link`` refuses an existing destination on every platform, so a
+        record that arrived at ``original`` meanwhile is never replaced; the
+        moved one then stays archived under its unique name.
+        """
+        try:
+            os.link(archived, original)
+        except FileExistsError:
+            log.warning("session record %s reappeared while restoring %s; both kept", original, archived)
+            return
+        archived.unlink()
 
     def _ownership(self, session: Session, ended: Optional[tuple[int, str]]) -> str:
         try:
