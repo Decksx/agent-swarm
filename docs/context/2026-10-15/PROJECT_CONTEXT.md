@@ -1,8 +1,309 @@
 # Agent Swarm imported project context
 
+## Requested wake completed; three-library runbook merged (2026-11-15)
+
+The requested later wake for #5450 was **CONFIRMED as hive #5471 at
+03:04:54 UTC on November 16**, about 30 minutes after its source message.
+[PR receipt 6906134285](https://github.com/Decksx/cbz-automation-suite/pull/201#issuecomment-6906134285)
+records the completed bounded wake. No further timer or external launch was
+created. Claude owns continuing Comix pull/space checks and step 8, followed
+by pausing all three folders on both devices for independent acceptance.
+
+Codex's GET-only snapshot at **03:03:20–22 UTC** shows X: Comix receive-only
+and syncing: **12,247 needed files**, **5,710 deletes**, errors/pullErrors
+**0**. Tower Comix is idle, local/global **41,990 files** and
+**1,919,675,786,538 bytes**, need **0**. Manga and Graphic Novels are idle on
+both sides; X: need/receiveOnlyChanged **0**. All Tower folders remain
+send-only. X: free **872,196,128,768 bytes (about 812 GiB)** exceeds the
+150 GiB guard. Artifact: private `sync108-live-20261115/`
+`status-codex-20261116T030322Z.json`. This is transfer/index evidence, not
+completion of Phase 2 full-byte acceptance. Codex changed no live controls.
+
+Comic **#201** is independently verified merged as
+**9f8481f5cc99a864415a51b046149aa67903bbce**. It has one parent,
+**1c17a19d54b26e48fce34bbaf8800854babc2d9b**: this is a squash result, not
+a two-parent merge. Actual tree **69f1800ec7616aaddca6b8a13cbfc425b14fbb8b**
+equals approved exact head **271f60bf5d88202ae62d65cec9add9dee13063b1**
+and Codex's prediction. Push **43793888418** and pull_request **43793893482**
+both succeeded at that exact head. [Own merge receipt
+6906182030](https://github.com/Decksx/cbz-automation-suite/pull/201#issuecomment-6906182030).
+The scope review and requested wake are complete; full acceptance and runtime
+queue/restart proof remain outstanding. This supersedes the pending statuses
+in the dated records below.
+
+## Scope runbook approved; requested Comix wake pending (2026-11-15)
+
+The delayed #5450 was acknowledged in confirmed hive **#5466**. Claude's
+#5449/#5450 receipts describe **Phase 1 per-folder sync/index and disk-count
+checks**, not completion of the independent Phase 2 byte comparison:
+Manga local/global/disk **35,941**, need/receiveOnlyChanged **0**; Graphic Novels
+after X-only Revert local/global/disk **709**, receiveOnlyChanged **0**. Comix
+remains send-only pending Tower scan completion and source/index witnesses.
+These are owner-reported receipts; Codex did not repeat those live operations.
+The requested later peer wake is planned around **03:04 UTC**, about 30 minutes
+after #5450, in the current bounded session. No Comix controls changed by Codex.
+
+Current #201 advanced to **271f60bf5d88202ae62d65cec9add9dee13063b1** (owner
+#5463). Codex reviewed the complete 0313952→271f60b diff and **approved this
+exact head** in
+[6905877454](https://github.com/Decksx/cbz-automation-suite/pull/201#issuecomment-6905877454),
+mirrored as confirmed status **#5467** without triggering the later wake early.
+The P2 is resolved: all three IDs are explicit on both devices for pause,
+role/versioning restoration and unpause; six-file undo and historical scope
+labels are corrected; Graphic Novels samples use fresh metadata.
+
+The checked artifacts remain **a9ead940… / c590e681… / c37e6a48…**, tool pin
+**b9cfa58**. Earlier sanitized API evidence also matches Graphic Novels no-
+versioning settings on both sides. Static diff/artifact review only, clean
+diff check; no new executable tests or live controls. On comic master
+**1c17a19**, predicted merge/source tree is
+**69f1800ec7616aaddca6b8a13cbfc425b14fbb8b**. Claude owns ready/pinned merge
+after both exact-head CI runs pass, actual parity and operational continuation.
+This supersedes the pending scope finding below; current CI was pending at
+approval, and the full live acceptance/restart checks still apply.
+
+## Three-pair artifacts accepted; scope runbook needs one correction (2026-11-15)
+
+Claude's #5447 was acknowledged in confirmed hive **#5459**. Their independent
+review accepts the three-pair artifacts: manifest **a9ead940…**, commands
+**c590e681…**, provenance **c37e6a48…**, b9cfa58 tool pin, no stale full two-pair
+hash in the commands. Codex rechecked the unchanged files and the two references
+each to the manifest digest and code pin. Artifact-review task **188** is done;
+the scope-runbook review is separate.
+
+Codex reviewed comic **#201** at exact
+**0313952c8970475c9c9411b959cdeeb363ac76c3**, base **1c17a19**, in
+[6905806023](https://github.com/Decksx/cbz-automation-suite/pull/201#issuecomment-6905806023).
+**Changes requested for one P2 before Phase 2**; confirmed handoff **#5460**.
+The added IDs/paths/hashes are correct, but Phase 2 line 119 still says to pause
+'both folders' while the comparison reads all three pairs. Name all three IDs
+on both devices in pause/unpause and role restoration. The same small revision
+should sweep the four-ignore-file undo count, label historical estimates as
+two-pair totals, and use fresh third-pair metadata for Graphic Novels samples.
+The old estimate/helper has no Graphic Novels rows. This does not hold ongoing
+approved Phase 1 continuation.
+
+Static full-document/diff review and actual artifact/hash checks only;
+`git diff --check` passes. No new executable behavior, full-suite run, live
+controls or payload edits by Codex. Claude owns the wording correction, fresh
+exact-head handoff and green CI before pinned merge.
+
+## Marker redesign approved/merged; three-pair acceptance artifacts prepared (2026-11-15)
+
+Claude's #5428 was acknowledged in confirmed hive **#5430**. Codex approved
+exact **1a36bcd737dd7c634d7904e21fde7b41516c56b4** in
+[#226 review 6905524554](https://github.com/Decksx/agent-swarm/pull/226#issuecomment-6905524554),
+mirrored in confirmed handoff **#5438**. Session records now stay in place;
+exclusive content-addressed markers retire only exact proven-dead record bytes.
+Republished bytes count again. This resolves the earlier blocking findings.
+
+Own checks: **314 focused passed in 167.21 s** with only the three wake-cap
+overrides removed; **14 adapted property cases passed in 65.68 s**; **2**
+mechanism-independent legacy controls passed. The adapted tests cover marker
+open/write/fsync interleavings, denied/partial commits, unreadable/altered
+markers, later checks and fresh backend instances. All **5** marker guard
+mutants caught (**1/6/6/1/1** failures, control **18 passed**); source/test
+hashes unchanged. Artifacts: `.codex/tmp/test_review226_markers.py` (SHA-256
+**c5d7586aa9e561eeadd04285fc2470b98aff82e5af1a99429a41f75fee32b676**),
+`review226-markers.xml`, `review226-marker-mutants.json`. CI **43787675742**
+matches exact 1a36bcd and all four checks pass; logs show core **2,952**, bypass
+**8**, hub **412** passed. Claude's full host numbers remain owner-attributed.
+
+Nonblocking qualifications are explicit in the refreshed PR description:
+doc/log move wording is stale, and a complete valid marker followed by fsync
+failure may give UNKNOWN once then CLOSED later. Original records stay intact,
+so this does not hide a live owner. Incomplete/unverifiable markers retire
+nothing. `.codex/tmp/review226-fsync-observation.json` records the observed case.
+
+#226 independently verified merged as **4b22c3e4c847fd84ff6fb3722a42f4aa31d59c66**,
+parents **0dcbd5a + approved 1a36bcd**, actual tree
+**7794b85438f954e07ae45b96e3eb100321fdb3ec**, matching Codex's prediction.
+[Own receipt 6905662893](https://github.com/Decksx/agent-swarm/pull/226#issuecomment-6905662893).
+**Rollout is deferred**, per owner #5441: the supported relay-only restart
+requires zero reservations/active deliveries and must run outside the relay's
+child job at a quiet moment. Claude is providing David the procedure. Codex
+did not restart the relay, create an external launcher, or alter live records.
+
+**Graphic Novels scope:** owner #5434 reports a newly configured third pair,
+`comics-graphic-novels`. Codex prepared the requested acceptance artifacts and
+handed them back in confirmed **#5444**. Source is
+`\\TOWER\media\comics\Graphic Novels` (API `/media/comics/Graphic Novels`),
+target `X:\Graphic Novels`. Current sanitized API paths/roles match, and all
+**six** roots are plain, distinct and have `.stfolder`. All six raw `.stignore`
+files are identical, SHA-256
+**d2b06432e94a11f2a7982d2a4a19e6beb5fcfe399e21a724fb05548516aa1c1e**,
+with the 15-name b9cfa58 policy plus temp rule. This remains filesystem-only
+point evidence, not a two-boundary effective-scope capture.
+
+Private `sync108-live-20261115` current artifacts:
+- `pairs.json`: **a9ead940ab66fa4368f68e87c2bb13445902bf7468878c1b446c2486bba787e8**.
+- `OPERATOR_COMMANDS.md`: **c590e681d201d78f0741f89f0cce25beae944baba5543167f55a1e022f883f95**;
+  comic tool pin remains **b9cfa58dc0e741dae6596f0496137e415f4bdf5f**.
+- `pairs.provenance.json`: **c37e6a4811589770bee503e436f331f9b4ca02e32b4c40493820b3a5759ab92c**;
+  sanitized point config note `configuration-three-pairs-20261116T022737Z.json`.
+
+The two-pair manifest/provenance/commands are preserved under explicit
+two-pair filenames; old manifest hash stays **2e44e52a…**. Reports were not
+edited or resealed. All three actual Windows PowerShell blocks passed on a
+private three-pair fixture, including paths with spaces: **3 kept / 0 writes /
+0 removals / 0 unresolved**, six roots. No live collection was launched, and
+no live controls/payloads changed. Claude owns independent artifact review and
+scope-runbook inclusion before acceptance collection. Full hashes/evidence:
+[#199, 6905645924](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6905645924).
+
+## David clarifies root-directory files are duplicates/deprecated (2026-11-15)
+
+Current user statement **#5423**, at **01:51:13 UTC on November 16**:
+
+> @leads every single file in the root book directories (Comix, manga, graphic novels, etc.) is either a duplicate or deprecated version of a file in Z:\media\comics
+
+Acknowledged in confirmed hive **#5425**. Carry this owner-supplied disposability
+guidance into the remaining root-directory cleanup, alongside the earlier
+no-X-backup decision. This is David's statement, not a new content-hash duplicate
+classification by Codex. No live files removed or sync controls changed here.
+
+Read-only namespace check at **01:53 UTC**: **Z:** maps to **\\TOWER\media**;
+**Z:\comics** and **\\TOWER\media\comics** share physical identity
+**[3327925891, 648799825616176396]**. **Z:\media\comics** is absent in this mapping.
+Keep using the verified UNC sources in the current Manga/Comix actual-ID pairs.
+The exact user statement and mapping are on
+[#199, 6905146315](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6905146315),
+mirrored in confirmed handoff **#5426** to Claude, who owns operational changes.
+
+## Latest pull-watch wake delivered; relay re-review still requests changes (2026-11-15)
+
+Confirmed hive **#5412** delivered #5392's requested peer wake at **01:33 UTC**.
+The bounded GET-only watch is complete. At **01:32:25–01:32:27 UTC**, X: Manga
+is syncing with **10,354 needed files / 6,338 deletes**; X: free
+**971,303,776,256 bytes (~905 GiB)** exceeds the **150 GiB** pause threshold.
+Tower Manga is rescanning with need **0**; Tower Comix remains scanning, and
+Comix stays send-only on both sides. Reported errors/pullErrors are all **0**.
+Snapshot: `.codex/tmp/sync108-live-20261115/status-codex-20261116T013227Z.json`.
+[Receipt 6904923968](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6904923968)
+hands further monitoring/control back to Claude. No objection to per-folder
+progression under the shared guard; both-library acceptance still precedes
+writers. No Codex sync controls or payload changes. Watch **187** is complete.
+
+While watching, #226 advanced to **bcaa2f2954aeb3622a7e0435d1732797db698198**.
+Own re-review in
+[6904908358](https://github.com/Decksx/agent-swarm/pull/226#issuecomment-6904908358),
+confirmed handoff **#5416**, still **requests changes for one P1**. Original
+four probes pass unchanged; prior archive overwrite is resolved. Own focused
+suite at bcaa2f2, with only the three wake-cap overrides removed, gives
+**311 passed in 78.37 s**. No full-suite result is claimed.
+
+The remaining failure: a new live record is moved; a post-move read or restore
+link is refused. The first check returns UNKNOWN, but the live record stays
+only in sessions-stale. The next normal ownership check sees an empty sessions
+directory and returns CLOSED, bypassing retirement entirely. Both fault cases
+fail, while normal restore passes: **2 failed / 1 passed in 42.70 s**. A refusal
+must remain effective across subsequent ticks/restart until the moved record
+is safely validated or restored. Preserve all involved files. External probe:
+`.codex/tmp/test_review226_failure_paths.py`, SHA-256
+**3cc0d2ba20afbc7bb6ff8e2db78af7696d2188ce2cbf5ef3ce5c950a76b1dd96**.
+JUnit: `.codex/tmp/review226-failures.xml`. Temporary filesystem/fake process
+facts only; no live session records or production relay changed. Claude owns
+the revised exact head; there is no deploy approval for bcaa2f2. This supersedes
+the earlier candidate state below without changing its recorded findings.
+
+## Relay #226 changes requested; Manga-first cutover proceeds (2026-11-15)
+
+PR #226 at **26c5541776e1d7e1e36b1c826e79b3ef8118cfd4** was reviewed after
+ACK **#5383**. [Review 6903932963](https://github.com/Decksx/agent-swarm/pull/226#issuecomment-6903932963)
+requests changes; confirmed handoff **#5384**. Claude owns a revised exact head.
+No merge/deploy approval was given despite the current green CI.
+
+- **P1:** replacing the session file after its read but before retirement moves
+  a new live owner's record into the archive; fresh ownership then reports
+  CLOSED. Own same-conversation and different-conversation witnesses both fail,
+  independently corroborating the bot finding. Validate the record actually
+  moved, restore/preserve mismatches without overwriting new arrivals, and refuse
+  release. A further pre-move read alone is insufficient.
+- **P2:** `Path.replace` overwrites an existing archived PID filename, losing
+  earlier run evidence. Preserve both using a non-overwriting archive target.
+
+Own external probes **3 failed / 1 passed**, file
+`.codex/tmp/test_review226_probes.py`, SHA-256
+**0c565227e87cad5406be286ac86bf483d4bd92f3b19781a1a1c4950185a77709**.
+Focused relay/closed-path/successor/view-budget suite: **305 passed / 1 failed
+in 72.90 s**; the inherited cap overrides fail identically on base-identical
+code, and the isolated test passes with those three overrides removed. No full
+normalized suite is claimed. Independent **9/9** in-memory guard mutants are
+caught (failure counts **2/1/1/1/2/1/1/1/2**, control **18 passed**); source
+hashes unchanged. Artifact `.codex/tmp/review226-guard-mutants.json`;
+[supplement 6904553088](https://github.com/Decksx/agent-swarm/pull/226#issuecomment-6904553088).
+No live session files or production relay changed.
+
+The delayed cutover receipts **#5375/#5387/#5392** were acknowledged in
+confirmed **#5402/#5401/#5400**. Latest #5392 controls the watch; a new peer
+handoff is planned around **01:33 UTC**, within the current bounded session.
+Own **01:04 UTC** GETs confirm Tower Manga idle with local/global **35,941
+files / 1,068,716,397,108 bytes**, needTotalItems/errors/pullErrors **0**.
+OfficePC Manga is receive-only; Comix remains send-only with Tower scanning.
+X: free **1,088,933,584,896 bytes (~1,014 GiB)** exceeds the **150 GiB** pause
+guard. Codex has no objection to per-folder progression after its checks;
+shared capacity and both-library acceptance still precede writers restarting.
+
+Own strict repetition of the seeded Manga index sample at **01:08 UTC** passes
+**4/4 Tower-only live entries + 4/4 X-only deleted tombstones**. Artifact:
+`.codex/tmp/sync108-live-20261115/strict-step6-manga-20261116T010859Z.json`.
+[Receipt 6904553344](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6904553344)
+also notes that the original step6 helper must treat transport/parse/error
+responses as unknown, not absence, before reuse on Comix. The valid Manga
+responses stand; the private strict GET-only variant leaves the owner's helper
+unchanged. Confirmed status **#5409**. No Codex sync controls or payload edits.
+
+## Requested later wake delivered; scan watch returned to Claude (2026-11-15)
+
+Confirmed hive **#5380**, at **00:17 UTC on November 16**, delivered the later
+HANDOFF requested in #5367, about 41 minutes after that message and within this
+relay's cap. Codex's bounded GET-only watch is complete; no durable timer or
+further delayed wake is promised. Claude's later #5375 request for another
+30–45 minutes would exceed this session's cap, so the watch is handed back.
+
+Latest observed **00:16:52–00:16:54 UTC**: Tower Manga **37,280 local files**,
+Comix **43,247**, both **scanning**. OfficePC Manga is idle, Comix scanning.
+All reported errors/pullErrors are **0**; all four folders remain send-only
+and unpaused. Snapshot: `.codex/tmp/sync108-live-20261115/status-codex-20261116T001654Z.json`.
+These are incomplete scan counts, not a final inventory or Override clearance.
+No sync controls or live payloads were changed by Codex. Claude owns scan/index
+completion witnesses, count reconciliation after idle, then the approved
+Tower-only Override/global-live-file checks before X: becomes receive-only.
+The full runbook is already approved and merged; actual acceptance and queue
+checks still precede restarting writers. This supersedes the pending-wake
+plan below. Board watch **184** is complete when recording this receipt.
+
+## Runbook and checkpoint merged; scan-completion watch (2026-11-15)
+
+Claude's #5367 was acknowledged in confirmed hive **#5373**. Comic #199 is
+independently verified merged as **1c17a19d54b26e48fce34bbaf8800854babc2d9b**,
+parents **b9cfa58 + approved f2a1f55**. Actual merge tree
+**d26ea2aa87d21ba73229118186fc7df31d1c8035** equals Codex's merge-tree
+prediction; it is not equal to the older-base head tree. Both exact-head CI
+runs are green as recorded below. Own receipt:
+[#199, 6903309155](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6903309155).
+The runbook is merged; its live acceptance and restart checks still apply.
+
+Swarm #225 is independently verified merged as
+**0dcbd5ae8aba0007270b040f930efe1365525fb9**, parents **c9074f3 + approved
+77019e1**, merge/source tree **01dbb7abeb0a8f5ea2345417e5d2791f17074d2e**.
+Run **43773162624** passed all four checks at exact 77019e1. Own receipt:
+[#225, 6903309355](https://github.com/Decksx/agent-swarm/pull/225#issuecomment-6903309355).
+Claude's wording nit is accepted: use 'Claude reports' rather than 'He reports'.
+
+The latest observed scan point remains **23:35:15–23:35:17 UTC**: X: idle,
+Tower Manga/Comix scanning, **0** reported errors, all four send-only. Receipt:
+[#199, 6903269665](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6903269665).
+Claude requests a later wake to continue scan/index witnesses and Tower-only
+Override after idle. Codex is keeping a bounded read-only watch and plans a
+HANDOFF around **00:17 UTC**, a few minutes early to stay inside this relay's
+45-minute job cap, or sooner if both scans finish. No durable timer was
+available and no external process was launched; the wake is pending until a
+confirmed receipt is recorded. No new Codex sync control or completed cutover.
+
 ## Cutover preparation is live; scans still running (2026-11-15)
 
-Claude's #5352 was acknowledged in confirmed hive **#5354**. He reports the
+Claude's #5352 was acknowledged in confirmed hive **#5354**. Claude reports the
 four ignore files written/read back, Tower Comix marker created, X: versioning
 disabled, Tower config backed up and folders changed to send-only, container
 started, and scans requested. These filesystem/config changes are owner-reported;
