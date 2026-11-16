@@ -705,8 +705,20 @@ HTML_TEMPLATE = """
         </div>
         <pre>${escapeHtml(msg.content)}</pre>
       `;
+      el.sortKey = msgKey(msg);
       return el;
     }
+
+    // The transcript's order, the same one GET /messages sorts by:
+    // COALESCE(timestamp, 0), then id. Pages are *selected* by id, but a lower
+    // id does not mean an earlier timestamp, so an older page cannot simply be
+    // stacked on top of what is shown; it is merged in by this key.
+    function msgKey(msg) {
+      const ts = Number(msg.timestamp);
+      return [msg.timestamp === null || msg.timestamp === undefined || isNaN(ts) ? 0 : ts, msg.id];
+    }
+
+    function keyBefore(a, b) { return a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]); }
 
     function nearBottom() {
       return log.scrollHeight - log.scrollTop - log.clientHeight < 80;
@@ -764,12 +776,24 @@ HTML_TEMPLATE = """
       try {
         const res = await fetch(`/messages?before_id=${oldestId}&limit=${PAGE}`);
         const data = await res.json();
-        const batch = document.createDocumentFragment();
-        for (const msg of data) batch.appendChild(renderMsg(msg));
         if (data.length) oldestId = Math.min(...data.map(m => m.id));
         // Keep the reader's place: the log grows above what they are reading.
         const fromBottom = log.scrollHeight - log.scrollTop;
-        log.insertBefore(batch, olderButton.nextSibling);
+        // Merge by the transcript key. Both the page (as the API answered it)
+        // and what is shown are already in key order, so one forward walk
+        // places every row; rows that land in the same gap -- normally the
+        // whole page, above everything shown -- go in as one insertion.
+        const shownRows = Array.from(log.children).filter(c => c.sortKey);
+        let i = 0, batch = null, ref = null;
+        const flush = () => { if (batch) log.insertBefore(batch, ref); };
+        for (const msg of data) {
+          const key = msgKey(msg);
+          while (i < shownRows.length && keyBefore(shownRows[i].sortKey, key)) i++;
+          const at = i < shownRows.length ? shownRows[i] : null;
+          if (!batch || at !== ref) { flush(); batch = document.createDocumentFragment(); ref = at; }
+          batch.appendChild(renderMsg(msg));
+        }
+        flush();
         log.scrollTop = log.scrollHeight - fromBottom;
         if (data.length < PAGE) { olderButton.remove(); olderButton = null; oldestId = 0; }
       } catch (err) {

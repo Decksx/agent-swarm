@@ -165,10 +165,15 @@ globalThis.fetch = async (url) => {
   const q = new URLSearchParams(url.split('?')[1] || '');
   const since = +(q.get('since_id') || 0), before = q.get('before_id'), limit = q.get('limit');
   let out = rows.filter(r => r.id > since && (before === null || r.id < +before));
+  // Like the real endpoint: the newest `limit` by id, answered in
+  // COALESCE(timestamp, 0), id order.
+  out.sort((a, b) => a.id - b.id);
   if (limit !== null) out = out.slice(-limit);
+  out.sort((a, b) => ((a.timestamp || 0) - (b.timestamp || 0)) || (a.id - b.id));
   return { ok: true, status: 200, json: async () => out };
 };
-const msg = id => ({ id, sender: 'gemini', target: '@Admin', content: 'm' + id, timestamp: 0, timestamp_utc: 'unknown' });
+const msg = (id, timestamp = 0) => ({ id, sender: 'gemini', target: '@Admin', content: 'm' + id, timestamp, timestamp_utc: 'unknown' });
+const shownIds = () => chatLog.children.filter(c => c.className === 'msg').map(c => +c.innerHTML.match(/>#(\d+)</)[1]);
 const tick = () => new Promise(r => setTimeout(r, 0));
 const shown = () => chatLog.children.filter(c => c.className === 'msg').length;
 const button = () => chatLog.children.find(c => c.className === 'older');
@@ -236,6 +241,37 @@ SMALL = r"""
 })();
 """
 
+# Ids 1-650 with timestamp 1000 + id, except the rows named in `skew`, which
+# get the given timestamp (null for a historical row). The page opens on
+# #351-#650 and loads #51-#350, then #1-#50, as older pages. After every load
+# the shown rows must be in the order the whole history would be shown in.
+SKEW = r"""
+(async () => {
+  const skew = __SKEW__;
+  for (let i = 1; i <= 650; i++) rows.push(msg(i, i in skew ? skew[i] : 1000 + i));
+  const order = ids => ids.slice().sort((a, b) =>
+    ((rows[a - 1].timestamp || 0) - (rows[b - 1].timestamp || 0)) || (a - b));
+  const out = { loads: [] };
+  await fetchMessages();
+  out.loads.push(shownIds());
+  inserts = [];
+  await loadOlder();
+  out.loads.push(shownIds());
+  out.inserts_first_older = inserts.slice();
+  await loadOlder();
+  out.loads.push(shownIds());
+  out.sorted = out.loads.map(ids => JSON.stringify(ids) === JSON.stringify(order(ids)));
+  out.final = shownIds();
+  out.expected_final = order(rows.map(r => r.id));
+  out.button_at_end = !!button();
+  console.log(JSON.stringify(out));
+})();
+"""
+
+
+def _skew(skew: dict) -> str:
+    return SKEW.replace("__SKEW__", json.dumps({str(k): v for k, v in skew.items()}))
+
 
 def _page_script(hub) -> str:
     page = hub.HTML_TEMPLATE
@@ -294,6 +330,37 @@ def test_older_pages_load_above_until_the_history_is_complete(hub, tmp_path):
     assert out["all_shown"] == 653 and out["ids_unique"] == 653
     assert not out["button_at_end"]
     assert out["no_more_calls"] == 0
+
+
+@needs_node
+def test_an_older_row_with_a_later_timestamp_is_merged_not_stacked(hub, tmp_path):
+    # #350 is on the older page by id but was said after everything shown, so
+    # it belongs at the bottom, not directly above #351 (Codex's #229 witness).
+    out = run(hub, tmp_path, _skew({350: 10000}))
+    assert all(out["sorted"]), out["sorted"]
+    assert out["final"] == out["expected_final"]
+    assert out["final"][-1] == 350
+    assert out["final"].index(349) + 1 == out["final"].index(351)
+    assert len(out["inserts_first_older"]) == 2, "one insertion per gap, not one per row"
+    assert not out["button_at_end"]
+
+
+@needs_node
+def test_a_shown_row_without_a_timestamp_stays_above_older_timed_rows(hub, tmp_path):
+    # #351 opens the first page but has no timestamp, which sorts as 0: once
+    # the older pages arrive, every timed row belongs below it.
+    out = run(hub, tmp_path, _skew({351: None}))
+    assert all(out["sorted"]), out["sorted"]
+    assert out["final"] == out["expected_final"]
+    assert out["final"][0] == 351
+
+
+@needs_node
+def test_an_older_row_without_a_timestamp_goes_to_the_top(hub, tmp_path):
+    out = run(hub, tmp_path, _skew({200: None, 40: None}))
+    assert all(out["sorted"]), out["sorted"]
+    assert out["final"] == out["expected_final"]
+    assert out["final"][:2] == [40, 200]
 
 
 @needs_node
