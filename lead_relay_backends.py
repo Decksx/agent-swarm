@@ -8,8 +8,8 @@ budget (`authored_change.DEFAULT_FILE_VIEW`). Section numbers refer to
 from __future__ import annotations
 
 import ctypes
+import hashlib
 import json
-import uuid
 import logging
 import os
 import subprocess
@@ -133,56 +133,66 @@ class ClaudeBackend:
         return self._ownership(session, (int(pid), str(proc_start)))
 
     def retire_record(self, session: Session, pid: int, proc_start: str) -> str:
-        """Move this run's own dead record to `~/.claude/sessions-stale/`
-        (never deleted), then answer `ownership` afresh.
+        """Retire this run's own dead record, then answer `ownership` afresh.
 
-        The record has to go, not just be overlooked once: every later
-        ownership check (dispatch, the pre-spawn re-check) would otherwise
-        read it again and hold the next delivery. Nothing is moved unless
-        `ownership_without` is CLOSED, and only files naming exactly this pid
-        and creation time are touched. Anything that appeared since is judged
-        by the fresh `ownership` call.
+        The record is **never moved or deleted**: an earlier design moved it to
+        `sessions-stale`, and a PID reused between the read and the move could
+        hide a new live record, including after a failed restore (#226 review).
+        Instead an exact copy of the validated bytes is written to
+        `~/.claude/sessions-stale/<sha256>.retired.json`. `ownership` then
+        ignores a session record only while its bytes match such a marker. A
+        record republished at the same path (a new process has a different
+        `procStart`) has different bytes and counts as normal. Markers persist
+        across restarts; one that fails to write simply leaves the session
+        UNKNOWN on every later tick. Nothing is retired unless
+        `ownership_without` is CLOSED, and only records naming exactly this
+        session, pid and creation time.
         """
         if self.ownership_without(session, pid, proc_start) != CLOSED:
             return UNKNOWN
-        stale_dir = self.sessions_dir.parent / "sessions-stale"
         try:
-            stale_dir.mkdir(parents=True, exist_ok=True)
+            self.stale_dir.mkdir(parents=True, exist_ok=True)
             for path in self.sessions_dir.glob("*.json"):
                 raw = path.read_bytes()
                 record = json.loads(raw.decode("utf-8"))
                 if record.get("sessionId") != session.session_id or \
                         (int(record["pid"]), str(record["procStart"])) != (int(pid), str(proc_start)):
                     continue
-                # A unique name: PID reuse must never overwrite an earlier
-                # archived record (#226 review P2).
-                target = stale_dir / f"{path.stem}.{uuid.uuid4().hex}.json"
-                path.replace(target)
-                # Between the read and the move, a new process may have reused
-                # the PID and published its own record at this path. What was
-                # moved must be exactly what was validated; otherwise put it
-                # back, never over a newer arrival, and refuse (#226 review P1).
-                if target.read_bytes() != raw:
-                    self._restore(target, path)
-                    return UNKNOWN
+                marker = self.stale_dir / f"{hashlib.sha256(raw).hexdigest()}.retired.json"
+                try:
+                    with open(marker, "xb") as out:   # never overwrites
+                        out.write(raw)
+                        out.flush()
+                        os.fsync(out.fileno())
+                except FileExistsError:
+                    pass  # already retired; _retired_digests checks its content
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             return UNKNOWN
         return self.ownership(session)
 
-    @staticmethod
-    def _restore(archived: Path, original: Path) -> None:
-        """Put a wrongly moved record back without overwriting anything.
+    @property
+    def stale_dir(self) -> Path:
+        return self.sessions_dir.parent / "sessions-stale"
 
-        ``os.link`` refuses an existing destination on every platform, so a
-        record that arrived at ``original`` meanwhile is never replaced; the
-        moved one then stays archived under its unique name.
+    def _retired_digests(self) -> set[str]:
+        """Digests of retired records whose marker content still matches its name.
+
+        A partly written or altered marker matches nothing, so its record
+        counts again (fail closed). An unreadable directory retires nothing.
         """
+        digests = set()
         try:
-            os.link(archived, original)
-        except FileExistsError:
-            log.warning("session record %s reappeared while restoring %s; both kept", original, archived)
-            return
-        archived.unlink()
+            markers = list(self.stale_dir.glob("*.retired.json"))
+        except OSError:
+            return digests
+        for marker in markers:
+            name = marker.name[:-len(".retired.json")]
+            try:
+                if hashlib.sha256(marker.read_bytes()).hexdigest() == name:
+                    digests.add(name)
+            except OSError:
+                continue
+        return digests
 
     def _ownership(self, session: Session, ended: Optional[tuple[int, str]]) -> str:
         try:
@@ -190,12 +200,16 @@ class ClaudeBackend:
         except OSError:
             return UNKNOWN
 
+        retired = self._retired_digests()
         matched = []
         for path in records:
             try:
-                record = json.loads(path.read_text(encoding="utf-8"))
+                raw = path.read_bytes()
+                record = json.loads(raw.decode("utf-8"))
             except (OSError, ValueError):
                 return UNKNOWN  # an unreadable record could be this session
+            if hashlib.sha256(raw).hexdigest() in retired:
+                continue  # exactly a record this relay proved dead and retired
             if not isinstance(record, dict) or not all(k in record for k in self.REQUIRED):
                 return UNKNOWN
             if record["sessionId"] == session.session_id:
