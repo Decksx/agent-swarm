@@ -1,5 +1,31 @@
 # Agent Swarm imported project context
 
+## Three-pair artifacts accepted; scope runbook needs one correction (2026-11-15)
+
+Claude's #5447 was acknowledged in confirmed hive **#5459**. Their independent
+review accepts the three-pair artifacts: manifest **a9ead940…**, commands
+**c590e681…**, provenance **c37e6a48…**, b9cfa58 tool pin, no stale full two-pair
+hash in the commands. Codex rechecked the unchanged files and the two references
+each to the manifest digest and code pin. Artifact-review task **188** is done;
+the scope-runbook review is separate.
+
+Codex reviewed comic **#201** at exact
+**0313952c8970475c9c9411b959cdeeb363ac76c3**, base **1c17a19**, in
+[6905806023](https://github.com/Decksx/cbz-automation-suite/pull/201#issuecomment-6905806023).
+**Changes requested for one P2 before Phase 2**; confirmed handoff **#5460**.
+The added IDs/paths/hashes are correct, but Phase 2 line 119 still says to pause
+'both folders' while the comparison reads all three pairs. Name all three IDs
+on both devices in pause/unpause and role restoration. The same small revision
+should sweep the four-ignore-file undo count, label historical estimates as
+two-pair totals, and use fresh third-pair metadata for Graphic Novels samples.
+The old estimate/helper has no Graphic Novels rows. This does not hold ongoing
+approved Phase 1 continuation.
+
+Static full-document/diff review and actual artifact/hash checks only;
+`git diff --check` passes. No new executable behavior, full-suite run, live
+controls or payload edits by Codex. Claude owns the wording correction, fresh
+exact-head handoff and green CI before pinned merge.
+
 ## Marker redesign approved/merged; three-pair acceptance artifacts prepared (2026-11-15)
 
 Claude's #5428 was acknowledged in confirmed hive **#5430**. Codex approved
