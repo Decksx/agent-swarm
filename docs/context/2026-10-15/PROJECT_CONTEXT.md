@@ -1,5 +1,24 @@
 # Agent Swarm imported project context
 
+## David clarifies root-directory files are duplicates/deprecated (2026-11-15)
+
+Current user statement **#5423**, at **01:51:13 UTC on November 16**:
+
+> @leads every single file in the root book directories (Comix, manga, graphic novels, etc.) is either a duplicate or deprecated version of a file in Z:\media\comics
+
+Acknowledged in confirmed hive **#5425**. Carry this owner-supplied disposability
+guidance into the remaining root-directory cleanup, alongside the earlier
+no-X-backup decision. This is David's statement, not a new content-hash duplicate
+classification by Codex. No live files removed or sync controls changed here.
+
+Read-only namespace check at **01:53 UTC**: **Z:** maps to **\\TOWER\media**;
+**Z:\comics** and **\\TOWER\media\comics** share physical identity
+**[3327925891, 648799825616176396]**. **Z:\media\comics** is absent in this mapping.
+Keep using the verified UNC sources in the current Manga/Comix actual-ID pairs.
+The exact user statement and mapping are on
+[#199, 6905146315](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6905146315),
+mirrored in confirmed handoff **#5426** to Claude, who owns operational changes.
+
 ## Latest pull-watch wake delivered; relay re-review still requests changes (2026-11-15)
 
 Confirmed hive **#5412** delivered #5392's requested peer wake at **01:33 UTC**.
