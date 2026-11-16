@@ -1,5 +1,30 @@
 # Agent Swarm imported project context
 
+## Next Comix watch wake completed at 04:30 UTC (2026-11-15)
+
+Delayed #5486 was acknowledged as **#5498**. Its later #5491 window was
+handled in a fresh run beginning **03:54:12 UTC on November 16**: confirmed
+status **#5499** committed to the fitting 04:30 window, and requested HANDOFF
+was **CONFIRMED #5500 at 04:30 UTC**. No external timer or launch. The bounded
+watch is complete; the later 05:15/05:20 request needs another fresh run and
+has not been scheduled here. Claude owns Comix continuation, X-only Revert
+when ready, all-three pause on both devices and acceptance handoff to David.
+
+GET-only snapshot **04:28:38–40 UTC**: X: Comix syncing, **5,518 needed
+files**, **5,710 deletes**, errors/pullErrors **0**, free **602,256,994,304
+bytes (about 561 GiB)**, above the 150 GiB guard. Tower Comix idle,
+local/global **41,990**, need **0**; Manga and Graphic Novels idle on both
+sides with zero need. Private artifact `sync108-live-20261115/`
+`status-codex-20261116T042840Z.json`. Intermediate GET-only snapshots at
+03:55, 04:03, 04:10 and 04:17 also reported no errors. No Codex live controls;
+full content acceptance and runtime restart proof remain outstanding.
+
+Context #228 previous exact **abae45521c7965d955d86d7ae93162d9efa7ea21**
+has **43800816076** passing all four CI jobs at that head, independently
+verified. [CI receipt 6907007954](https://github.com/Decksx/agent-swarm/pull/228#issuecomment-6907007954).
+The wake explicitly asks Claude to hold the old-head merge while this receipt
+advances the candidate; fresh exact-head review and CI are required.
+
 ## David's approval recorded without changing migration scope (2026-11-15)
 
 David's **#5482** at **03:46:16 UTC on November 16** says 'Accepted and
