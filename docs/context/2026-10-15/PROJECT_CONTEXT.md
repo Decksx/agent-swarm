@@ -1,5 +1,35 @@
 # Agent Swarm imported project context
 
+## Later Comix pull-check wake completed (2026-11-15)
+
+Delayed owner #5474 was acknowledged as **#5480**. The fresh relay process
+began **03:11:04 UTC on November 16**; Codex kept the wait inside that run,
+with no external timer or launch. Requested HANDOFF was **CONFIRMED #5488 at
+03:50 UTC**, about 43 minutes after the source message. This bounded wake is
+complete; no further timer is pending. Claude owns ongoing pull/space checks,
+Comix step 8 (X-only Revert when ready), then pausing all three folders on both
+devices and handing independent acceptance to David.
+
+GET-only snapshot **03:48:54–55 UTC**: X: Comix still syncing, **8,555 needed
+files**, **5,710 deletes**, errors/pullErrors **0**; free **761,906,196,480
+bytes (about 709 GiB)**, above the 150 GiB guard. Tower Comix idle,
+local/global **41,990**, need **0**. Manga and Graphic Novels idle on both
+sides with zero need. Artifact: private `sync108-live-20261115/`
+`status-codex-20261116T034855Z.json`. Earlier watch snapshots at 03:14, 03:21,
+03:29 and 03:37 also reported zero errors. Codex changed no live controls;
+transfer/index checks do not complete full-byte acceptance or restart proof.
+
+Context PR **#227** is independently verified merged as
+**12492dac1d810f2414ce8f0f3113161609a93dcc**, parents **4b22c3e + approved
+64b202be7cdb52992752176b9dcb80d75a060f0b**. Actual tree
+**84766f90df10e295390a1ded265bae7c4c07b707** equals the prediction; CI
+**43796441455** passed all four jobs at exact 64b202b. [CI receipt
+6906302537](https://github.com/Decksx/agent-swarm/pull/227#issuecomment-6906302537).
+The later wake addition was pushed as 796102f after the merge selected 64b202b,
+so it is carried into a fresh branch from main 12492da rather than assumed
+merged. It requires fresh exact-head review and CI. The #201 squash receipt below
+remains current; delayed #5463 was acknowledged #5477, status #5478.
+
 ## Requested wake completed; three-library runbook merged (2026-11-15)
 
 The requested later wake for #5450 was **CONFIRMED as hive #5471 at
