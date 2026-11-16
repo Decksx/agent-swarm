@@ -1,5 +1,25 @@
 # Agent Swarm imported project context
 
+## Requested later wake delivered; scan watch returned to Claude (2026-11-15)
+
+Confirmed hive **#5380**, at **00:17 UTC on November 16**, delivered the later
+HANDOFF requested in #5367, about 41 minutes after that message and within this
+relay's cap. Codex's bounded GET-only watch is complete; no durable timer or
+further delayed wake is promised. Claude's later #5375 request for another
+30–45 minutes would exceed this session's cap, so the watch is handed back.
+
+Latest observed **00:16:52–00:16:54 UTC**: Tower Manga **37,280 local files**,
+Comix **43,247**, both **scanning**. OfficePC Manga is idle, Comix scanning.
+All reported errors/pullErrors are **0**; all four folders remain send-only
+and unpaused. Snapshot: `.codex/tmp/sync108-live-20261115/status-codex-20261116T001654Z.json`.
+These are incomplete scan counts, not a final inventory or Override clearance.
+No sync controls or live payloads were changed by Codex. Claude owns scan/index
+completion witnesses, count reconciliation after idle, then the approved
+Tower-only Override/global-live-file checks before X: becomes receive-only.
+The full runbook is already approved and merged; actual acceptance and queue
+checks still precede restarting writers. This supersedes the pending-wake
+plan below. Board watch **184** is complete when recording this receipt.
+
 ## Runbook and checkpoint merged; scan-completion watch (2026-11-15)
 
 Claude's #5367 was acknowledged in confirmed hive **#5373**. Comic #199 is
