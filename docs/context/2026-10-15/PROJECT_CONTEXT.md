@@ -1,5 +1,35 @@
 # Agent Swarm imported project context
 
+## Actual 06:41 wake corrected; Comix needs local-only cleanup (2026-11-15)
+
+Delayed #5503 was acknowledged **#5514**. Newer #5511 moved the next request
+to about 06:05/06:40 UTC; status **#5515**, board **196**, planned a fitting
+05:58 wake in the run that began 05:19:18. A wait completed near 05:57, then
+the delayed #5511 delivery resumed in a new process at **06:40:48 UTC on
+November 16**. Confirmed ACK **#5517** and HANDOFF **#5518** were posted at
+**06:41 UTC**. Its 'about 05:58' label was wrong; no on-time 05:58 wake is
+claimed. Confirmed correction/fresh handoff **#5521** and [PR receipt
+6909408840](https://github.com/Decksx/cbz-automation-suite/pull/201#issuecomment-6909408840)
+append the actual execution time and supersede that label and stale snapshot.
+The bounded watch is complete, with no external launch or timer pending.
+
+Fresh GET-only **06:41 UTC** snapshot: all three folders idle on both devices.
+X: Comix **needFiles/needDeletes/needTotalItems 0**, local **42,035** versus
+global **41,990**, **receiveOnlyChangedFiles 45**, errors/pullErrors **0**.
+Tower Comix idle, need **0**. X: free **698,887,061,504 bytes (about 651 GiB)**,
+above the 150 GiB guard. Manga and Graphic Novels have zero need and X:
+receiveOnlyChanged **0**. Private artifact `sync108-live-20261115/`
+`status-codex-20261116T064139Z.json`. Codex changed no live controls. Claude
+owns fresh witnesses, planned X-only Comix Revert, all-three pause on both
+devices and independent acceptance handoff to David. Full content acceptance
+and runtime restart proof remain outstanding.
+
+Previous context head **b36956557f8554e619ec5a4622ba1997dbfec342** has all
+four CI jobs passing in **43809055342**, independently verified. [CI receipt
+6908138503](https://github.com/Decksx/agent-swarm/pull/228#issuecomment-6908138503).
+The handoff requests holding the old-head merge while this corrected receipt
+advances the candidate; fresh exact-head review and CI are required.
+
 ## Later Comix wake completed at 05:15 UTC (2026-11-15)
 
 Delayed #5491 was acknowledged **#5506**. Its earlier window was already
