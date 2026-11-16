@@ -260,8 +260,13 @@ def messages_high_water(component: str = Depends(authenticate)):
     return {"high_water": int(row[0])}
 
 
+MAX_PAGE = 1000  # the most one page of chat may ask for
+
+
 @app.get("/messages", response_model=List[Message])
-def get_messages(since_id: int = 0, component: str = Depends(authenticate)):
+def get_messages(since_id: int = 0, before_id: Optional[int] = None,
+                 limit: Optional[int] = None,
+                 component: str = Depends(authenticate)):
     # Ordered by time, then by id. The id alone was very nearly right -- it is
     # monotonic and it is what `since_id` pages through -- but it is the order
     # rows were *written*, and a transcript is read as the order things were
@@ -278,11 +283,25 @@ def get_messages(since_id: int = 0, component: str = Depends(authenticate)):
     # COALESCE, because NULL sorts before everything in SQLite. Untimestamped
     # historical rows are old, so sorting them first is very nearly right by
     # accident; saying so explicitly means it stays right on purpose.
+    #
+    # `before_id` and `limit` are optional and only the page uses them: it
+    # opens on the newest `limit` messages and fetches older ones on request,
+    # instead of rendering the whole history on every load. Without them the
+    # answer is exactly what it always was, so no worker or relay notices.
+    # "Newest" is by id, the same commit order `since_id` pages through.
+    where, args = "id > ?", [since_id]
+    if before_id is not None:
+        where += " AND id < ?"
+        args.append(before_id)
+    if limit is not None:
+        newest = "SELECT id FROM messages WHERE " + where + " ORDER BY id DESC LIMIT ?"
+        where += " AND id IN (" + newest + ")"
+        args = args + args + [max(1, min(limit, MAX_PAGE))]
     with get_db() as conn:
         rows = conn.execute(
             "SELECT id, sender, target, content, timestamp FROM messages "
-            "WHERE id > ? ORDER BY COALESCE(timestamp, 0) ASC, id ASC",
-            (since_id,)
+            "WHERE " + where + " ORDER BY COALESCE(timestamp, 0) ASC, id ASC",
+            args
         ).fetchall()
 
     return [
@@ -522,6 +541,7 @@ HTML_TEMPLATE = """
       border-radius: 4px;
     }
     button:hover { background: #89ddff; }
+    #chat-log .older { align-self: center; margin-bottom: 1rem; }
     /* The dashboard (#1737): the chat keeps the left, the panel the right,
        and on a narrow screen the panel goes under the chat instead. */
     #layout { flex: 1; display: flex; min-height: 0; }
@@ -593,6 +613,12 @@ HTML_TEMPLATE = """
 
   <script>
     let lastId = 0;
+    // The page opens on the newest PAGE messages, not the whole history, and
+    // fetches older ones only when asked. Rendering every message on every
+    // load made opening the page slower with each message ever posted.
+    const PAGE = 300;
+    let oldestId = null;     // null until the first load has answered
+    let polling = false, pollAgain = false, loadingOlder = false, olderButton = null;
     const log = document.getElementById('chat-log');
 
     // The full local date, the time, and the zone it is in -- never the time
@@ -654,41 +680,102 @@ HTML_TEMPLATE = """
       return `UTC${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
     }
 
+    function renderMsg(msg) {
+      const el = document.createElement('div');
+      el.className = 'msg';
+      // sender and target are escaped for the same reason content always
+      // was: they are stored strings that arrive from the network. Before
+      // authentication any LAN caller could choose them freely, so a
+      // sender of `<img src=x onerror=...>` ran script in the browser of
+      // anyone watching this page. Authentication narrows who can plant
+      // that; escaping is what stops it rendering.
+      const senderText = escapeHtml(String(msg.sender));
+      const targetText = escapeHtml(String(msg.target));
+      // The class name is built from a strict allowlist rather than
+      // escaped. Escaping is right for text, but a class attribute is not
+      // text, and stripping to [A-Za-z0-9_-] means nothing can terminate
+      // the attribute no matter what it contains.
+      const senderClass = String(msg.sender).replace(/[^A-Za-z0-9_-]/g, '');
+      el.innerHTML = `
+        <div class="meta">
+          <span class="sender-${senderClass}">${senderText}</span>
+          <span class="target">&#10142; ${targetText}</span>
+          <span class="when" title="${escapeHtml(String(msg.timestamp_utc))}">${escapeHtml(localTime(msg))}</span>
+          <span style="margin-left: auto; color: #565f89;">#${escapeHtml(String(msg.id))}</span>
+        </div>
+        <pre>${escapeHtml(msg.content)}</pre>
+      `;
+      return el;
+    }
+
+    function nearBottom() {
+      return log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+    }
+
     async function fetchMessages() {
+      // One request at a time. The 2-second poll used to start another full
+      // fetch while a slow one was still in flight, and both appended. A call
+      // that arrives meanwhile (a send) runs once the current one is done.
+      if (polling) { pollAgain = true; return; }
+      polling = true;
       try {
-        const res = await fetch(`/messages?since_id=${lastId}`);
+        const first = oldestId === null;
+        const res = await fetch(first ? `/messages?limit=${PAGE}` : `/messages?since_id=${lastId}`);
         const data = await res.json();
+        const after = lastId;
+        // Follow new messages only for a reader already at the bottom, so
+        // someone reading older ones is not pulled away from them.
+        const follow = first || nearBottom();
+        // Built off-page and added once, so the browser lays the log out once
+        // per batch rather than once per message.
+        const batch = document.createDocumentFragment();
         for (const msg of data) {
+          if (msg.id <= after) continue;
           if (msg.id > lastId) lastId = msg.id;
-          const el = document.createElement('div');
-          el.className = 'msg';
-          // sender and target are escaped for the same reason content always
-          // was: they are stored strings that arrive from the network. Before
-          // authentication any LAN caller could choose them freely, so a
-          // sender of `<img src=x onerror=...>` ran script in the browser of
-          // anyone watching this page. Authentication narrows who can plant
-          // that; escaping is what stops it rendering.
-          const senderText = escapeHtml(String(msg.sender));
-          const targetText = escapeHtml(String(msg.target));
-          // The class name is built from a strict allowlist rather than
-          // escaped. Escaping is right for text, but a class attribute is not
-          // text, and stripping to [A-Za-z0-9_-] means nothing can terminate
-          // the attribute no matter what it contains.
-          const senderClass = String(msg.sender).replace(/[^A-Za-z0-9_-]/g, '');
-          el.innerHTML = `
-            <div class="meta">
-              <span class="sender-${senderClass}">${senderText}</span>
-              <span class="target">&#10142; ${targetText}</span>
-              <span class="when" title="${escapeHtml(String(msg.timestamp_utc))}">${escapeHtml(localTime(msg))}</span>
-              <span style="margin-left: auto; color: #565f89;">#${escapeHtml(String(msg.id))}</span>
-            </div>
-            <pre>${escapeHtml(msg.content)}</pre>
-          `;
-          log.appendChild(el);
-          log.scrollTop = log.scrollHeight;
+          batch.appendChild(renderMsg(msg));
+        }
+        if (first) {
+          oldestId = data.length ? Math.min(...data.map(m => m.id)) : 0;
+          if (data.length >= PAGE) addOlderButton();
+        }
+        if (data.length) {
+          log.appendChild(batch);
+          if (follow) log.scrollTop = log.scrollHeight;
         }
       } catch (err) {
         console.error(err);
+      } finally {
+        polling = false;
+        if (pollAgain) { pollAgain = false; fetchMessages(); }
+      }
+    }
+
+    function addOlderButton() {
+      olderButton = document.createElement('button');
+      olderButton.className = 'older';
+      olderButton.textContent = 'Show older messages';
+      olderButton.onclick = loadOlder;
+      log.insertBefore(olderButton, log.firstChild);
+    }
+
+    async function loadOlder() {
+      if (loadingOlder || !oldestId) return;
+      loadingOlder = true;
+      try {
+        const res = await fetch(`/messages?before_id=${oldestId}&limit=${PAGE}`);
+        const data = await res.json();
+        const batch = document.createDocumentFragment();
+        for (const msg of data) batch.appendChild(renderMsg(msg));
+        if (data.length) oldestId = Math.min(...data.map(m => m.id));
+        // Keep the reader's place: the log grows above what they are reading.
+        const fromBottom = log.scrollHeight - log.scrollTop;
+        log.insertBefore(batch, olderButton.nextSibling);
+        log.scrollTop = log.scrollHeight - fromBottom;
+        if (data.length < PAGE) { olderButton.remove(); olderButton = null; oldestId = 0; }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        loadingOlder = false;
       }
     }
 
