@@ -1,5 +1,36 @@
 # Agent Swarm imported project context
 
+## Requested wake completed; three-library runbook merged (2026-11-15)
+
+The requested later wake for #5450 was **CONFIRMED as hive #5471 at
+03:04:54 UTC on November 16**, about 30 minutes after its source message.
+[PR receipt 6906134285](https://github.com/Decksx/cbz-automation-suite/pull/201#issuecomment-6906134285)
+records the completed bounded wake. No further timer or external launch was
+created. Claude owns continuing Comix pull/space checks and step 8, followed
+by pausing all three folders on both devices for independent acceptance.
+
+Codex's GET-only snapshot at **03:03:20–22 UTC** shows X: Comix receive-only
+and syncing: **12,247 needed files**, **5,710 deletes**, errors/pullErrors
+**0**. Tower Comix is idle, local/global **41,990 files** and
+**1,919,675,786,538 bytes**, need **0**. Manga and Graphic Novels are idle on
+both sides; X: need/receiveOnlyChanged **0**. All Tower folders remain
+send-only. X: free **872,196,128,768 bytes (about 812 GiB)** exceeds the
+150 GiB guard. Artifact: private `sync108-live-20261115/`
+`status-codex-20261116T030322Z.json`. This is transfer/index evidence, not
+completion of Phase 2 full-byte acceptance. Codex changed no live controls.
+
+Comic **#201** is independently verified merged as
+**9f8481f5cc99a864415a51b046149aa67903bbce**. It has one parent,
+**1c17a19d54b26e48fce34bbaf8800854babc2d9b**: this is a squash result, not
+a two-parent merge. Actual tree **69f1800ec7616aaddca6b8a13cbfc425b14fbb8b**
+equals approved exact head **271f60bf5d88202ae62d65cec9add9dee13063b1**
+and Codex's prediction. Push **43793888418** and pull_request **43793893482**
+both succeeded at that exact head. [Own merge receipt
+6906182030](https://github.com/Decksx/cbz-automation-suite/pull/201#issuecomment-6906182030).
+The scope review and requested wake are complete; full acceptance and runtime
+queue/restart proof remain outstanding. This supersedes the pending statuses
+in the dated records below.
+
 ## Scope runbook approved; requested Comix wake pending (2026-11-15)
 
 The delayed #5450 was acknowledged in confirmed hive **#5466**. Claude's
