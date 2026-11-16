@@ -1039,6 +1039,156 @@ def test_claude_ownership(tmp_path, files, alive, expected):
     assert backend.ownership(session) == expected
 
 
+@pytest.mark.parametrize("files, alive, expected", [
+    ([("a", {})], {}, CLOSED),                                    # the run's own record, dead
+    ([("a", {"procStart": "999"})], {}, UNKNOWN),                 # same pid, another process
+    ([("a", {"pid": 1})], {}, UNKNOWN),                           # someone else's stale record
+    ([("a", {}), ("b", {"pid": 1})], {}, UNKNOWN),                # one stale record is not ours
+    ([("a", {}), ("b", {"pid": 1, "procStart": "7"})], {1: "7"}, OPEN),  # another live owner
+    ([("a", {})], {22684: "134"}, OPEN),                          # it is in fact alive
+    ([("a", {"sessionId": "other"})], {}, CLOSED),
+], ids=["own-dead", "pid-reused", "foreign-stale", "mixed-stale", "other-live", "alive",
+        "no-match"])
+def test_claude_ownership_without_the_runs_own_record(tmp_path, files, alive, expected):
+    for name, fields in files:
+        record(tmp_path, name, **fields)
+    processes = FakeProcesses()
+    processes.alive.update(alive)
+    backend = lead_relay.ClaudeBackend(processes, sessions_dir=tmp_path)
+    session = lead_relay.Session("claude-lead", "claude", "s-1", "C:/git", None, True)
+
+    assert backend.ownership_without(session, 22684, "134") == expected
+
+
+def test_retire_record_marks_only_the_runs_own_dead_record(tmp_path):
+    """The record is never moved; a content-addressed marker retires exactly it."""
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    record(sessions, "22684")                                   # the run's own, dead
+    record(sessions, "77", pid=77, sessionId="other")           # another conversation
+    own = (sessions / "22684.json").read_bytes()
+    backend = lead_relay.ClaudeBackend(FakeProcesses(), sessions_dir=sessions)
+    session = lead_relay.Session("claude-lead", "claude", "s-1", "C:/git", None, True)
+
+    assert backend.ownership(session) == UNKNOWN
+    assert backend.retire_record(session, 22684, "134") == CLOSED
+    assert sorted(p.name for p in sessions.iterdir()) == ["22684.json", "77.json"]   # nothing moved
+    markers = list((tmp_path / "sessions-stale").glob("*.retired.json"))
+    assert [m.read_bytes() for m in markers] == [own]
+    assert backend.ownership(session) == CLOSED
+    # The marker persists: a restarted relay (a new backend) still sees it retired.
+    assert lead_relay.ClaudeBackend(FakeProcesses(), sessions_dir=sessions).ownership(session) == CLOSED
+
+
+def test_retire_record_moves_nothing_without_proof(tmp_path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    record(sessions, "22684")
+    record(sessions, "1", pid=1)                                # someone else's stale record
+    backend = lead_relay.ClaudeBackend(FakeProcesses(), sessions_dir=sessions)
+    session = lead_relay.Session("claude-lead", "claude", "s-1", "C:/git", None, True)
+
+    assert backend.retire_record(session, 22684, "134") == UNKNOWN
+    assert sorted(p.name for p in sessions.iterdir()) == ["1.json", "22684.json"]
+    assert not (tmp_path / "sessions-stale").exists()
+
+
+def test_retire_record_answers_afresh_after_retiring(tmp_path):
+    """A live owner that appears between the check and the retirement still wins."""
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    record(sessions, "22684")
+    record(sessions, "5", pid=5, procStart="9")                 # a live interactive session
+    processes = FakeProcesses()
+    processes.alive[5] = "9"
+    backend = lead_relay.ClaudeBackend(processes, sessions_dir=sessions)
+    backend.ownership_without = lambda session, pid, start: CLOSED   # the earlier answer
+    session = lead_relay.Session("claude-lead", "claude", "s-1", "C:/git", None, True)
+
+    assert backend.retire_record(session, 22684, "134") == OPEN
+
+
+def test_ownership_without_still_refuses_an_unreadable_record(tmp_path):
+    record(tmp_path, "a")
+    (tmp_path / "x.json").write_text("{not json", encoding="utf-8")
+    backend = lead_relay.ClaudeBackend(FakeProcesses(), sessions_dir=tmp_path)
+    session = lead_relay.Session("claude-lead", "claude", "s-1", "C:/git", None, True)
+
+    assert backend.ownership_without(session, 22684, "134") == UNKNOWN
+
+
+@pytest.mark.parametrize("container, members, released", [
+    ("job:Global\\lead-relay-x", None, True),           # the job is destroyed
+    ("job:Global\\lead-relay-x", [], True),             # the job exists, empty
+    ("job:Global\\lead-relay-x", [5150], False),        # a child of the run lives on
+    ("job:Global\\lead-relay-x", OSError("denied"), False),  # can't read is not absent
+    (None, None, False),                                # uncontained: proves nothing
+    ("session:4000", None, False),                      # POSIX session: not a job
+], ids=["job-gone", "job-empty", "job-member", "job-unreadable", "uncontained", "posix"])
+def test_a_timed_out_runs_leftover_record_releases_only_with_proof(tmp_path, container, members,
+                                                                   released):
+    """2026-11-15: a run killed at RUN_TIMEOUT left ~/.claude/sessions/<pid>.json
+    behind, ownership stayed UNKNOWN and 12 messages sat `held / reserved`."""
+    w = World(tmp_path, ownership=UNKNOWN)
+    w.backend.state = CLOSED
+    asked = []
+
+    def retire_record(session, pid, start):
+        asked.append((pid, start))
+        w.backend.state = CLOSED                # the record is gone now
+        return CLOSED
+
+    jobs = []
+
+    def job_members(name):
+        jobs.append(name)
+        if isinstance(members, Exception):
+            raise members
+        return members
+
+    w.backend.retire_record = retire_record
+    w.processes.job_members = job_members
+    spawn = w.spawn
+
+    def contained_spawn(command, session, attempt_id):
+        pid, start, handle, log_path = spawn(command, session, attempt_id)
+        handle.container = container
+        return pid, start, handle, log_path
+
+    w.spawn = contained_spawn
+    w.relay = w.build()
+    first = started(w)
+    w.ack(first, w.token(first))
+    w.tick()
+    second = w.hub.add("codex-lead", "HANDOFF @claude-lead: queued behind it")
+
+    w.backend.state = UNKNOWN                   # its record outlived it
+    w.tick(lead_relay.RUN_TIMEOUT)              # killed by the timeout
+    w.tick()
+    w.tick()
+
+    if released:
+        assert asked and set(asked) == {(4000, "start-4000")}
+        assert set(jobs) == {"Global\\lead-relay-x"}
+        assert w.delivery(second) == ("running", None) and len(w.spawned) == 2
+    else:
+        assert w.delivery(second) == ("held", "reserved") and len(w.spawned) == 1
+
+
+def test_a_run_still_alive_is_never_released_by_its_own_record(tmp_path):
+    w = World(tmp_path, ownership=UNKNOWN)
+    w.backend.retire_record = lambda session, pid, start: CLOSED
+    w.processes.job_members = lambda name: None
+    attempt = {"attempt_id": "a", "recipient": "claude-lead", "pid": 4000,
+               "proc_start": "start-4000", "container": "job:Global\\lead-relay-a"}
+    w.processes.alive[4000] = "start-4000"
+    session = w.relay.session("claude-lead")
+
+    assert lead_relay.proven_idle(w.backend, w.processes, session, attempt) == UNKNOWN
+    w.processes.alive.pop(4000)
+    assert lead_relay.proven_idle(w.backend, w.processes, session, attempt) == CLOSED
+
+
 @pytest.mark.parametrize("content", ["{not json", json.dumps({"pid": 1}), json.dumps([1])])
 def test_an_unreadable_or_unrecognised_record_is_unknown(tmp_path, content):
     (tmp_path / "x.json").write_text(content, encoding="utf-8")
@@ -1485,3 +1635,89 @@ def test_confirm_cannot_interleave_with_a_tick_that_has_its_snapshot(tmp_path, m
         # The daemon delivered live, consistently: no row is both cancelled
         # and notified, which is the state the race used to produce.
         assert "notified" in states
+
+
+
+# --- #226 review: retirement never moves a record; a marker retires exact bytes ---------
+# Replaces the move-based design, whose read-to-move race and failed restore could leave a
+# new live record only in sessions-stale (codex-lead's probes 0c565227..., 3cc0d2ba...).
+
+def _retire_fixture(tmp_path):
+    from types import SimpleNamespace
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    path = sessions / "22684.json"
+    rec = dict(pid=22684, sessionId="s-1", procStart="134", kind="interactive")
+    path.write_text(json.dumps(rec), encoding="utf-8")
+    alive = {}
+    processes = SimpleNamespace(is_same=lambda pid, start: alive.get(pid) == start, job_members=lambda name: [])
+    backend = lead_relay.ClaudeBackend(processes, sessions_dir=sessions)
+    session = lead_relay.Session("claude-lead", "claude", "s-1", "fixture", None, True)
+    attempt = dict(attempt_id="fixture", recipient="claude-lead", pid=22684, proc_start="134", container="job:fixture")
+    return path, rec, alive, processes, backend, session, attempt
+
+
+@pytest.mark.parametrize("live", [True, False])
+@pytest.mark.parametrize("new_session", ["s-1", "another-conversation"])
+def test_a_record_republished_after_retirement_counts_again(tmp_path, new_session, live):
+    """PID reuse at the same path: new bytes, so no marker matches; nothing is hidden."""
+    path, rec, alive, processes, backend, session, attempt = _retire_fixture(tmp_path)
+    assert lead_relay.proven_idle(backend, processes, session, attempt) == CLOSED
+    if live:
+        alive[22684] = "999"
+    path.write_text(json.dumps(dict(rec, sessionId=new_session, procStart="999")), encoding="utf-8")
+    now = lead_relay.Session("claude-lead", "claude", new_session, "fixture", None, True)
+    assert backend.ownership(now) == (OPEN if live else UNKNOWN)
+    assert lead_relay.proven_idle(backend, processes, now, attempt) != CLOSED
+    assert path.exists()
+
+
+def test_a_marker_that_cannot_be_written_stays_unknown_on_every_later_tick(tmp_path, monkeypatch):
+    path, rec, alive, processes, backend, session, attempt = _retire_fixture(tmp_path)
+    import builtins
+    real_open = builtins.open
+
+    def refuse_markers(file, mode="r", *args, **kwargs):
+        if "x" in mode and str(file).endswith(".retired.json"):
+            raise PermissionError("injected marker refusal")
+        return real_open(file, mode, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", refuse_markers)
+    for _ in range(3):                                   # later ticks, not just the first
+        assert lead_relay.proven_idle(backend, processes, session, attempt) == UNKNOWN
+    assert path.exists() and not list((tmp_path / "sessions-stale").glob("*.retired.json"))
+
+
+def test_a_partial_or_altered_marker_retires_nothing(tmp_path):
+    import hashlib
+    path, rec, alive, processes, backend, session, attempt = _retire_fixture(tmp_path)
+    stale = tmp_path / "sessions-stale"
+    stale.mkdir()
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    (stale / f"{digest}.retired.json").write_bytes(path.read_bytes()[:10])   # torn write
+    assert backend.ownership(session) == UNKNOWN
+
+
+def test_pid_reuse_keeps_every_retirement_and_earlier_archives(tmp_path):
+    path, rec, alive, processes, backend, session, attempt = _retire_fixture(tmp_path)
+    stale = tmp_path / "sessions-stale"
+    stale.mkdir()
+    previous = stale / path.name                          # an archive from the old move-based relay
+    history = json.dumps(dict(rec, procStart="90", sessionId="older-conversation")).encode()
+    previous.write_bytes(history)
+    first = path.read_bytes()
+    assert lead_relay.proven_idle(backend, processes, session, attempt) == CLOSED
+    path.write_text(json.dumps(dict(rec, procStart="777")), encoding="utf-8")     # a later dead run, same PID
+    second = path.read_bytes()
+    assert lead_relay.proven_idle(backend, processes, session, dict(attempt, proc_start="777")) == CLOSED
+    assert previous.read_bytes() == history
+    kept = sorted(m.read_bytes() for m in stale.glob("*.retired.json"))
+    assert kept == sorted([first, second])
+
+
+def test_an_owner_present_before_the_check_stays_visible(tmp_path):
+    path, rec, alive, processes, backend, session, attempt = _retire_fixture(tmp_path)
+    alive[22684] = "999"
+    path.write_text(json.dumps(dict(rec, procStart="999")), encoding="utf-8")
+    assert lead_relay.proven_idle(backend, processes, session, attempt) == OPEN
+    assert path.exists() and not (tmp_path / "sessions-stale").exists()

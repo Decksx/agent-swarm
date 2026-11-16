@@ -8,6 +8,7 @@ budget (`authored_change.DEFAULT_FILE_VIEW`). Section numbers refer to
 from __future__ import annotations
 
 import ctypes
+import hashlib
 import json
 import logging
 import os
@@ -116,17 +117,99 @@ class ClaudeBackend:
         self.sessions_dir = sessions_dir or Path.home() / ".claude" / "sessions"
 
     def ownership(self, session: Session) -> str:
+        return self._ownership(session, None)
+
+    def ownership_without(self, session: Session, pid: int, proc_start: str) -> str:
+        """`ownership`, except that a dead record naming exactly this process
+        (pid AND creation time) no longer counts.
+
+        Only for the relay's release check, after the relay has proven that
+        process and everything it started is gone (`Relay._run_proven_gone`).
+        A run the relay kills at RUN_TIMEOUT can leave its record behind, and
+        that record would otherwise hold the session UNKNOWN forever
+        (2026-11-03 and 2026-11-15). Every other stale, unreadable or
+        unrecognised record still answers UNKNOWN.
+        """
+        return self._ownership(session, (int(pid), str(proc_start)))
+
+    def retire_record(self, session: Session, pid: int, proc_start: str) -> str:
+        """Retire this run's own dead record, then answer `ownership` afresh.
+
+        The record is **never moved or deleted**: an earlier design moved it to
+        `sessions-stale`, and a PID reused between the read and the move could
+        hide a new live record, including after a failed restore (#226 review).
+        Instead an exact copy of the validated bytes is written to
+        `~/.claude/sessions-stale/<sha256>.retired.json`. `ownership` then
+        ignores a session record only while its bytes match such a marker. A
+        record republished at the same path (a new process has a different
+        `procStart`) has different bytes and counts as normal. Markers persist
+        across restarts; one that fails to write simply leaves the session
+        UNKNOWN on every later tick. Nothing is retired unless
+        `ownership_without` is CLOSED, and only records naming exactly this
+        session, pid and creation time.
+        """
+        if self.ownership_without(session, pid, proc_start) != CLOSED:
+            return UNKNOWN
+        try:
+            self.stale_dir.mkdir(parents=True, exist_ok=True)
+            for path in self.sessions_dir.glob("*.json"):
+                raw = path.read_bytes()
+                record = json.loads(raw.decode("utf-8"))
+                if record.get("sessionId") != session.session_id or \
+                        (int(record["pid"]), str(record["procStart"])) != (int(pid), str(proc_start)):
+                    continue
+                marker = self.stale_dir / f"{hashlib.sha256(raw).hexdigest()}.retired.json"
+                try:
+                    with open(marker, "xb") as out:   # never overwrites
+                        out.write(raw)
+                        out.flush()
+                        os.fsync(out.fileno())
+                except FileExistsError:
+                    pass  # already retired; _retired_digests checks its content
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            return UNKNOWN
+        return self.ownership(session)
+
+    @property
+    def stale_dir(self) -> Path:
+        return self.sessions_dir.parent / "sessions-stale"
+
+    def _retired_digests(self) -> set[str]:
+        """Digests of retired records whose marker content still matches its name.
+
+        A partly written or altered marker matches nothing, so its record
+        counts again (fail closed). An unreadable directory retires nothing.
+        """
+        digests = set()
+        try:
+            markers = list(self.stale_dir.glob("*.retired.json"))
+        except OSError:
+            return digests
+        for marker in markers:
+            name = marker.name[:-len(".retired.json")]
+            try:
+                if hashlib.sha256(marker.read_bytes()).hexdigest() == name:
+                    digests.add(name)
+            except OSError:
+                continue
+        return digests
+
+    def _ownership(self, session: Session, ended: Optional[tuple[int, str]]) -> str:
         try:
             records = list(self.sessions_dir.glob("*.json"))
         except OSError:
             return UNKNOWN
 
+        retired = self._retired_digests()
         matched = []
         for path in records:
             try:
-                record = json.loads(path.read_text(encoding="utf-8"))
+                raw = path.read_bytes()
+                record = json.loads(raw.decode("utf-8"))
             except (OSError, ValueError):
                 return UNKNOWN  # an unreadable record could be this session
+            if hashlib.sha256(raw).hexdigest() in retired:
+                continue  # exactly a record this relay proved dead and retired
             if not isinstance(record, dict) or not all(k in record for k in self.REQUIRED):
                 return UNKNOWN
             if record["sessionId"] == session.session_id:
@@ -143,7 +226,11 @@ class ClaudeBackend:
             if self.processes.is_same(pid, str(record["procStart"])):
                 return OPEN
         # A record for this session whose process is gone, or whose pid now
-        # names another process: stale, and stale is not proof of idle.
+        # names another process: stale, and stale is not proof of idle --
+        # unless every one of them is the relay's own run, proven ended.
+        if ended is not None and all(
+                (int(r["pid"]), str(r["procStart"])) == ended for r in matched):
+            return CLOSED
         return UNKNOWN
 
     def command(self, session: Session) -> list[str]:
@@ -162,6 +249,47 @@ class ClaudeBackend:
         except OSError:
             return None
         return None
+
+
+def proven_idle(backend, processes: ProcessApi, session: Session, attempt) -> str:
+    """The backend's idle check for releasing `attempt`'s reservation (§5).
+
+    UNKNOWN is re-judged only when the backend can retire a record naming
+    exactly this run AND the relay has proven the run gone. Then the only
+    thing holding the session is the run's own leftover record, which the
+    backend moves aside so later checks don't trip on it again.
+    """
+    state = backend.ownership(session)
+    retire = getattr(backend, "retire_record", None)
+    if state != UNKNOWN or retire is None or not run_proven_gone(processes, attempt):
+        return state
+    state = retire(session, attempt["pid"], attempt["proc_start"])
+    if state == CLOSED:
+        log.warning("%s: %s's session record outlived its run (pid %s); "
+                    "moved to sessions-stale and released",
+                    attempt["attempt_id"], attempt["recipient"], attempt["pid"])
+    return state
+
+
+def run_proven_gone(processes: ProcessApi, attempt) -> bool:
+    """The run and everything it started are gone, by the relay's own record.
+
+    Needs the Windows job the run was launched into (`popen_contained`):
+    breakaway is not allowed, so the job lists every process the run ever
+    started, and a job that no longer exists or has no members proves none
+    is alive. An uncontained run proves nothing and stays UNKNOWN.
+    """
+    container = attempt["container"] or ""
+    if not container.startswith("job:") or attempt["pid"] is None or not attempt["proc_start"]:
+        return False
+    if processes.is_same(attempt["pid"], attempt["proc_start"]):
+        return False
+    try:
+        members = processes.job_members(container[len("job:"):])
+    except Exception as exc:  # noqa: BLE001 -- access denied is not absence
+        log.error("could not read %s for %s: %s", container, attempt["attempt_id"], exc)
+        return False
+    return not members
 
 
 # `CodexBackend` is in `lead_relay_codex.py`.

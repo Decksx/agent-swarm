@@ -42,7 +42,7 @@ import lead_chat
 import lead_relay_status
 from lead_relay_backends import (  # noqa: F401 -- re-exported for callers and tests
     CLOSED, OPEN, UNKNOWN, AlreadyRunning, ClaudeBackend, ProcessApi, Session,
-    acquire_lock, child_environment, migrate_provenance, popen_contained,
+    acquire_lock, child_environment, migrate_provenance, popen_contained, proven_idle,
     separate_process_group, session_key,
 )
 from lead_relay_codex import CodexBackend  # noqa: F401 -- re-exported
@@ -524,7 +524,7 @@ class Relay:
             backend = self.backends.get(session.backend) if session else None
             # Only the reserved conversation is judged, never a later binding's.
             if backend is None or session_key(session) != row[0] or \
-                    backend.ownership(session) != CLOSED:
+                    proven_idle(backend, self.processes, session, attempt) != CLOSED:
                 return  # unknown, open or rebound: keep the reservation
             self._record_usage(attempt)
             attempt = self._attempt(attempt["attempt_id"])
