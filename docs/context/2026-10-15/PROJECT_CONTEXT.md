@@ -1,5 +1,73 @@
 # Agent Swarm imported project context
 
+## Phase 2 independently accepted; Phase 3 handed to Claude (2026-11-17 UTC)
+
+David's completion #5578 and Claude's #5582/#5590 were received after usage-
+limit delivery failures. Confirmed ACKs: **#5593** (#5590), **#5594** (#5582),
+**#5595** (#5578), **#5596** (older #5571). Codex independently **CONCURS with
+Phase 2 filesystem acceptance** in [receipt
+6935950770](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6935950770),
+confirmed handoff **#5597**, admin status **#5600**. Supported relay status
+later records #5597 delivered/ACKed. Phase 3 completion is not yet claimed.
+
+Own verifier at **02:17:58–02:18:12 UTC** exits **0**: every raw path/size/SHA
+pair matches; **78,640 files / 3,016,870,328,497 bytes per side**, all kept,
+write/remove/unresolved/replaced **0**. Per side: Graphic Novels **709**,
+Manga **35,941**, Comix **41,990**. Both canonical seals recompute, the preview
+embeds exactly the baseline, and **the entire saved preview equals a fresh
+`build_preview` from clean pinned b9cfa58 code**. All 157,280 observed files
+have certified full SHA reads; terminal progress is complete. Current six-root
+physical bindings match the manifest/observation, and input artifact identities,
+sizes and timestamps stay stable through verification.
+
+Observation digest **85711b48040ed22c0d7a8c1cf3e1ff4c2bc29a3b2636309c75993c62d17e0041**;
+preview digest **1332c202b4154b8ba5ea97f25b63f34e95e058ba800fdcd896ba64e79fd2118b**.
+Raw input SHA-256 values are recorded on the PR. Own report:
+`sync108-live-20261115/acceptance-codex-20261117T021812Z.json`, SHA-256
+**9109b3d148f798299e73fbe1710757af76092702b3a7cf7821d16ff22392777b**;
+script `.codex/tmp/accept_sync108_20261117.py`. Independently accounted
+**23,442 mtime-only differences** (23,439 under 2 seconds, three larger with
+identical contents), and **17** approved exclusions. Artifact/command hashes
+remain a9ead940/c590e681/c37e6a48. GET-only snapshot at 02:18 UTC still shows
+all three pairs paused on both devices; paused API counts are unavailable.
+
+`sync_ready=false` remains expected: filesystem-only, non-atomic evidence, no
+bound two-boundary Syncthing configuration claim. No rehash of live payloads,
+collector/control changes or restarts by Codex. Claude owns Phase 3 under the
+approved runbook: all-three roles/versioning and zero-need/no-Tower-local-change
+witnesses, logged staging moves refusing occupied destinations, actual Camelia
+DB recovery/retry/old-root holds with zero runnable old-root work before restart,
+then X-only claim paths and watcher smoke. Later/new staging files and actual
+restart/restore receipts are separate from this accepted baseline.
+
+## Chat #229 R1 fixed; reader-anchor regression remains (2026-11-17 UTC)
+
+Interrupted re-review of exact **8c8cc992f92a77fc0eb6a7fb0c9d1820b1313180**
+(ACK #5569) is complete in [review
+6936026344](https://github.com/Decksx/agent-swarm/pull/229#issuecomment-6936026344),
+confirmed status **#5601**. **R1 fixed**, but **one new P2 R2**: timestamp
+merges can insert rows below the visible anchor, while `scrollHeight -
+fromBottom` still treats all new height as above it. With #351 null and the
+reader at the top, Show older shifts that message by **31,018 px** in real
+Chrome; pre-fix dc0fcee preserves it within 0.8125 px. Preserve a visible
+message/offset and add skew-position tests. This does not block Phase 3.
+
+Own checks: **425 hub passed**, original portable probes **5/5 passed**, Chrome
+ordering clean; new anchor probes **2 failed / 1 passed** at 8c8cc99 and
+**3/3 passed** at dc0fcee. Portable `.codex/tmp/test_review229_anchor.py` and
+`review229_anchor_browser.py`, XML/JSON evidence and hashes are on the PR.
+All test/browser processes exited; clean, unbound `swarm-review229-8c8cc99`
+was removed, registered workspace retained. Claude owns the anchor fix and
+fresh exact-head review after cutover; no merge/deploy approval at 8c8cc99.
+
+## Context #228 merge independently verified (2026-11-17 UTC)
+
+Merge **c9defc17f997c49372719f8d7c76aae6e0f076ae**, parents **12492da +
+96d2a619cd10112776c7316f53f3ce1e4effe706**, actual tree
+**fe876d9d587b3f72e37a74640bdbb9f2956bff72** equals the prediction. Exact-head
+PR CI **43932599830** is success with all four checks. New receipts above are
+on a fresh branch from this merge and need their own review/CI.
+
 ## Chat paging #229 reviewed: one timestamp-order regression (2026-11-16)
 
 Claude's #5556 was acknowledged **#5558**. Codex reviewed exact
