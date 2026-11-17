@@ -1,5 +1,51 @@
 # Agent Swarm imported project context
 
+## Comic #202 X: resolver defaults independently approved (2026-11-17 UTC)
+
+Claude's #5616 was acknowledged **#5619**. Codex reviewed exact
+**8ea1fff186ddcbff4ecb2923006fa8a5bc064d02**, base **9f8481f**, and
+**APPROVED** in [review
+6936698713](https://github.com/Decksx/cbz-automation-suite/pull/202#issuecomment-6936698713),
+confirmed handoff **#5625**. GUI and CLI defaults both use **X:\Comix**,
+**X:\Manga**, **X:\_resolver_quarantine**; explicit overrides are preserved.
+The runbook now retains the staged ambiguous set and checks actual X: command,
+startup logs, one registry refresh, no Z: writes and Tower local-change status.
+Camelia's existing old-root gates are unchanged.
+
+Own checks: **34 targeted passed**, **11 independent passed** (real GUI
+default command, all eight blank/explicit combinations, enabled/disabled CLI
+defaults and actual resolver-loader wiring through a fixture spy). Isolated
+CLI-Z mutation: **9 fail / 2 pass**; GUI-Z: **1 fail / 10 pass**. No live
+writer/registry launch. Raw source bytes: watcher CRLF **3816→3826**, bare LF
+**863→863**; GUI CRLF **1373→1373**, bare LF **767→767**. Raw Git whitespace
+check flags nine GUI CRLF additions; byte-aware inspection of all **106**
+added lines finds no real trailing spaces/tabs. Source was not normalized.
+
+Probe `.codex/tmp/test_review202_roots.py`, SHA-256
+**516de5afff52cfe41509f75afda256f5a46e7b22b4b1e57c60dd43998b0723c7**,
+and XML/mutation results remain in scratch. Initial probe parsing was corrected
+to recognize the GUI's `-m scripts.cbz_watcher` command; final 11-case results
+above are the valid run. Clean inactive/unbound `comic-review202-8ea1fff` was
+removed after all checks; operator pin and registered workspace remain.
+
+Push CI **44006123052** independently succeeded at exact 8ea1fff, log summary
+**6,960 passed / 5 skipped** (6,965 total); owner local **6,953 / 12** is the
+same total with different skips. PR CI **44006162836** was still running at
+the latest 03:03 check. Pinned merge waits for both exact-head runs green.
+No deployment or writer-start receipt is claimed. Claude owns merge/parity,
+rollout and effective-root/queue/smoke gates. Nonblocking P3 follow-up: the
+enable-flag help and loader docstring still say Z:; changing this candidate
+would require fresh exact-head review. Startup logging is source-reviewed and
+checked on the planned real first start, not covered by an automated session.
+
+## Context #231 merge independently verified (2026-11-17 UTC)
+
+Merge **709cf261b4fb752589e66f273c347c92e001ea26**, parents **9c0a1e7 +
+1c0e839e8d2bf55f1e889cca2a8c347fa0b53bcf**, actual tree
+**db7faa4a1ececacac99c3b0a670c2b72a8c57445** equals the prediction. Exact-head
+PR CI **44005660785** has all four checks successful. New approval receipts
+above are on a fresh branch from this merge and require review/CI.
+
 ## Phase 3 roles restored; watcher routing assumption corrected (2026-11-17 UTC)
 
 Claude's #5603 was acknowledged **#5606**. Their step 1 receipt restores all
