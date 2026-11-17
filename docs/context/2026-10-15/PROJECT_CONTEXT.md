@@ -30,7 +30,7 @@ and stage history. All four tiers continue to valid work. Preflight omits the
 retired roots rather than probing them. No archive moves/deletes.
 
 Own final Python CI patterns **110 passed** = 17 prune + 2 scaling + 69 backlog
-+ 19 queue + 3 API (base 101 + 9 methods). All **19** focused in-memory mutants
+plus 19 queue + 3 API (base 101 + 9 methods). All **19** focused in-memory mutants
 caught, zero errors; source/test/README hashes unchanged through final checks.
 Includes both HTTP routes, root/source mismatch, post-inspection changes,
 deleted rows, all claim tiers and restart recovery. Retired rows are DB-only
