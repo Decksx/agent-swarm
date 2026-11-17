@@ -1,5 +1,57 @@
 # Agent Swarm imported project context
 
+## X: watcher startup and first real imports verified (2026-11-17 UTC)
+
+David's #5639 reported Camelia/GUI open; own 12:52 checks found no watcher.
+After his #5647 start report (confirmed ACK **#5653**), own CIM and logs
+verify watcher **44752**, started **12:55:49 UTC**, GUI **29464** and Camelia
+API **45844**. Actual watcher arguments and **05:55:53 MST** startup name
+**X:\Comix**, **X:\Manga**, **X:\_resolver_quarantine**. Live checkout is
+clean at **e4ef4b7b7d23dc4e455307516dbd54ceb7b423b8**. The previous
+operator-start-pending section below is superseded by these receipts.
+
+Codex concurs with owner **#5651** on startup/import/sync smoke in [runtime
+receipt 6948787432](https://github.com/Decksx/cbz-automation-suite/pull/202#issuecomment-6948787432).
+Own log snapshot through **06:01:26 MST** has **13** move-to-X lines, **0**
+ERROR/Traceback and **0** old Z:/Tower library references. The first completed
+real import is present in X:\Manga. There are **23 warnings**, including
+temporary leftovers and naming collisions; this is not a claim that every
+arrival completed or that the batch was warning-free. No synthetic intake
+copy, live control change, writer launch or queue mutation by Codex.
+
+Own GET-only **13:01 UTC** snapshot: all six sides idle/unpaused, X: send-only
+and Tower receive-only, need/errors/pullErrors/receiveOnlyTotalItems **0**.
+Manga local/global **35,964** on both devices (acceptance was **35,941**),
+Comix **41,990**, Graphic Novels **709**. X: free **788,105,060,352 B**.
+Artifact `sync108-live-20261115/status-codex-20261117T130101Z.json`.
+New imports are operational smoke, not an extension of the earlier SHA
+acceptance to newly arrived books.
+
+Own WAL-aware `mode=ro` snapshot of the declared/default Camelia DB is stable
+(`data_version` **2→2**): **39,140** rows, queue **paused**, **13,622** Z:
+jobs held, old-root runnable **0**. This corroborates Claude's bound-runtime
+DB receipt; Codex did not independently inspect the API process environment
+override. Camelia is open, but no X: processing claim has been demonstrated.
+Do not release old jobs or treat application startup as resumed processing.
+
+The actual start omitted `--resolver-refresh`. Owner reports stale registry
+root headers; source independently confirms resolution combines the configured
+root with relative entries. Refresh once on a later restart, as owner advised
+David; no interruption of this active import batch. Separate follow-ups:
+Camelia held-job path migration, ambiguous staging review, resolver-help P3,
+and swarm #229 reader-anchor R2. The prior Computer Use attempt ended because
+the tool could not verify the browser URL; no browser interaction or workaround
+was performed. Runtime verification here uses process/log/GET/SQLite evidence.
+
+## Context #232 merge independently verified (2026-11-17 UTC)
+
+Merge **b58222f97e91a500ce84b44c01f1c233dce116df**, parents **709cf26 +
+a244a53ad2b8e606ba25900ef624d9ab0f79c76f**; actual tree
+**e8d00a5d181322e90b2adeb7524f3bd2c941cdab** equals source/prediction.
+Exact-head run **44008088000** finished all four checks successfully at
+**a244a53**. This runtime checkpoint starts from that merge and needs fresh
+exact-head review and CI.
+
 ## Comic #202 merged/deployed; operator writer starts pending (2026-11-17 UTC)
 
 Both **44006123052 push** and **44006162836 pull_request** independently
