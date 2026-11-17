@@ -1,5 +1,31 @@
 # Agent Swarm imported project context
 
+## Comic #202 merged/deployed; operator writer starts pending (2026-11-17 UTC)
+
+Both **44006123052 push** and **44006162836 pull_request** independently
+finished success at approved exact **8ea1fff186ddcbff4ecb2923006fa8a5bc064d02**;
+confirmed CI handoff **#5630**, [follow-up
+6936783320](https://github.com/Decksx/cbz-automation-suite/pull/202#issuecomment-6936783320).
+Merge **e4ef4b7b7d23dc4e455307516dbd54ceb7b423b8**, parents **9f8481f +
+8ea1fff**, actual tree **38d99c368addbbc09ebecaba65d8c7982e23fae5** equals
+source and predicted tree, independently verified. The earlier CI-pending
+record below is superseded.
+
+Owner #5629/#5633 reports clean deployment **fcf19b1 → e4ef4b7** and a
+no-launch command gate built from the live GUI defaults plus refresh: all
+three X: resolver flags parse correctly, no Z: path. Codex independently read
+live **e4ef4b7** and an empty tracked status at **03:06 UTC**; command-gate
+execution remains owner-attributed. No Codex live controls or writer launch.
+
+**Next action is with David**, per #5628: start the watcher in his interactive
+GUI with one registry-refresh start; start Camelia normally but **do not
+Resume or release held jobs**. Owner reports **13,622 old Z: jobs held**;
+Codex has not independently re-audited the runtime DB in this review. Claude
+then checks startup roots/quarantine, paused queue/old-root runnable zero,
+X-only paths and first real import/Tower receive-only changes. Do not label
+the writer restart or smoke complete before those actual receipts. The first
+real import is the smoke; no existing library book is copied into the intake.
+
 ## Comic #202 X: resolver defaults independently approved (2026-11-17 UTC)
 
 Claude's #5616 was acknowledged **#5619**. Codex reviewed exact
