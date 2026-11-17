@@ -1,5 +1,59 @@
 # Agent Swarm imported project context
 
+## Bounded Camelia action ready for exact-head review (2026-11-17 UTC)
+
+Late **#5841** acknowledged **#5843**. Codex's [autodecen PR 14](https://github.com/Decksx/autodecen/pull/14)
+is exact **f54a162141ab7235424768783bbed063ba5dc60a**, including main
+**9542fded9fd3ba536cd063ef2c343670a5ebc58b** by a no-force merge. Sixteen
+one-file commits plus that merge; eight changed files. **Run this book only**
+and local queue/one bind one already-queued, claimable, unambiguous X: ID.
+Retired, outside/excluded, active/finishing-worker and scheduled requests
+refuse. Claim selection remains BEGIN IMMEDIATE. No retry_failed or release.
+The ordinary pipeline is reused, with saved automatic/manual methods.
+
+The global queue stays paused throughout. An active single_book_id covers
+preflight before a book becomes processing, and disables further UI requests.
+A separate claim budget survives a concurrent requeue plus Resume of the
+same ID; no fallback, second claim or unbounded worker resurrection. Every
+outcome pauses/clears activity. The failure matrix also exposed a prior
+quarantine omission: source_path moved but source_key did not. Both now follow
+the quarantine path, preserving the row/history. No live data repair.
+
+Final Python CI patterns **123 passed** = prune **17** + scaling **2** +
+backlog **82** + queue **19** + API **3** (base **110 + 13** new backend
+methods). Critical-file hashes unchanged through the final run. Earlier
+exploratory runs crossing edits were rejected and repeated. **24/24**
+in-memory guard mutants caught by assertions, zero errors; no source restoration.
+Nuxt build and one expanded built real-Chrome fixture test pass: readiness
+gates, pending state, exact ID request, errors/success and existing prune flow.
+Diff check clean. [Final verification comment 6960904443](https://github.com/Decksx/autodecen/pull/14#issuecomment-6960904443),
+confirmed review handoff **#5867** and verification **#5870**. Run
+**44175193621** backlog green, GUI pending at the first read. Claude owns
+fresh exact-head review and green CI before merge. Worktree stays for review.
+
+Claude accepts the pilot contract **#5850**. A clean detector skip leaves
+replacement/offload proof open; do not force methods to manufacture a result.
+The final sync witness must show Tower receiving the new bytes, matching
+the new file record and zero need/receiveOnlyChanged after settling.
+No Codex live job, queue/DB writes, archive changes or runtime launch.
+
+Launcher **#13** independently verified merged as
+**9542fded9fd3ba536cd063ef2c343670a5ebc58b**, parents **ae2c081 + 805de925**,
+actual/head tree **9a191e424411d243740b67e01c939e23cc972753**. Owner **#5854**
+reports the live fast-forward; own HEAD read confirms it. David has been asked
+for a full stop/start **#5853**; runtime integration flags await that receipt.
+Owner **#5846** verified the online catalog backup beside inspection-working.db:
+**2,412,417,024 B**, SHA-256
+**4204cda54ad744cf6343667d6859ceb97ebd971fdb24323eb31caf98417833ae**,
+quick_check OK, all **24** table counts equal, migrations through **14**.
+The first integrity_check exceeded a ten-minute tool limit; owner separately
+verified quick_check/counts/hash. These backup checks are owner evidence.
+
+Context **#241** independently verified: merge
+**d64047f575bc05595c2ca09495c947442a43c019**, parents **882c75d + 4941ef4**,
+actual/head tree **a9f23ec801ceef2be1a40759711ed1898bee0e86**; exact-head
+run **44169232968**, all four successful. This checkpoint starts there.
+
 ## Resume configuration fix independently approved (2026-11-17 UTC)
 
 Delayed David **#5814** acknowledged **#5830**. Codex approves autodecen
