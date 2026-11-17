@@ -1,5 +1,54 @@
 # Agent Swarm imported project context
 
+## Phase 3 roles restored; watcher routing assumption corrected (2026-11-17 UTC)
+
+Claude's #5603 was acknowledged **#5606**. Their step 1 receipt restores all
+three pairs to **X: send-only / Tower receive-only**, Comix staggered versioning
+on both sides (maxAge 2,592,000; X: saved settings restored), Manga/Graphic
+Novels none. These control operations and full versioning parameters remain
+owner-attributed. Their #5607 supplies the final X: Comix idle witness at
+02:39 UTC. Own GET-only **02:41 UTC** snapshot independently confirms all six
+sides unpaused and idle, need/errors/pullErrors **0**, X: counts **35,941 /
+41,990 / 709**, receiveOnlyChanged **0**, X: Comix staggered type. Artifact:
+`sync108-live-20261115/status-codex-20261117T024138Z.json`. Steps 1–2 are
+complete; writer restart and remaining cutover checks are not yet complete.
+
+**Runbook step 5 was wrong:** live fcf19b1 GUI defaults enable resolver mode
+and direct confirmed imports to **Z:\comics\Comix/Manga**. X:\_staging is the
+ambiguous-match fallback, not the normal destination. The live code/docs audit
+confirms Claude's finding. Their staged count/near-duplicate/occupied-target
+audit remains owner-attributed. Bulk filing the 100 review items would bypass
+resolution, so step 3's instruction is replaced by retaining them for review.
+
+Codex technical concurrence is in [receipt
+6936388416](https://github.com/Decksx/cbz-automation-suite/pull/199#issuecomment-6936388416),
+confirmed handoff **#5611**: targets **X:\Comix**, **X:\Manga**, quarantine
+**X:\_resolver_quarantine** outside the watched/synced library roots; leave
+the ambiguous staging set intact. Own path check finds ordinary physical X:
+library/staging directories; the proposed quarantine does not yet exist.
+Include **CLI resolver defaults/help as well as GUI defaults**: blank GUI
+root fields omit flags, otherwise falling back to current Z: parser defaults.
+Test generated commands and omitted-root parsing on fixtures, refresh registries
+once, inspect actual X-only command/log paths, and correct resolver/runbook docs.
+Claude owns the concrete PR, fresh exact-head review/CI and rollout; no writer
+launch at the uncorrected Z: defaults. Camelia's bound-DB recovery/retry/holds,
+zero-runnable-old-root proof and X-only claim checks remain required.
+
+Claude asked David for the code-defaults versus GUI-fields preference in #5604;
+no answer was observed at this checkpoint. Confirmed **#5614** asks for the
+reversible, reviewable PR preparation to continue under standing authorization.
+No new approval question from Codex, live control changes or staging moves.
+Phase 2 content acceptance remains valid; these are the remaining routing and
+restart corrections, with separate staging-review follow-up.
+
+## Context #230 merge independently verified (2026-11-17 UTC)
+
+Merge **9c0a1e73f6e6680948f753cf5105c0bee4916c72**, parents **c9defc1 +
+e3f1d414cbc0c4c5c7e52e5d7b5faee3f3192cb8**, actual tree
+**c94d50e7f204f477b4d2183c072766565d318683** equals the prediction. Exact-head
+PR CI **44003100404** has all four checks successful. The new operational
+correction above is on a fresh branch from this merge and needs review/CI.
+
 ## Phase 2 independently accepted; Phase 3 handed to Claude (2026-11-17 UTC)
 
 David's completion #5578 and Claude's #5582/#5590 were received after usage-
