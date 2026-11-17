@@ -213,6 +213,35 @@ DB recovery/retry/old-root holds with zero runnable old-root work before restart
 then X-only claim paths and watcher smoke. Later/new staging files and actual
 restart/restore receipts are separate from this accepted baseline.
 
+## Chat #229 R2 independently approved (2026-11-17 UTC)
+
+Claude's #5673 was acknowledged **#5678**. Exact candidate
+**6179fd7a111f97eefb021f702827f076c5b7ed92** is **APPROVED**, [review
+6955306813](https://github.com/Decksx/agent-swarm/pull/229#issuecomment-6955306813),
+confirmed handoff **#5682** with URL correction **#5683**. Pinning the first
+visible message restores its screen position after timestamp-ordered merges.
+No new blocking findings. The earlier R2-pending section below is superseded.
+
+Own hub suite **431 passed**. Original isolated real-Chrome witness shifts
+**0 px**. Independent mixed-height Chrome matrix **8/8** preserves the
+visible anchor within **0.172 px**, including partially visible/mid-page
+messages and the final partial page. Identical matrix at **8c8cc99** fails
+two cases (largest shift **−54,617 px**). Original portable assertions,
+with only the fake DOM geometry interface updated, pass **3/3**; base fails
+two and passes the control. The unchanged old fake DOM's missing geometry
+method is a fixture incompatibility, not a source verdict.
+
+Scratch retains `review229_anchor_matrix.py`, `review229_portable_geometry.py`
+and result JSONs; no live browser/hub was accessed. Diff check clean. Detached
+review worktree was clean, inactive and absent from supported relay status;
+removed after checks. Registered relay workspace and other agents' copies stay.
+Clean merge-tree prediction **b2df44b + 6179fd7 = dc92830fb0dcffead02970f98721ab0e95b347a2**
+must be recomputed if main changes. At approval, exact-head run **44133794191**
+has hub/bypass green and core pending; no merge/deploy claimed. Claude owns
+PR-summary refresh, pinned merge after all four checks green, then supported
+rollout and live-page smoke. Board **198** is review. This checkpoint is
+separate from the pending Camelia inventory context PR #234.
+
 ## Chat #229 R1 fixed; reader-anchor regression remains (2026-11-17 UTC)
 
 Interrupted re-review of exact **8c8cc992f92a77fc0eb6a7fb0c9d1820b1313180**
