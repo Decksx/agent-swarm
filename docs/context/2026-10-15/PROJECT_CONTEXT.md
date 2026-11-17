@@ -1,5 +1,97 @@
 # Agent Swarm imported project context
 
+## Camelia fresh-crawl assessment and prerequisites (2026-11-17 UTC)
+
+Claude's issue-7 contract review **#5679** acknowledged **#5686**. Codex
+assessment is on [autodecen #7](https://github.com/Decksx/autodecen/issues/7#issuecomment-6955476691):
+prefer a fresh X: crawl with Z: records retained held as history, after the
+remaining guards and operational plan. Do not bulk-rebind old detection caches.
+All **13,179** same-path/size candidates also match DB stamps against the saved
+baseline **Tower** stamps and current X stamps; baseline hashes match per path.
+This is strong metadata continuity, not protection against same-size/mtime
+rewrites. Own baseline file SHA rechecked against the accepted artifact.
+
+Important correction to the initial "only ever queued" assumption: stable
+**17:18 UTC**, `mode=ro`/deferred/`data_version` **2→2**, queue paused, held
+**13,622**. Held rows include **16** with attempts, **62** detection caches,
+**72** output paths; **7 completed / 13 passed stage rows**, plus **494 completed /
+59 failed phase rows**. Stage/phase counts are not distinct books or current
+generation proof. A fresh crawl preserves that old history and reads actual
+archive method tags. No live BacklogStore construction or queue writes.
+
+Cost sample: metadata only, **200 / 39,323** baseline X Comix CBZs, seed
+20261117, **3.089 s** total (median **0.011 s**, max **0.495 s**), 99 would
+queue / 101 skip, no parse errors. Separate **200** fictional-path records
+in a private temporary DB: **2.255 s**. Linear sum is about **17.5 minutes**
+for that population, excluding traversal, status reads, populated-DB/other
+load and inference: **not an ETA**. Detection starts on processing, not on a
+paused metadata crawl; historical 5,487 detection timings have median 244.6 s
+but are not an ETA for these held jobs. Report
+`camelia-crawl-cost-20261117T171848Z.json`, SHA-256
+**bb4a89abcb6a97c5f7890b7ae4d2e7a217285966de428eb0b020b4573fae17e8**,
+in private sync108-live-20261115. Temporary fixture DB was removed.
+
+Six surviving full-path undo logs give no mapping for **430 missing / 13
+size-changed** candidates. All 13 changed files have processed markers;
+the operation causing each change is not established. Supplied group/chcut
+log SHA values independently match. Basename-only toy100 log has no root
+binding and was not mapped. Owner **#5700** reports vanished quarantine
+folders and missing superseded-version logs; cause remains unknown, with
+David question **#5701** pending. Do not infer deletion or quarantine causes.
+Classification report `camelia-history-classification-20261117T172940Z.json`,
+SHA-256 **ccbeb0d2c237af21b8f58fba50237f08493c10df5f1ca2d1a9b19eda18cb8ad1**.
+
+Two prerequisite PRs completed, each three one-file commits:
+
+- **autodecen #8**, approved **a05291e66cb7a425c4e54f77c44198db431e3967**,
+  merged **7b21dd5958842c123b003e345aed9f5fdc58ef64**, parents **4211611 +
+  a05291e**, actual/source tree **941fed34faa7d12ff92be9921a03cd594b8ea765**.
+  Protected history/original/control names and `_quarantine_` prefix apply
+  at any depth to the shared crawl/manual/queued predicate. Own Python CI
+  patterns **88 passed** (base 86 + 2), **11/11** guard mutants caught;
+  exact-head CI **44136926642** both jobs green. Handoff **#5702**.
+- **autodecen #9**, approved **de93c9c109e6013de1e87d95fa8711e30cbac449**,
+  merged **5103cf8168eb308664f725bf7d14583cd5f9c225**, parents **7b21dd5 +
+  de93c9c**, actual/source tree **334a82aed10089b77e31cdb52fb6fa5a6d242eab**.
+  Default new/resumed crawl roots only X:. Own Python CI patterns **90 passed**
+  (88 + 2); restored-Z mutant gives four failure/subtest records, no errors.
+  Exact-head CI **44138086344** both jobs green. Handoff **#5707/#5710**.
+
+Own reads verify both merges/trees/CI and clean live code **5103cf8**.
+Claude owns the fast-forwards; the running API retains imported old code
+until restart. No restart, crawl, Resume or release by Codex. Clean inactive,
+unbound PR copies removed after checks; diagnostic probes/results remain
+in scratch. UI fallback still lists Z:; Claude was asked to take that P3.
+
+**Next guards before the fresh crawl:** fixture proves `Comix` vs `comix`
+paths for one `samefile` archive create **two queued rows**. Default root
+uses lowercase while watcher uses uppercase. No live X duplicate incident
+is claimed. Codex owns indexed case-alias/late-registration refusal or reuse,
+preserving historical IDs and refusing ambiguous groups, plus retired-root
+release/requeue guards noted by Claude. Keep both old duplicate-group members
+held. Contract binds control/held population/digest, rechecks late X rows and
+requires a no-op rerun. Findings on [issue 7](https://github.com/Decksx/autodecen/issues/7#issuecomment-6955867006),
+confirmed **#5713**. Queue remains paused; no live operational apply.
+
+## Chat #229 rollout and context merges verified (2026-11-17 UTC)
+
+Chat merge **bae15c723e2b4fbb481ef010ae24e9b8deaa33dd**, parents **d3a0e2f +
+6179fd7**, actual tree **6ab7c9c765feb1c3df1c735767c9163dd8f29be1**;
+`hub/` content equals approved 6179fd7. Exact-head run **44133794191** all
+four green. Owner **#5691** supplies supported deploy/backup/restart and
+worker HTTP receipts. Own read verifies live hub.py SHA-256
+**1198465b3766506dca5e8fb707861d1868189f9bf24a73fdc4c95e9084a370c7**
+equals the merge blob; container is running. Live rendered-page timing/smoke
+is not independently claimed; isolated Chrome checks remain the UI evidence.
+
+Context **#234** merge **d3a0e2fabc05116db8000d49eb6fca73732f5ef8**, parents
+**b2df44b + 14f7b06**, tree **5f67a0f55b8bb4aac813f197c5f632e562f05ced**
+equals source; run **44133838212** all four green. Context **#235** merge
+**b3e08e4fb4799e582d2cc94d7ae5b5da196c236a**, parents **bae15c7 + ae166d0**,
+tree **37868f424e4b8be8a1090416bdd291459eb86a5a** equals recomputed
+merge-tree; run **44134930957** all four green. This checkpoint starts
+from b3e08e4 and requires fresh review/CI.
+
 ## Healthy X: runtime; Camelia migration inventory started (2026-11-17 UTC)
 
 David's #5664 status request was acknowledged **#5667**. Own **17:05 UTC**
