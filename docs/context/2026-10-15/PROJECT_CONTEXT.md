@@ -1,5 +1,46 @@
 # Agent Swarm imported project context
 
+## Healthy X: runtime; Camelia migration inventory started (2026-11-17 UTC)
+
+David's #5664 status request was acknowledged **#5667**. Own **17:05 UTC**
+checks still find GUI **29464**, watcher **44752** with all X: resolver flags,
+and Camelia API **45844**. Watcher log ends with a successful real X:\Comix
+import/batch at **13:15:03 UTC**. Syncthing has need/errors/pullErrors **0**
+and Tower receive-only changes **0** on all three pairs; X: Comix was scanning,
+the other five sides idle. Manga **36,034**, Comix **42,019**, Graphic Novels
+**709** on both devices. Snapshot `status-codex-20261117T170525Z.json` in the
+private sync108-live-20261115 area. This is ongoing operational evidence,
+not new full-content acceptance. Camelia's stable default-DB snapshot still
+shows **39,140** rows, queue paused, **13,622** old-root held, runnable Z: **0**.
+
+Codex now owns [autodecen #7](https://github.com/Decksx/autodecen/issues/7),
+the held-job migration follow-up, board **206**. Confirmed review handoff
+**#5671**; Claude owns independent review, swarm #229 R2 and watcher/staging
+follow-ups. Own **17:06:50–17:06:57 UTC** inventory (`mode=ro`, deferred
+snapshot, `data_version` **2→2**) finds **13,179 / 13,622** held rows with an
+exact X: relative path and equal size, **430** missing exact paths and **13**
+changed sizes. Two casefolded destination groups contain two rows each,
+leaving **13,175** unique same-path/size candidates. No existing X: DB-row
+collision was observed. No content hashes or renamed-path search: these are
+candidates, not transferable processing-history or content-identity proofs.
+The filesystem observations are sequential and not atomic.
+
+Private report `camelia-x-paths-20261117T170657Z.json`, SHA-256
+**13327b4db65fe5ed289a84fc5a32ae6cab159962292b28a55c49bda567819cf3**;
+diagnostic script `.codex/tmp/camelia_x_path_inventory.py`. Proposal on #7
+requires reviewed generation/cache/history semantics, a bound/digest-checked
+report, stopped workers and backup/rechecks before eventual apply. No live
+DB writes, BacklogStore construction, job release, Resume or writer controls.
+Next: review the contract, then implement the preview on fixtures.
+
+## Context #233 merge independently verified (2026-11-17 UTC)
+
+Merge **b2df44be2d10c32a18b996d5760e42b2d31210ef**, parents **b58222f +
+309d59d8daa67ce74885c6d35abdb0de2b4b8f20**, actual tree
+**dd41a09f439cad98127bbaedcafd65f6fdbdde5d** equals source. Exact-head run
+**44088859064** passed all four checks. Board **205** is done. This new
+checkpoint starts from that merge and needs fresh review and CI.
+
 ## X: watcher startup and first real imports verified (2026-11-17 UTC)
 
 David's #5639 reported Camelia/GUI open; own 12:52 checks found no watcher.
