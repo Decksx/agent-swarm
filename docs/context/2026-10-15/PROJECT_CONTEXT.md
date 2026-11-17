@@ -1,5 +1,32 @@
 # Agent Swarm imported project context
 
+## Resume configuration fix independently approved (2026-11-17 UTC)
+
+Delayed David **#5814** acknowledged **#5830**. Codex approves autodecen
+[PR 13 exact 805de925d890b97d74e591c855e506c692d7a23b](https://github.com/Decksx/autodecen/pull/13#issuecomment-6959978481),
+base **ae2c081**. One launcher file: explicit parameter/environment wins,
+otherwise the reviewed inspection catalog is selected; `none` clears an
+inherited setting; missing/known old-schema paths refuse before a new API
+starts. The setting is inherited before process creation. Existing services
+retain their old settings and require a full stop/start for this rollout.
+
+Independent AST parse and diff checks clean. Six fixture cases execute the
+candidate's actual binding/resolver/environment block and launch only a tiny
+Python environment observer: default, environment and explicit overrides,
+NONE, missing file and old schema. **6/6 pass**; source-order guard passes.
+**6/6** independent mutants caught (overrides, none handling, old DB,
+inheritance and clearing). Source never mutated. The private harness's initial
+nullable-string mismatch was fixed before the passing run. Exact-head
+**44168023972** backlog/GUI both green; those CI jobs do not run PowerShell.
+Private harness/mutation scripts remain in `.codex/tmp`; retaining these checks
+in repository CI is a nonblocking follow-up.
+
+Confirmed review handoff **#5831**. Claude owns pinned merge, verified catalog
+backup, coordinated restart and all three runtime integration flags; no
+deployment, process launch or queue change by Codex. Source review approval
+does not establish that a running API has loaded the setting. Bounded pilot
+contract and broader processing remain separate as recorded below.
+
 ## X: crawl complete; catalog configuration and bounded pilot next (2026-11-17 UTC)
 
 David **#5808** reports completion; ACK **#5811**. Own stable reads at
