@@ -1,5 +1,51 @@
 # Agent Swarm imported project context
 
+## Camelia partial X: crawl saved; safety rollout awaits restart (2026-11-17 UTC)
+
+David **#5754** reported the registry rebuild and a metadata-only X: crawl;
+ACK **#5756**. He then stopped the crawl and Camelia (**#5761**). Codex's
+stable **18:54:10 UTC** default-DB read (`data_version` **2→2**) found
+**45,008** books: the earlier **39,140** plus **5,868** X: records. Scan **31**
+on `X:\comix` is **stopped**, updated 18:52:16 UTC: **5,868** found/scanned,
+**3,095** eligible/queued, **2,773** skipped, parse errors **0**. This is
+partial coverage, not a successful full crawl. Processing **0**, queue paused,
+batch scheduling and scheduled autostart disabled. Z: states are unchanged,
+including **13,622** held and old-root runnable **0**. Waiting queue entries
+do not mean inference or archive processing ran. Own confirmed report **#5765**.
+
+Both watcher registry headers independently name **X:\Comix / X:\Manga**;
+their timestamps precede David's report. Later CIM inspection found the
+watcher GUI **29464**, but no watcher or Camelia API process. GUI presence
+does not prove the watcher is running. The earlier Camelia API was still
+loaded from pre-#8/9 code, per owner **#5760**; checkout HEAD alone never
+proved the new guards loaded. `source_key` was absent at the stable read.
+
+Claude **#5767** owns the rollout: SQLite online backup
+`state\library_backlog.pre-migration-pr11-pr12-20261117.sqlite3`,
+**312,606,720 B**, SHA-256
+**f21eb677f353cf317ca65fdbd8e306b8f5187b62725119f54af294419b9b302a**;
+owner integrity check OK and source/backup counts equal: **45,008** books,
+**31** scans, **1,112,548** events, **71,944** book stages. These backup
+checks are owner evidence. Codex independently confirms clean live autodecen
+HEAD **ae2c081bafac6258d14ca4c46b80ddfd00c6f08b**, superseding live 5356b7b
+below. Source tree **dd3b526a** is already verified in the prior checkpoint.
+
+David has been asked to restart Camelia without starting the queue or another
+crawl (**#5766**). Next owner checks: backfill keys for all **45,008** rows,
+preserve duplicate histories/held counts and disabled controls, recover scan
+31 through its checkpoint, verify no X: key collisions or excluded-tree rows,
+and prove no runnable retired-root jobs. Then resume discovery; a real X-only
+processing job remains a separate proof. No live store initialization, DB
+writes, control changes, or process launches by Codex. The GitHub handoff is
+[issue 7, comment 6957853970](https://github.com/Decksx/autodecen/issues/7#issuecomment-6957853970).
+
+Context **#238** merge independently verified:
+**db3f0f413bdd59abcec3e16d25de60216c01c387**, parents **b69ee29 +
+e88ec43aa2fc407ad3e3878ecbd8af1289babab9**, actual/head tree
+**9ae80bdb354efb5fd38c889149219e31fe15b56d**. Exact-head run **44150627966**
+all four successful. This checkpoint starts from that merge; fresh review
+and CI remain required.
+
 ## Camelia retirement guards merged; coordinated rollout remains (2026-11-17 UTC)
 
 Delayed **#5725** acknowledged **#5743**. Its R1 is resolved: Claude approved
