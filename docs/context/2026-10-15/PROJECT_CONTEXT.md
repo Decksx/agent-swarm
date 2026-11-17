@@ -1,5 +1,73 @@
 # Agent Swarm imported project context
 
+## Camelia retirement guards merged; coordinated rollout remains (2026-11-17 UTC)
+
+Delayed **#5725** acknowledged **#5743**. Its R1 is resolved: Claude approved
+PR 11 exact **593323e465686bc0bdb09a30330f2c43ff557d6f** in [6956630552](https://github.com/Decksx/autodecen/pull/11#issuecomment-6956630552)
+and merged **cc16bdc37018fea39b63cfedb53fb58ea94d87e5**, parents **5356b7b +
+593323e**, tree **1684171f9f75218b76db6ea6303190fa10d08e42** equals the
+prior prediction. Own diff from head lists only the already-reviewed UI fallback;
+source/registration code is unchanged. The earlier review-pending record below
+is superseded. Source guards remain staged for the coordinated live rollout.
+
+Codex's [autodecen PR 12](https://github.com/Decksx/autodecen/pull/12) exact
+**b98c936cebd0586663a03bd52b72cf33bd60adef**, base **cc16bdc**, is approved
+and merged **ae2c081bafac6258d14ca4c46b80ddfd00c6f08b**, parents **cc16bdc +
+b98c936**. Own actual/source tree
+**dd3b526a764ca0b2b58c7e19ccfe47cc97014190** matches. Exact-head run
+**44148536393** backlog/GUI both green. Reviewer/merge receipt **#5749**;
+confirmed handoff **#5746**, [review request
+6957206041](https://github.com/Decksx/autodecen/pull/12#issuecomment-6957206041).
+Three one-file commits, no schema added beyond inherited #11.
+
+Known retired `Z:\comics` and canonical `\\TOWER\media\comics` paths are
+recognized lexically, including case/slash/dot/extended spellings, in both root
+and source fields. Mixed release batches refuse atomically. Manual requeue
+refuses before archive I/O and rechecks inside its write transaction; a deleted
+record is refused instead of recreated. Claiming holds obsolete queued jobs
+before ZIP priority reads, attempts, backup or models, retaining cache, priority
+and stage history. All four tiers continue to valid work. Preflight omits the
+retired roots rather than probing them. No archive moves/deletes.
+
+Own final Python CI patterns **110 passed** = 17 prune + 2 scaling + 69 backlog
++ 19 queue + 3 API (base 101 + 9 methods). All **19** focused in-memory mutants
+caught, zero errors; source/test/README hashes unchanged through final checks.
+Includes both HTTP routes, root/source mismatch, post-inspection changes,
+deleted rows, all claim tiers and restart recovery. Retired rows are DB-only
+fixtures; callbacks prevent even bypass probes opening a real replica archive.
+Diff check clean. Clean inactive/unbound PR-11/12 copies removed after merges;
+supported relay status and process checks passed. Private diagnostics remain.
+
+Accepted scope limit: `\\tower.local`, IP UNC aliases and other drive letters
+are not a physical-root registry; additional aliases/remapping need policy
+review. The current live population has the known Z: root, and discovery only
+accepts X:\comix. This does not retire every hypothetical SMB spelling.
+
+**No live rollout by Codex.** Owner **#5749** keeps live at **5356b7b** pending
+David's stop (**#5735**), then verified DB backup, fast-forward and one restart
+loading #11+#12. Own **18:31 UTC** default-DB read: `data_version` **2→2**,
+**39,140** rows, queue paused, **13,622** Z: held, old-root runnable **0**;
+clean live head still **5356b7b**. Separate stable control read: batch_schedule
+and scheduled_autostart both disabled. Last direct schema check at 18:05 found
+both new columns absent; no new live store construction or migration by Codex.
+
+Concrete proposed sequence is on [issue 7](https://github.com/Decksx/autodecen/issues/7#issuecomment-6957316835):
+verify migration/held histories/paused controls after the owned backup/restart;
+David starts one normal X: crawl with processing and scheduling disabled;
+review traversal errors/refusals and current X records, retain Z histories;
+then separately prove a real X-only job with catalog/backup/install checks.
+Discovery writes DB queue records, not archive bytes or inference. No live
+crawl, release, Resume or synthetic intake by Codex. Claude owns operational
+rollout and sequence review; issue 7 remains open for those receipts.
+
+## Context #237 merge independently verified (2026-11-17 UTC)
+
+Merge **b69ee29d6d6db23371343b3eacd8b5190ca2bf20**, parents **9252b28 +
+875c0433f677c6a273b533e55a74278a6e1a7626**, actual/source tree
+**6c00aa680d0abc8245688c0f053aef17b6ba1c9b** verified. Exact-head run
+**44144499492** all four successful. This checkpoint starts from b69ee29
+and requires fresh review/CI.
+
 ## Camelia source identity PR 11 revised; fresh crawl still paused (2026-11-17 UTC)
 
 Late relay **#5705** acknowledged **#5718**. Its Z: allow-list P2 is already
