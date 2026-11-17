@@ -1,5 +1,57 @@
 # Agent Swarm imported project context
 
+## X: crawl complete; catalog configuration and bounded pilot next (2026-11-17 UTC)
+
+David **#5808** reports completion; ACK **#5811**. Own stable reads at
+**20:09–20:10 UTC**: scan **32** completed **20:05:22**, found **39,351** =
+**19,217** eligible + **20,134** skipped. scanned_count **33,483** plus
+**5,868** reused prior entries accounts for the total. All **20,858**
+directories done; no unfinished directories, scan_error or scan_refused
+events. **78,491** total books have correct keys; X: duplicate groups and
+excluded-directory rows **0**. Old Z: states unchanged, **13,622** held,
+old-root runnable **0**; processing **0**, queue paused, scheduling disabled.
+
+Five skipped BadZipFile warnings: IDs **67859–67862**, My Obsessive Neighbor
+Uncensored chapters 1–4; **85349**, Cos Collections (1). Own header reads
+only: PK heads on 1/2/Cos, zero heads on 3/4. Claude **#5816** supplies the
+independent filesystem walk (**39,351** crawlable CBZs, zero path differences,
+all rows touched), missing-ZIP-end checks and pre-existing damage attribution
+to the accepted Phase 2 evidence. Those stronger checks remain owner evidence;
+no repairs or new full content hashes by Codex. Private completion report is
+`scan-completion-codex-20261117T201040Z.json`.
+
+David **#5814** reports greyed-out Resume. Own API-12076 environment read:
+`CAMELIA_COMIC_AUTOMATION_DATABASE` absent, hence source-registration and
+handoff callbacks absent. The UI correctly disables X: processing. Claude
+**#5822** owns a reviewed launcher-local setting, verified catalog backup,
+restart and three runtime integration flags. The documented inspection
+catalog is `G:\ComicAutomation\TestDatabase\inspection-working.db`; it is
+not a universally selected suite default (the generic example still names
+the older database). No gate bypass or global environment change by Codex.
+
+Own read-only preflights pass: handoff preview applied=false/count **0**;
+candidate **54264**, `Emma and Hugh/Emma and Hugh.cbz`, registration unchanged,
+archive ID **6711**, SHA-256
+**f85bab0a7a90824bd9e9f646d07bb1facce830fbb81c284784438f7c34fd1421**.
+Candidate **269,115 B / 5 pages**, CRC clean, stat unchanged, attempts zero,
+existing automatic methods retained. Backup-offload dry run **PLANNED 0,
+failed 0**; F: mounted with about **3.65 TiB** free. No --apply used.
+
+[Issue 7 contract 6959831916](https://github.com/Decksx/autodecen/issues/7#issuecomment-6959831916)
+records exact pilot gates. A named-book, finite claim is required before
+calling this a one-book guarantee: promotion only changes priority, and
+today's HTTP Resume runs continuously with retry_failed=True. A detector
+skip does not prove replacement. The actual pilot must verify X: source and
+install, original backup on F: (or retained C: copy on failure), same catalog
+ID/new revision and durable handoff, no second claim, paused state and Tower
+receiveOnlyChanged **0** after sync settles. Contract review remains with
+Claude; no pilot launch, DB/control writes or archive changes by Codex.
+
+Context **#240** verified: merge **882c75d51ac622fa93ae75967877a9e389e8c095**,
+parents **2428fb9 + 7022d15b2685356a9292e0fcbb66fb076858e520**, actual/head
+tree **1fc43e0a5e5320cbd8f91e88e4011b368a8d238c**; exact-head run
+**44164272959**, all four successful. This checkpoint starts from that merge.
+
 ## X: watcher and Camelia crawl running; completion review next (2026-11-17 UTC)
 
 David **#5795** started both; ACK **#5798**. Own process read: watcher
