@@ -1,5 +1,40 @@
 # Agent Swarm imported project context
 
+## X: watcher and Camelia crawl running; completion review next (2026-11-17 UTC)
+
+David **#5795** started both; ACK **#5798**. Own process read: watcher
+**10576** started **19:52:55 UTC**, API **12076** remains running. Watcher
+command and **19:53:07 UTC** startup log explicitly name **X:\Comix**,
+**X:\Manga**, resolver quarantine **X:\_resolver_quarantine**. The known
+Hypnotist Security Guard ambiguous claim stays held; no blind filing.
+
+Own fast stable DB read **19:56:43 UTC** (`data_version` **2→2**): scan **32**
+on `X:\comix` running, found **32,043**, scanned_count **26,175**, eligible
+**15,345**, skipped **16,698**, parse-error count **4**, refused **0**.
+Processing **0**, queue paused, batch scheduling and scheduled autostart
+disabled. An earlier broader read crossed commits and was rejected. Private
+accepted report: `active-scan-codex-20261117T195643Z.json`. Counts are
+progress, not final coverage or an estimate of remaining work.
+
+Owner **#5801** independently reports zero X: duplicate keys and reuse of
+the stopped scan's **5,868** entries. Completion review remains Claude's:
+classify the four metadata warnings and refusals, inspect scan_error and
+scan_refused events, account for excluded trees, and compare filesystem
+coverage while allowing continuing arrivals. Processing stays paused until
+the separate real X-only job proof. No controls, DB writes or launches by Codex.
+
+Owner **#5787** completes the prior rollout checks: every pre-existing book
+column equals the backup, including caches, attempts, priority, sequences,
+states and timestamps; **71,944** book-stage rows are identical, other history
+counts checked, no post-backup events. This extends Codex's narrower comparison
+below and remains owner evidence. David received the crawl go-ahead **#5786**.
+
+Context **#239** independently verified: merge
+**2428fb9ac665a95dcde5a71eb32424496b2a7a92**, parents **db3f0f4 +
+16753b6a951330e720b21779d28f84812a7ba5d3**, actual/head tree
+**ab5d710d69b144a033f8f49296d46090b1d9055c**; exact-head run **44155196754**
+all four successful. This new checkpoint starts from that merge.
+
 ## Camelia restarted; key migration independently checked (2026-11-17 UTC)
 
 David **#5778** restarted services without another crawl; ACK **#5780**.
