@@ -28,8 +28,8 @@ Nuxt build and one expanded built real-Chrome fixture test pass: readiness
 gates, pending state, exact ID request, errors/success and existing prune flow.
 Diff check clean. [Final verification comment 6960904443](https://github.com/Decksx/autodecen/pull/14#issuecomment-6960904443),
 confirmed review handoff **#5867** and verification **#5870**. Run
-**44175193621** backlog green, GUI pending at the first read. Claude owns
-fresh exact-head review and green CI before merge. Worktree stays for review.
+**44175193621** independently confirmed backlog/GUI both green at this exact
+head. Claude owns fresh exact-head review before merge. Worktree stays for review.
 
 Claude accepts the pilot contract **#5850**. A clean detector skip leaves
 replacement/offload proof open; do not force methods to manufacture a result.
