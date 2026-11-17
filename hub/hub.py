@@ -720,6 +720,16 @@ HTML_TEMPLATE = """
 
     function keyBefore(a, b) { return a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]); }
 
+    // The first shown message whose bottom edge is below the top of the log's
+    // viewport: the one the reader is looking at. Null when none is shown.
+    function firstVisible(rows) {
+      const top = log.getBoundingClientRect().top;
+      for (const row of rows) {
+        if (row.getBoundingClientRect().bottom > top) return row;
+      }
+      return null;
+    }
+
     function nearBottom() {
       return log.scrollHeight - log.scrollTop - log.clientHeight < 80;
     }
@@ -777,13 +787,20 @@ HTML_TEMPLATE = """
         const res = await fetch(`/messages?before_id=${oldestId}&limit=${PAGE}`);
         const data = await res.json();
         if (data.length) oldestId = Math.min(...data.map(m => m.id));
-        // Keep the reader's place: the log grows above what they are reading.
-        const fromBottom = log.scrollHeight - log.scrollTop;
         // Merge by the transcript key. Both the page (as the API answered it)
         // and what is shown are already in key order, so one forward walk
         // places every row; rows that land in the same gap -- normally the
         // whole page, above everything shown -- go in as one insertion.
         const shownRows = Array.from(log.children).filter(c => c.sortKey);
+        // Keep the reader's place by pinning the first message they can see
+        // and putting it back at the same height on screen afterwards. The
+        // distance from the bottom is not enough: a merged row can land
+        // *below* what is being read (a lower id said later, or a reader
+        // parked above a row with no timestamp), and that height would then
+        // be wrongly counted as growth above them.
+        const anchor = firstVisible(shownRows);
+        const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
+        const fromBottom = log.scrollHeight - log.scrollTop;
         let i = 0, batch = null, ref = null;
         const flush = () => { if (batch) log.insertBefore(batch, ref); };
         for (const msg of data) {
@@ -794,7 +811,8 @@ HTML_TEMPLATE = """
           batch.appendChild(renderMsg(msg));
         }
         flush();
-        log.scrollTop = log.scrollHeight - fromBottom;
+        if (anchor) log.scrollTop += anchor.getBoundingClientRect().top - anchorTop;
+        else log.scrollTop = log.scrollHeight - fromBottom;
         if (data.length < PAGE) { olderButton.remove(); olderButton = null; oldestId = 0; }
       } catch (err) {
         console.error(err);

@@ -130,6 +130,12 @@ function node(tag) {
     remove() { chatLog.children = chatLog.children.filter(c => c !== this); } };
   Object.defineProperty(n, 'nextSibling', { get() {
     const i = chatLog.children.indexOf(n); return i < 0 ? null : (chatLog.children[i + 1] || null); } });
+  // Every row is 100px tall at its index; the log's viewport starts at 0, so
+  // a row's on-screen top is its offset in the log minus the scroll position.
+  n.getBoundingClientRect = () => {
+    const i = chatLog.children.indexOf(n);
+    return { top: i * 100 - top, bottom: i * 100 - top + 100 };
+  };
   return n;
 }
 const chatLog = node('div');
@@ -142,6 +148,7 @@ chatLog.insertBefore = (c, ref) => {
   return c;
 };
 Object.defineProperty(chatLog, 'firstChild', { get: () => chatLog.children[0] || null });
+chatLog.getBoundingClientRect = () => ({ top: 0, bottom: chatLog.clientHeight });
 chatLog.clientHeight = 500;
 Object.defineProperty(chatLog, 'scrollHeight', { get: () => chatLog.children.length * 100 });
 let top = 0;
@@ -254,8 +261,16 @@ SKEW = r"""
   const out = { loads: [] };
   await fetchMessages();
   out.loads.push(shownIds());
+  // The reader parks at __READ_AT__px, and the message at the top of their
+  // view must still be there, at the same height, after the older page.
+  top = __READ_AT__;
+  const rows_ = () => chatLog.children.filter(c => c.className === 'msg');
+  const seen = rows_().find(r => r.getBoundingClientRect().bottom > 0);
+  out.anchor_id = +seen.innerHTML.match(/>#(\d+)</)[1];
+  out.anchor_top_before = seen.getBoundingClientRect().top;
   inserts = [];
   await loadOlder();
+  out.anchor_top_after = seen.getBoundingClientRect().top;
   out.loads.push(shownIds());
   out.inserts_first_older = inserts.slice();
   await loadOlder();
@@ -269,8 +284,9 @@ SKEW = r"""
 """
 
 
-def _skew(skew: dict) -> str:
-    return SKEW.replace("__SKEW__", json.dumps({str(k): v for k, v in skew.items()}))
+def _skew(skew: dict, read_at: int = 0) -> str:
+    return (SKEW.replace("__SKEW__", json.dumps({str(k): v for k, v in skew.items()}))
+            .replace("__READ_AT__", str(read_at)))
 
 
 def _page_script(hub) -> str:
@@ -361,6 +377,26 @@ def test_an_older_row_without_a_timestamp_goes_to_the_top(hub, tmp_path):
     assert all(out["sorted"]), out["sorted"]
     assert out["final"] == out["expected_final"]
     assert out["final"][:2] == [40, 200]
+
+
+@pytest.mark.parametrize("skew, read_at", [
+    ({}, 0),                       # every older row lands above the reader
+    ({}, 15000),                   # the same, reading mid-page
+    ({351: None}, 0),              # every older row lands BELOW the message being read
+    ({350: 10000}, 0),             # one older row lands at the very bottom
+    ({350: 10000}, 15000),
+    ({500: 1200, 351: None}, 4000),  # rows land both above and below the reader
+])
+@needs_node
+def test_the_reader_keeps_their_place_when_older_rows_interleave(hub, tmp_path, skew, read_at):
+    # Codex's #229 R2: restoring the distance from the bottom counted rows
+    # merged *below* the reader as growth above them, and jumped the view by
+    # their whole height (31,018px in real Chrome for the null-#351 case).
+    out = run(hub, tmp_path, _skew(skew, read_at))
+    assert all(out["sorted"]), out["sorted"]
+    assert out["anchor_top_after"] == out["anchor_top_before"], (
+        f"message #{out['anchor_id']} moved from {out['anchor_top_before']}px "
+        f"to {out['anchor_top_after']}px on screen")
 
 
 @needs_node
