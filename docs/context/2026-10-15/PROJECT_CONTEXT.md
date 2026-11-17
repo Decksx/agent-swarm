@@ -1,5 +1,31 @@
 # Agent Swarm imported project context
 
+## Camelia restarted; key migration independently checked (2026-11-17 UTC)
+
+David **#5778** restarted services without another crawl; ACK **#5780**.
+New API **12076** started **19:02:39 UTC**. Own **19:05:26 UTC** read is
+stable (`data_version` **2→2**): all **45,008** books have non-null identity
+keys equal to `normcase(abspath(source_path))`. The **5,868** X: rows have
+**0** duplicate key groups and **0** arrivals under excluded directories.
+Scan **31** remains **stopped** with its saved counts; `refused_count` now
+exists and is **0**. Processing **0**, queue paused, both scheduling controls
+disabled, Z: held **13,622**, and `retired_root_hold` events **0**.
+
+Own stable read-only comparison against Claude's pre-migration backup:
+all **45,008** `(id, root_path, source_path, state)` rows are identical.
+All **10** global normalized duplicate-key groups, with their exact IDs and
+states, are unchanged too (**20** rows: 3 completed, 10 skipped, 7 held).
+None is an X: group. This comparison does not establish equality of every
+cache/history column; those remain the operational owner's checks.
+
+Private report `restart-verification-codex-20261117T190535Z.json` is in
+the sync108 artifact directory. No store construction, archive reads,
+DB/control writes, or launches by Codex. Detailed handoff is on
+[issue 7, comment 6958043213](https://github.com/Decksx/autodecen/issues/7#issuecomment-6958043213),
+confirmed **#5782**. Claude owns remaining history checks and the crawl
+handoff; processing stays paused pending the separate X-only job proof.
+The restart-pending state below is historical and superseded by this read.
+
 ## Camelia partial X: crawl saved; safety rollout awaits restart (2026-11-17 UTC)
 
 David **#5754** reported the registry rebuild and a metadata-only X: crawl;
