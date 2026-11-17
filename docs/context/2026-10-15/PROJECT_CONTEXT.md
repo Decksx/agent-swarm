@@ -1,5 +1,80 @@
 # Agent Swarm imported project context
 
+## Camelia source identity PR 11 revised; fresh crawl still paused (2026-11-17 UTC)
+
+Late relay **#5705** acknowledged **#5718**. Its Z: allow-list P2 is already
+resolved by #9/5103cf8 below. Codex's next issue-7 slice is [autodecen
+PR 11](https://github.com/Decksx/autodecen/pull/11), now exact
+**593323e465686bc0bdb09a30330f2c43ff557d6f** on **5103cf8**, six one-file
+commits. Nullable `source_key` uses host absolute-path/normcase normalization
+and a non-unique index. Same-file case spellings retain IDs, stored paths,
+same-generation caches/history and queue order; changed generations update
+the original ID and invalidate caches. Ambiguous histories are not merged;
+unverifiable/different spellings and changed processing archives are refused.
+Both lookup/write units use BEGIN IMMEDIATE, with ZIP I/O outside and a new
+lookup/reuse afterward, including a late NULL-key row from an older writer.
+
+At initial **f6aefe6**, Claude review [6956377613](https://github.com/Decksx/autodecen/pull/11#issuecomment-6956377613)
+found P2: a refused book ended the whole crawl. Fixed as new commits:
+`RegistrationRefused` is caught per archive, emits `scan_refused`, increments
+`scans.refused_count`, and continues to later books. Refusals count as
+found/scanned, not eligible/skipped; unexpected ValueError remains fatal.
+README first-open backup wording and an event naming both alias spellings
+address the P3s. [Re-review handoff
+6956572936](https://github.com/Decksx/autodecen/pull/11#issuecomment-6956572936),
+confirmed **#5731**. Original review is not approval of this changed head.
+
+Own final Python CI patterns under camelia_env: **101 passed** = prune 17 +
+scaling 2 + backlog 69 + queue 10 + API 3 (base 90 + 11 new methods). All
+**18** focused in-memory guard mutants caught, zero errors; source files
+were not restored or overwritten during mutation. Covers Unicode case
+spellings, cache/order/history, late arrivals, legacy duplicates, samefile
+failures, active processing, two-writer ownership, continuation/counts and
+counter migration. Actual registration is VM-work bounded with 10,000 padding
+rows. Claude's unchanged tempfile witness, explicitly selecting each module,
+FAILs at f6aefe6 and PASSes on the fix (a/c queued, both b histories retained).
+Diagnostic scripts/results remain in `.codex/tmp`; diff check passes.
+Exact-head CI **44143838319** is independently green for backlog and GUI.
+Fresh review and pinned merge remain with Claude; no PR-11 merge claimed here.
+
+**Rollout remains separate:** first BacklogStore open backfills keys and
+migrates schema, so stop registration writers and verify a DB backup first.
+Old/new mixed writers are not fenced: NULL rows already present are repaired,
+but an old writer can insert a later duplicate. Upgrade/restart all writers
+before concurrent crawling. Normcase spelling support does not combine
+mount/hard-link aliases; size/mtime remains metadata evidence. Retired-root
+release/requeue/claim guards are Codex's next slice before the operator
+fresh-X-crawl plan. The active PR worktree is clean/pushed and retained.
+
+Own **18:05 UTC** live default-DB read is stable (`data_version` 2→2):
+**39,140** books, queue paused, **13,622** Z: held, old-root runnable **0**.
+`books.source_key` and `scans.refused_count` are both **absent** from the live
+schema: no PR-11 live initialization/migration occurred. No live crawl,
+release, Resume, writer restart or DB writes by Codex.
+
+## P3 cleanup and context #236 verified (2026-11-17 UTC)
+
+Codex approved autodecen **#10** exact **43931b26563f1254a80a8ea8db4dca0e79e84376**,
+[review](https://github.com/Decksx/autodecen/pull/10#issuecomment-6956311902):
+UI fallback only X:, both exact-head jobs **44141046092** green. Merge
+**5356b7b49b420ba455b2244e50de6f8efa622a0d**, parents **5103cf8 + 43931b2**,
+actual/source tree **6af91fcddb1d64dec263da1e4ad575c2dad9067b** verified.
+Codex approved comic **#203** exact **8909366af97576dda37404af98744139531defaf**,
+[review](https://github.com/Decksx/cbz-automation-suite/pull/203#issuecomment-6956312342):
+three docstring/help replacements, raw CRLF **3826→3826**, bare LF **863→863**,
+non-string AST identical. Exact-head **44141212709 / 44141172170** both green.
+Merge **6959b0815eb0d6aec4d768a060ee4a32cac26592**, parents **e4ef4b7 + 8909366**,
+actual/source tree **8bb057c6e642dfa0e51b4bdea76af8bf9ef1e4c6** verified.
+Confirmed combined handoff **#5722**. Owner **#5730** supplies fast-forward
+receipts; own reads confirm both live heads/clean tracked trees. No restart
+or loaded-runtime change is claimed. The above-Comix `_resolver_quarantine` /
+`_review_*` P3 is future scope: current discovery roots cannot be above Comix.
+
+Context **#236** merged **9252b2899911914623f2fef2509be6ca55c0f889**, parents
+**b3e08e4 + b6cda0b**, actual/source tree **fa843e2d5b55aaafe4865123639b2925ecbcb282**
+verified; exact-head run **44139258683** all four green. This new checkpoint
+starts from that merge and requires fresh review/CI.
+
 ## Camelia fresh-crawl assessment and prerequisites (2026-11-17 UTC)
 
 Claude's issue-7 contract review **#5679** acknowledged **#5686**. Codex
