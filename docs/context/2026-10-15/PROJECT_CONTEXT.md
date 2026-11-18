@@ -1,5 +1,67 @@
 # Agent Swarm imported project context
 
+## X: runtime timings, CPU detector finding and control follow-up (2026-11-18 UTC)
+
+David **#5882** asks progress/speed; ACK **#5885**. Own stable **00:51:45 UTC**
+read: X: **3** completed, **4** additional runtime skips, **1** processing,
+**19,209** queued; old Z: states unchanged. Detection median **10.18 s/page**
+for **7** X: checks versus **10.02** for the latest **50** terminal Z: checks
+(Nov 14–15). Detection consumed **87.08%** of the **3** completed X: jobs'
+**3,866.27 s / 331 pages**. These are different books, not a controlled drive
+benchmark. Early data establishes no clear overall speedup. Private report:
+`speed-status-codex-20261118T005145Z.json`.
+
+Owner **#5889**: David started the FULL queue **22:51:15 UTC**, API **25656**,
+after loading #13/#14. Do not invent a bounded-pilot receipt. Owner reports
+same-path X: outputs, F: originals, catalog cursor advancement and Tower
+zero need/receiveOnlyChanged; per-book catalog hash/revision and tag audits
+were still pending. David stopped the queue **#5900**. Own stable
+**01:10:55** read: queue **stopped**, processing **0**, X: **4** completed,
+**9** runtime skips (**20,143** total skipped), **19,204** queued; Z: held
+**13,622**, no old-root runnable states. These supersede earlier running counts.
+
+Owner **#5896** found the detector environment CPU-only (ONNX Runtime 1.23.2,
+no GPU/NVIDIA wheels), with low observed GPU utilization. Owner **#5903** is
+installing GPU support after checking the queue settled. No environment or
+queue changes by Codex. GPU speedup is **not measured yet**; same-model
+quality/parity must be checked. [Issue 7 report 6965902496](https://github.com/Decksx/autodecen/issues/7#issuecomment-6965902496)
+records actual execution-provider evidence, model/config binding and ordered
+per-page-plan comparison. Rewritten completed sources are not their original
+CPU inputs. Codex sealed unchanged skipped references **46061** (20 pages)
+and **46076** (69) with stat/SHA and full CPU plans in private
+`parity-inputs-codex-20261118T011013Z.json`, SHA-256
+**cfc0ad526d04d315e0aec24318a7f228a297fa0a1e2387c87effca147aeec9f6**.
+Historical CPU records lack a model hash; owner must account for that gap.
+No model run by Codex. Confirmed parity handoff **#5904**, input report **#5908**.
+
+Filtering is more nuanced than "all marked books skipped": own cached-metadata
+preview **01:00:35**, stable **2→2**, **19,206** queued = **14,467** unmarked +
+**4,739** marked with Camelia method tags; **0** generic-marked-only queued,
+**0** manual selections. The marked rows remain eligible for missing methods.
+Skipping them changes deliberate additional-method policy. David's choice
+is pending **#5899** / asynchronous question. Do not apply holds/reclassification
+on elapsed time or treat his GPU stop as that policy answer. No queue changes.
+
+Codex's [PR 15](https://github.com/Decksx/autodecen/pull/15) exact
+**498ed1b1875eddcccdf7efb18e3d9c86141546ac**, base **7b96d6d**, fixes #14's
+P3: both UI and API now refuse normal Resume during a bounded run, before
+retry_failed/control writes. The old UI guarded Run-one, not Resume; correction
+is appended on #14. **124** Python checks pass (base 123 + 1), hashes unchanged;
+Nuxt/built Chrome UI pass. Backend and compiled-UI guard bypasses each fail
+the intended assertion; only valid probes counted, build restored byte-exact,
+tracked source untouched. Exact-head **44212708036** backlog/GUI both green.
+[Review handoff 6965854788](https://github.com/Decksx/autodecen/pull/15#issuecomment-6965854788),
+confirmed **#5906**; Claude independent review/rollout pending. Six one-file
+commits, clean pushed worktree retained for this active follow-up.
+
+Independently verified merges: autodecen **#14**
+**7b96d6d5285891043b25bbe9d2c0204403b881ba**, parents **9542fde + f54a162**,
+actual/head tree **86930c7799534ddb1f91237017367cb6d3f8e1e7**, CI
+**44175193621** both green, live HEAD matched. Context **#242**
+**33f9c86e53ac6f0f5c56e9b7824a09cbfc7be387**, parents **d64047f + 75c3403**,
+tree **eae5e54a01f06c574258093133ea2a899f1cc7fd** equals head; run
+**44175909890** all four successful. This checkpoint starts from #242's merge.
+
 ## Bounded Camelia action ready for exact-head review (2026-11-17 UTC)
 
 Late **#5841** acknowledged **#5843**. Codex's [autodecen PR 14](https://github.com/Decksx/autodecen/pull/14)
