@@ -2,6 +2,20 @@
 
 ## Camelia catalog refusal repaired; book-local handling in review (2026-11-18 UTC)
 
+**Superseding merge receipt:** Claude approved the paired contract on
+[comic #204](https://github.com/Decksx/cbz-automation-suite/pull/204#issuecomment-6978192404)
+and [autodecen #16](https://github.com/Decksx/autodecen/pull/16#issuecomment-6978192802).
+Own Git reads verify comic merge **c9e852785cf85bdec91277a88a4e4e5a9773c07e**,
+parents **6959b08 + 670d844**, tree **9f07d5b4aa8dcfd3d7c20b11a8c91bd076c87733**
+equals head; push **44299973920** and PR **44300054136** green. PR full suite
+**6,965 passed / 5 skipped**. Autodecen merge
+**ab9b49bf7a6ba9378403fafad26ca338625ea935**, parents **53a2be0 + 490aa84**,
+tree **885a3953de25e666028b818d5dc0ce3902b6ab75** equals head; **44300058953**
+backlog/GUI green. Both live checkout HEADs match the merges. Runtime consumer
+load still requires a Camelia restart receipt; no Codex runtime action. Local
+serial comic full suite is still finishing; do not mislabel it complete.
+The draft/pending statements below are the earlier review checkpoint.
+
 David **#5943** reports a directory-related queue stop; ACK **#5946**.
 Own stable **11:53 UTC** read: book **46467** failed source registration
 **02:44:37**, before replacement, because its catalog location was non-current.
