@@ -1,5 +1,68 @@
 # Agent Swarm imported project context
 
+## Jobs view merged after browser mitigation (2026-11-18 UTC)
+
+Delayed relay **#5993** is superseded: #205 already merged at corrected
+**149c511**, merge **887b583**. ACK **#6057**, current-state reply **#6058**;
+the superseded 31eef64 candidate was not reopened.
+
+Comic **#208** is independently verified approved and merged as
+**dcdb3bd2f7011db1ede04d4f9572b3e402825b4f**, parents **887b583 + 5897a12**,
+tree **84067e5afd3188d8b6dfcad5ddfe08d820741977** equals reviewed head.
+[Claude approval 6986457043](https://github.com/Decksx/cbz-automation-suite/pull/208#issuecomment-6986457043)
+and [merge receipt 6986465812](https://github.com/Decksx/cbz-automation-suite/pull/208#issuecomment-6986465812)
+are on the PR. Fresh exact **5897a126eb6cd16866b3354f0ea85090a14a5a3d**
+push **44358283062** and PR **44358297560** both succeed, each **7,114 passed /
+5 skipped**, **648.90/549.75 s**. Own Git/PR/check reads confirm parents, tree,
+head and results. Board **229** done. No runtime deploy is needed for test-only
+#208. Driver settings and pipe draining remain separate mitigation candidates;
+both original #206 browser failure causes remain unclassified in **#207**.
+
+Codex refreshed [comic #206](https://github.com/Decksx/cbz-automation-suite/pull/206)
+without force-push to **6f7159c39bdff1ace69197c6834ebf8197b20099**, parents
+**2596e9f + dcdb3bd**, tree **4033e88230236ccf2efd6cc94a70d407515ccd0b**.
+The original twelve one-file implementation commits are followed by this
+reviewed-master merge. Both daily-log appends merge cleanly. The Jobs diff
+against master remains **12 files, +672/-5**, unchanged implementation bytes.
+
+The published tree exactly equals the disposable integration tree tested first:
+full **7,141 passed / 12 skipped**, **385.60 s**, four-worker/loadfile mode with
+the reviewed Playwright package. **7,153 collected = base 7,119 + 34 Jobs cases**.
+All **12** original Jobs guard mutations were rerun on this combined tree and
+fail intended assertions, zero test errors, unchanged source hashes. Tree is
+unchanged before/after the full run. [Combined receipt 6986454279](https://github.com/Decksx/cbz-automation-suite/pull/206#issuecomment-6986454279),
+[fresh review handoff 6986508791](https://github.com/Decksx/cbz-automation-suite/pull/206#issuecomment-6986508791),
+confirmed **#6070**. Fresh push **44360677166** and PR **44360692185** succeed
+at exact **6f7159c**, each **7,148 passed / 5 skipped**, **650.76/571.54 s**.
+Local and CI skip counts are separate host measurements. Claude's [fresh approval 6986779397](https://github.com/Decksx/cbz-automation-suite/pull/206#issuecomment-6986779397)
+precedes pinned merge **bcc7ca767cccd4b1357fc13fe70df67e32172b20**, parents
+**dcdb3bd + 6f7159c**, tree **4033e88230236ccf2efd6cc94a70d407515ccd0b**
+equals approved head and full-tested tree. [Merge receipt 6986788967](https://github.com/Decksx/cbz-automation-suite/pull/206#issuecomment-6986788967),
+[own verification 6986836387](https://github.com/Decksx/cbz-automation-suite/pull/206#issuecomment-6986836387),
+confirmed **#6084**, board **226** done. Own Git, PR and run/log reads confirm
+the graph, tree and both fresh gates. No earlier-head CI is substituted.
+
+The two nonblocking view notes remain: blank-code 401 coverage and kind/state
+fixed-set checks. **#207** remains a causal/diagnostic follow-up: [merged-state update 6986836953](https://github.com/Decksx/cbz-automation-suite/issues/207#issuecomment-6986836953).
+Claude's admin status **#6081** called the old failures a proven Windows quirk;
+correction **#6082** and owner reply **#6083** retain the two unclassified causes.
+Passing after a driver update plus pipe draining cannot identify which addressed
+either failure. Historical records are preserved. Own live checkout read is
+still **c9e8527**, tracked tree clean; the Python server-module process scan
+reports **0**. No production console, tool or writer is launched by this work.
+
+Inactive, unbound integration, merged-#208 and completed Jobs review worktrees
+were removed after their tests/merges. The registered relay workspace remains.
+Codex's next D2 slice is nonce/version-fenced protected Stop, Recheck and
+Acknowledge under the accepted M3d contract. A new clean
+`feat/web-job-operator-actions-20261118` worktree is prepared at **bcc7ca7**;
+no action implementation or launch is claimed yet. Claude keeps M4b.
+The isolated Playwright package remains for the active browser tests; global
+Python is still unchanged. Context **#247** is verified merged as
+**1a88d7061f8a334af1ed872ea6387dadc3b394a4**, parents **a7f1270 + f1e1b70**,
+tree **b675062efcf994ce5332b9a29720155b1c8bc7c8** equals reviewed head.
+Run **44358729342** has all four checks green. This checkpoint starts there.
+
 ## Browser CI mitigation and diagnostics prepared (2026-11-18 UTC)
 
 Delayed relay **#5986** is superseded by the existing **#5988** split; ACK
