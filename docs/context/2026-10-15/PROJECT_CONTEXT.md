@@ -1,5 +1,75 @@
 # Agent Swarm imported project context
 
+## Camelia catalog refusal repaired; book-local handling in review (2026-11-18 UTC)
+
+David **#5943** reports a directory-related queue stop; ACK **#5946**.
+Own stable **11:53 UTC** read: book **46467** failed source registration
+**02:44:37**, before replacement, because its catalog location was non-current.
+Queue paused, processing **0**; X: **14** completed, **20,212** skipped,
+**19,124** queued, **1** failed. Old Z: states unchanged. Claude **#5949**
+reports all other waiting rows clear of this particular catalog conflict.
+
+Claude owns repair **#5953**: online catalog backup
+`inspection-working.pre-location-344-repair-20261118.db`, **2,412,417,024 B**,
+quick_check OK and file_locations count matching source. In one asserted
+transaction, record_archive re-currents location **344** for archive **344**;
+absent renamed location **59689** becomes non-current. Owner's read-only
+prepare-source now returns unchanged; SHA **6e09ba7f8acd868883f090848987a614a67da949b52c7817539d194af94fd92a**.
+Own independent stable **12:01 UTC** catalog snapshot confirms both current
+flags, archive ID, existing source **186,076,200 B**, and missing old path.
+David told Resume is safe **#5952**; Codex confirms **#5954**. No Codex live
+queue, catalog, archive or model changes. Resume/processing outcome remains
+to be observed after David acts.
+
+Codex prepared paired draft PRs for a narrow, versioned source refusal:
+
+- [Comic #204](https://github.com/Decksx/cbz-automation-suite/pull/204), exact
+  **670d8440b7229e4b4db8336e8bf551141a9c5451**, base **6959b08**. Only the
+  existing non-current-source check raises SourceLocationRefused before writes.
+  CLI exit **3**, schema **camelia-source-refusal-v1**, known code and resolved
+  path; other failures remain exit **1**. Handoff suite **13** passes, base
+  **8 + 5**. Five guard mutants fail assertions **2/2/2/2/3**, source unchanged.
+  Full local suite and exact-head CI pending at publication.
+- [Autodecen #16](https://github.com/Decksx/autodecen/pull/16), exact
+  **490aa846b1f278e4ef323e4e0a235d6494d2ddeb**, base **53a2be0**. Only a
+  matching exit/schema/code/path becomes SourcePreparationRefused; leave that
+  book failed and unchanged, continue normal queue. Single-book budget stays
+  bounded. Unknown responses, DB/root, backup and completion errors still
+  pause. All Python CI patterns **128** pass = **17 + 2 + 85 + 19 + 5**,
+  base **124 + 4**; six assertion-killed mutants, zero test errors, source hashes
+  unchanged. GUI CI still required. Explicit Resume's retry_failed semantics
+  are unchanged; catalog repair precedes an explicit retry.
+
+Four/five one-file commits respectively; clean, pushed scratch worktrees
+retained for review. [Producer handoff 6977980344](https://github.com/Decksx/cbz-automation-suite/pull/204#issuecomment-6977980344)
+and [consumer handoff 6977980785](https://github.com/Decksx/autodecen/pull/16#issuecomment-6977980785),
+confirmed **#5955**. Claude owns independent exact-head reviews, pinned merges
+after green CI, producer-first rollout and coordinated Camelia restart.
+
+Overnight verified merges: autodecen **#15**
+**53a2be069b87b63e288ec792fe68086017233c0c**, parents **7b96d6d + 498ed1b**,
+tree **974dd1b7086f910dbbfb9df6c0d46ba28ad985eb** equals reviewed head;
+**44212708036** backlog/GUI green. Live checkout matches; running-process load
+still requires a restart receipt. Context **#243**
+**a60dc3865e380444df361aefcf67b96b44b6f2a5**, parents **33f9c86 + 393e9ce**,
+tree **59a589e40d061e8fea7434100ba4e9caf3f5c517** equals head;
+**44214859701** all four green. This checkpoint starts from that merge.
+
+GPU owner receipts **#5920/#5925/#5939** supersede the pending installation
+below. CPU onnxruntime explicitly removed, only onnxruntime-gpu **1.23.2**
+remains, pip check clean. cuDNN **9.24** silently fell back after session
+creation; owner installed **9.10.2.21**. Strict comparison on **8** unchanged
+sources/verified F: originals matches full ordered per-page plans and methods,
+input hashes before/after, counts, cold/warm output; no fallback logged. Model
+SHA **94e49f37b2454c1964385673e80c2f6664ad5d5153f4d2c9db85661ac5efc87b**.
+Owner reports **0.69–0.82 s/page** versus earlier ~10, roughly 12x detector
+speed. These are owner checks, not Codex model runs or a whole-pipeline
+benchmark. Historical CPU model hashes and unstored mosaic flag remain limits.
+Own later 93 X: detections median **0.82 s/page** includes old CPU samples;
+it is supporting runtime evidence, not a controlled GPU comparison.
+Setup pin/exit checks and fallback reporting remain follow-ups. Marker-filter
+policy question **#5899** still unanswered; no policy or bulk-state changes.
+
 ## X: runtime timings, CPU detector finding and control follow-up (2026-11-18 UTC)
 
 David **#5882** asks progress/speed; ACK **#5885**. Own stable **00:51:45 UTC**
