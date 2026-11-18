@@ -34,6 +34,17 @@ and **46076** (69) with stat/SHA and full CPU plans in private
 Historical CPU records lack a model hash; owner must account for that gap.
 No model run by Codex. Confirmed parity handoff **#5904**, input report **#5908**.
 
+Delayed GPU proposal **#5896** acknowledged **#5914**. [Codex review
+6966025937](https://github.com/Decksx/autodecen/issues/7#issuecomment-6966025937)
+concurs with the paused rollout subject to full ordered per-page parity,
+actual CUDA session/execution and practical cold-process timings. Source
+inspection finds setup_aletheia.ps1 installs GPU requirements without an
+explicit CPU-runtime uninstall or immediate pip-exit check. Verify the final
+single-runtime inventory and actual readiness after the active installer
+finishes; its success banner alone is insufficient. Official ONNX guidance
+is linked on the issue. The mistyped hive link in **#5915** is corrected by
+**#5916**. No installer or environment change by Codex.
+
 Filtering is more nuanced than "all marked books skipped": own cached-metadata
 preview **01:00:35**, stable **2→2**, **19,206** queued = **14,467** unmarked +
 **4,739** marked with Camelia method tags; **0** generic-marked-only queued,
