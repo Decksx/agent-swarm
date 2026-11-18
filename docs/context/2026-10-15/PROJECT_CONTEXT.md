@@ -1,5 +1,74 @@
 # Agent Swarm imported project context
 
+## Protected job action API merged; D3 is next (2026-11-18 UTC)
+
+Delayed relay **#5999** is superseded by #206's verified merge; ACK **#6090**,
+current owner/scope reply **#6091**. Its two nonblocking notes are now implemented
+in the next candidate: blank-code 401 coverage preserves an outstanding valid
+link, and kind/state DTO labels use fixed sets. This does not reopen 2596e9f or
+reuse its failed CI gate.
+
+Codex's [comic #209](https://github.com/Decksx/cbz-automation-suite/pull/209)
+was reviewed at exact **10e8550e424b37f04e722960e1062026621ac551**, base
+**bcc7ca7**, tree **2703cb6ce434ae30181066f2235b8b5fc5c59683**, ten one-file
+commits, and is now merged as **ee13ad91cae834163930845da1d722efcf3bacbc**,
+parents **bcc7ca7 + 10e8550**, merge tree equals reviewed head.
+It adds direct JobActions plus authenticated POST Stop, Recheck and Acknowledge
+behind all existing M2 gates and the supervisor's operation-lifetime guard.
+Admitted Stop becomes terminal refused under admission exclusion; claim and
+stop cannot both own that generation. Current claimed/running policy remains
+wait-only, uncertain Stop requires Recheck, and no stop file/signal is produced.
+Terminal Stop with a current fence is unchanged. Recheck delegates to fresh
+recovery proof without nesting its admission lock; Acknowledge appends a private
+note without changing a job field/version or releasing admission, including cold
+history. Session supplies actor, not the browser body. All responses are redacted.
+
+The common JSON decoder now refuses duplicate fields before routing, as the
+accepted contract requires. Strict IDs, nonce/version types and bounded UTF-8
+notes also apply to direct callers. The prior GET /stop 404 assertion changes to
+405 because that known route now requires POST; safe methods perform no action.
+API only: browser buttons remain D4 and running-tool interruption stays M4/M6.
+
+Full four-worker/loadfile suite: **7,228 passed / 12 skipped**, **373.96 s**,
+**7,240 collected = base 7,153 + 87** (86 action cases, one security case).
+Source/tests stayed unchanged after that run began; documentation was added
+while it ran. Focused action/view/security **182 passed**, then the final
+canonical-ID/native wrong-session additions **10 passed**; the full includes
+all **192**. Initial harness TypeError from passing raw True to the WSGI helper
+was fixed by JSON-serialising those test bodies before these passing runs.
+All **29** process-local guard mutations fail their regressions, no collection/
+setup errors, unchanged source hashes. Conditional stop SQL/rowcount are retained
+as documented defence in depth, not independently bypass-proven guards.
+
+[Review handoff 6987443420](https://github.com/Decksx/cbz-automation-suite/pull/209#issuecomment-6987443420),
+confirmed **#6093**. Fresh push **44367667608** and PR **44367797356** succeed
+at exact **10e8550**, each **7,235 passed / 5 skipped**, **576.01/510.46 s**.
+Own Git/PR/run/log reads verify head, graph, tree and both gates; local/CI counts
+are separate host measurements. [Claude approval 6987718336](https://github.com/Decksx/cbz-automation-suite/pull/209#issuecomment-6987718336)
+and [pinned merge 6987728244](https://github.com/Decksx/cbz-automation-suite/pull/209#issuecomment-6987728244)
+are on the PR. Independent reviewer reports **32/33** mutants killed; survivor
+is the session-is-None fallback, unreachable through authenticated ConsoleApp.
+Nonblocking follow-ups: comment/direct-test that defensive seam, pin the strict-
+body INVALID_JOB_ACTION code, and consider a D4 per-job note cap. [Own receipt 6987815706](https://github.com/Decksx/cbz-automation-suite/pull/209#issuecomment-6987815706),
+confirmed **#6103**, board **231** done. Extra [cold-refusal witness 6987579885](https://github.com/Decksx/cbz-automation-suite/pull/209#issuecomment-6987579885)
+passes at the unchanged head: a never-claimed operator refusal archives, command
+bytes verify unchanged, and a cold note appends without restoring its directory.
+The permanent real HTTP wrong-session probe passes and retains uncertain, as
+required. Confirmed **#6096**. No console/library/catalog/queue/model action;
+private fixtures and the isolated browser package only. The live checkout is
+still **c9e8527**, tracked clean; no web deployment. Completed D2 test/review
+copy was removed after tests/merge, inactive and unbound. Codex's clean
+`feat/web-job-streams-20261118` worktree is prepared at **ee13ad9** for D3 owned
+streaming/progress; no D3 implementation is claimed yet. Claude keeps M4b and
+D4 browser action integration remains separate.
+
+Context **#248** is independently verified merged as
+**da422fef5e6d69e86ee1837c77fde9f81a60e3ca**, parents **1a88d70 + c2dd697**,
+tree **2dfadfc6144c1a225fdd95a7ec36cc831e66fa7f** equals reviewed head. Run
+**44363828314** all four checks green, own Git/PR/check reads. Claude's **#6092**
+acknowledges the causal correction, and **#6089** retracts the overclaim to David.
+This checkpoint starts from that merge.
+
 ## Jobs view merged after browser mitigation (2026-11-18 UTC)
 
 Delayed relay **#5993** is superseded: #205 already merged at corrected
