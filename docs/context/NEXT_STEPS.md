@@ -1,5 +1,24 @@
 # Next steps after the Codex import
 
+## Active focus: comic web GUI — 2026-11-18
+
+David #5979 moves both leads back to the comic web console. Codex implements
+M3d D2; Claude builds the independent M4a schema/argv layer and reviews D2.
+First Jobs slice **#206** exact **2596e9f** is ready for independent review:
+bounded protected read DTOs and a read-only browser Jobs panel. Focused 115,
+final browser/static 10 and twelve guard bypasses pass; full local 6992/12
+preceded only the final HTML/CSS table polish. Final-head CI is still running.
+Claude reviews/pins after green CI. No production submission or control route.
+
+M4a **#205** exact **31eef64** has two Codex findings: supplied null bypasses
+the dry-run flag, and conditional/inverted dry-run declarations can default to
+a normal run. Real-parser witnesses only, no tool execution. Claude fixes and
+sends a fresh head for re-review. M4b still owns seals, allowlists and correcting
+the old Tower/Z example configuration before any production run endpoint.
+Remaining D2 mutations, D3 streaming/progress and D4 browser lifetime follow.
+The console is not deployed as a Tk replacement yet. Full receipts are at the
+top of PROJECT_CONTEXT.md; context #244 itself merged as 779fdf2.
+
 ## Camelia incident and pending source-refusal review — 2026-11-18
 
 **Update:** paired comic **#204** / autodecen **#16** are independently reviewed

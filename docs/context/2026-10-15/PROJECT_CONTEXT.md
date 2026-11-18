@@ -1,5 +1,72 @@
 # Agent Swarm imported project context
 
+## Web GUI focus: Jobs view and tool-schema review (2026-11-18 UTC)
+
+David **#5979** asks the leads to focus on the web GUI after migration to X:;
+ACK **#5982**. The comic web console is the active stream, not a Camelia UI
+rewrite. Codex owns M3d D2; Claude owns parallel M4a schema/argv groundwork and
+independent review of Codex's heads. Confirmed split **#5988**, owner detail
+**#5991**. No production web console, tool submission or writer control is
+enabled by this work. D1 lifetime acceptance is already complete in the Nov 4
+receipt below; the original supervisor document's pending wording is historical.
+
+Codex's [comic #206](https://github.com/Decksx/cbz-automation-suite/pull/206)
+is exact **2596e9f0f36cb56a9f424115df610e5aab064f7d**, base **c9e8527**,
+twelve one-file commits. It supplies bounded redacted list/detail/event reads,
+post-authentication dynamic routes, console operation lifetime guards and the
+first read-only Jobs panel. Canonical string cursors preserve 64-bit sequences;
+commands, seals, process identity and raw event details remain private. Reads
+do not reconcile, release or launch jobs. Cold ledger summaries stay readable.
+The panel has bounded replacement pages, explicit loading/error/retry states,
+keyboard focus, text-only rendering and internally scrolling narrow tables.
+
+Focused **115 passed**, including two installed-Edge browser cases. Final
+table-scroll HTML/CSS polish separately passes **10 browser/static** checks;
+desktop/mobile fixture screenshots visually inspected. Twelve in-memory guard
+bypasses each fail the intended assertions, zero test errors, unchanged source
+hashes: limits/cursor, WAL, event/tool/outcome redaction, Host/session, blank
+query, service lifetime and UI busy reentry. Full local run **6,992 passed /
+12 skipped**, **7,004** collected = base **6,970 + 34**. That run began before
+the last HTML/CSS polish; it is not presented as a fresh final-head run.
+Push **44346555566** and PR **44346736469** are running at the exact head.
+[Review handoff 6984555037](https://github.com/Decksx/cbz-automation-suite/pull/206#issuecomment-6984555037),
+confirmed **#5995**; [local completion 6984619598](https://github.com/Decksx/cbz-automation-suite/pull/206#issuecomment-6984619598).
+Claude owns fresh exact-head review and pinned merge after CI. Worktree remains
+clean/pushed for active review. Remaining D2 controls, D3 SSE/progress, D4 browser
+lifetime and production M4 routes remain separate; this is not full M5 delivery.
+
+Claude's [M4a #205](https://github.com/Decksx/cbz-automation-suite/pull/205)
+at **31eef644acb102f33adee0be43cae742949b0b71** uses new files only, with no
+overlap in app/server/job/UI code. Codex independently runs **123** selected
+tests successfully, but requests changes:
+
+- [P1 6984588310](https://github.com/Decksx/cbz-automation-suite/pull/205#issuecomment-6984588310):
+  supplied dry_run **null** bypasses validation, omits --dry-run and the actual
+  maintenance parser produces **False**. Reject null for required/defaulted/
+  fixed values; allow omission only for explicitly optional declarations.
+- [P2 6984612737](https://github.com/Decksx/cbz-automation-suite/pull/205#issuecomment-6984612737):
+  a designated dry-run boolean with conditional `when`, or inverted flag_false
+  emission, validates while its default argv also parses dry_run **False**.
+  Require an unconditional positive flag or a parser-proven safe equivalent.
+
+All three independent witnesses build/parse only; no tool or X: I/O. Confirmed
+review handoff **#5998**, follow-up **#6002**. Claude fixes as new commits and
+sends a fresh exact head; keep #205 unmerged meanwhile. Path allowlisting and
+sealing are correctly deferred to M4b. Current example config still advertises
+old Tower/Z roots and the old G database directory; flag those for M4b before
+production submission (coordination **#5992**). #171 diagnostic follow-up stays
+Codex-owned and is not a blanket D2 prerequisite; no blind rerun loop or guard
+relaxation. All tests use private state in inherited process containment.
+
+Previous checkpoint **#244** is verified merged as
+**779fdf2c4f8343d5b54a59d8011d5628f629030c**, parents **a60dc38 + 8f75184**,
+tree **f74021cacc3f26595b304f5947d4b3cf758a06ec** equals reviewed head;
+**44301860271** all four green. The previous extra comic serial suite completed
+**6,958/12**, recorded on #204/#244. New scratch copies for that repaired incident
+were removed cleanly after tests/merge; active relay and operator copies remain.
+Camelia #16 runtime reload still lacks a David restart receipt; no new queue or
+runtime action is inferred from this web-focus request.
+
 ## Camelia catalog refusal repaired; book-local handling in review (2026-11-18 UTC)
 
 **Superseding merge receipt:** Claude approved the paired contract on
