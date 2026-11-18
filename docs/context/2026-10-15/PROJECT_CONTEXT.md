@@ -1,5 +1,88 @@
 # Agent Swarm imported project context
 
+## Browser CI mitigation and diagnostics prepared (2026-11-18 UTC)
+
+Delayed relay **#5986** is superseded by the existing **#5988** split; ACK
+**#6032**, current-owner reply **#6033**. Codex keeps D2 and browser issue
+**#207**; Claude starts M4b from merged comic **887b583**, with new files plus
+the example config and a heads-up before shared-file edits (**#6038**). #171
+stays Codex-owned but is not a blanket prerequisite for independent web work.
+
+Codex's [#207 evidence update](https://github.com/Decksx/cbz-automation-suite/issues/207#issuecomment-6985616013)
+identifies a concrete upstream mitigation hypothesis: Playwright
+[43545](https://github.com/microsoft/playwright/issues/43545) and
+[43605](https://github.com/microsoft/playwright/pull/43605) describe Windows
+TCP-port randomization producing ERR_NO_BUFFER_SPACE even with ports available.
+Effective installed-Edge **157.0.4341.60** launches show the mitigation absent
+with our old **1.48.0** driver and present with isolated **1.65.1**, each with one
+upstream disabled-feature argument and web security enabled. This does **not**
+diagnose either original #206 failure. No third unchanged-head rerun occurred.
+
+A separate [comic #208](https://github.com/Decksx/cbz-automation-suite/pull/208)
+from **887b583**, `fix/web-browser-diagnostics-207`, updates the CI-only driver
+pin and adds bounded, redacted browser/server evidence. Exact
+**5897a126eb6cd16866b3354f0ea85090a14a5a3d**, tree
+**84067e5afd3188d8b6dfcad5ddfe08d820741977**, eight one-file commits.
+Fresh push **44358283062** and PR **44358297560** are running. Earlier
+**20db753** push **44355461365** and PR **44355543609** both succeed,
+**7,114 passed / 5 skipped**, **486.54/762.55 s**; these do not gate the new head.
+[Review handoff 6985797678](https://github.com/Decksx/cbz-automation-suite/pull/208#issuecomment-6985797678),
+confirmed **#6041**, board **229**, Claude ACK **#6043**. No merge gate claimed.
+Claude's [inspection 6985832919](https://github.com/Decksx/cbz-automation-suite/pull/208#issuecomment-6985832919)
+finds no blockers but explicitly is **not** a merge gate. Pipe draining is a
+second behaviour change/mitigation candidate, separate from the driver bump;
+neither can be named as the original cause. Non-blocking follow-ups: safe pipe
+counts on passing runs, shared draining for other server fixtures, and a local
+assertion hint pointing to requirements-ci.txt. Kept the reviewed head fixed;
+[response 6985851863](https://github.com/Decksx/cbz-automation-suite/pull/208#issuecomment-6985851863),
+confirmed **#6045**. Full/CI completion and independent merge approval still gate
+any merge. The global 1.48.0 install remains unchanged; local browser tests need
+the reviewed pinned package, as the isolated command already supplies.
+Self-review then found a test-isolation gap: the pipe-only child owns no HTTP
+listener, but its test used a fixed localhost port for health. Final **5897a12**
+stubs that connection; no helper/runtime change. Fresh **14 passed, 20.06 s**;
+all **13** mutations rerun and assertion-killed, zero errors, unchanged source
+hashes. Claude read this delta and carries the inspection forward (**#6050**),
+with formal approval still pending green fresh CI. [Fresh review handoff 6986178398](https://github.com/Decksx/cbz-automation-suite/pull/208#issuecomment-6986178398),
+confirmed **#6051**; [completion receipt 6986195547](https://github.com/Decksx/cbz-automation-suite/pull/208#issuecomment-6986195547),
+confirmed **#6054**. Board **229** remains review.
+The real-launch guard fails the old driver. All **21 existing browser/server**
+checks pass with 1.65.1 and the ordinary C:\Python311 interpreter, with only the
+private package directory on that command's PYTHONPATH. A separate venv-
+interpreter attempt timed out at server session readiness and is retained as
+an unsuccessful setup attempt, not a compatibility result. Global Python and
+the operator's applications are unchanged.
+
+The code-final **012f760** has **14 focused** diagnostic/browser passes;
+these also pass freshly at exact **20db753**, **18.68 s**.
+Thirteen in-memory guard mutations each fail assertions, zero test errors,
+unchanged source hashes. The first private harness run exposed missing
+known-route assertions; permanent coverage was strengthened and all 13 rerun.
+A deliberately failed unchanged sign-in test yields **41** classified events,
+an alive owned server answering health **401**, and empty stdout/stderr for
+that sample. A separate native pipe regression writes **120,000 bytes** and
+catches a disabled drainer. Added evidence never publishes raw URLs, headers,
+bodies, credentials, command lines or pipe output; existing pytest traces still
+need private review before publication.
+
+It combines with #206 exact **2596e9f** without conflicts to tree
+**3f447b4b513167bbebdbbaac4b9fa94dc32a2fbd**. **35 selected checks pass** in
+four-worker/loadfile mode, **23.11 s**, tree unchanged before/after. This is not
+a full combined-suite claim or CI diagnosis. Temporary comparison copies were
+removed after their tests, clean/inactive/unbound. Local full completes
+**7,107 passed / 12 skipped**, **1,363.92 s**, **7,119 collected = base 7,107 +
+12 added cases**. It began before the final pipe-test stub and is **earlier-head
+evidence**, not a fresh final-head full run. Fresh CI/final approval still gate
+#208; #206 stays exact **2596e9f**, unmerged. After #208's pinned merge, Codex
+merges reviewed master into #206, preserving both daily-log appends, and requests
+a fresh combined-head review/CI before its merge. D2 operator controls follow.
+Confirmed coordination **#6037/#6039**; no production console or writer action.
+
+Context **#246** merged as **a7f127094b2e50911cba96109f9137e9afdf88a0**,
+parents **a627c93 + 8f3765c**, tree **0c0a8b39fbe8a567d7cd02bcce14382694ba1fe9**
+equals reviewed head. Run **44351313421** has all four checks successful. Own
+Git/PR/check reads verify this receipt; this checkpoint starts from that merge.
+
 ## Web integration checkpoint: schema merged, Jobs CI gate remains closed (2026-11-18)
 
 This supersedes the pending review states in the checkpoint below. Comic
