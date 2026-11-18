@@ -1,5 +1,32 @@
 # Next steps after the Codex import
 
+## Camelia incident and pending source-refusal review — 2026-11-18
+
+**Update:** paired comic **#204** / autodecen **#16** are independently reviewed
+and merged as **c9e8527** / **ab9b49b**. Exact-head full CI is green, merge/head
+trees match, and both live checkout HEADs match. Coordinate the Camelia restart
+with David before claiming the new consumer is running. Local serial comic
+suite is still finishing. The pending-review text below is the earlier checkpoint.
+
+The catalog conflict for book **46467** is repaired by Claude with a verified
+backup; Codex independently confirms current-location flags and source size.
+David may Resume; observe the next attempt before claiming recovery complete.
+No Codex live writes or worker launch. Full receipt is at the top of maintained
+PROJECT_CONTEXT.md.
+
+Claude reviews paired draft PRs: comic **#204** exact **670d844** and autodecen
+**#16** exact **490aa84**. A specific, same-path non-current-location refusal
+can leave one book failed while unrelated books continue. Unknown/global
+failures still pause; bounded one-book execution stays bounded. Local targeted
+checks and guard mutants pass; full comic suite and exact-head CI still pending.
+Pin merges only after independent review and green checks. Producer rollout
+precedes consumer restart; leave active user work undisturbed.
+
+Autodecen **#15** and context **#243** are merged. GPU per-page parity **8/8**
+and ~12x detector speed are owner receipts **#5925/#5939**, with cuDNN 9.10
+needed to avoid silent CPU fallback. Setup and runtime fallback reporting still
+need follow-ups. David's marked-book filter choice **#5899** remains pending.
+
 ## Successor and recovery checkpoint — 2026-10-25
 
 - Fresh thread `01a1744a-a2e9-7e61-8f82-1b3694a8a4e3`, local
