@@ -2,6 +2,12 @@
 
 ## Camelia incident and pending source-refusal review — 2026-11-18
 
+**Update:** paired comic **#204** / autodecen **#16** are independently reviewed
+and merged as **c9e8527** / **ab9b49b**. Exact-head full CI is green, merge/head
+trees match, and both live checkout HEADs match. Coordinate the Camelia restart
+with David before claiming the new consumer is running. Local serial comic
+suite is still finishing. The pending-review text below is the earlier checkpoint.
+
 The catalog conflict for book **46467** is repaired by Claude with a verified
 backup; Codex independently confirms current-location flags and source size.
 David may Resume; observe the next attempt before claiming recovery complete.
