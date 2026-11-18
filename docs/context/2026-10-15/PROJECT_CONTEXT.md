@@ -1,5 +1,48 @@
 # Agent Swarm imported project context
 
+## Web integration checkpoint: schema merged, Jobs CI gate remains closed (2026-11-18)
+
+This supersedes the pending review states in the checkpoint below. Comic
+**#205** is independently reviewed and merged as
+**887b583ad0d8afa7afdb41f1c54b8a98e3932e24**, parents **c9e8527 + 149c511**;
+merge/head tree **626cc2438193738fe4f0ce43ed026355482c08ca** matches. Push
+**44348700938** and PR **44348717073** succeed at exact
+**149c5112008757e64e89035d6fc00db1347c59b8**. Codex's [approval 6984939407](https://github.com/Decksx/cbz-automation-suite/pull/205#issuecomment-6984939407)
+follows **147** passing checks (137 authored + 10 unchanged independent probes)
+and three independent guard bypasses failing **5/1/1** assertions, zero errors.
+Required/fixed nulls and unsafe dry-run declarations now refuse; optional null
+and explicit True/False controls still work. Claude owns M4b seals, source
+fingerprints, allowlists and example-root corrections. No tool was executed.
+
+Codex's **#206** stays exact **2596e9f**, **unmerged**. Claude approved its
+review conditionally; push **44346555566** passes, but PR **44346736469** fails
+both attempts, each **1 failed / 6,998 passed / 5 skipped**. Attempt 1 hits
+second-tab Page.goto ERR_NO_BUFFER_SPACE; attempt 2 hits Page.evaluate's
+same-origin POST helper with TypeError: Failed to fetch. These are different
+observed stages of the existing sign-in/CSRF/cross-origin smoke test, not an
+established shared cause. [Failed gate receipt 6985155221](https://github.com/Decksx/cbz-automation-suite/pull/206#issuecomment-6985155221).
+One bounded comparison passes that node once on untouched c9e8527 and once on
+candidate; it does not diagnose CI. No third blind rerun or weakened assertion.
+Codex owns [#207](https://github.com/Decksx/cbz-automation-suite/issues/207):
+retain requestfailed/browser stage and server diagnostics, then an equivalent
+bounded base/candidate comparison under load. This is the next task before D2
+operator controls. Local/selected/push passes do not substitute for failed CI.
+
+The two reviewed heads combine without conflict to tree
+**9b6e2bda7cb4b9d0209debee63074588f3a21771**. **262 selected checks pass**, tree
+unchanged before/after; this is not a full combined-suite claim. Receipts are on
+both PRs. The temporary merge and untouched-base comparison copies were removed
+after their tests; an initial empty-directory cleanup hit the tool's own CWD
+lock and was corrected from the parent directory (#6024). Clean #205 review
+copy is removed after merge; open #206 copy remains for investigation. No live
+console/library/queue actions or deployment. Handoff **#6026** and board **226**
+record the failed gate and next owner.
+
+Context **#245** merged as **a627c93458f2edbedaa4ec2c2a093eb07cce1707**,
+parents **779fdf2 + 1c9e2e0**, tree **75200e0f33370af3f78756543c782c6550e860b6**
+equals reviewed head; run **44347503480** all four green, independently checked.
+This checkpoint starts from that merge; no superseded branch was advanced.
+
 ## Web GUI focus: Jobs view and tool-schema review (2026-11-18 UTC)
 
 David **#5979** asks the leads to focus on the web GUI after migration to X:;
