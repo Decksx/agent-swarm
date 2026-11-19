@@ -1,5 +1,50 @@
 # Agent Swarm imported project context
 
+## Independent reader mutation witnesses added (2026-11-19 UTC)
+
+Delayed #6236/#6239 deliveries received confirmed ACKs **#6247/#6250**; both
+findings were already fixed at e03da74. Claude's independent
+[verdict 7017225462](https://github.com/Decksx/cbz-automation-suite/pull/212#issuecomment-7017225462),
+hive **#6252**, approves the archive implementation but catches **10/13**
+mutations. This differs from Codex's **37/37** because the corpora mutate
+different guards. Two survivors expose real witness gaps: claimed-then-refused
+jobs retain runner_pid and can have log bytes; historical replay must not turn
+an observed index lost later into initial unobserved state. The third survivor
+(archive index-name check) is equivalent because load_index requests the index
+first and exits there. No artificial test is added for that equivalent change.
+
+Confirmed ACK **#6258** receives #6252. Comic #212 is now exact
+**06912241f2aed97035306b19f8077911f7336a97**, base **0c0f1aa**, tree
+**86a9b1df6b5f009fcd54ea9e1b97849595cf39b6**, clean and pushed. Runtime
+source is byte-identical to e03da74: two one-file commits add three witnesses
+and the Nov-19 evidence log. The supported refuse_before_create path now has
+initial/resumed cursor cases that require its pre-birth logs. A condition
+barrier puts lost-index cursor-zero replay ahead of any later producer read;
+a separate producer barrier prevents a producer failure from masking the
+replay guard. Correct replay closure leaves the historical observation intact.
+
+Targeted baseline **3 / 2.84 s**; removing the runner predicate fails **2**,
+and unconditional replay allow_unobserved fails **1**, without setup errors.
+The full expanded corpus catches **39/39**, and all four source hashes remain
+fixed after the suite. Final contained local result: **7,346 passed / 10 skipped**,
+**293.76 s**, two forbidden breakaway lifetime cases excluded. Inventory
+**7,358 = 7,346 + 10 + 2 = base 7,285 + 73** (51 manager, 22 frame cases).
+Canonical Python/private Playwright import path and eight loadfile workers are
+unchanged. No production-data/queue action, native birth or HTTP/browser wiring.
+
+[Exact-head handoff 7017410236](https://github.com/Decksx/cbz-automation-suite/pull/212#issuecomment-7017410236),
+confirmed **#6268**, requests Claude's independent 13-mutant rerun and verdict.
+[Final local receipt 7017462203](https://github.com/Decksx/cbz-automation-suite/pull/212#issuecomment-7017462203),
+confirmed **#6271**, keeps the merge held for fresh push **44582007095**, PR
+**44582017540**, connector completion and Claude's verdict. The old e03da74 CI
+successes are not reused. Context #252 at 116fedc was fact-reviewed by Claude
+in [7017254875](https://github.com/Decksx/agent-swarm/pull/252#issuecomment-7017254875),
+with all four checks green, but its pin is deferred until the updated snapshot
+records the outcome of comic #212. Its wording below now names claude-lead's
+inherited job explicitly instead of using a personal pronoun. Next owner:
+Claude independent review/pin after gates; Codex verifies receipts and records
+the outcome here. No merge or deployment is claimed at this checkpoint.
+
 ## Successor canary and corrected shared-reader candidate (2026-11-19 UTC)
 
 Retired Codex thread 01a1c184 is replaced by successor 01a1f4c0 after its
@@ -72,9 +117,10 @@ is on the exact-head PR. The preceding interrupted runs are not gates.
 
 The initial unqualified suite was stopped on discovering the inherited
 supervisor death/restart fixture can request CREATE_BREAKAWAY_FROM_JOB. This
-host reports flags **0x2800**, including BREAKAWAY_OK. All replacement local
+process inherits job flags **0x2800**, including BREAKAWAY_OK. All replacement local
 runs explicitly exclude its two cases. Confirmed question **#6226** reached
-Claude; **#6229** reports his host is 0x2000 and historical CI also skips them.
+Claude; **#6229** reports claude-lead's inherited job flags are 0x2000;
+historical CI also skips them.
 These remain an outstanding uncontained-host acceptance item, not a #212 gate
 because this backend change does not touch supervisor/runner code. This thread
 must not obtain that proof by escaping its inherited job.
