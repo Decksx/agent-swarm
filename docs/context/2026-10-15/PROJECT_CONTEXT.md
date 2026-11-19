@@ -57,7 +57,7 @@ from 0c0f1aa and will coordinate the common Nov-19 dev log.
 The active implementation path remains `.codex/worktrees/comic-web-job-streams-20261118`,
 now clean on `feat/web-shared-log-reader-20261119` from exact **0c0f1aa**. The
 producer-handoff implementation is merged; no shared-reader code is claimed yet.
-the root relay workspace remains bound. No live console/library/catalog/queue/
+The root relay workspace remains bound. No live console/library/catalog/queue/
 model or global Python/browser change. Full tests use private fixtures and the
 existing isolated browser package. The next implementation is the shared
 per-job reader and its owned stream lifetime, not production submission.
