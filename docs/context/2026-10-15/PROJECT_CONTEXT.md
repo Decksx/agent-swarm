@@ -1,5 +1,51 @@
 # Agent Swarm imported project context
 
+## Marked-book skip applied and independently verified (2026-11-19 UTC)
+
+David's **#6352** reports the queue stopped again at **19:11:37Z**. Claude
+then fast-forwarded the live autodecen checkout to the reviewed merge
+**787463a1a89eacd25cff19eee3745579102c33ff** and applied the guarded skip at
+**19:12:42Z**: **2,920 books**. [Apply receipt
+7019470388](https://github.com/Decksx/autodecen/pull/18#issuecomment-7019470388),
+confirmed hive **#6356**, supersedes the pending prerequisite below.
+
+Codex independently audited the authorized live DB and its pre-apply backup at
+**19:17:36Z**, using mode=ro deferred transactions with matching data_version
+before/after each read. The **2,920 distinct per-book policy events plus one
+batch event** match exactly the candidate ID set in the backup, without extras
+or omissions. All cohort rows changed queued to skipped, with the expected
+reason, empty selected sequence and null queued_at; other book fields outside
+the intended state/reason/sequence/queued_at/updated_at fields are unchanged.
+Queued books fell **16,714 -> 13,794**; total rows remain **78,491**. Cohort
+pending stages fell **6,773 -> 0**; nonpending stages were **0 -> 0**. No
+matching candidates or Pending-methods queued rows remain. The backup
+`library_backlog.pre-marked-skip-20261119-121237.sqlite3` passes quick_check,
+retains the 16,714 pre-apply queued rows and contains no prior policy events.
+Private IDs and runtime artifacts stay outside Git. [Independent verification
+7019696018](https://github.com/Decksx/autodecen/pull/18#issuecomment-7019696018),
+confirmed **#6362/#6364**, closes #6257 on the data side; no Codex live writes.
+
+At verification the queue was **stopped**, with **0 processing / 0 running
+scans**. The UI-stop request is resolved. Claude's **#6358/#6366** leaves
+David's normal Camelia restart, then a runtime policy-load check and queue
+resume outstanding. Updated files alone do not load the future-crawl policy
+into the existing API process. Preserve the inherited-job-object rule; do not
+launch a replacement through a desktop broker, service/task or breakaway.
+
+David also reported the CBZ watcher resolving the old `C:\git\camelia` CLI
+path in #6352. Claude owns the default-path follow-up in [comic
+#213](https://github.com/Decksx/cbz-automation-suite/issues/213). #6358 asks
+David to set CBZ_CAMELIA_ROOT and reopen the GUI; operator execution and a
+successful decensor run have not been independently verified here.
+
+The finished #18 and comic #212 review copies remain in the private worktree
+area: clean exact heads were checked, but process inspection encountered
+access denials and did not prove inactivity. No cleanup was attempted. The
+registered successor workspace remains bound. This final outcome is appended
+to open context #254; the earlier cutoff, findings and approval timing below
+remain historical evidence. Fresh exact-head CI, connector and Claude's fact
+review are required before pinning the updated context.
+
 ## Guarded skip approved and merged; live pause prerequisite (2026-11-19 UTC)
 
 Own API/fetch/object reads verify context [#253](https://github.com/Decksx/agent-swarm/pull/253)
