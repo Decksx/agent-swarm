@@ -1,5 +1,75 @@
 # Agent Swarm imported project context
 
+## Revision 3 contract review: one backup protocol point (#215, 2026-11-19 UTC)
+
+Claude's **#6489** supplies exact **c47e72c00eb540651781b9cfbd6b19460e08167e**,
+parent f9277c0, tree **c18e9e6ab8150d496ce18dfaa4552bc930d79c5a**. Codex ACK
+**#6493**, [re-review 7025305222](https://github.com/Decksx/cbz-automation-suite/pull/215#issuecomment-7025305222),
+confirmed **#6494**, narrow **CHANGES REQUESTED** to one F4 protocol point.
+F1's durable relocation sequence/tombstones and two-sided fence recovery, F6's
+frozen provenance/persistent preconditions, R1-first numbered_duplicate and
+the aggregate backup-guard policy are accepted contract decisions. Earlier
+F2/F3/F5/F7 decisions stay accepted; this is not implementation verification.
+
+The cutover needs an explicit stable journal boundary: F: copy/verify/completion
+receipts must not mutate the very `_automation` child journal copied to F:.
+Proposed sufficient decision is an out-of-both-trees parent journal and frozen
+in-scope X: child journals/control files before the F: phase. Expected existing
+registry/control replacements need validated prior identity and saved preimages
+for conditional undo; only unexpected targets refuse. Runtime backup contribution
+must account for changed journals as well as books/JSON. A private two-file model
+verified the copied bytes, then appended a receipt: X-model 170 bytes, F-model 57,
+comparison false. Temp directory removed; backup script never executed.
+Docs delta diff-check passes. No repository code tests or live X:/F:/DB access,
+mutations or moves. Relay Claude owns the narrow correction/new exact head;
+Codex re-reviews before watcher slice 2. This update appends to open context #257;
+the earlier review cutoffs below remain historical evidence.
+
+## Shared oneshots contract narrowed to three findings (#215, 2026-11-19 UTC)
+
+David's **#6462** says the plan looks good. Codex ACK **#6464** and [coordination
+7024895714](https://github.com/Decksx/cbz-automation-suite/pull/215#issuecomment-7024895714)
+record overall approach approval as an interpretation, without inventing a
+completed planner report or apply digest. David then explicitly chooses the
+**relay Claude** in **#6478**; [ownership receipt 7025124014](https://github.com/Decksx/cbz-automation-suite/pull/215#issuecomment-7025124014)
+supersedes the prior interactive-session routing blocker. Codex never edited
+the contract author's branch.
+
+Claude's **#6482** supplies docs revision 2, exact
+**f9277c04bf0e70f02fc2a36d51d9f5c9d4e09608**, parent 7182414, base 99a21d7.
+Codex ACK **#6484**, full-file/source re-review [7025222877](https://github.com/Decksx/cbz-automation-suite/pull/215#issuecomment-7025222877)
+and confirmed handoff **#6485** retain **CHANGES REQUESTED**, narrowed to three:
+
+- Registration may inspect A while an entire fence/move A->B/unfence interval
+  passes, then commit a stale A row after the fence disappears. Require durable
+  path epoch/reservation and a barrier witness spanning acquisition and release.
+  Recovery must also reconcile DB fences when journal completion already exists.
+- Plan provenance (`generated_at`, connection-local data_version) must be distinct
+  from live persistent preconditions; full live regeneration cannot compare those
+  as stable identity. Require unchanged fresh-process preview/apply success and
+  changed affected-state refusal. SQLite's official data_version semantics were
+  checked: compare values only on the same connection over time.
+- Runtime backup holding is aggregate across promotions and replacements, not
+  bounded by a single promotion. Current backup scope includes registry,
+  locations and `_automation`, so F: book renames alone cannot prove zero changes
+  in the full mirror listing. Define expected metadata/control-file reconciliation.
+
+F2 import separation, F3 conservative identity/hold, F5 sidecar/suffix policy and
+F7 grouping backfill/stale-version refusal are accepted decisions. F1/F4/F6 have
+substantial fixes but the above gaps remain. Docs diff-check passes; no new tests.
+Codex read, never executed, `C:\ProgramData\ComicBackup\Backup-Comics.ps1`, SHA-256
+**be0b2b256956a4cced641278addf2b5ad58c415d1cddf2338f4d83e803a41ed4**.
+No X:/F:/production DB access or mutation; CI still running at the review cutoff.
+Next: relay Claude corrects these focused points, Codex re-reviews the exact head.
+
+Own API/run/fetched-object reads verify context #256 merged at **23:20:36Z** as
+**92e0b8827b656db29f71877ad6bf79be9f470ab6**, parents **75301ce + 85062ca**, tree
+**fe0d7352deccf389c6cbc32a64d082cfa0ee5b27** equals reviewed head. CI **44635181200**,
+attempt 1, all four checks green exact 85062ca by **23:16:08Z**; connector completed
+no findings **23:10:30Z**, Claude approval **23:20:33Z** precedes merge. [Independent
+receipt 7025021473](https://github.com/Decksx/agent-swarm/pull/256#issuecomment-7025021473),
+confirmed **#6476**. This branch starts at actual 92e0b88; #256 stays closed.
+
 ## Shared oneshots contract review held (#215, 2026-11-19 UTC)
 
 Claude's **#6451** supplies comic [#215](https://github.com/Decksx/cbz-automation-suite/pull/215),
