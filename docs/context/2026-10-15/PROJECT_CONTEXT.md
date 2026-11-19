@@ -1,5 +1,67 @@
 # Agent Swarm imported project context
 
+## D3b page handoff merged and #250 receipt (2026-11-19 UTC)
+
+Delayed **#6175** received ACK **#6180**. Own fetch/PR/run reads verify context
+[#250](https://github.com/Decksx/agent-swarm/pull/250) merged as
+**b1fe6679e466b9b9d9d788b6fff017731915dcdf**, parents **bf6301a + 410f89c**,
+tree **2c90b32552657fb016b65ce917b5b517f04d0b45** equals reviewed head. Run
+**44441848496** succeeds on exact **410f89cec19827271e97475113575093dda0e4f3**,
+all four checks green. [Claude's receipt 6997589331](https://github.com/Decksx/agent-swarm/pull/250#issuecomment-6997589331)
+discloses that marking ready triggered connector review and the merge preceded
+completion. This timing is retained, not backfilled as a pre-merge verdict.
+Own raw review-state read now confirms completed/no findings on 410f89c,
+matching [follow-up 6997606111](https://github.com/Decksx/agent-swarm/pull/250#issuecomment-6997606111).
+Future context PRs open non-draft so connector review can finish before pin.
+This branch starts from the actual b1fe667 merge; the closed #250 branch stays.
+
+Codex's [comic #211](https://github.com/Decksx/cbz-automation-suite/pull/211) opened
+non-draft at exact **eaf905b4507ae1a08175e68039bd1f840e1100e0**, base
+**83dce07**, tree **0e9add9cd8f105d07d186e4263fb6c5ea3f42439**, four one-file
+commits. This implements the D3b producer-page prerequisite: consume_page
+returns ObservedPage(page, observation) after its cursor commit, from one
+bounded source read. consume_once delegates and preserves its snapshot-only
+result. Parser/CAS/error/clock/lifecycle semantics are unchanged. No arbitrary
+replay cursor, shared worker, queues, slots, scheduling, HTTP/SSE or browser
+wiring. Those accepted D3/D4 gates remain required; D3 is not complete.
+
+Eleven new cases give **7,285 = base 7,274 + 11**. Focused **121 passed**,
+**57.50 s**; final frozen code/tests full **7,273 passed / 12 skipped**,
+**422.49 s**, including all 121. Four semantic mutations are caught (extra read
+1 failure; uncommitted batch 10; dropped records 7; wrong legacy result 1), no
+setup/collection errors and unchanged source hash. Tests prove page fidelity,
+handle/admission release, a controlled commit-before-return barrier, cold/gap
+and partial pages, restart, failed/stale commits and UTF-8 source-byte cursors.
+
+[Claude review 6997953157](https://github.com/Decksx/cbz-automation-suite/pull/211#issuecomment-6997953157)
+approves this head pending final gates; independent **4/5** mutants caught,
+survivor frozen=True is cosmetic. Nested JSON is deliberately mutable: D3b must
+project the raw page into its safe DTO and encode immutable bytes once before
+fan-out. Own connector-state read confirms completed/no findings at exact eaf905b.
+[Final local result 6997989695](https://github.com/Decksx/cbz-automation-suite/pull/211#issuecomment-6997989695),
+confirmed **#6192**; [review handoff 6997907817](https://github.com/Decksx/cbz-automation-suite/pull/211#issuecomment-6997907817),
+confirmed **#6188**, current-scope update **#6187**. Own API/log reads verify
+fresh push **44445079842** and PR **44445147697** succeed on exact eaf905b,
+attempt 1, each **7,280/5**, **548.36/595.50 s**. Separate host measurements.
+[Final gate handoff 6998090425](https://github.com/Decksx/cbz-automation-suite/pull/211#issuecomment-6998090425),
+confirmed **#6193**. Both human/connector reviews completed before the pin.
+
+Own API/fetch reads verify merge **0c0f1aad7f0df57c23b0a5dc7fb4858d466c1185**,
+parents **83dce07c7a563fbeb014943d981b482ef641abd8 + eaf905b4507ae1a08175e68039bd1f840e1100e0**,
+tree **0e9add9cd8f105d07d186e4263fb6c5ea3f42439** equals reviewed head and
+prediction. [Claude receipt 6998101065](https://github.com/Decksx/cbz-automation-suite/pull/211#issuecomment-6998101065),
+[own verification 6998135540](https://github.com/Decksx/cbz-automation-suite/pull/211#issuecomment-6998135540),
+confirmed **#6197**, owner handoff **#6196**. No deployment. Claude retains M4b
+from 0c0f1aa and will coordinate the common Nov-19 dev log.
+
+The active implementation path remains `.codex/worktrees/comic-web-job-streams-20261118`,
+now clean on `feat/web-shared-log-reader-20261119` from exact **0c0f1aa**. The
+producer-handoff implementation is merged; no shared-reader code is claimed yet.
+The root relay workspace remains bound. No live console/library/catalog/queue/
+model or global Python/browser change. Full tests use private fixtures and the
+existing isolated browser package. The next implementation is the shared
+per-job reader and its owned stream lifetime, not production submission.
+
 ## D3a correction merged; shared reader is next (2026-11-19 UTC)
 
 Own API/fetch reads verify [comic #210](https://github.com/Decksx/cbz-automation-suite/pull/210)
