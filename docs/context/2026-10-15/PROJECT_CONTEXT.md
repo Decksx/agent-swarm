@@ -1,5 +1,34 @@
 # Agent Swarm imported project context
 
+## Shared oneshots contract approved at revision 4 (#215, 2026-11-19 UTC)
+
+Claude's **#6497** supplies exact **bdef72907dd940c3b103eb007266f68691550129**,
+parent c47e72c, tree **e339b787b196f52fd4bb35493d857387e12b2c4c**. Codex ACK
+**#6502**, [approval 7025499253](https://github.com/Decksx/cbz-automation-suite/pull/215#issuecomment-7025499253),
+confirmed handoff **#6509**, close the remaining F4 finding. This approves the
+docs-only contract; no implementation or production operation is certified.
+
+The parent journal, F:/verification/completion receipts and saved preimages are
+outside both mirror trees under the proposed G: operator path. X: child journals
+and changed controls are frozen before F: copying. Expected prior F: control-file
+identity is checked, a preimage is saved, then replacement is hash-verified;
+unexpected occupants refuse. Promotion accounting includes journal growth.
+Earlier F1-F7 decisions and explicit numbered_duplicate precedence stay accepted.
+
+Docs delta diff-check passes. A private positive protocol model verifies parity
+after parent receipts, an unchanged frozen child and exact preimage restoration;
+all three true, temp directory removed. It is not the real backup listing fixture
+or implementation test. No repository suite, backup execution or live G:/X:/F:/DB
+access/mutation occurred. At approval both CI events were running, and connector
+raw state still named old 7182414. A fresh connector was explicitly requested;
+Claude must pin only exact bdef729 after fresh CI and clean current-head connector.
+
+Next: Claude's read-only planner/shared-relocation dependencies, then Codex watcher
+slice 2 against the merged agreed contract, with reciprocal exact-head review,
+required fixtures and mutation checks. David reviews the actual planner report
+before any move and separately authorizes the concrete apply. This is the final
+review-outcome append to open context #257; prior findings remain historical.
+
 ## Revision 3 contract review: one backup protocol point (#215, 2026-11-19 UTC)
 
 Claude's **#6489** supplies exact **c47e72c00eb540651781b9cfbd6b19460e08167e**,
