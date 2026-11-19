@@ -1,5 +1,91 @@
 # Agent Swarm imported project context
 
+## Marked-skip follow-up at 7527b56 remains held (2026-11-19 UTC)
+
+Claude's **#6308** hands off autodecen #18 exact
+**7527b567419dafca669220cf4a860ab2a951fef4** after a self-review update.
+Codex read the delta and reran the relevant private probes on that head.
+[Follow-up review 7018497715](https://github.com/Decksx/autodecen/pull/18#issuecomment-7018497715),
+confirmed handoff **#6314**, remains **CHANGES REQUESTED**. The idle stale-
+preview fixture and late queue/candidate cases improve coverage, but preview
+still changes DELETE to WAL, missing/unknown queue control still skips one row,
+and the new test module remains absent from CI.
+
+The current marked-skip baseline is **10 / 11.77 s**. Removing the processing
+check still passes all **10 / 9.26 s**; removing BEGIN IMMEDIATE still passes
+all **10 / 7.23 s**, no setup errors. Claude's **11/11** corpus tests different
+mutations. An unrelated processing book and the late second-connection manual
+requeue are still needed as load-bearing witnesses. Source is not approved for
+live apply; David's skip authorization remains valid. Claude owns fixes and
+apply, Codex rereviews the corrected head. No live mutation by Codex.
+The open review copy now checks out 7527b56 at the same purpose/path recorded
+below. Checkpoint **#6311** was posted before ~35 minutes; this final delta is
+saved before ending the run so the relay can deliver the next candidate.
+
+## Guarded marked-skip review holds live apply (2026-11-19 UTC)
+
+Own API/fetch/object reads verify context [#252](https://github.com/Decksx/agent-swarm/pull/252)
+merged at **18:30:00Z** as **af7a3e2001104dd971ec448a503c4064c42a7fe0**,
+parents **1c718042002edebe3c33ff0aa613fea53a1a6506 +
+0e433822dd35d410cadb5d915e37d07f3c9886b8**, tree
+**241888c48cf3e42226ef930c8bcc91f44e051732** equals reviewed head.
+Own run API verifies **44587122951**, attempt 1, success on exact **0e43382**
+for all four checks. Claude's **#6296/#6302** cite fact review **7018242404**,
+merge receipt **7018246392** and a clean connector. This new checkpoint branches
+from the actual af7a3e2 merge; it does not advance the closed #252 branch.
+
+David reports the Camelia queue stopped in **#6295 at 18:24:16Z**. The #6257
+skip authorization remains in force, but no live apply is approved by this
+engineering review. No production queue/DB/library/model mutation by Codex.
+Claude remains the implementation/apply owner; Codex reviews the exact tool.
+
+[Autodecen #18](https://github.com/Decksx/autodecen/pull/18), reviewed exact
+**35aa826e0a0ac9254da849df492007edfb37ea73**, base **cbc46f7**, receives
+**CHANGES REQUESTED** in [7018309065](https://github.com/Decksx/autodecen/pull/18#issuecomment-7018309065),
+confirmed handoff **#6306**. Merge and live apply are held for these fixes:
+
+- ExistingStore aliases the read/write connection that executes journal_mode=WAL.
+  A valid DELETE-mode fixture preview switches to WAL and changes DB bytes.
+  Preview needs a genuinely read-only connection without initialization/write
+  pragmas, separate from apply's writer.
+- The queue readiness guard rejects only running. A missing control row or an
+  unknown value still accepts apply and skips one fixture row. It must require
+  a present, recognized idle value and fail closed otherwise.
+- CI lists five unittest modules explicitly and never invokes the new
+  test_marked_skip.py; green **44586934174** does not run its six new tests.
+- Four load-bearing guards lack effective witnesses: unrelated processing,
+  late queue resume/inner recheck, write reservation and snapshot count/digest.
+
+The selected private backend/API baseline is **140 / 30.29 s**, no skips,
+with live catalog integration disabled. Own process-local mutations catch
+**6/10**, no setup/collection errors; real marked_skip.py hash remains
+**38ede9910b3b3330c108685b42dfc5225f867f74282cb080f60beb19f2d3ef67**.
+All six existing tests survive each of the four bypasses. The stale-preview
+fixture never becomes idle, so scan refusal masks its intended count/digest
+check; the processing test claims the candidate itself, so freshness masks
+that guard. Independent controlled probes show current source refuses stale
+digest, unrelated processing and late queue resume, while each bypass skips
+one row. Current BEGIN IMMEDIATE blocks a late manual_requeue on a second
+connection; bypassing it allows that manual choice to commit and still skips
+the book. These are real coverage gaps, not equivalent mutants.
+
+Positive boundaries remain: ExistingStore avoids initialization/recovery,
+manual selections are excluded, and only pending stage rows are removed.
+All findings/probes used disposable fixture databases. The source/test review
+copy **C:/Users/david/.codex/worktrees/autodecen-review18-35aa826** stays for the
+open review; no long-lived process was launched. Next owner: Claude fixes the
+two source defects, wires CI and adds witnesses, then hands off a fresh head
+for Codex review, fresh CI and connector before pinning. Existing authorization
+is sufficient for these engineering fixes; no repeat skip approval is needed.
+
+Claude explicitly acknowledges #17's post-merge review/connector timing in
+**#6299**: its pin at 2707f86 preceded the follow-up and exact-head connector.
+The later connector reviewed cbc46f7 (same tree) with no findings; this is not
+backfilled as pre-pin approval. Future docs-only follow-ups retain exact-head
+human/connector gates. Operator status **#6307** reports the #18 hold while the
+queue is stopped. The old #17 review copy removal and all prior #212 verified
+merge/CI evidence remain below. Root relay workspace remains bound.
+
 ## Marked-book crawl policy merged; queue sweep still pending (2026-11-19 UTC)
 
 Claude fixed the README at autodecen exact
