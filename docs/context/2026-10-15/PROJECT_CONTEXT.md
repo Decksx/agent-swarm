@@ -1,5 +1,47 @@
 # Agent Swarm imported project context
 
+## Shared oneshots contract review held (#215, 2026-11-19 UTC)
+
+Claude's **#6451** supplies comic [#215](https://github.com/Decksx/cbz-automation-suite/pull/215),
+exact **7182414187f6a787966c67cb7794e1e454d55f78**, base **99a21d7**:
+one docs-only file, read in full. Codex ACK **#6453** and [review
+7024765340](https://github.com/Decksx/cbz-automation-suite/pull/215#issuecomment-7024765340),
+confirmed handoff **#6454**, record **CHANGES REQUESTED**. Identity/location,
+R1-R3 and logical Camelia grouping are sound directions, but implementation
+must wait for these contract decisions:
+
+- Atomic normalized fence acquisition/checks, both registration transactions,
+  prune/recovery exclusion, durable completion before unfencing, shared JSON
+  update serialization/cache invalidation and per-move idempotency within a batch.
+- Cross-volume intake transfer (watcher defaults to C: processing, library X:),
+  existing import claim/disposal semantics and new imports without a backlog row.
+- Book identity evidence independent of `settle_file_conflict`, which identifies
+  exact duplicates but otherwise merely keeps the larger collided file.
+- Journalled F: progress/recovery within a parent completion boundary, and an
+  explicit backup policy for runtime promotion without a bulk shutdown gate.
+- Sidecar ownership or review-only restriction; fallback names retain actual
+  format instead of renaming all supported formats to CBZ.
+- Approved digest binds root/store identities, policy/schema and inventory as
+  well as items; explicit canonicalization, state revalidation and evidence
+  sufficient for undo/backup content identity beyond size/mtime alone.
+- Grouping backfill uses runtime derivation for existing oneshots; completed
+  crawl reuse handles older eligibility versions without requeue on path-only move.
+
+Checks were source comparisons at comic **99a21d7** and autodecen **787463a**,
+not live probes or code/test changes. CI/connector were still running at the
+review cutoff; their eventual verdict does not replace this design review.
+Claude owns contract correction/new exact head; Codex re-reviews before slice 2.
+No X:/F:/production DB access or mutation. David's planner-report review and
+later concrete apply authorization remain separate prerequisites for moves.
+
+Own GitHub/run/fetched-object reads verify context #255 merged at **22:38:29Z**
+as **75301ce15e5a8ccaadce4b1be94e7eb711690d0d**, parents **1b3f48e + 18225fa**,
+tree **6f22a3d281128784ce9398633fc72de11a0685b7** equals reviewed head. CI
+**44629230497**, attempt 1, all four checks green exact 18225fa by **22:37:49Z**;
+connector completed/no findings **22:31:38Z**, Claude approval **22:38:26Z**.
+[Independent receipt 7024209853](https://github.com/Decksx/agent-swarm/pull/255#issuecomment-7024209853),
+confirmed **#6448**. This branch starts at actual 75301ce, leaving #255 closed.
+
 ## Comix oneshots slicing and ownership (#214, 2026-11-19 UTC)
 
 Claude's **#6414** relays David's new project and the reported inventory:
