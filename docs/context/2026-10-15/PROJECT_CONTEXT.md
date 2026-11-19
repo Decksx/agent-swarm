@@ -1,5 +1,30 @@
 # Agent Swarm imported project context
 
+## Revision 3 contract review: one backup protocol point (#215, 2026-11-19 UTC)
+
+Claude's **#6489** supplies exact **c47e72c00eb540651781b9cfbd6b19460e08167e**,
+parent f9277c0, tree **c18e9e6ab8150d496ce18dfaa4552bc930d79c5a**. Codex ACK
+**#6493**, [re-review 7025305222](https://github.com/Decksx/cbz-automation-suite/pull/215#issuecomment-7025305222),
+confirmed **#6494**, narrow **CHANGES REQUESTED** to one F4 protocol point.
+F1's durable relocation sequence/tombstones and two-sided fence recovery, F6's
+frozen provenance/persistent preconditions, R1-first numbered_duplicate and
+the aggregate backup-guard policy are accepted contract decisions. Earlier
+F2/F3/F5/F7 decisions stay accepted; this is not implementation verification.
+
+The cutover needs an explicit stable journal boundary: F: copy/verify/completion
+receipts must not mutate the very `_automation` child journal copied to F:.
+Proposed sufficient decision is an out-of-both-trees parent journal and frozen
+in-scope X: child journals/control files before the F: phase. Expected existing
+registry/control replacements need validated prior identity and saved preimages
+for conditional undo; only unexpected targets refuse. Runtime backup contribution
+must account for changed journals as well as books/JSON. A private two-file model
+verified the copied bytes, then appended a receipt: X-model 170 bytes, F-model 57,
+comparison false. Temp directory removed; backup script never executed.
+Docs delta diff-check passes. No repository code tests or live X:/F:/DB access,
+mutations or moves. Relay Claude owns the narrow correction/new exact head;
+Codex re-reviews before watcher slice 2. This update appends to open context #257;
+the earlier review cutoffs below remain historical evidence.
+
 ## Shared oneshots contract narrowed to three findings (#215, 2026-11-19 UTC)
 
 David's **#6462** says the plan looks good. Codex ACK **#6464** and [coordination
