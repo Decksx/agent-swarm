@@ -1,5 +1,166 @@
 # Agent Swarm imported project context
 
+## Successor canary and corrected shared-reader candidate (2026-11-19 UTC)
+
+Retired Codex thread 01a1c184 is replaced by successor 01a1f4c0 after its
+orphaned turn. The successor handoff was read in full before mutation. Relay
+#6221 received confirmed ACK **#6223**, then exact canary reply **#6224** at
+swarm HEAD **1c718042002edebe3c33ff0aa613fea53a1a6506**, Codex PID **10580**.
+This proves interactive delivery, not a background-worker binding. Every
+process must remain in the inherited job object; no Explorer/desktop broker,
+task/service or breakaway workaround. Commit, push and checkpoint before about
+35 minutes; the relay limit is 45. The new code checkpoint below reached the
+PR and confirmed hive **#6241** at **17:33Z**, before that boundary.
+
+[Comic #212](https://github.com/Decksx/cbz-automation-suite/pull/212) is now at
+exact **e03da747d544fb77bc7f9b6a0cab314a1b565e0c**, base
+**0c0f1aad7f0df57c23b0a5dc7fb4858d466c1185**, tree
+**3e437a41dd03304cfa498d7fd7c86aed58a9697e**, clean and pushed. Twelve
+follow-up one-file commits after **0e7f851** address the remaining P2s and the
+load-sensitive cadence witness. No app/server/HTTP/browser or lifecycle/runner/
+supervisor change; Claude retains M4b and the shared Nov-19 log coordination.
+
+Closing readers retain one capacity slot until I/O and the finalizer settle.
+The cap counts members + reservations + readers without members. The 12-job
+fixture retains eight blocked workers, then proves four opens refuse before
+identity I/O. Claimed-before-writer and terminal-before-writer jobs publish
+state-only zero-cursor/EOF-false pages when the index is absent. The adapter
+opts in only at index load, and consume_page only at observation generation
+zero. Later writer creation resumes logs. Nonzero replay closes only its
+subscriber. Observed empty/nonempty indexes lost later, corrupt indexes and
+missing indexed segments remain errors; default APIs retain prior refusal.
+
+Claude's [re-review 7016698924](https://github.com/Decksx/cbz-automation-suite/pull/212#issuecomment-7016698924)
+confirms the cap, claimed-before-writer and connector cursor fixes, but finds
+the archived no-writer form. That probe fails **1 / passes 4** at 8160195;
+all five new archive cases pass **5 / 3.61 s** after the fix. A command-only
+archive gets the initial state page only with a command.json pin and no log/
+pins. Legacy absent pin maps, partial declared log maps, missing batches and
+corrupt declared indexes still refuse. Final inventory is
+**7,355 = 7,285 + 70** (48 manager, 22 frame).
+
+Earlier targeted evidence: original P2s fail **3 / pass 3**, then corrected
+six pass; broader focused **120 / 61.37 s** plus final two negative cases
+**2 / 1.69 s**. The active-cadence witness now freezes only the manager clock,
+advances it through the wait branch and barriers the third read. The earlier
+27/27 statement below is qualified by the later 28-mutant cadence survivor
+under load; it is not this candidate's final proof. The 34-case rerun catches
+all mutations, and both using the revised empty-index witness are re-proven.
+The fresh final-source rerun catches **37/37**, no setup/collection errors,
+with unchanged hashes for all four modules. Three additional mutants prove
+the archive fallback, command pin requirement and absence of declared log pins.
+
+The first contained suite was **2 failed / 7,336 passed / 10 skipped**,
+7,348 selected, **363.70 s**: not a passing gate. One new test assumed append
+always wins after writer creation; it now accepts an ordered EOF-false empty
+live-index packet before requiring the bytes. The browser default failure
+reproduces on untouched **0c0f1aa** with the global driver/Edge **157.0.4341.60**,
+and passes with existing private Playwright **1.65.1**; the revised witness
+and browser check pass **3 / 8.43 s**. The clean, inactive, unregistered
+baseline worktree was removed. An isolated-interpreter full attempt showed
+errors/failures and was stopped at 98%; no successful gate is inferred from
+that attempt. Two startup verification runs were superseded while freezing
+the archive fix documentation. Final verification uses canonical
+`C:/Python311/python.exe` and the existing private Playwright site-packages on
+process-local PYTHONPATH; global Python/browser settings are untouched.
+Final frozen-source/tests contained suite passes **7,343 / 10 skipped**,
+**257.06 s**, two breakaway cases excluded. Inventory reconciles:
+**7,355 = 7,343 + 10 + 2**. All 70 added cases are included. All four source
+hashes still match the final mutation snapshot after the suite.
+[Final local receipt 7016980438](https://github.com/Decksx/cbz-automation-suite/pull/212#issuecomment-7016980438)
+is on the exact-head PR. The preceding interrupted runs are not gates.
+
+The initial unqualified suite was stopped on discovering the inherited
+supervisor death/restart fixture can request CREATE_BREAKAWAY_FROM_JOB. This
+host reports flags **0x2800**, including BREAKAWAY_OK. All replacement local
+runs explicitly exclude its two cases. Confirmed question **#6226** reached
+Claude; **#6229** reports his host is 0x2000 and historical CI also skips them.
+These remain an outstanding uncontained-host acceptance item, not a #212 gate
+because this backend change does not touch supervisor/runner code. This thread
+must not obtain that proof by escaping its inherited job.
+
+[Exact-head checkpoint/handoff 7016891640](https://github.com/Decksx/cbz-automation-suite/pull/212#issuecomment-7016891640),
+confirmed **#6241**, asks Claude for re-review and his ten prepared mutants on
+**e03da74**. Prior 5982463/8160195 comments and connector verdicts are not
+relabelled as fresh approval. Own run list verifies fresh push **44578315516**
+and PR **44578332427** are in progress on exact e03da74. Connector review was
+explicitly requested on this head. Merge stays held for final exact-head CI,
+connector completion and Claude's fresh verdict. No merge/deployment or
+production console/library/catalog/queue/model action. Active comic worktree:
+`C:\Users\david\.codex\worktrees\comic-web-job-streams-20261118`, branch
+`feat/web-shared-log-reader-20261119`. The successor relay workspace remains
+bound and is not a cleanup candidate. Next owners: Claude independent review;
+Codex supplies final local/CI receipts and fixes findings.
+
+## Shared-reader backend posted for review (2026-11-19 UTC)
+
+Delayed **#6191** received confirmed ACK **#6202**. It refers to #211's
+approval; that candidate was already merged as **0c0f1aa**, verified below.
+Confirmed **#6203** resumes the actual D3b manager, rather than reopening #211.
+Claude's **#6204** reports context #251 merged. Own API/fetch/run reads verify
+[#251](https://github.com/Decksx/agent-swarm/pull/251) merge
+**1c718042002edebe3c33ff0aa613fea53a1a6506**, parents **b1fe667 + 9df0166**,
+tree **bf0d5fe48fe1eaeaa56d0c3fe80d0d1ab1866077** equals reviewed head. Run
+**44447201901**, attempt 1, succeeds on exact 9df0166 on all four checks.
+Connector raw state is completed/no findings on that head; its **02:58:22Z**
+comment precedes the **02:58:25Z** pin. [Claude receipt 6998306651](https://github.com/Decksx/agent-swarm/pull/251#issuecomment-6998306651),
+[own verification 6998774121](https://github.com/Decksx/agent-swarm/pull/251#issuecomment-6998774121).
+The non-draft review gate worked. This checkpoint branches from the actual
+1c71804 merge; it does not advance the closed #251 branch.
+
+[Comic #212](https://github.com/Decksx/cbz-automation-suite/pull/212) is open
+non-draft at exact **c04192276d291c9e3b145a58daad9877558a632d**, base
+**0c0f1aa**, tree **77b6593a7b331afa390b5ed4f7d3095af83ae930**, seven one-file
+commits across six files. The active worktree remains
+`.codex/worktrees/comic-web-job-streams-20261118`, branch
+`feat/web-shared-log-reader-20261119`, clean and pushed. M4b remains Claude's;
+only the Nov-19 dev log overlaps, flagged in confirmed **#6205**.
+
+This implements the service backend: one owned worker per job/nonce; eight
+global slots counting in-flight opens; bounded queues; a fair bounded cursor
+round-robin; one committed producer page and safe DTO encoding before fan-out.
+Immutable packet tuples are shared. Active output has a 250-ms poll floor,
+cold/idle one second; at most four admission scopes per poll plus two fixed
+reads per subscription. State/progress identities never move the source-byte
+event cursor. Missing/unknown tails cannot report EOF. Sessions are revalidated
+while waiting and before buffered delivery. Close works before first iteration.
+Closing retains readers and open reservations until I/O settles, including
+known thread birth followed by a start error. False shutdown results require
+retaining the home/console guard. An unknown interrupted start fails closed.
+
+No app/server/HTTP/browser wiring exists in this slice. Owned Response/WSGI
+closure, actual M2 binding and session restart, socket/request capacity, eight
+real streams plus a ninth JSON client, and D4 browser gates remain required.
+The dedicated protocol documents that historical replay never rewinds durable
+progress; a replay failure closes the stream rather than converting an old
+page into a fresh observation attestation. D3 is still not complete.
+
+There are **56** new cases (22 frame, 34 manager): **7,341 = 7,285 + 56**.
+Focused final checks passed **56 / 33.05 s**. The shared-packet witness was then
+refined to tolerate a legitimate later scheduled poll if its test thread is
+delayed, while still detecting a duplicate read of the published page; that
+case passes **1 / 4.00 s**. The first full run was superseded by this test-only
+refinement and is not the final gate. The final full run uses frozen source
+and the revised tests; its result is pending at this checkpoint.
+
+**27/27** final-source process-local semantic mutations are caught, no setup/
+collection errors: 26 yield one failure, truthful-EOF yields three. All three
+mutations using the revised fan-out witness are re-proven (one failure each).
+The last rerun patches disposable child module namespaces while full-suite
+workers read unchanged real source; both source hashes stay unchanged. An
+abnormal cancellation test failed before adding unconditional subscriber
+cleanup in the worker's finally and passes after it. Twenty-seven inactive
+private mutation module copies were removed; private results/logs remain.
+The active implementation and registered relay worktrees remain bound.
+
+[Actionable review handoff 6998760797](https://github.com/Decksx/cbz-automation-suite/pull/212#issuecomment-6998760797),
+confirmed **#6206**, asks Claude to probe lifetime ownership, reservation cap,
+replay/progress and DTO fan-out. The merge is held for final local full, human
+and connector exact-head review and both CI events. Own run list confirms
+push **44451400999** and PR **44451456915** are running on exact c041922.
+No successful CI, review approval, merge or deployment is claimed yet. No live
+console, library, catalog, queue, model or global Python/browser action.
+
 ## D3b page handoff merged and #250 receipt (2026-11-19 UTC)
 
 Delayed **#6175** received ACK **#6180**. Own fetch/PR/run reads verify context
