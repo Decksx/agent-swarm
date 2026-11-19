@@ -1,5 +1,73 @@
 # Agent Swarm imported project context
 
+## Guarded skip approved and merged; live pause prerequisite (2026-11-19 UTC)
+
+Own API/fetch/object reads verify context [#253](https://github.com/Decksx/agent-swarm/pull/253)
+merged at **18:48:52Z** as **894b69bd65abbc1dde1abefa8b944ff811fac843**,
+parents **af7a3e2001104dd971ec448a503c4064c42a7fe0 +
+32683cfdd65cb60c608fb8954cf4883e57b23660**, tree
+**f44c8c5a4225545d417f11367f78bc82ce1b37bd** equals reviewed head.
+Run **44590564781**, attempt 1, succeeds on exact 32683cf on all four checks;
+connector raw state completes/no findings at **18:43:50Z**, before the pin.
+Claude's receipts are **7018715872/7018721116**, hive **#6319/#6326**. This
+branch starts from the actual 894b69b merge; the closed #253 branch stays.
+
+Codex re-reviewed autodecen #18 exact
+**d56bc81161d821009d7859599bf8baed4239466f**, base **cbc46f7**, tree
+**70fead3c1f2b3ef9abde564ac571b38366633922**: all prior findings resolved.
+[Approval 7018741060](https://github.com/Decksx/autodecen/pull/18#issuecomment-7018741060),
+confirmed **#6324**, records **148 / 37.40 s**, no skips, and **12/12** own
+process-local mutants caught without setup errors or real-source changes.
+The working-source marked_skip.py SHA-256 remains
+**aa9b9a52217758e6792e0aecfe9ace67dbfc05d54d0095246b278ddfddc52663**.
+Preview uses a mode=ro deferred snapshot without write pragmas; paused/stopped
+must be present and recognized; missing/unknown control refuses; CI runs the
+new module. The unrelated-processing and late manual-writer witnesses now
+catch the former survivors. Author's **16/16** is a complementary corpus.
+
+Extra two-book fixture probes verify the real backup retains both queued rows
+while source rows become skipped, injected backup failure leaves both queued,
+and a second-row audit failure rolls back all books and policy events. Fresh
+**44590284196** succeeds on exact d56bc81 for backlog and GUI; its log executes
+all **14** marked-skip cases. No local GUI rerun or live mutation by Codex.
+
+Own reads verify #18 merged by Claude at **18:51:41Z** as
+**787463a1a89eacd25cff19eee3745579102c33ff**, parents
+**cbc46f77fc25e1f7509ce1b6b1fd1946176833c9 + d56bc81**, tree **70fead3c**
+equals head and own merge-tree prediction. Connector raw state completes/no
+findings on exact d56bc81 at **18:51:20Z**, before this pin. [Claude receipt
+7018813098](https://github.com/Decksx/autodecen/pull/18#issuecomment-7018813098),
+[own verification 7018918306](https://github.com/Decksx/autodecen/pull/18#issuecomment-7018918306).
+This time all exact-head gates preceded the merge; #17's earlier timing
+qualification stays below rather than being rewritten.
+
+The live skip is **not yet applied** as of the following stable read-only
+audits by Codex of the specific authorized queue DB (mode=ro, one deferred
+transaction, matching data_version before/after; private IDs outside Git):
+**18:53:50Z: 2,938 candidates, queue running, 1 processing, 0 running scans,
+0 policy-skip events**; **19:07:26Z: 2,922 candidates, same readiness/events**.
+The live checkout still reads **ab9b49b at 19:09Z**; source parity and running
+API policy load must be verified separately from the merged repository.
+David's #6295 stop report at 18:24 is not current readiness evidence.
+
+Confirmed **#6346** hands the single rollout/apply owner, Claude, the merged
+code and actual readiness data. Claude's **#6350** reports that the supported
+POST /api/library-backlog/queue/pause was rejected by its headless relay
+permissions. Neither lead routes around that restriction through another HTTP
+client or a direct control-row write. **#6353** reports BLOCKED @admin and asks
+for the queue to be stopped through Camelia's UI and the current book to finish.
+An operational UI-stop request is also pending in the Codex conversation.
+The #6257 skip authorization remains valid; this is an idle prerequisite,
+not repeat approval of the skip. After idle: Claude owns deployment, fresh
+count/digest preview, verified backup, apply and receipts; Codex independently
+checks actual rows/events. Runtime restart to load the future-crawl policy is
+separate and must not use an out-of-job launch workaround.
+
+Late requested delivery ACKs **#6340-6344** are stored for
+**#6275/#6278/#6281/#6288/#6295**. Earlier relay no-ack failures remain historical
+failures; no old delivery or approval is backfilled. The open #18 review copy
+remains for live verification; the registered successor workspace stays bound.
+
 ## Marked-skip follow-up at 7527b56 remains held (2026-11-19 UTC)
 
 Claude's **#6308** hands off autodecen #18 exact
