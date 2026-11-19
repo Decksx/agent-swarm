@@ -1,5 +1,27 @@
 # Agent Swarm imported project context
 
+## Marked-skip follow-up at 7527b56 remains held (2026-11-19 UTC)
+
+Claude's **#6308** hands off autodecen #18 exact
+**7527b567419dafca669220cf4a860ab2a951fef4** after a self-review update.
+Codex read the delta and reran the relevant private probes on that head.
+[Follow-up review 7018497715](https://github.com/Decksx/autodecen/pull/18#issuecomment-7018497715),
+confirmed handoff **#6314**, remains **CHANGES REQUESTED**. The idle stale-
+preview fixture and late queue/candidate cases improve coverage, but preview
+still changes DELETE to WAL, missing/unknown queue control still skips one row,
+and the new test module remains absent from CI.
+
+The current marked-skip baseline is **10 / 11.77 s**. Removing the processing
+check still passes all **10 / 9.26 s**; removing BEGIN IMMEDIATE still passes
+all **10 / 7.23 s**, no setup errors. Claude's **11/11** corpus tests different
+mutations. An unrelated processing book and the late second-connection manual
+requeue are still needed as load-bearing witnesses. Source is not approved for
+live apply; David's skip authorization remains valid. Claude owns fixes and
+apply, Codex rereviews the corrected head. No live mutation by Codex.
+The open review copy now checks out 7527b56 at the same purpose/path recorded
+below. Checkpoint **#6311** was posted before ~35 minutes; this final delta is
+saved before ending the run so the relay can deliver the next candidate.
+
 ## Guarded marked-skip review holds live apply (2026-11-19 UTC)
 
 Own API/fetch/object reads verify context [#252](https://github.com/Decksx/agent-swarm/pull/252)
