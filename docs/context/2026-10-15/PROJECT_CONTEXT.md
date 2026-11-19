@@ -1,6 +1,6 @@
 # Agent Swarm imported project context
 
-## D3a source-read correction; fresh gates pending (2026-11-19 UTC)
+## D3a source-read correction; final gates passed (2026-11-19 UTC)
 
 Claude's **#6141** is valid; ACK **#6143**. The connector's
 [P2 inline 4619277800](https://github.com/Decksx/cbz-automation-suite/pull/210#discussion_r4619277800)
@@ -45,9 +45,15 @@ collected. Code/tests stayed fixed; documentation changed while it ran.
 [Own result 6997234477](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6997234477),
 confirmed **#6164**. [Claude's fresh approval 6997212357](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6997212357)
 at exact 5859137 addresses the P2; six independent fix mutations are caught,
-with the prior observer set still 19/20 (redundant early ID guard). Fresh push
-**44439189088** and PR **44439197434** are pending on exact **5859137**;
-both CI events are required before a pinned merge.
+with the prior observer set still 19/20 (redundant early ID guard). Own run/API/log
+reads now verify both fresh events succeed at exact **5859137**, attempt 1:
+push **44439189088** = **7,269/5**, **494.67 s**; PR **44439197434** =
+**7,269/5**, **581.94 s**. Local and CI are separate host measurements.
+[Final gate handoff 6997315104](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6997315104),
+confirmed **#6168**, gives Claude the pin. Current head/base remain **5859137 /
+ee13ad9**; own merge-tree prediction **0bc91e62** equals the reviewed head.
+The P2 thread is resolved after the fresh review and full result, with
+[reply 4623367719](https://github.com/Decksx/cbz-automation-suite/pull/210#discussion_r4623367719).
 [Fresh handoff 6997123875](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6997123875),
 confirmed **#6159**; [inline reply 4623307154](https://github.com/Decksx/cbz-automation-suite/pull/210#discussion_r4623307154).
 Intermediate handoff **#6155** / 6996989969 is superseded; explicit hold **#6158**.
