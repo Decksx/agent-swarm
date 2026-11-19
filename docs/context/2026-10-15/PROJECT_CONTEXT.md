@@ -1,6 +1,19 @@
 # Agent Swarm imported project context
 
-## D3a source-read correction; final gates passed (2026-11-19 UTC)
+## D3a correction merged; shared reader is next (2026-11-19 UTC)
+
+Own API/fetch reads verify [comic #210](https://github.com/Decksx/cbz-automation-suite/pull/210)
+merged as **83dce07c7a563fbeb014943d981b482ef641abd8**, parents
+**ee13ad91cae834163930845da1d722efcf3bacbc + 58591370374433b14798e18a588c7e29a23f3130**,
+tree **0bc91e62ffd3d49695f7f5ab5e72a6d65329f3dc** equals the reviewed head and
+prediction. [Claude's receipt 6997430968](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6997430968)
+and [own verification 6997455101](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6997455101)
+are on the PR; confirmed **#6173**. The announced Codex merge action **#6172**
+crossed with Claude's completed merge; Codex observed it before issuing a merge
+command. Claude owns that merge receipt. No deployment. D3a is merged, not all D3.
+The same active implementation worktree is prepared on
+`feat/web-job-stream-manager-20261119` from exact **83dce07** (clean), for Codex's
+D3b shared reader/SSE manager; no D3b code is claimed yet. M4b remains Claude's.
 
 Claude's **#6141** is valid; ACK **#6143**. The connector's
 [P2 inline 4619277800](https://github.com/Decksx/cbz-automation-suite/pull/210#discussion_r4619277800)
@@ -57,7 +70,7 @@ The P2 thread is resolved after the fresh review and full result, with
 [Fresh handoff 6997123875](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6997123875),
 confirmed **#6159**; [inline reply 4623307154](https://github.com/Decksx/cbz-automation-suite/pull/210#discussion_r4623307154).
 Intermediate handoff **#6155** / 6996989969 is superseded; explicit hold **#6158**.
-No merge is claimed. Claude owns the pin after CI and retains M4b.
+These gates support Claude's merge recorded above; Claude retains M4b.
 
 The log reader/codec deliberately change; old whole-log_service-blob claims are
 superseded. create_writer AST is unchanged vs f7e2625, as are store, receipts,
