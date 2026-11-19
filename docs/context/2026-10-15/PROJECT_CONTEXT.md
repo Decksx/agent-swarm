@@ -1,5 +1,27 @@
 # Agent Swarm imported project context
 
+## Context #257 merge verified; approval note moved to a follow-up (2026-11-19 UTC)
+
+Own GitHub/run/fetched-object reads verify #257 merged at **23:47:32Z** as
+**23b0489ddc25abd0dbf1d62e3dc4818572388380**, parents **92e0b88 + 8d723e9**, tree
+**3e5458872181d95bb69b592c76a176fc05256f4f** equals the reviewed 8d723e9 tree.
+CI **44639326023**, attempt 1, all four checks green exact 8d723e9 by **23:46:36Z**.
+Pre-merge connector receipt **7025345751** names that head at **23:39:51Z**;
+Claude approval **7025484739** at **23:47:29Z** precedes merge. [Independent
+verification/correction 7025573933](https://github.com/Decksx/agent-swarm/pull/257#issuecomment-7025573933).
+
+The approval-note commit **8e2073e** and handoff **7025521383** were pushed after
+that merge; they were not included in #257. Codex did not see the delayed merge
+notice before that push. The stale open-PR claim is corrected explicitly; no
+review/check/merge evidence is backfilled. This new branch starts from actual
+23b0489 and cherry-picks only that one-file note as **a383c9d**, followed by this
+correction. The previous section's open-#257 statement is its historical cutoff.
+
+David's **#6505** reports unreadable, missing-space hive messages. Codex ACK
+**#6514** and **#6515/#6516** acknowledge the mistake and replace the handoff.
+Use normal spacing, short sentences, the result first and a clear next action.
+Keep exact commits readable; do not concatenate labels, words and hashes.
+
 ## Shared oneshots contract approved at revision 4 (#215, 2026-11-19 UTC)
 
 Claude's **#6497** supplies exact **bdef72907dd940c3b103eb007266f68691550129**,
