@@ -1,5 +1,74 @@
 # Agent Swarm imported project context
 
+## Comix oneshots slicing and ownership (#214, 2026-11-19 UTC)
+
+Claude's **#6414** relays David's new project and the reported inventory:
+**15,925 single-book/no-subfolder folders out of 19,237** top-level Comix
+folders, proposed for `X:\Comix\_oneshots`. These are Claude's measurements,
+not a fresh Codex inventory. [Comic #214](https://github.com/Decksx/cbz-automation-suite/issues/214)
+requires David to review the read-only planner report before anything moves.
+Codex ACK **#6416** and confirmed handoff **#6417** record the split:
+Claude owns slice 1 planner; Codex takes slice 2 watcher/resolver, reviews the
+planner independently, and requests Claude's review of its exact candidate.
+Claude retaining slices 3-4 apply/Komga rollout is proposed, not yet confirmed.
+
+Update **22:19:58Z, #6420**: Claude accepts the slicing as written and confirms
+ownership of the identity contract/planner and slices 3-4 apply/rollout; Codex
+owns slice 2, with reciprocal independent exact-head review. First delivery is
+a docs-only identity/report contract PR, then the read-only fixture-tested
+planner implementation. Slice 2 builds on the agreed contract. David's report
+review is distinct from authorization to execute a later concrete apply.
+
+Update **#6428**, ACK **#6430**: [David's rules 7023971642](https://github.com/Decksx/cbz-automation-suite/issues/214#issuecomment-7023971642)
+supersede the above-1-only heuristic: **any numbered part/chapter/volume/issue,
+including 1, belongs in a series folder**, in planner and watcher. Promotion
+moves the original oneshot with a new distinct book. Every move preserves
+Camelia queue/history and `_oneshots` remains eligible for discovery/processing.
+[Own source review 7024009324](https://github.com/Decksx/cbz-automation-suite/issues/214#issuecomment-7024009324)
+at autodecen **787463a** confirms crawl inclusion and prune/delete rather than
+relocation. It also identifies a source-based scheduling risk: `claim_job`
+groups by physical `series_path` and defers groups above six books, so mapping
+all oneshots to the container would group unrelated titles. Contract must
+separate logical series identity across registration/relocate/claim/report,
+preserve IDs/stages/phases/events/queue fields and fence competing claim/crawl
+through move and recovery. These are unimplemented requirements; no live
+measurement or mutation occurred. **#6431/#6432** clarify Claude still owns the
+contract draft per #6420; Codex reviews it before slice 2. Claude also reports
+David already created the empty folder and set Komga's option in issue comment
+**7023844754**; Codex has not independently verified that setting or any move.
+
+[Slicing review 7023787463](https://github.com/Decksx/cbz-automation-suite/issues/214#issuecomment-7023787463)
+is based on fetched comic master **99a21d770c7e50d59ba76f4374611bfba687776e**.
+Current resolver/watcher code assumes canonical series are existing top-level
+directories. Agree a versioned stable-series/per-book-location contract before
+routing changes; `_oneshots` must not collapse identities or aliases. Planner
+must flag ambiguous metadata, collisions, sidecars and above-1 chapter/volume
+cases for explicit handling. Runtime promotion needs recoverable state
+relocation too, including Camelia/catalog references, duplicate versus second
+book, same-batch/concurrent arrivals and registry rebuilds. Bulk X:/F:/JSON/DB
+apply needs durable per-step receipts, reconciliation and conditional undo;
+preserve audit history, coordinate backup/sync/scans and verify backup parity.
+Komga settings, identities/counts and rollback require their own cutover checks.
+These are design requirements, not implemented or verified live capabilities.
+No Codex X:/F:/production DB access or mutation occurred for this slicing review.
+Next: Claude supplies the planner contract/exact-head PR; Codex reviews and
+implements slice 2 against the agreed contract in fixtures.
+
+Own GitHub/run/fetched-object reads verify context #254 merged at **19:35:24Z**
+as **1b3f48efe4dcda8daecf7c794758221b9f8a5f3b**, parents **894b69b + d3780ba**,
+tree **188ed52e38876809261ce1320db14f62e3c31a92** equals reviewed head. CI
+**44598361000**, attempt 1, all four checks green on exact d3780ba by 19:35:08Z;
+connector completed/no findings at 19:28:26Z, Claude approval before merge.
+[Independent receipt 7020075071](https://github.com/Decksx/agent-swarm/pull/254#issuecomment-7020075071),
+confirmed **#6405**. This branch starts from the actual merge, leaving #254 closed.
+
+David's **#6406** asks whether to resume Camelia. At **21:40Z** Codex found the
+API still PID 2228, started **2026-11-18T13:17:03Z**, despite live Git 787463a.
+Confirmed **#6412/#6413** advises a full normal launcher restart before queue
+resume; opening a second launcher returns early while API/UI are already up.
+No restart was performed by Codex. Claude retains the post-restart runtime-load
+check, comic #213 default-path fix and M4b; new oneshots work does not close them.
+
 ## Marked-book skip applied and independently verified (2026-11-19 UTC)
 
 David's **#6352** reports the queue stopped again at **19:11:37Z**. Claude
