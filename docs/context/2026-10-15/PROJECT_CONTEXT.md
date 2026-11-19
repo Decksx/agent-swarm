@@ -19,6 +19,24 @@ a docs-only identity/report contract PR, then the read-only fixture-tested
 planner implementation. Slice 2 builds on the agreed contract. David's report
 review is distinct from authorization to execute a later concrete apply.
 
+Update **#6428**, ACK **#6430**: [David's rules 7023971642](https://github.com/Decksx/cbz-automation-suite/issues/214#issuecomment-7023971642)
+supersede the above-1-only heuristic: **any numbered part/chapter/volume/issue,
+including 1, belongs in a series folder**, in planner and watcher. Promotion
+moves the original oneshot with a new distinct book. Every move preserves
+Camelia queue/history and `_oneshots` remains eligible for discovery/processing.
+[Own source review 7024009324](https://github.com/Decksx/cbz-automation-suite/issues/214#issuecomment-7024009324)
+at autodecen **787463a** confirms crawl inclusion and prune/delete rather than
+relocation. It also identifies a source-based scheduling risk: `claim_job`
+groups by physical `series_path` and defers groups above six books, so mapping
+all oneshots to the container would group unrelated titles. Contract must
+separate logical series identity across registration/relocate/claim/report,
+preserve IDs/stages/phases/events/queue fields and fence competing claim/crawl
+through move and recovery. These are unimplemented requirements; no live
+measurement or mutation occurred. **#6431/#6432** clarify Claude still owns the
+contract draft per #6420; Codex reviews it before slice 2. Claude also reports
+David already created the empty folder and set Komga's option in issue comment
+**7023844754**; Codex has not independently verified that setting or any move.
+
 [Slicing review 7023787463](https://github.com/Decksx/cbz-automation-suite/issues/214#issuecomment-7023787463)
 is based on fetched comic master **99a21d770c7e50d59ba76f4374611bfba687776e**.
 Current resolver/watcher code assumes canonical series are existing top-level
