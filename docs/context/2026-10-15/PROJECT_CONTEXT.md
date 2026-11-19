@@ -1,5 +1,144 @@
 # Agent Swarm imported project context
 
+## D3a source-read correction; fresh gates pending (2026-11-19 UTC)
+
+Claude's **#6141** is valid; ACK **#6143**. The connector's
+[P2 inline 4619277800](https://github.com/Decksx/cbz-automation-suite/pull/210#discussion_r4619277800)
+and [Claude's merge hold 6996796833](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6996796833)
+supersede the earlier approval. Original **f7e2625** was never merged even
+though both exact-head CI events and local 7,252/12 were green. Own CI reads
+confirm push **44374258090** = **7,259/5**, **618.21 s**, PR **44374270031** =
+**7,259/5**, **715.63 s**, both exact f7e2625; those gates are not reused.
+The old handler missed sibling ArchiveRefused and bare source OSError, leaving
+saved EOF true after those reads failed. The broad earlier availability claim
+in the historical section below was therefore incomplete.
+
+Current [comic #210](https://github.com/Decksx/cbz-automation-suite/pull/210)
+head is **58591370374433b14798e18a588c7e29a23f3130**, tree
+**0bc91e62ffd3d49695f7f5ab5e72a6d65329f3dc**, base **ee13ad9**. Nine follow-up
+one-file commits after f7e2625 (five to **3460b73**, then four decoder fixes),
+no amend/force push. The observer explicitly handles ArchiveRefused. The reader
+maps OSError only around selected archive-member/hot-file reads, retaining its
+cause. Private-path checks, home/admission and DB operations remain outside.
+The pinned decoder additionally maps concrete zlib.error and stream EOFError
+to ArchiveRefused. No broad Exception/JobRefused/OSError consumer catch.
+
+There are **34** observation cases = original 24 + 10 new; full inventory
+**7,274 = base 7,240 + 34**. Saved-EOF positives include corrupt/missing cold
+ZIPs, cold open failure, a real invalid-DEFLATE payload, truncated member stream
+and a vanished hot segment. The hot witness explicitly changes indexed evidence
+after EOF to select segment bytes, then deletes the segment after lexists and
+before native open. Four negative cases preserve the observation on home I/O,
+private-check I/O, StateDirRefused and SQLite errors. The original fix produced
+4 failures/3 passes before the last negative case; invalid DEFLATE independently
+failed on 3460b73. Broader focused checks through DEFLATE passed **109**, **128.43 s**;
+archive suite plus final stream-EOF case passed **18**, **8.32 s**. Final full
+includes all **110** focused cases. All **7** source-boundary mutants are caught
+on the final code; prior **15** observer mutants cover identical observer bytes.
+No setup/collection errors, source hashes unchanged. One prior mutant had a
+pytest WinError 145 temp-cleanup warning, separately recorded from its intended
+overflow failure. The intermediate 32-case full passed **7,260/12**, **614.93 s**,
+but decoder changes superseded it while running; it is not a final gate.
+
+Final frozen-source full passes **7,262 / 12 skipped**, **489.75 s**, **7,274**
+collected. Code/tests stayed fixed; documentation changed while it ran.
+[Own result 6997234477](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6997234477),
+confirmed **#6164**. [Claude's fresh approval 6997212357](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6997212357)
+at exact 5859137 addresses the P2; six independent fix mutations are caught,
+with the prior observer set still 19/20 (redundant early ID guard). Fresh push
+**44439189088** and PR **44439197434** are pending on exact **5859137**;
+both CI events are required before a pinned merge.
+[Fresh handoff 6997123875](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6997123875),
+confirmed **#6159**; [inline reply 4623307154](https://github.com/Decksx/cbz-automation-suite/pull/210#discussion_r4623307154).
+Intermediate handoff **#6155** / 6996989969 is superseded; explicit hold **#6158**.
+No merge is claimed. Claude owns the pin after CI and retains M4b.
+
+The log reader/codec deliberately change; old whole-log_service-blob claims are
+superseded. create_writer AST is unchanged vs f7e2625, as are store, receipts,
+runner, log-disk/pump and recovery modules. No startup, scheduler, HTTP/SSE or
+browser wiring. D3 is still in progress; D3b must share its consumed page with
+fan-out and retain the nonblocking classification/admitted-job notes below.
+No production console/library/catalog/queue/model action or deployment.
+
+Delayed **#6009/#6016/#6044/#6061/#6065/#6073/#6076/#6099/#6110/#6116** received
+ACKs **#6144–#6153**; their old work is already superseded or recorded below.
+No old merge/rebase/deploy action was replayed. This context worktree retains
+its registered relay binding; the active implementation copy remains announced.
+
+## D3a observation storage under review (2026-11-18 UTC)
+
+Delayed relay **#6005** is superseded by corrected comic #205 head **149c511**
+merged as **887b583**; ACK **#6108**, owner/scope update **#6109**. It does not
+reopen the older null-fix candidate. #206 and #209 remain merged as recorded
+below. David's web-GUI priority remains active: Codex implements D3, Claude M4b.
+
+Codex opened draft [comic #210](https://github.com/Decksx/cbz-automation-suite/pull/210)
+at exact **f7e26258dd672eeb0b7aaab463684c86decc5e08**, base **ee13ad9**, tree
+**7fd194a3da8ead8cc8daf07000a33927346cfd4f**, four one-file commits. It adds
+D3a only: explicit additive schema-v1 `job_observations`, keyed by job ID/nonce,
+with its own generation and durable parse cursor. Read-only snapshots do not
+parse logs. A service consumer reads one bounded log page outside its initial
+admission/DB scope, parses complete records, then rechecks nonce and generation
+at commit. Stale pages cannot rewind newer observations. Failed writes stay
+retryable; gaps/unknown tails remain explicit. Unreadable mapped evidence clears
+historical EOF and records unavailable while retaining the last progress/cursor,
+then rethrows. No jobs/lifecycle-event/clock/progress_json changes.
+
+There is no startup, scheduler, HTTP/SSE or shared app/server wiring. The future
+manager must reuse its one per-job reader's page for progress rather than add
+per-subscriber consumers. Eight slots, spare JSON request capacity, bounded
+queues, session revalidation and real disconnect/shutdown/cadence witnesses are
+still required. D4 browser integration remains separate. Do not claim D3 done.
+
+**24** new cases pass; total inventory **7,264 = base 7,240 + 24**. An earlier
+combined observation/log/receipt run passed **99** before the final unavailable
+case. Final observation cases plus one recovery comparison pass **25**, **14.54 s**.
+All **15** process-local mutations are caught, no collection/setup errors and
+unchanged source hashes. The compatibility fixture owns a schema-v1 running
+claim and completed disposable native child/pump before initialization; full
+lifecycle/audit/clock rows remain equal, then the unchanged old runner publishes
+and finalizes with its original fence. This is not a live rollout receipt.
+Runner store/receipt/log-service blob pins and remaining gates are documented
+in `docs/web_console_job_observations.md` in the candidate.
+
+The first full run was superseded by a source/test addition while running:
+**7,250 passed / 12 skipped / 1 failed**, **389.66 s**, **7,263** collected.
+The unchanged recovery test's before_receipt handshake got PermissionError
+reading its private owner-ready file. That path does not call the new module.
+It passes once on the final candidate and once on untouched **ee13ad9**
+(**18.97 s**); cause remains unclassified. Isolated passes do not establish
+a base flake or replace the failed full result. The final-candidate full suite
+now passes **7,252 / 12 skipped**, **356.94 s**, **7,264** collected, source/tests
+unchanged throughout. [Final result 6988486367](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6988486367),
+confirmed **#6117**. Both fresh exact-head CI events remain pending:
+push **44374258090** / PR **44374270031**; older 8da7fd7 runs are not reused.
+[Claude's exact-head approval 6988438947](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6988438947)
+has no blockers, conditional on final gates. Independent **19/20** mutants are
+caught; the early ID check is redundant with private-home validation and remains
+defence in depth. D3b/D4 notes: retain safe refusal classification if displayed,
+skip admitted/no-index jobs, and expose/reuse the consumed page for stream
+fan-out. [Review handoff 6988324145](https://github.com/Decksx/cbz-automation-suite/pull/210#issuecomment-6988324145),
+confirmed **#6113**; preliminary updates **#6111/#6112**. Claude owns pinned merge
+after both exact-head CI events succeed. No merge is claimed yet. Board **233**
+stays in progress and links the concrete D3a candidate.
+
+Own Git/PR/run checks verify context **#249** merged as
+**bf6301a06210e0390d0c9a6f27741bffb8545037**, parents **da422fe + df386bf**,
+tree **5789b283d6c791efe8700c23e936a748ee5f3154** equals reviewed head.
+Run **44370874653** succeeds on exact **df386bff47d69c1de2db826cf2dbd59fb188cd07**,
+all four core/hub/bypass/unit checks green; Claude's **#6110** is corroborated.
+This context branch starts from that merge, not the closed #249 branch.
+
+No live console/library/catalog/queue/model action. The active implementation
+worktree is `.codex/worktrees/comic-web-job-streams-20261118`; the old pinned
+operator checkout and registered relay workspace stay. The temporary untouched
+recovery baseline was removed after its comparison finished: no matching
+process, relay registration, task, service or desktop/Start Menu shortcut;
+resolved target checked, clean tree, supported worktree removal. Global Python/browser
+packages are unchanged; tests use private fixtures and the isolated browser
+package. The live checkout was last independently verified at **c9e8527**;
+no deployment is claimed in this checkpoint.
+
 ## Protected job action API merged; D3 is next (2026-11-18 UTC)
 
 Delayed relay **#5999** is superseded by #206's verified merge; ACK **#6090**,
