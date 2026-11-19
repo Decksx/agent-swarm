@@ -1,5 +1,63 @@
 # Agent Swarm imported project context
 
+## Shared-reader backend merged; marked-book skip review (2026-11-19 UTC)
+
+Own API/fetch/object reads verify [comic #212](https://github.com/Decksx/cbz-automation-suite/pull/212)
+merged by Claude at **18:07:57Z** as
+**99a21d770c7e50d59ba76f4374611bfba687776e**, parents
+**0c0f1aad7f0df57c23b0a5dc7fb4858d466c1185 +
+06912241f2aed97035306b19f8077911f7336a97**, tree
+**86a9b1df6b5f009fcd54ea9e1b97849595cf39b6**, equal to the reviewed head
+and own merge-tree prediction. [Claude merge receipt 7017730454](https://github.com/Decksx/cbz-automation-suite/pull/212#issuecomment-7017730454),
+[own verification 7017857176](https://github.com/Decksx/cbz-automation-suite/pull/212#issuecomment-7017857176),
+confirmed **#6283**. This is the service backend, not all D3 or a deployment.
+
+Own run/API/log reads verify both attempt-1 events succeed on exact **0691224**
+before the pin: push **44582007095**, **7,353 / 5 skipped**, **753.79 s**;
+PR **44582017540**, **7,353 / 5 skipped**, **636.70 s**. These are separate
+measurements from contained local **7,346 / 10 skipped / 2 excluded**,
+**293.76 s**. Current CI explicitly skips the same two uncontained-server
+lifetime cases at test_web_supervisor.py:387. The acceptance gap is preserved.
+Connector raw state completed/no findings on 0691224; Claude's final
+[approval 7017649950](https://github.com/Decksx/cbz-automation-suite/pull/212#issuecomment-7017649950)
+reports **12/13** independent mutants, both former witness gaps caught and one
+documented equivalent. Own final corpus is **39/39**. Earlier 10/13 and 37/37
+remain recorded below as different corpora, not interchangeable approvals.
+
+No console is running and nothing is deployed. Owned HTTP/SSE/WSGI closure,
+real M2 session binding, socket/JSON capacity and D4/browser wiring remain.
+Flag that scope before touching app/server/HTTP/browser paths. Claude retains
+M4b; Codex supplies D3 integration after its scope handoff. The finished #212
+implementation copy remains pending the rule-1.5 inactive/unbound cleanup check;
+the successor relay workspace stays bound and must not be removed.
+
+David's **#6257** authorizes skipping the previously reported 4,739 marked
+Camelia books. Confirmed ACK **#6274** receives the delayed delivery. Claude
+already owns the work: its **#6264** reports a read-only count of **2,993** at
+**17:49:43Z**, after more books were processed. That is Claude's measurement,
+not a new live count by Codex. The separate guarded existing-queue tool is
+still being prepared; it must preview count/digest, require a paused idle
+queue/no active scan, back up the DB, then atomically mark the matched rows
+skipped with the decision reason. No Codex live queue/library/DB/model action.
+
+Codex reviewed [autodecen #17](https://github.com/Decksx/autodecen/pull/17),
+exact **9c4cde1ad76b722929a15848da5acdcda51e669a**, base **ab9b49b**:
+implementation approved, one documentation correction requested before pin.
+The new automatic crawl skips marked books even with remaining method tags;
+manual requeue stays per-method. Existing cached queue rows await the guarded
+sweep. README 198-200 still describes the old automatic policy and needs a
+follow-up. [Review 7017796873](https://github.com/Decksx/autodecen/pull/17#issuecomment-7017796873),
+confirmed review line **#6282**. Independent **134 / 32.53 s** backend/API cases
+pass with no skips, on private TEMP/TMP/DB/backup paths and catalog integration
+disabled. Three process-local guard mutations cause one intended failure each;
+source hash unchanged, no setup errors. Both backlog/gui CI checks in
+**44582075186** and connector are green on 9c4cde1; GUI was not rerun locally.
+Review copy **C:/Users/david/.codex/worktrees/autodecen-review17-9c4cde1** remains
+active for the documentation follow-up and will be removed once inactive and
+unbound. Next owners: Claude corrects README and builds/owns the guarded skip;
+Codex reviews the fresh exact heads. Ask David to pause only after the tool is
+concrete and reviewed, as Claude already told him in #6264.
+
 ## Independent reader mutation witnesses added (2026-11-19 UTC)
 
 Delayed #6236/#6239 deliveries received confirmed ACKs **#6247/#6250**; both
