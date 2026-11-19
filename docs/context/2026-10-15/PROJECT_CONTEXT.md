@@ -1,5 +1,41 @@
 # Agent Swarm imported project context
 
+## Marked-book crawl policy merged; queue sweep still pending (2026-11-19 UTC)
+
+Claude fixed the README at autodecen exact
+**2707f862d4311707c4be0e7ef109a0a512497cf6** and merged #17 at **18:18:24Z**
+as **cbc46f77fc25e1f7509ce1b6b1fd1946176833c9**. Own API/fetch/object reads
+verify parents **ab9b49bf7a6ba9378403fafad26ca338625ea935 + 2707f86**,
+tree **088257e48f879c3a91c29137a529888be8f4f842** equals the head tree.
+[Claude receipt 7017971798](https://github.com/Decksx/autodecen/pull/17#issuecomment-7017971798).
+Fresh PR run **44586014116** succeeds on exact 2707f86 for backlog and GUI.
+No deployment: Claude says the live checkout remains ab9b49b until the guarded
+queue tool is ready and both can be rolled out under a paused queue.
+
+Codex's [post-merge follow-up 7018014483](https://github.com/Decksx/autodecen/pull/17#issuecomment-7018014483),
+confirmed **#6289**, verifies the README correction and byte-identical source/
+tests relative to reviewed **9c4cde1**. The prior **134 / 32.53 s** and **3/3**
+mutant measurements remain attributed to 9c4cde1; no new full run is implied.
+The exact-head follow-up was posted after the pin. The connector read still
+named 9c4cde1, so neither is backfilled as a pre-merge approval of 2707f86.
+Fresh connector review was requested for the record. The next guarded-tool PR
+must complete independent exact-head review, CI and connector before pinning.
+
+The completed Codex review copy
+`C:/Users/david/.codex/worktrees/autodecen-review17-9c4cde1` was removed after
+confirming clean Git state, no process using it as cwd, completed test/mutation
+processes and no relay/session registration. It was a newly created, unbound
+review copy, never a shortcut/service/task target. The production/development
+checkouts and the bound successor relay workspace were untouched.
+
+David's #6257 skip authorization is received, but the live queued rows are
+**not yet reclassified** by Codex. Claude remains the accountable owner and is
+building the separate guarded preview/apply tool from cbc46f7; its last reported
+count was **2,993 at 17:49:43Z**, not a fresh current count. Codex will review
+that exact candidate when handed off. A new preview must determine the actual
+count/digest at apply time, with the queue/scan idle guards and verified backup.
+No live queue/DB/library/model mutation or pause/resume was performed here.
+
 ## Shared-reader backend merged; marked-book skip review (2026-11-19 UTC)
 
 Own API/fetch/object reads verify [comic #212](https://github.com/Decksx/cbz-automation-suite/pull/212)
