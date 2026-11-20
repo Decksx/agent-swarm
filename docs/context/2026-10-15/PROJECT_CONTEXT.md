@@ -1,5 +1,93 @@
 # Agent Swarm imported project context
 
+## Contract merged; first slice-2 foundation in review (2026-11-20 UTC)
+
+Own GitHub/fetched-object reads verify comic #215 merged at **2026-11-19 23:58:16Z**
+as **d47d355b9828a3082f985f2d538597962e4d8c0b**, parents **99a21d7 + bdef729**,
+tree **e339b787b196f52fd4bb35493d857387e12b2c4c** equals reviewed head. Both CI
+events succeed on exact bdef729 before merge: push **44640423726** at 23:58:01Z,
+PR **44640431031** at 23:58:04Z. Connector raw state names bdef729, completed/no
+findings at 23:49:41Z; Codex approval is **7025499253**. [Independent merge receipt
+7025703934](https://github.com/Decksx/cbz-automation-suite/pull/215#issuecomment-7025703934).
+This supersedes the pending-pin cutoff below. Claude's **#6531/#6535** requests
+this append to open context #258; **#6535** also agrees that the planner consumes
+Codex's shared locations snapshot rather than parsing the file independently.
+
+Comic [#216](https://github.com/Decksx/cbz-automation-suite/pull/216) is the first
+slice-2 foundation at exact **7ce43096bee596413ba22aaf5d13d6c275d0a898**, base
+actual d47d355. Three one-file commits add the read-only locations loader,
+75 tests and public interface/concurrency documentation. It preserves stale
+identities and alias ambiguity, returns immutable snapshots and refuses invalid
+schema, unsafe/colliding paths, unreadable/reparse controls and replacement before
+open. No registry-v2 writer, routing or promotion is activated. Claude reviews
+this exact head; the planner/shared relocation APIs remain separate dependencies.
+
+Existing resolver baseline: **22 / 3.71 s** before changes. Final targeted checks:
+**97 / 1.73 s**, including **75** new cases. **13/13** process-local guard mutations
+are caught, no setup/collection errors, source unchanged at working SHA-256
+**e1d74df57c417d406d28271d7879c8ba7e1fd0106f0684b921cb42a6af3bdc18**.
+Existing collection remains **7,358**; new inventory is **7,433**. The broad local
+run is pending at this cutoff and explicitly excludes the two breakaway lifetime
+cases under the inherited-job rule. Merge stays held for that result, independent
+review, both exact-head CI events and a clean current-head connector.
+
+[Review handoff 7025947449](https://github.com/Decksx/cbz-automation-suite/pull/216#issuecomment-7025947449),
+confirmed **#6536**, initially had a placeholder link in the hive; **#6538** appends
+the actual URL and corrects it. Code/test/docs are pushed and clean in private
+worktree `C:\Users\david\.codex\worktrees\comic-oneshots-slice2`. It remains active
+for tests/review. No live data access/mutation, backup/model work or process escape.
+
+## Context #257 merge verified; approval note moved to a follow-up (2026-11-19 UTC)
+
+Own GitHub/run/fetched-object reads verify #257 merged at **23:47:32Z** as
+**23b0489ddc25abd0dbf1d62e3dc4818572388380**, parents **92e0b88 + 8d723e9**, tree
+**3e5458872181d95bb69b592c76a176fc05256f4f** equals the reviewed 8d723e9 tree.
+CI **44639326023**, attempt 1, all four checks green exact 8d723e9 by **23:46:36Z**.
+Pre-merge connector receipt **7025345751** names that head at **23:39:51Z**;
+Claude approval **7025484739** at **23:47:29Z** precedes merge. [Independent
+verification/correction 7025573933](https://github.com/Decksx/agent-swarm/pull/257#issuecomment-7025573933).
+
+The approval-note commit **8e2073e** and handoff **7025521383** were pushed after
+that merge; they were not included in #257. Codex did not see the delayed merge
+notice before that push. The stale open-PR claim is corrected explicitly; no
+review/check/merge evidence is backfilled. This new branch starts from actual
+23b0489 and cherry-picks only that one-file note as **a383c9d**, followed by this
+correction. The previous section's open-#257 statement is its historical cutoff.
+
+David's **#6505** reports unreadable, missing-space hive messages. Codex ACK
+**#6514** and **#6515/#6516** acknowledge the mistake and replace the handoff.
+Use normal spacing, short sentences, the result first and a clear next action.
+Keep exact commits readable; do not concatenate labels, words and hashes.
+
+## Shared oneshots contract approved at revision 4 (#215, 2026-11-19 UTC)
+
+Claude's **#6497** supplies exact **bdef72907dd940c3b103eb007266f68691550129**,
+parent c47e72c, tree **e339b787b196f52fd4bb35493d857387e12b2c4c**. Codex ACK
+**#6502**, [approval 7025499253](https://github.com/Decksx/cbz-automation-suite/pull/215#issuecomment-7025499253),
+confirmed handoff **#6509**, close the remaining F4 finding. This approves the
+docs-only contract; no implementation or production operation is certified.
+
+The parent journal, F:/verification/completion receipts and saved preimages are
+outside both mirror trees under the proposed G: operator path. X: child journals
+and changed controls are frozen before F: copying. Expected prior F: control-file
+identity is checked, a preimage is saved, then replacement is hash-verified;
+unexpected occupants refuse. Promotion accounting includes journal growth.
+Earlier F1-F7 decisions and explicit numbered_duplicate precedence stay accepted.
+
+Docs delta diff-check passes. A private positive protocol model verifies parity
+after parent receipts, an unchanged frozen child and exact preimage restoration;
+all three true, temp directory removed. It is not the real backup listing fixture
+or implementation test. No repository suite, backup execution or live G:/X:/F:/DB
+access/mutation occurred. At approval both CI events were running, and connector
+raw state still named old 7182414. A fresh connector was explicitly requested;
+Claude must pin only exact bdef729 after fresh CI and clean current-head connector.
+
+Next: Claude's read-only planner/shared-relocation dependencies, then Codex watcher
+slice 2 against the merged agreed contract, with reciprocal exact-head review,
+required fixtures and mutation checks. David reviews the actual planner report
+before any move and separately authorizes the concrete apply. This is the final
+review-outcome append to open context #257; prior findings remain historical.
+
 ## Revision 3 contract review: one backup protocol point (#215, 2026-11-19 UTC)
 
 Claude's **#6489** supplies exact **c47e72c00eb540651781b9cfbd6b19460e08167e**,
