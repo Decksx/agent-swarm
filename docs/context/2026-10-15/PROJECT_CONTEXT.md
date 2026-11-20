@@ -27,8 +27,8 @@ Codex re-reviews. Confirmed hive **#6723/#6724**. No merge/deployment or live re
 [Local validation 7032244321](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032244321):
 **98 passed, 8 failed, 84 subtests passed / 422.15 s** across reset, library backlog
 and marked-skip selections. All five reset tests pass. Seven failures are missing
-`psutil` on API import; one existing backup-offload test observes its event before
-it appears, then hits a temporary SQLite cleanup lock. That timing failure is not
+`psutil` on API import; one existing backup-offload test does not observe its
+`backup_failure` event, then hits a temporary SQLite cleanup lock. That timing failure is not
 yet attributed to this change. This is not a green broad result. Review copy is
 clean at f573ea0; no repository-source edits, live DB/queue writes or process escape.
 
