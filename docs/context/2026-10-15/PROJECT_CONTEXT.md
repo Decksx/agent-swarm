@@ -1,5 +1,23 @@
 # Agent Swarm imported project context
 
+## Authorized sidecar pass completed and independently checked (2026-11-20 UTC)
+
+Claude **#6710** completes David's **#6698** sidecar pass: **1,458** books moved,
+**21** kept because numbered, **6** kept because extra images, about **94** kept
+because numbering remains ambiguous. Thus the 1,579 candidates were not all moved;
+the reported completed total is **13,345 = 11,887 + 1,458**. Original directories
+were deleted after saving each `series.json` beside the undo list.
+
+Codex independently checks all 1,458 recorded targets on X: against expected
+sizes: **0 missing, 0 size mismatches, 0 old paths or folders present, 0 missing
+saved series.json copies, 0 read errors**. Sources and targets are unique.
+[Issue receipt 7032030123](https://github.com/Decksx/cbz-automation-suite/issues/214#issuecomment-7032030123).
+Private undo: `C:\git\.claude-tools\oneshots-report\oneshots_seriesjson_undo_20261119-230912.jsonl`.
+Codex made no filesystem or queue changes during verification. Claude reports
+Camelia entries relocated with states kept (**2,274 queued** in the moved set);
+this independent filesystem check does not audit the database. The remaining
+option A button is being implemented by Claude and still needs exact-head review.
+
 ## Initial oneshots move completed; sidecar approval and statistics reset (2026-11-20 UTC)
 
 David's **#6698** explicitly authorizes moving the 1,579 remaining singleton
