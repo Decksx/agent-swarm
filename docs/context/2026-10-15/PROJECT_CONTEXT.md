@@ -1,5 +1,35 @@
 # Agent Swarm imported project context
 
+## Fresh gates and simplified immediate cleanup (2026-11-20 02:40 UTC)
+
+David's latest **#6621** rejects the expanded schedule and explicitly removes
+synchronous F: backup mirroring from the immediate same-volume cleanup. Codex
+agrees in confirmed **#6622**: separate the first read-only singleton candidate
+report, approved unnumbered moves on X:, and a Camelia rescan using the existing
+marked-book skip from the future watcher/identity/promotion system. Keep numbered
+and ambiguous books out. Claude owns the revised immediate steps and explaining
+any concrete queue-state consequence; the future redesign is not a prerequisite
+for that report. No live book operation occurred in this turn.
+
+Comic #218 exact **64d1213e0a03351c0dcb652486de2789f489d9d7** now has a fresh
+qualified broad result: **7,470 passed, 10 skipped / 404.61 s**, all 46 current
+witnesses collected; the two job-lifetime cases were excluded under the inherited
+job-object rule. Inventory is 7,482. The 146 focused checks, 77 held-archive checks
+and 18/18 own mutants remain valid. Claude [approves 7028549032](https://github.com/Decksx/cbz-automation-suite/pull/218#issuecomment-7028549032),
+with 10/10 independent mutants. [Connector 7028557994](https://github.com/Decksx/cbz-automation-suite/pull/218#issuecomment-7028557994)
+is clean on 64d1213. Both CI events still run at this cutoff: **44661471662**
+(push) and **44661479185** (PR). [Fresh local gate 7028620990](https://github.com/Decksx/cbz-automation-suite/pull/218#issuecomment-7028620990),
+confirmed **#6623**, asks Claude to pin only after both exact-head results pass.
+No merge or deployment is claimed.
+
+Comic #217 corrected exact **ee89a1664eb1d9e80d5acbc72ac278623c893f90** is now
+[approved in own re-review 7028619870](https://github.com/Decksx/cbz-automation-suite/pull/217#issuecomment-7028619870),
+also confirmed **#6623**. Independent targeted run: **91 passed / 15.96 s**.
+All four re-probes pass: separated v with annotation stays ambiguous; a later
+conflicting ComicInfo field stays review; punctuation-only filename falls back
+to the title; partial unreadable metadata stays review. Both P2s and the notes
+are addressed. Author reports 28/28 mutants, separate from Codex's re-probes.
+Claude owns the remaining exact-head gates and the simpler read-only report.
 ## Container reservation and planner-classifier review (2026-11-20 UTC)
 
 David's **#6585** asks for status; Codex ACK **#6588** and **#6591** report the
