@@ -1,5 +1,116 @@
 # Agent Swarm imported project context
 
+## Statistics reset merged; runtime reset pending restart (2026-11-20 UTC)
+
+Autodecen #19 is **MERGED** as **843aca99f2029396f5f2b7bb63935222ac6ed4f6**,
+parents **787463a + a3854ae**, tree **8807c57c9d3343e02ba7869fb1cc8260676086d4**
+equals reviewed head. Codex independently fetched and verified the objects:
+[receipt 7032533946](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032533946).
+Both backlog and gui CI checks succeed on a3854ae; Claude's [merge/checkout
+receipt 7032517232](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032517232)
+names CI **44688912398**. Connector raw summary completes **06:39:49Z**, no
+findings or unresolved findings, with [clean receipt 7032472942](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032472942)
+on the same head. Independent approval and 14-test validation remain below.
+
+Claude **#6776** reports the live checkout fast-forwarded while queue paused,
+zero processing and zero scans. This is a checkout deployment receipt, not a
+verified running reset: the outcome table/triggers load at David's next Camelia
+restart, then he presses Reset statistics. Claude owns the runtime-load/reset
+verification and live receipt. Codex ACKs **#6776** as confirmed **#6780** and
+makes no live process, queue, database or book changes. This section is the final
+#262 cutoff; later live receipts belong in the next context follow-up rather
+than moving its candidate during review.
+
+## Transition-based statistics reset approved (2026-11-20 UTC)
+
+Autodecen #19 exact **a3854aefdc69c91dcfff3066e81ccb134b8158dd** is [approved in
+Codex re-review 7032445722](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032445722).
+The inventory-offset P2 is closed: insert/state-change triggers record actual
+entries into outcome states, excluding same-value rewrites; reset takes outcome
+and scan id boundaries and prunes older log rows in one `BEGIN IMMEDIATE`.
+AUTOINCREMENT orders new outcomes even after pruning or consecutive resets.
+Active-state counts remain the actual queue; book records are untouched by reset.
+
+Independent validation: **14 tests passed / 3.27 s** (author's handoff says 13,
+actual current collection is 14). Extra isolated probes confirm retry/fail and
+requeue/new-skip each count 1; every outcome state counts once after two immediate
+resets; reopening preserves the counters; a rolled-back transition adds nothing;
+full book rows are unchanged before/after reset. Review worktree clean,
+diff check passes. Author's **9/10 mutants** have one explained equivalent survivor:
+`>=` for the log boundary equals `>` after the boundary row has been pruned.
+
+Fresh GitHub read shows both **backlog** and **gui** CI checks succeeded on exact
+a3854ae. Fresh connector review requested in the approval; its completion, merge,
+deployment and actual reset are not yet claimed. Claude owns verifying the final
+exact-head gate, pinning unchanged, rollout and reset receipt; confirmed handoff
+**#6768**. Codex made no live
+queue/DB/archive changes. This supersedes the earlier changes-requested states
+below while preserving their exact validation history. The historical local
+98/8 run is not a fresh broad result for this changed candidate.
+
+## Revised reset baseline still hides new outcomes (2026-11-20 UTC)
+
+Autodecen #19 observed revision **c77ac4fd8397b97c751b5c22bfbb07be4f232bd3**
+replaces updated_at filtering with reset-time state counts and a scan-id boundary.
+Both earlier examples are addressed, but [own re-review 7032326036](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032326036)
+still requests changes for one P2: subtracting baseline counts measures net book
+inventory, hiding real new outcomes after historical books leave that state.
+Independent fixture: reset with three old skipped books; requeue one; a queued
+book then becomes skipped, but displayed Skipped remains zero. Reset then retry
+an old failed book and fail it again also leaves Failed zero. All **8 revised
+tests pass / 1.93 s**, so the required requeue/new-outcome and retry/fail witnesses
+are missing. Use actual outcome transitions after an ordered reset boundary,
+independent of inventory decreases. Claude owns correction; Codex re-reviews the
+new exact head. No broad rerun, live reset or production-data changes. This
+supersedes the f573ea0 review state below, preserving its validation history.
+
+## Statistics reset review held for two reproduced defects (2026-11-20 UTC)
+
+David's option A reset is implemented in autodecen [#19](https://github.com/Decksx/autodecen/pull/19)
+at exact **f573ea0e4c2ec18d62ab52672906a8e4243e772f**, base **787463a**.
+Codex ACKs **#6715** as confirmed **#6718** and independently reads all six files.
+[Review 7032186959](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032186959)
+is **CHANGES REQUESTED** for two P2s, independently identified in source and
+matching the connector findings:
+
+- General `books.updated_at` is not an outcome timestamp. `_reuse_unchanged`
+  updates it during ordinary rescans, so historical outcome counts reappear.
+- Whole-second `utc_now()` plus inclusive cutoff comparisons cannot distinguish
+  pre-reset outcomes/scans from new activity in that second. Simply using `>`
+  would lose genuine same-second outcomes.
+
+[Independent temporary-fixture probes 7032196435](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032196435)
+confirm both: same-second reset leaves completed=1 and old scan totals 500/500/120;
+reset then public `record_archive` returning `unchanged` changes historical
+Completed from 0 to 1 without a new completion. Required witnesses: unchanged
+rescan remains zero; genuine later outcomes count; deterministic pre/post and
+repeat-reset cases within one second. Add route local/nonlocal and button
+confirm/refresh coverage. Claude owns the correction and new exact-head handoff;
+Codex re-reviews. Confirmed hive **#6723/#6724**. No merge/deployment or live reset.
+
+[Local validation 7032244321](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032244321):
+**98 passed, 8 failed, 84 subtests passed / 422.15 s** across reset, library backlog
+and marked-skip selections. All five reset tests pass. Seven failures are missing
+`psutil` on API import; one existing backup-offload test does not observe its
+`backup_failure` event, then hits a temporary SQLite cleanup lock. That timing failure is not
+yet attributed to this change. This is not a green broad result. Review copy is
+clean at f573ea0; no repository-source edits, live DB/queue writes or process escape.
+
+Comic #217 is now **MERGED** as **7c4cf3d60eccab8d1325c19d628c7a603e60cf96**,
+parents **3a27083 + ee89a166**. Codex independently verifies the merge delta against
+3a27083 is byte-identical to the approved PR delta against 8105cb8, SHA-256
+`48b376a53ba8ad1191e95e871aec6ee03bd4c2c85120972a0d6f6aa8cf80d320`.
+The clean connector retry closed the usage gap without waiver. It is the pure
+classifier only; no new live move or automatic promotion follows from this merge.
+
+Context #261 is **MERGED** as **83c64cebce6abcd6ea06da094e5d24f3ae733030**,
+parents **b5b2d6e + e1fe288**, tree **5b38bc7cc012b2daca470c056d1f268b37d6176a**
+equals reviewed head, independently fetched and checked. Claude **#6726** reports
+CI green and connector clean. This branch starts from actual 83c64ce and leaves
+closed branches unchanged. The 13,345 moved books and independent sidecar audit
+below remain valid; option A is the outstanding authorized work, with Claude as
+implementer and Codex as reviewer.
+
 ## Authorized sidecar pass completed and independently checked (2026-11-20 UTC)
 
 Claude **#6710** completes David's **#6698** sidecar pass: **1,458** books moved,
