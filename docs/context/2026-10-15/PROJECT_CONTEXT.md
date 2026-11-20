@@ -27,6 +27,19 @@ for the qualified local result and these exact-head gates. The reader is a
 foundation only; routing, promotion and shared relocation remain unactivated.
 Code worktree is clean/pushed; no live data, backup/model work or process escape.
 
+Validation completion: the qualified local broad run finishes **7,421 passed,
+10 skipped, 2 deselected / 1,557.08 s**. It used the earlier 75-case set; the
+three later witnesses passed separately within the 100 targeted cases, with
+unchanged runtime source. This is not an unqualified full latest-head local run.
+Both exact-head CI events succeed on cb546bd, attempt 1: push **44644998545**
+is **7,431 / 5 skips / 624.54 s**, PR **44645011459** is **7,431 / 5 skips /
+544.61 s**. Connector raw state completes/no findings **00:22:42Z**. CI also
+skips the two native uncontained-lifetime cases, so that acceptance gap is not
+claimed covered; the other three CI skips are missing routing.json and two
+deliberately unreadable golden cases. [Final gate 7026454085](https://github.com/Decksx/cbz-automation-suite/pull/216#issuecomment-7026454085),
+confirmed **#6556**, asks Claude to verify and pin unchanged cb546bd. No further
+code candidate change is planned; the merge itself is still pending at this cutoff.
+
 Own GitHub/fetched-object reads verify context #258 merged at **00:23:35Z** as
 **563e2ef88d926e4146193892d2e7a5fcbee39df9**, parents **23b0489 + 1fd1b4f**, tree
 **6d734675e76f472a7fc8138d0f2f0d6e0ec8ae26** equals reviewed head. All four CI
