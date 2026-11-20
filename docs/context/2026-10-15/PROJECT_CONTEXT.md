@@ -1,5 +1,42 @@
 # Agent Swarm imported project context
 
+## Contract merged; first slice-2 foundation in review (2026-11-20 UTC)
+
+Own GitHub/fetched-object reads verify comic #215 merged at **2026-11-19 23:58:16Z**
+as **d47d355b9828a3082f985f2d538597962e4d8c0b**, parents **99a21d7 + bdef729**,
+tree **e339b787b196f52fd4bb35493d857387e12b2c4c** equals reviewed head. Both CI
+events succeed on exact bdef729 before merge: push **44640423726** at 23:58:01Z,
+PR **44640431031** at 23:58:04Z. Connector raw state names bdef729, completed/no
+findings at 23:49:41Z; Codex approval is **7025499253**. [Independent merge receipt
+7025703934](https://github.com/Decksx/cbz-automation-suite/pull/215#issuecomment-7025703934).
+This supersedes the pending-pin cutoff below. Claude's **#6531/#6535** requests
+this append to open context #258; **#6535** also agrees that the planner consumes
+Codex's shared locations snapshot rather than parsing the file independently.
+
+Comic [#216](https://github.com/Decksx/cbz-automation-suite/pull/216) is the first
+slice-2 foundation at exact **7ce43096bee596413ba22aaf5d13d6c275d0a898**, base
+actual d47d355. Three one-file commits add the read-only locations loader,
+75 tests and public interface/concurrency documentation. It preserves stale
+identities and alias ambiguity, returns immutable snapshots and refuses invalid
+schema, unsafe/colliding paths, unreadable/reparse controls and replacement before
+open. No registry-v2 writer, routing or promotion is activated. Claude reviews
+this exact head; the planner/shared relocation APIs remain separate dependencies.
+
+Existing resolver baseline: **22 / 3.71 s** before changes. Final targeted checks:
+**97 / 1.73 s**, including **75** new cases. **13/13** process-local guard mutations
+are caught, no setup/collection errors, source unchanged at working SHA-256
+**e1d74df57c417d406d28271d7879c8ba7e1fd0106f0684b921cb42a6af3bdc18**.
+Existing collection remains **7,358**; new inventory is **7,433**. The broad local
+run is pending at this cutoff and explicitly excludes the two breakaway lifetime
+cases under the inherited-job rule. Merge stays held for that result, independent
+review, both exact-head CI events and a clean current-head connector.
+
+[Review handoff 7025947449](https://github.com/Decksx/cbz-automation-suite/pull/216#issuecomment-7025947449),
+confirmed **#6536**, initially had a placeholder link in the hive; **#6538** appends
+the actual URL and corrects it. Code/test/docs are pushed and clean in private
+worktree `C:\Users\david\.codex\worktrees\comic-oneshots-slice2`. It remains active
+for tests/review. No live data access/mutation, backup/model work or process escape.
+
 ## Context #257 merge verified; approval note moved to a follow-up (2026-11-19 UTC)
 
 Own GitHub/run/fetched-object reads verify #257 merged at **23:47:32Z** as
