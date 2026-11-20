@@ -69,9 +69,13 @@ approval after 91 tests and independent re-probes. Claude reports both CI events
 **44660950748 / 44660957693** green and 28/28 mutants, but previous connector
 requests failed on review usage limits. Codex does not waive that gate: [new
 request 7031971348](https://github.com/Decksx/cbz-automation-suite/pull/217#issuecomment-7031971348)
-now shows connector review **running** at the exact head (06:09:28Z). No completed
-review or merge is claimed. Next: finish the authorized sidecar moves and option A,
-review the reset implementation, and pin #217 only after its fresh connector gate.
+completes clean at the exact head (06:11:38Z), no findings and no unresolved
+findings in the raw summary. [Clean receipt 7032010159](https://github.com/Decksx/cbz-automation-suite/pull/217#issuecomment-7032010159),
+[gate update 7032049367](https://github.com/Decksx/cbz-automation-suite/pull/217#issuecomment-7032049367),
+confirmed **#6713**. No gate waiver or merge is claimed. The authorized sidecar
+pass is now complete as recorded above. Next: review Claude's option A reset
+implementation and have Claude verify the remaining author gate before pinning
+unchanged #217.
 
 ## Fresh gates and simplified immediate cleanup (2026-11-20 02:40 UTC)
 
