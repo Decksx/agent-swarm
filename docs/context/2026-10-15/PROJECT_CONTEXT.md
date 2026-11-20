@@ -1,5 +1,82 @@
 # Agent Swarm imported project context
 
+## Authorized sidecar pass completed and independently checked (2026-11-20 UTC)
+
+Claude **#6710** completes David's **#6698** sidecar pass: **1,458** books moved,
+**21** kept because numbered, **6** kept because extra images, about **94** kept
+because numbering remains ambiguous. Thus the 1,579 candidates were not all moved;
+the reported completed total is **13,345 = 11,887 + 1,458**. Original directories
+were deleted after saving each `series.json` beside the undo list.
+
+Codex independently checks all 1,458 recorded targets on X: against expected
+sizes: **0 missing, 0 size mismatches, 0 old paths or folders present, 0 missing
+saved series.json copies, 0 read errors**. Sources and targets are unique.
+[Issue receipt 7032030123](https://github.com/Decksx/cbz-automation-suite/issues/214#issuecomment-7032030123).
+Private undo: `C:\git\.claude-tools\oneshots-report\oneshots_seriesjson_undo_20261119-230912.jsonl`.
+Codex made no filesystem or queue changes during verification. Claude reports
+Camelia entries relocated with states kept (**2,274 queued** in the moved set);
+this independent filesystem check does not audit the database. The remaining
+option A button is being implemented by Claude and still needs exact-head review.
+
+## Initial oneshots move completed; sidecar approval and statistics reset (2026-11-20 UTC)
+
+David's **#6698** explicitly authorizes moving the 1,579 remaining singleton
+books with `series.json` and deleting their old folders. He selects Camelia
+**option A** from **#6685**: a repeatable Reset statistics button, resetting
+Completed/Failed/Issues/Skipped outcome counts from a stored cutoff; Queued stays
+the real queue. Book records, processing states and history remain intact.
+Claude owns both live follow-ups; Codex reviews the exact reset head and does not
+run a competing move. Confirmed handoff **#6709**. No additional confirmation is
+needed for the actions David has explicitly authorized.
+
+Claude's **#6650/#6651** report the initial 11,885 same-volume moves and in-place
+Camelia relocation after a verified backup. **#6691** supersedes that count:
+the two changed books passed fresh checks and were also moved, for **11,887**
+total. His receipt reports all targets present with matching sizes, original
+folders removed, all Camelia rows relocated with states preserved: **2,040 queued,
+9,714 skipped, 133 completed**, zero queue loss. This is Claude's live receipt,
+not a new independent Codex database audit. Codex separately reads the private
+undo log and confirms **11,887 records**, unique sources and targets, all carrying
+`folder_removed=true`. Log: `C:\git\.claude-tools\oneshots-report\oneshots_undo_20261119-194722.jsonl`.
+No synchronous F: mirror was required, per David's **#6621**; the nightly backup
+handles it. The remaining ambiguous-number books stay out. The `_oneshots`
+series-path grouping currently defers its queued books behind smaller series;
+shared `series_key`/promotion work is future scope, not a prerequisite for moves.
+
+Camelia restart/load status: David **#6600** restarted it; Claude **#6677** reports
+api.py PID 38212 created after the marked-skip source write and zero marked
+preview candidates. He rechecked queue paused / zero processing / zero running
+scans immediately before moving, and idleness again inside the relocation
+transaction. This supersedes the older unverified restart status.
+
+Comic #218 is **MERGED** as **3a270830f00420ead35f383384ac09b0910d9e82**,
+parents **8105cb8 + 64d1213**, tree **6f632eb6c469139626f8fc9ce10e57de29d8ba72**
+equals reviewed head. Codex independently fetched and verified those objects:
+[receipt 7028744084](https://github.com/Decksx/cbz-automation-suite/pull/218#issuecomment-7028744084).
+Both exact-head CI events **44661471662 / 44661479185** succeeded, alongside the
+qualified local result, Claude approval and clean connector recorded below.
+The merge supplies the reservation guard, not automatic promotion. Live deployment
+is not verified here; Claude's **#6651** found the watcher still at **c9e8527**.
+
+Context #260 is **MERGED** as **b5b2d6eb4fdb13d51e2d6a911dd191906d2d814e**,
+parents **7042585 + b466a12**, tree **525ac1dee2bf412fe6ade41541270e9e6793512f**
+equals reviewed head, independently verified by Codex. Claude **#6671** reports
+exact-head CI **44662515527** green and connector clean. This branch starts from
+that actual merge; the closed #260 branch remains unchanged.
+
+Comic #217 at exact **ee89a1664eb1d9e80d5acbc72ac278623c893f90** retains Codex
+approval after 91 tests and independent re-probes. Claude reports both CI events
+**44660950748 / 44660957693** green and 28/28 mutants, but previous connector
+requests failed on review usage limits. Codex does not waive that gate: [new
+request 7031971348](https://github.com/Decksx/cbz-automation-suite/pull/217#issuecomment-7031971348)
+completes clean at the exact head (06:11:38Z), no findings and no unresolved
+findings in the raw summary. [Clean receipt 7032010159](https://github.com/Decksx/cbz-automation-suite/pull/217#issuecomment-7032010159),
+[gate update 7032049367](https://github.com/Decksx/cbz-automation-suite/pull/217#issuecomment-7032049367),
+confirmed **#6713**. No gate waiver or merge is claimed. The authorized sidecar
+pass is now complete as recorded above. Next: review Claude's option A reset
+implementation and have Claude verify the remaining author gate before pinning
+unchanged #217.
+
 ## Fresh gates and simplified immediate cleanup (2026-11-20 02:40 UTC)
 
 David's latest **#6621** rejects the expanded schedule and explicitly removes
