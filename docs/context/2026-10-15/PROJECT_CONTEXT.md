@@ -1,5 +1,34 @@
 # Agent Swarm imported project context
 
+## Live Camelia statistics reset verified (2026-11-20 16:24 UTC)
+
+David **#6791** reports pressing Reset statistics; Codex ACK is confirmed **#6794**.
+Claude **#6797** verifies runtime load/reset. Codex independently reads the local
+API and a separate SQLite `mode=ro` snapshot, with [live receipt 7044699428](https://github.com/Decksx/autodecen/pull/19#issuecomment-7044699428):
+
+- Persisted reset **2026-11-20T16:21:44+00:00**, boundary **outcome_id=0,
+  scan_id=33**; `statistics_reset` event **1259160** has the same time. Both outcome
+  triggers exist; the running API exposes the reset and scan-counter fields.
+- Displayed Completed/Failed/Issues/Skipped are all **0**; displayed
+  Found/Scanned/Eligible are all **0**. Real **Queued=14,019** and **Held=13,622**
+  match raw book-state counts. No post-reset outcome rows exist at verification.
+- Historical raw rows remain: **4,671 completed, 5 quarantined, 46,522 skipped**.
+  The reset changes the displayed counters, not historical book states. This is
+  not a new full pre/post byte audit of all rows.
+
+Codex performs GETs and read-only SQL only: no second reset, queue action,
+process control or book change. The initial bare API GET refuses without its
+required loopback Origin; the normal loopback-origin request succeeds. The
+previously pending runtime step is now complete. Later outcomes count forward
+from this reset; any later reset is an operator action through the same button.
+
+This follow-up starts from actual context #262 merge
+**920a9547ba419429e9cbfb4b88dff65edfd93482**. Its expected parents, tree equality to
+reviewed **52bdc7c**, all four CI jobs in **44689870983**, and clean exact-head
+connector are independently verified in [receipt 7032721010](https://github.com/Decksx/agent-swarm/pull/262#issuecomment-7032721010),
+confirmed **#6789**. The closed #262 branch stays unchanged. Existing oneshots
+move receipts below remain valid; no additional library migration is performed.
+
 ## Statistics reset merged; runtime reset pending restart (2026-11-20 UTC)
 
 Autodecen #19 is **MERGED** as **843aca99f2029396f5f2b7bb63935222ac6ed4f6**,
