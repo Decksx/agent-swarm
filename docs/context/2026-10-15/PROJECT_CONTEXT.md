@@ -1,5 +1,83 @@
 # Agent Swarm imported project context
 
+## Fresh gates and simplified immediate cleanup (2026-11-20 02:40 UTC)
+
+David's latest **#6621** rejects the expanded schedule and explicitly removes
+synchronous F: backup mirroring from the immediate same-volume cleanup. Codex
+agrees in confirmed **#6622**: separate the first read-only singleton candidate
+report, approved unnumbered moves on X:, and a Camelia rescan using the existing
+marked-book skip from the future watcher/identity/promotion system. Keep numbered
+and ambiguous books out. Claude owns the revised immediate steps and explaining
+any concrete queue-state consequence; the future redesign is not a prerequisite
+for that report. No live book operation occurred in this turn.
+
+Comic #218 exact **64d1213e0a03351c0dcb652486de2789f489d9d7** now has a fresh
+qualified broad result: **7,470 passed, 10 skipped / 404.61 s**, all 46 current
+witnesses collected; the two job-lifetime cases were excluded under the inherited
+job-object rule. Inventory is 7,482. The 146 focused checks, 77 held-archive checks
+and 18/18 own mutants remain valid. Claude [approves 7028549032](https://github.com/Decksx/cbz-automation-suite/pull/218#issuecomment-7028549032),
+with 10/10 independent mutants. [Connector 7028557994](https://github.com/Decksx/cbz-automation-suite/pull/218#issuecomment-7028557994)
+is clean on 64d1213. Both CI events still run at this cutoff: **44661471662**
+(push) and **44661479185** (PR). [Fresh local gate 7028620990](https://github.com/Decksx/cbz-automation-suite/pull/218#issuecomment-7028620990),
+confirmed **#6623**, asks Claude to pin only after both exact-head results pass.
+No merge or deployment is claimed.
+
+Comic #217 corrected exact **ee89a1664eb1d9e80d5acbc72ac278623c893f90** is now
+[approved in own re-review 7028619870](https://github.com/Decksx/cbz-automation-suite/pull/217#issuecomment-7028619870),
+also confirmed **#6623**. Independent targeted run: **91 passed / 15.96 s**.
+All four re-probes pass: separated v with annotation stays ambiguous; a later
+conflicting ComicInfo field stays review; punctuation-only filename falls back
+to the title; partial unreadable metadata stays review. Both P2s and the notes
+are addressed. Author reports 28/28 mutants, separate from Codex's re-probes.
+Claude owns the remaining exact-head gates and the simpler read-only report.
+## Container reservation and planner-classifier review (2026-11-20 UTC)
+
+David's **#6585** asks for status; Codex ACK **#6588** and **#6591** report the
+merged contract/reader and remaining implementation accurately. No books have
+moved. Claude's **#6595** agrees that the independent reservation chunk is Codex's;
+Claude builds the classifier, scanner/report and Camelia preconditions in increments.
+
+Comic [#218](https://github.com/Decksx/cbz-automation-suite/pull/218), base actual
+**8105cb8**, reserves `_oneshots` in fresh/cached v1 series identities, lookup,
+registration, apostrophe repair and watcher routing. Generic file inventory and
+Camelia traversal stay included. V2 handling remains a separate integration; other
+versions refuse before cleanup. The first head **7868585** passes 142 targeted
+checks and 15/15 own mutants, but Claude [finds a batch-level P2, 7028336855](https://github.com/Decksx/cbz-automation-suite/pull/218#issuecomment-7028336855):
+the reserved-name exception escapes both watcher routing boundaries and poisons
+the whole batch instead of holding one arrival.
+
+Corrected exact head **64d1213e0a03351c0dcb652486de2789f489d9d7** uses the narrow
+`ReservedSeriesName` subtype and existing durable per-arrival `_dispose` path at
+both routing boundaries. Raw arrival identity is checked before name cleanup can
+remove the underscore. Four batch cases prove sibling landing, early/metadata
+holds and safe resume after a failed review placement. Current focused checks:
+**146 / 12.70 s**; a separate held/resolver integration run is **77 / 71.63 s**.
+Fresh own mutations catch **18/18**, no setup errors and source unchanged, including
+both hold paths and raw-name protection. Watcher byte splices preserve existing
+endings; staged bytes match working bytes, and the derived LF-only diff check
+passes in explicit Git Bash. [Re-review handoff 7028519132](https://github.com/Decksx/cbz-automation-suite/pull/218#issuecomment-7028519132),
+confirmed **#6614**, is pushed before 35 minutes. Fresh broad run, exact-head CI,
+connector and Claude's re-review remain pending at this cutoff. The earlier broad
+pass is superseded because runtime source changed. No live operation or escape.
+
+Comic [#217](https://github.com/Decksx/cbz-automation-suite/pull/217), classifier
+head **348ee86e4b9ce7cbabbdbb337ba4237a7f04bea9**, gets **CHANGES REQUESTED** in
+[own review 7028373230](https://github.com/Decksx/cbz-automation-suite/pull/217#issuecomment-7028373230),
+confirmed **#6610**. Its 71 tests pass independently in 1.50 s, but probes show
+`Title v 1 (Complete).cbz` wrongly becomes a oneshot and a matching ComicInfo
+Number hides a conflicting Volume. Punctuation-only names, partial-unreadable
+facts and a missing public-class docstring are additional notes. Claude's newer
+head **ee89a1664eb1d9e80d5acbc72ac278623c893f90** is observed but not re-reviewed
+here yet. Claude owns corrections; Codex owes the new exact-head review.
+
+Earlier merge verifications are on the PRs: comic #216 is **8105cb8**, [receipt
+7026578811](https://github.com/Decksx/cbz-automation-suite/pull/216#issuecomment-7026578811);
+context #259 is **7042585**, [receipt 7026684364](https://github.com/Decksx/agent-swarm/pull/259#issuecomment-7026684364).
+This branch starts from actual 7042585; closed branches remain unchanged. The
+reservation code worktree and classifier review copy are private and active;
+no cleanup or deployment is claimed. Next: finish #218 gates and review the
+corrected classifier, then integrate registry v2 and the shared relocation APIs.
+
 ## Locations reader approved after two mutation witnesses (#216, 2026-11-20 UTC)
 
 Claude's [review 7026025758](https://github.com/Decksx/cbz-automation-suite/pull/216#issuecomment-7026025758)
