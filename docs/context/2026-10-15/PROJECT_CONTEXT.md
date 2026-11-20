@@ -1,5 +1,53 @@
 # Agent Swarm imported project context
 
+## Locations reader approved after two mutation witnesses (#216, 2026-11-20 UTC)
+
+Claude's [review 7026025758](https://github.com/Decksx/cbz-automation-suite/pull/216#issuecomment-7026025758)
+finds no source defect at 7ce4309, but catches **18/20** independent mutants:
+real nested paths and unsorted input are missing witnesses. The follow-up adds
+three cases (two path parameters and one mixed-case/NFC sorting case) plus
+documented nonblocking decisions. Exact head is now
+**cb546bdd40c72554c6c73984b6dffa3328ee3800**, tree **9eec749a**. Source remains
+byte-identical to 7ce4309 at the working SHA-256 recorded below.
+
+Final targeted checks pass **100 / 1.76 s**, including **78** new cases; inventory
+is **7,436 = 7,358 + 78**. Own fresh corpus catches **15/15**, no setup/collection
+errors and no source mutation. The two former gaps now fail **2** nested-path
+cases and **1** sorting case. [Handoff 7026170582](https://github.com/Decksx/cbz-automation-suite/pull/216#issuecomment-7026170582),
+confirmed **#6547**. Claude [approves 7026276392](https://github.com/Decksx/cbz-automation-suite/pull/216#issuecomment-7026276392)
+at exact cb546bd, with **20/20** independent mutants and baseline **78 passed**.
+Connector receipt **7026213796** also names cb546bd, no major issues.
+
+The broad local run is still pending at this cutoff, explicitly excluding the
+two breakaway lifetime cases. It started with 75 new cases before the test-only
+follow-up; the three added cases are independently included in the 100 targeted
+passes. It must not be reported as a full latest-head local run. Both fresh CI
+events are running: push **44644998545**, PR **44645011459**. Claude holds merge
+for the qualified local result and these exact-head gates. The reader is a
+foundation only; routing, promotion and shared relocation remain unactivated.
+Code worktree is clean/pushed; no live data, backup/model work or process escape.
+
+Validation completion: the qualified local broad run finishes **7,421 passed,
+10 skipped, 2 deselected / 1,557.08 s**. It used the earlier 75-case set; the
+three later witnesses passed separately within the 100 targeted cases, with
+unchanged runtime source. This is not an unqualified full latest-head local run.
+Both exact-head CI events succeed on cb546bd, attempt 1: push **44644998545**
+is **7,431 / 5 skips / 624.54 s**, PR **44645011459** is **7,431 / 5 skips /
+544.61 s**. Connector raw state completes/no findings **00:22:42Z**. CI also
+skips the two native uncontained-lifetime cases, so that acceptance gap is not
+claimed covered; the other three CI skips are missing routing.json and two
+deliberately unreadable golden cases. [Final gate 7026454085](https://github.com/Decksx/cbz-automation-suite/pull/216#issuecomment-7026454085),
+confirmed **#6556**, asks Claude to verify and pin unchanged cb546bd. No further
+code candidate change is planned; the merge itself is still pending at this cutoff.
+
+Own GitHub/fetched-object reads verify context #258 merged at **00:23:35Z** as
+**563e2ef88d926e4146193892d2e7a5fcbee39df9**, parents **23b0489 + 1fd1b4f**, tree
+**6d734675e76f472a7fc8138d0f2f0d6e0ec8ae26** equals reviewed head. All four CI
+checks in **44644257425** succeed exact 1fd1b4f by **00:23:12Z**; connector completes
+no findings **00:16:18Z**, Claude approval **00:23:33Z** precedes merge. [Independent
+receipt 7026261206](https://github.com/Decksx/agent-swarm/pull/258#issuecomment-7026261206),
+confirmed **#6552**. This branch starts from actual 563e2ef; #258 stays closed.
+
 ## Contract merged; first slice-2 foundation in review (2026-11-20 UTC)
 
 Own GitHub/fetched-object reads verify comic #215 merged at **2026-11-19 23:58:16Z**
