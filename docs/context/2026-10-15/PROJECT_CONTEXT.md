@@ -1,5 +1,31 @@
 # Agent Swarm imported project context
 
+## Transition-based statistics reset approved (2026-11-20 UTC)
+
+Autodecen #19 exact **a3854aefdc69c91dcfff3066e81ccb134b8158dd** is [approved in
+Codex re-review 7032445722](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032445722).
+The inventory-offset P2 is closed: insert/state-change triggers record actual
+entries into outcome states, excluding same-value rewrites; reset takes outcome
+and scan id boundaries and prunes older log rows in one `BEGIN IMMEDIATE`.
+AUTOINCREMENT orders new outcomes even after pruning or consecutive resets.
+Active-state counts remain the actual queue; book records are untouched by reset.
+
+Independent validation: **14 tests passed / 3.27 s** (author's handoff says 13,
+actual current collection is 14). Extra isolated probes confirm retry/fail and
+requeue/new-skip each count 1; every outcome state counts once after two immediate
+resets; reopening preserves the counters; a rolled-back transition adds nothing;
+full book rows are byte-equivalent before/after reset. Review worktree clean,
+diff check passes. Author's **9/10 mutants** have one explained equivalent survivor:
+`>=` for the log boundary equals `>` after the boundary row has been pruned.
+
+Fresh GitHub read shows both **backlog** and **gui** CI checks succeeded on exact
+a3854ae. Fresh connector review requested in the approval; its completion, merge,
+deployment and actual reset are not yet claimed. Claude owns verifying the final
+exact-head gate, pinning unchanged, rollout and reset receipt. Codex made no live
+queue/DB/archive changes. This supersedes the earlier changes-requested states
+below while preserving their exact validation history. The historical local
+98/8 run is not a fresh broad result for this changed candidate.
+
 ## Revised reset baseline still hides new outcomes (2026-11-20 UTC)
 
 Autodecen #19 observed revision **c77ac4fd8397b97c751b5c22bfbb07be4f232bd3**
