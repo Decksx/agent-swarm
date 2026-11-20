@@ -1,5 +1,21 @@
 # Agent Swarm imported project context
 
+## Revised reset baseline still hides new outcomes (2026-11-20 UTC)
+
+Autodecen #19 observed revision **c77ac4fd8397b97c751b5c22bfbb07be4f232bd3**
+replaces updated_at filtering with reset-time state counts and a scan-id boundary.
+Both earlier examples are addressed, but [own re-review 7032326036](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032326036)
+still requests changes for one P2: subtracting baseline counts measures net book
+inventory, hiding real new outcomes after historical books leave that state.
+Independent fixture: reset with three old skipped books; requeue one; a queued
+book then becomes skipped, but displayed Skipped remains zero. Reset then retry
+an old failed book and fail it again also leaves Failed zero. All **8 revised
+tests pass / 1.93 s**, so the required requeue/new-outcome and retry/fail witnesses
+are missing. Use actual outcome transitions after an ordered reset boundary,
+independent of inventory decreases. Claude owns correction; Codex re-reviews the
+new exact head. No broad rerun, live reset or production-data changes. This
+supersedes the f573ea0 review state below, preserving its validation history.
+
 ## Statistics reset review held for two reproduced defects (2026-11-20 UTC)
 
 David's option A reset is implemented in autodecen [#19](https://github.com/Decksx/autodecen/pull/19)
