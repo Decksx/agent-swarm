@@ -1,5 +1,53 @@
 # Agent Swarm imported project context
 
+## Container reservation and planner-classifier review (2026-11-20 UTC)
+
+David's **#6585** asks for status; Codex ACK **#6588** and **#6591** report the
+merged contract/reader and remaining implementation accurately. No books have
+moved. Claude's **#6595** agrees that the independent reservation chunk is Codex's;
+Claude builds the classifier, scanner/report and Camelia preconditions in increments.
+
+Comic [#218](https://github.com/Decksx/cbz-automation-suite/pull/218), base actual
+**8105cb8**, reserves `_oneshots` in fresh/cached v1 series identities, lookup,
+registration, apostrophe repair and watcher routing. Generic file inventory and
+Camelia traversal stay included. V2 handling remains a separate integration; other
+versions refuse before cleanup. The first head **7868585** passes 142 targeted
+checks and 15/15 own mutants, but Claude [finds a batch-level P2, 7028336855](https://github.com/Decksx/cbz-automation-suite/pull/218#issuecomment-7028336855):
+the reserved-name exception escapes both watcher routing boundaries and poisons
+the whole batch instead of holding one arrival.
+
+Corrected exact head **64d1213e0a03351c0dcb652486de2789f489d9d7** uses the narrow
+`ReservedSeriesName` subtype and existing durable per-arrival `_dispose` path at
+both routing boundaries. Raw arrival identity is checked before name cleanup can
+remove the underscore. Four batch cases prove sibling landing, early/metadata
+holds and safe resume after a failed review placement. Current focused checks:
+**146 / 12.70 s**; a separate held/resolver integration run is **77 / 71.63 s**.
+Fresh own mutations catch **18/18**, no setup errors and source unchanged, including
+both hold paths and raw-name protection. Watcher byte splices preserve existing
+endings; staged bytes match working bytes, and the derived LF-only diff check
+passes in explicit Git Bash. [Re-review handoff 7028519132](https://github.com/Decksx/cbz-automation-suite/pull/218#issuecomment-7028519132),
+confirmed **#6614**, is pushed before 35 minutes. Fresh broad run, exact-head CI,
+connector and Claude's re-review remain pending at this cutoff. The earlier broad
+pass is superseded because runtime source changed. No live operation or escape.
+
+Comic [#217](https://github.com/Decksx/cbz-automation-suite/pull/217), classifier
+head **348ee86e4b9ce7cbabbdbb337ba4237a7f04bea9**, gets **CHANGES REQUESTED** in
+[own review 7028373230](https://github.com/Decksx/cbz-automation-suite/pull/217#issuecomment-7028373230),
+confirmed **#6610**. Its 71 tests pass independently in 1.50 s, but probes show
+`Title v 1 (Complete).cbz` wrongly becomes a oneshot and a matching ComicInfo
+Number hides a conflicting Volume. Punctuation-only names, partial-unreadable
+facts and a missing public-class docstring are additional notes. Claude's newer
+head **ee89a1664eb1d9e80d5acbc72ac278623c893f90** is observed but not re-reviewed
+here yet. Claude owns corrections; Codex owes the new exact-head review.
+
+Earlier merge verifications are on the PRs: comic #216 is **8105cb8**, [receipt
+7026578811](https://github.com/Decksx/cbz-automation-suite/pull/216#issuecomment-7026578811);
+context #259 is **7042585**, [receipt 7026684364](https://github.com/Decksx/agent-swarm/pull/259#issuecomment-7026684364).
+This branch starts from actual 7042585; closed branches remain unchanged. The
+reservation code worktree and classifier review copy are private and active;
+no cleanup or deployment is claimed. Next: finish #218 gates and review the
+corrected classifier, then integrate registry v2 and the shared relocation APIs.
+
 ## Locations reader approved after two mutation witnesses (#216, 2026-11-20 UTC)
 
 Claude's [review 7026025758](https://github.com/Decksx/cbz-automation-suite/pull/216#issuecomment-7026025758)
