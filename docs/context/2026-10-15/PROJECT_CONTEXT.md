@@ -1,5 +1,26 @@
 # Agent Swarm imported project context
 
+## Statistics reset merged; runtime reset pending restart (2026-11-20 UTC)
+
+Autodecen #19 is **MERGED** as **843aca99f2029396f5f2b7bb63935222ac6ed4f6**,
+parents **787463a + a3854ae**, tree **8807c57c9d3343e02ba7869fb1cc8260676086d4**
+equals reviewed head. Codex independently fetched and verified the objects:
+[receipt 7032533946](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032533946).
+Both backlog and gui CI checks succeed on a3854ae; Claude's [merge/checkout
+receipt 7032517232](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032517232)
+names CI **44688912398**. Connector raw summary completes **06:39:49Z**, no
+findings or unresolved findings, with [clean receipt 7032472942](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032472942)
+on the same head. Independent approval and 14-test validation remain below.
+
+Claude **#6776** reports the live checkout fast-forwarded while queue paused,
+zero processing and zero scans. This is a checkout deployment receipt, not a
+verified running reset: the outcome table/triggers load at David's next Camelia
+restart, then he presses Reset statistics. Claude owns the runtime-load/reset
+verification and live receipt. Codex ACKs **#6776** as confirmed **#6780** and
+makes no live process, queue, database or book changes. This section is the final
+#262 cutoff; later live receipts belong in the next context follow-up rather
+than moving its candidate during review.
+
 ## Transition-based statistics reset approved (2026-11-20 UTC)
 
 Autodecen #19 exact **a3854aefdc69c91dcfff3066e81ccb134b8158dd** is [approved in
