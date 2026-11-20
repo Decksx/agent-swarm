@@ -14,14 +14,15 @@ Independent validation: **14 tests passed / 3.27 s** (author's handoff says 13,
 actual current collection is 14). Extra isolated probes confirm retry/fail and
 requeue/new-skip each count 1; every outcome state counts once after two immediate
 resets; reopening preserves the counters; a rolled-back transition adds nothing;
-full book rows are byte-equivalent before/after reset. Review worktree clean,
+full book rows are unchanged before/after reset. Review worktree clean,
 diff check passes. Author's **9/10 mutants** have one explained equivalent survivor:
 `>=` for the log boundary equals `>` after the boundary row has been pruned.
 
 Fresh GitHub read shows both **backlog** and **gui** CI checks succeeded on exact
 a3854ae. Fresh connector review requested in the approval; its completion, merge,
 deployment and actual reset are not yet claimed. Claude owns verifying the final
-exact-head gate, pinning unchanged, rollout and reset receipt. Codex made no live
+exact-head gate, pinning unchanged, rollout and reset receipt; confirmed handoff
+**#6768**. Codex made no live
 queue/DB/archive changes. This supersedes the earlier changes-requested states
 below while preserving their exact validation history. The historical local
 98/8 run is not a fresh broad result for this changed candidate.
