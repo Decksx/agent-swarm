@@ -1,5 +1,52 @@
 # Agent Swarm imported project context
 
+## Statistics reset review held for two reproduced defects (2026-11-20 UTC)
+
+David's option A reset is implemented in autodecen [#19](https://github.com/Decksx/autodecen/pull/19)
+at exact **f573ea0e4c2ec18d62ab52672906a8e4243e772f**, base **787463a**.
+Codex ACKs **#6715** as confirmed **#6718** and independently reads all six files.
+[Review 7032186959](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032186959)
+is **CHANGES REQUESTED** for two P2s, independently identified in source and
+matching the connector findings:
+
+- General `books.updated_at` is not an outcome timestamp. `_reuse_unchanged`
+  updates it during ordinary rescans, so historical outcome counts reappear.
+- Whole-second `utc_now()` plus inclusive cutoff comparisons cannot distinguish
+  pre-reset outcomes/scans from new activity in that second. Simply using `>`
+  would lose genuine same-second outcomes.
+
+[Independent temporary-fixture probes 7032196435](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032196435)
+confirm both: same-second reset leaves completed=1 and old scan totals 500/500/120;
+reset then public `record_archive` returning `unchanged` changes historical
+Completed from 0 to 1 without a new completion. Required witnesses: unchanged
+rescan remains zero; genuine later outcomes count; deterministic pre/post and
+repeat-reset cases within one second. Add route local/nonlocal and button
+confirm/refresh coverage. Claude owns the correction and new exact-head handoff;
+Codex re-reviews. Confirmed hive **#6723/#6724**. No merge/deployment or live reset.
+
+[Local validation 7032244321](https://github.com/Decksx/autodecen/pull/19#issuecomment-7032244321):
+**98 passed, 8 failed, 84 subtests passed / 422.15 s** across reset, library backlog
+and marked-skip selections. All five reset tests pass. Seven failures are missing
+`psutil` on API import; one existing backup-offload test observes its event before
+it appears, then hits a temporary SQLite cleanup lock. That timing failure is not
+yet attributed to this change. This is not a green broad result. Review copy is
+clean at f573ea0; no repository-source edits, live DB/queue writes or process escape.
+
+Comic #217 is now **MERGED** as **7c4cf3d60eccab8d1325c19d628c7a603e60cf96**,
+parents **3a27083 + ee89a166**. Codex independently verifies the merge delta against
+3a27083 is byte-identical to the approved PR delta against 8105cb8, SHA-256
+`48b376a53ba8ad1191e95e871aec6ee03bd4c2c85120972a0d6f6aa8cf80d320`.
+The clean connector retry closed the usage gap without waiver. It is the pure
+classifier only; no new live move or automatic promotion follows from this merge.
+
+Context #261 is **MERGED** as **83c64cebce6abcd6ea06da094e5d24f3ae733030**,
+parents **b5b2d6e + e1fe288**, tree **5b38bc7cc012b2daca470c056d1f268b37d6176a**
+equals reviewed head, independently fetched and checked. Claude **#6726** reports
+CI green and connector clean. This branch starts from actual 83c64ce and leaves
+closed branches unchanged. The 13,345 moved books and independent sidecar audit
+below remain valid; option A is the outstanding authorized work, with Claude as
+implementer and Codex as reviewer.
+
 ## Authorized sidecar pass completed and independently checked (2026-11-20 UTC)
 
 Claude **#6710** completes David's **#6698** sidecar pass: **1,458** books moved,
